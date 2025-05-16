@@ -1,0 +1,9 @@
+import { executeCommand, tryReplyNumber } from './utils/index.ts';
+
+export function createCommand(key: string) {
+  return ['TTL', key];
+}
+
+export async function ttl<T>(this: T, key: string): Promise<number> {
+  return await executeCommand(this, createCommand(key), tryReplyNumber);
+}

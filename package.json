@@ -1,0 +1,71 @@
+{
+  "name": "@vcms-io/solidis",
+  "version": "0.0.0",
+  "author": "Jay Lee <jay@vendit.co.kr>",
+  "description": "High-performance, SOLID-structured RESP client for Redis and other RESP-compatible servers",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "prepack": "npm run build",
+    "cleanup": "npm run --silent node:ts ./scripts/cleanup.ts",
+    "build": "npm run cleanup && tsc && npm run node:ts ./scripts/build.ts",
+    "lint": "concurrently --raw \"biome check --write\" \"tsc --noEmit\"",
+    "format": "biome format --write",
+    "node:ts": "node --import=./scripts/esm/register.js"
+  },
+  "types": "distributions/index.d.ts",
+  "main": "distributions/index.cjs",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./distributions/index.d.ts",
+        "default": "./distributions/index.mjs"
+      },
+      "require": {
+        "types": "./distributions/index.d.ts",
+        "default": "./distributions/index.cjs"
+      }
+    },
+    "./featured": {
+      "import": {
+        "types": "./distributions/client/featured.d.ts",
+        "default": "./distributions/client/featured.mjs"
+      },
+      "require": {
+        "types": "./distributions/client/featured.d.ts",
+        "default": "./distributions/client/featured.cjs"
+      }
+    },
+    "./command": {
+      "import": {
+        "types": "./distributions/command/index.d.ts",
+        "default": "./distributions/command/index.mjs"
+      },
+      "require": {
+        "types": "./distributions/command/index.d.ts",
+        "default": "./distributions/command/index.cjs"
+      }
+    },
+    "./command/*": {
+      "import": {
+        "types": "./distributions/command/*.d.ts",
+        "default": "./distributions/command/*.mjs"
+      },
+      "require": {
+        "types": "./distributions/command/*.d.ts",
+        "default": "./distributions/command/*.cjs"
+      }
+    }
+  },
+  "files": [
+    "distributions/**/*.{d.ts,mjs,cjs}"
+  ],
+  "devDependencies": {
+    "@biomejs/biome": "1.9.2",
+    "@types/node": "^22.15.18",
+    "chalk": "^5.4.1",
+    "concurrently": "^9.1.2",
+    "esbuild": "^0.25.4",
+    "typescript": "^5.8.3"
+  }
+}

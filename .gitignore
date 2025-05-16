@@ -1,0 +1,22 @@
+# Distributions
+distributions
+
+# Windows
+Desktop.ini
+Thumbs.db
+$RECYCLE.BIN/
+*.lnk
+
+# Mac OS X
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# IDE
+.idea/
+*.swp
+*.swo
+
+# Node.js
+node_modules
