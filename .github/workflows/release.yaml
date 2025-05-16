@@ -49,8 +49,15 @@ jobs:
   release:
     name: Release Package
     needs: check-version
+
     if: needs.check-version.outputs.release == 'true'
+
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      packages: write
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
