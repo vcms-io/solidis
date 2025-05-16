@@ -18,6 +18,8 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Extract Version
         id: extract
@@ -38,7 +40,8 @@ jobs:
 
           # Check if tag already exists
           TAG="v$VERSION"
-          if git tag -l "$TAG" | grep -q "$TAG"; then
+          git fetch --all --tags
+          if git tag -l | grep -q "^$TAG$"; then
             echo "Tag $TAG already exists."
             echo "release=false" >> $GITHUB_OUTPUT
           else
