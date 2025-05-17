@@ -43,6 +43,36 @@ The library is designed for minimal bundle size with maximum type safety and per
 - **Type-safe** - Extensive TypeScript definitions for all commands
 - **Dependency-free** - Absolutely zero runtime dependencies
 
+## Benchmarks
+
+<div align="center">
+
+### ⚡️ Solidis vs IoRedis ⚡️
+<sub>1000 concurrent commands × 10 iterations, 1 KB random-string payload per request</sub>
+
+|                         Benchmark                                   |   Solidis    |   IoRedis    | **Speed Boost** 🚀 |
+|:--------------------------------------------------------------------|:------------:|:------------:|:-------------------:|
+| **Hash**<br><sub>HSET + HGET + HGETALL</sub>                        | **248.82ms** |   446.03ms   | **79% FASTER** 🔥🔥|
+| **Set Operations**<br><sub>SADD + SISMEMBER + SREM</sub>            | **257.35ms** |   444.08ms   | **73% FASTER** 🔥🔥|
+| **Expire**<br><sub>SET + EXPIRE + TTL</sub>                         | **198.11ms** |   339.78ms   | **72% FASTER** 🔥🔥|
+| **Non-Transaction**<br><sub>SET with EXPIRE + GET</sub>             | **259.69ms** |   394.34ms   | **52% FASTER** 🔥  |
+| **List**<br><sub>LPUSH + RPUSH + LRANGE</sub>                       | **219.76ms** |   345.48ms   | **57% FASTER** 🔥  |
+| **Counter**<br><sub>INCR + DECR</sub>                               | **174.04ms** |   258.71ms   | **49% FASTER** 🔥  |
+| **List operations**<br><sub>LPUSH + RPUSH + LPOP + RPOP + LLEN</sub>| **396.67ms** |   587.16ms   | **48% FASTER** 🔥  |
+| **Transaction + Non-Transaction**<br><sub>SET + GET</sub>           | **435.46ms** |   574.26ms   | **32% FASTER** ⚡️  |
+| **Multi-key**<br><sub>MSET + MGET</sub>                             | **393.87ms** |   437.45ms   | **11% FASTER** ⚡️  |
+| **Transaction**<br><sub>SET with EXPIRE + GET</sub>                 | **286.75ms** |   328.00ms   | **14% FASTER** ⚡️  |
+| **Set**<br><sub>SADD + SISMEMBER + SMEMBERS</sub>                   | **260.66ms** |   275.27ms   | **6% FASTER** ⚡️   |
+| **Hash operations**<br><sub>HMSET + HMGET + HDEL</sub>              | **360.69ms** |   377.32ms   | **5% FASTER** ⚡️   |
+| **Info/Config**<br><sub>INFO + CONFIG GET</sub>                     |   371.48ms   | **353.02ms** | 5% slower          |
+
+</div>
+
+<p align="center">
+  <b>Up to 79% faster than IoRedis! 🚀</b><br>
+  Solidis delivers blazing-fast performance with ZERO dependencies
+</p>
+
 ## Key Features
 
 - **Lightweight**
