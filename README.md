@@ -30,6 +30,10 @@
 
 ## Overview
 
+<p align="center" width="100%">
+  <img src="https://resources.vcms.io/assets/bundle-graph.png" alt="Bundle size comparison" width="600"/>
+</p>
+
 Solidis is a modern RESP client built with SOLID principles, zero dependencies, and enterprise-grade performance in mind. It supports both RESP2 and RESP3 protocols and is optimized for modern JavaScript/TypeScript applications.
 
 The library is designed for minimal bundle size with maximum type safety and performance:
@@ -40,6 +44,11 @@ The library is designed for minimal bundle size with maximum type safety and per
 - **Dependency-free** - Absolutely zero runtime dependencies
 
 ## Key Features
+
+- **Lightweight**
+  - Zero dependencies
+  - Minimum bundle size < 30KB
+  - Full bundle size (with all commands) < 105KB
 
 - **High Performance**
   - Efficient pipeline & batch processing
@@ -70,11 +79,6 @@ The library is designed for minimal bundle size with maximum type safety and per
   - Easy to extend client with internal & external commands
   - Customizable transaction handling
   - Plugin architecture support
-
-- **Lightweight**
-  - Zero dependencies
-  - Minimum bundle size < 30KB
-  - Full bundle size (with all commands) < 105KB
 
 ## Requirements
 
