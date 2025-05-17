@@ -23,6 +23,7 @@ export const SolidisDefaultOptions: SolidisClientFrozenOptions = {
   debugMaxEntries: KB * 10,
   enableReadyCheck: true,
   host: '127.0.0.1',
+  uri: false,
   lazyConnect: false,
   maxConnectionRetries: 20,
   maxCommandsPerPipeline: 300,

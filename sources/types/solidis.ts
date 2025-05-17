@@ -51,6 +51,7 @@ export interface SolidisClientOptions {
   debugMaxEntries?: number;
   enableReadyCheck?: boolean;
   host?: string;
+  uri?: string | URL | false;
   lazyConnect?: boolean;
   maxConnectionRetries?: number;
   maxCommandsPerPipeline?: number;
