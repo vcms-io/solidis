@@ -68,7 +68,7 @@ export class SolidisConnection extends EventEmitter {
       return await this.#connectLock;
     }
 
-    this.#connectLock = this.#tryConnectWithRetry(options);
+    this.#connectLock = this.#tryConnectWithRetry();
 
     try {
       await this.#connectLock;
@@ -102,16 +102,16 @@ export class SolidisConnection extends EventEmitter {
     this.emit('end');
   }
 
-  async #tryConnectWithRetry(options: SolidisClientFrozenOptions) {
+  async #tryConnectWithRetry() {
     let attemptIndex = 0;
 
-    const maxConnectionRetries = options.maxConnectionRetries;
+    const maxConnectionRetries = this.#options.maxConnectionRetries;
 
     while (true) {
       attemptIndex += 1;
 
       try {
-        await this.#tryConnect(options);
+        await this.#tryConnect();
         return;
       } catch (error) {
         if (this.#isQuitted) {
@@ -119,22 +119,20 @@ export class SolidisConnection extends EventEmitter {
         }
 
         if (attemptIndex > maxConnectionRetries) {
-          throw wrapWithSolidisConnectionError(
-            new SolidisConnectionError(
-              `SolidisClient connection failed after ${maxConnectionRetries} retries.`,
-              error,
-            ),
+          throw new SolidisConnectionError(
+            `SolidisClient connection failed after ${maxConnectionRetries} retries.`,
+            error,
           );
         }
 
         await new Promise<void>((resolve) =>
-          setTimeout(resolve, options.connectionRetryDelay),
+          setTimeout(resolve, this.#options.connectionRetryDelay),
         );
       }
     }
   }
 
-  async #tryConnect(options: SolidisClientFrozenOptions) {
+  async #tryConnect() {
     if (this.#isQuitted) {
       throw new SolidisConnectionError(
         'Cannot connect: user quit the connection.',
@@ -155,7 +153,7 @@ export class SolidisConnection extends EventEmitter {
       };
 
       const timeoutHandle = this.#setupConnectionTimeout(
-        options.connectionTimeout,
+        this.#options.connectionTimeout,
         (reason?: unknown) => onFail(reason),
       );
 
@@ -176,18 +174,20 @@ export class SolidisConnection extends EventEmitter {
         this.emit('connect');
       };
 
+      const { host, port, useTLS } = this.#parseSocketOptions();
+
       const socket = this.#createSocket({
-        host: options.host,
-        port: options.port,
-        useTLS: options.useTLS,
+        host,
+        port,
+        useTLS,
         onConnect,
       });
 
       this.#setupSocketErrorHandler(socket);
       this.#setupSocketCloseHandler(socket, onFail);
 
-      socket.setMaxListeners(options.maxEventListenersForSocket);
-      this.setMaxListeners(options.maxEventListenersForClient);
+      socket.setMaxListeners(this.#options.maxEventListenersForSocket);
+      this.setMaxListeners(this.#options.maxEventListenersForClient);
 
       this.#socket = socket;
     });
@@ -202,7 +202,7 @@ export class SolidisConnection extends EventEmitter {
       return await this.#connectLock;
     }
 
-    this.#connectLock = this.#tryConnectWithRetry(this.#options);
+    this.#connectLock = this.#tryConnectWithRetry();
 
     try {
       await this.#connectLock;
@@ -301,5 +301,23 @@ export class SolidisConnection extends EventEmitter {
     this.#connectTimeout = timer;
 
     return timer;
+  }
+
+  #parseSocketOptions() {
+    if (this.#options.uri) {
+      const url = new URL(this.#options.uri);
+
+      return {
+        host: url.hostname,
+        port: url.port ? Number.parseInt(url.port) : 6379,
+        useTLS: this.#options.useTLS || url.protocol === 'rediss:',
+      };
+    }
+
+    return {
+      host: this.#options.host,
+      port: this.#options.port,
+      useTLS: this.#options.useTLS,
+    };
   }
 }
