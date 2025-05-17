@@ -155,8 +155,7 @@ await client.lpush('list', 'item-1', 'item-2');
 ```typescript
 // Create client (with lazy connect)
 const client = new SolidisClient({
-  host: '127.0.0.1',
-  port: 6379,
+  uri: 'redis://127.0.0.1:6379',
   lazyConnect: true
 }).extend({ get, set });
 
@@ -248,6 +247,7 @@ Solidis provides extensive configuration options:
 ```typescript
 const client = new SolidisClient({
   // Connection
+  uri: 'redis://localhost:6379',
   host: '127.0.0.1',
   port: 6379,
   useTLS: false,
