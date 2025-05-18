@@ -1,6 +1,6 @@
 {
   "name": "@vcms-io/solidis",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "author": "Jay Lee <jay@vendit.co.kr>",
   "description": "High-performance, SOLID-structured RESP client for Redis and other RESP-compatible servers",
   "repository": {
