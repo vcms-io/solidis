@@ -308,6 +308,10 @@ export class SolidisConnection extends EventEmitter {
       const url = new URL(this.#options.uri);
 
       return {
+        authentication: {
+          username: url.username,
+          password: url.password
+        },
         host: url.hostname,
         port: url.port ? Number.parseInt(url.port) : 6379,
         useTLS: this.#options.useTLS || url.protocol === 'rediss:',
