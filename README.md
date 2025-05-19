@@ -417,7 +417,8 @@ pnpm add @vcms-io/solidis-extensions
 
 ### 📚 Available Extensions
 
-- **Spin Lock** - Thread-safe distributed lock
+- [**SpinLock**](https://github.com/vcms-io/solidis-extensions/blob/main/sources/domains/spinlock/README.md) - A lightweight mutex implemented as a Solidis command extension
+- [**RedLock**](https://github.com/vcms-io/solidis-extensions/blob/main/sources/domains/redlock/README.md) - Fault-tolerant distributed mutex based on the Redlock algorithm
 
 Check the [extensions documentation](https://github.com/vcms-io/solidis-extensions) for detailed usage examples.
 
