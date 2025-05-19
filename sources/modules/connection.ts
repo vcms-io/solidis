@@ -9,7 +9,6 @@ import {
 } from '../index.ts';
 
 import type {
-  SolidisClientFrozenOptions,
   SolidisConnectionEventHandlers,
   SolidisConnectionOptions,
   SolidisDebugLogType,
@@ -51,9 +50,7 @@ export class SolidisConnection extends EventEmitter {
     return this.#isQuitted;
   }
 
-  public async connect(options: SolidisClientFrozenOptions) {
-    this.#options = options;
-
+  public async connect() {
     if (this.#isQuitted) {
       throw new SolidisConnectionError(
         'Cannot connect because user quit the connection.',
@@ -174,7 +171,7 @@ export class SolidisConnection extends EventEmitter {
         this.emit('connect');
       };
 
-      const { host, port, useTLS } = this.#parseSocketOptions();
+      const { host, port, useTLS } = this.#options;
 
       const socket = this.#createSocket({
         host,
@@ -301,27 +298,5 @@ export class SolidisConnection extends EventEmitter {
     this.#connectTimeout = timer;
 
     return timer;
-  }
-
-  #parseSocketOptions() {
-    if (this.#options.uri) {
-      const url = new URL(this.#options.uri);
-
-      return {
-        authentication: {
-          username: url.username,
-          password: url.password
-        },
-        host: url.hostname,
-        port: url.port ? Number.parseInt(url.port) : 6379,
-        useTLS: this.#options.useTLS || url.protocol === 'rediss:',
-      };
-    }
-
-    return {
-      host: this.#options.host,
-      port: this.#options.port,
-      useTLS: this.#options.useTLS,
-    };
   }
 }
