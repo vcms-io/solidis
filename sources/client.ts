@@ -59,12 +59,9 @@ export class SolidisClient extends EventEmitter {
     };
 
     this.#setupDebug();
+    this.#connection = this.#setupConnection();
 
     this.#pubSub = new SolidisPubSub();
-    this.#connection = new SolidisConnection({
-      ...this.#options,
-      debugMemory: this.#debugMemory,
-    });
     this.#requester = new SolidisRequester({
       ...this.#options,
       connection: this.#connection,
@@ -101,6 +98,47 @@ export class SolidisClient extends EventEmitter {
     this.#debug = generateDebugHandle(this.#debugMemory);
   }
 
+  #setupConnection() {
+    if (this.#options.uri) {
+      const url = new URL(this.#options.uri);
+
+      const host = url.hostname;
+      const port = url.port ? Number.parseInt(url.port) : 6379;
+
+      const username = this.#options.authentication.username || url.username;
+      const password = this.#options.authentication.password || url.password;
+
+      const useTLS = this.#options.useTLS || url.protocol === 'rediss:';
+
+      this.#options = {
+        ...this.#options,
+        host,
+        port,
+        authentication: {
+          username,
+          password,
+        },
+        useTLS,
+      };
+    }
+
+    return new SolidisConnection({
+      ...this.#options,
+      debugMemory: this.#debugMemory,
+    });
+  }
+
+  public get uri() {
+    const { username, password } = this.#options.authentication;
+    const prefix = this.#options.useTLS ? 'rediss' : 'redis';
+
+    if (username && password) {
+      return `${prefix}://${username}:${password}@${this.#options.host}:${this.#options.port}`;
+    }
+
+    return `${prefix}://${this.#options.host}:${this.#options.port}`;
+  }
+
   public async send(commands: StringOrBuffer[][]): Promise<SolidisData[][]> {
     try {
       await this.connect();
@@ -130,7 +168,7 @@ export class SolidisClient extends EventEmitter {
 
     const initializeLock = this.#setupInitializeListeners();
 
-    this.#connectLock = this.#connection.connect(this.#options);
+    this.#connectLock = this.#connection.connect();
 
     try {
       return await Promise.all([initializeLock, this.#connectLock]);
