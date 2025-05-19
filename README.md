@@ -15,7 +15,7 @@
   <a href="#installation">Installation</a> •
   <a href="#usage">Usage</a> •
   <a href="#configuration">Configuration</a> •
-  <a href="#advanced-features">Advanced</a> •
+  <a href="#advanced-features">Advanced</a><br/>
   <a href="#extensions">Extensions</a> •
   <a href="#error-handling">Errors</a> •
   <a href="#contributing">Contributing</a> •
