@@ -10,12 +10,15 @@
 
 <p align="center">
   <a href="#overview">Overview</a> •
+  <a href="#benchmarks">Benchmarks</a> •
   <a href="#key-features">Features</a> •
   <a href="#installation">Installation</a> •
   <a href="#usage">Usage</a> •
   <a href="#configuration">Configuration</a> •
   <a href="#advanced-features">Advanced</a> •
+  <a href="#extensions">Extensions</a> •
   <a href="#error-handling">Errors</a> •
+  <a href="#contributing">Contributing</a> •
   <a href="#license">License</a>
 </p>
 
@@ -87,7 +90,7 @@ The library is designed for minimal bundle size with maximum type safety and per
   - Intelligent buffer management
 
 - **Protocol Support**
-  - RESP2 & RESP3 protocol support
+  - RESP2 & RESP3 protocols support
   - Automatic protocol negotiation
   - Binary-safe operations
   - Full multi-byte character support
@@ -303,9 +306,9 @@ const client = new SolidisClient({
   connectionRetryDelay: 100,
   autoRecovery: {
     database: true,                     // Auto-select DB after reconnect
-    subscribe: true,                    // Auto-resubscribe channels
-    ssubscribe: true,                   // Auto-resubscribe shard channels
-    psubscribe: true,                   // Auto-resubscribe patterns
+    subscribe: true,                    // Auto-resubscribe to channels
+    ssubscribe: true,                   // Auto-resubscribe to shard channels
+    psubscribe: true,                   // Auto-resubscribe to patterns
   },
 
   // Timeouts (milliseconds)
@@ -394,6 +397,29 @@ client.on('debug', (entry) => {
 // Alternative: environment variable
 // DEBUG=solidis node app.js
 ```
+
+## Extensions
+
+The `@vcms-io/solidis-extensions` package provides additional functionality and utilities for Solidis clients. It includes pre-built extensions to enhance your Redis operations.
+
+### Installation
+
+```bash
+# Using npm
+npm install @vcms-io/solidis-extensions
+
+# Using yarn
+yarn add @vcms-io/solidis-extensions
+
+# Using pnpm
+pnpm add @vcms-io/solidis-extensions
+```
+
+### Available Extensions
+
+- **Spin Lock** - Thread-safe distributed lock
+
+Check the [extensions documentation](https://github.com/vcms-io/solidis-extensions) for detailed usage examples.
 
 ## Error Handling
 
@@ -542,4 +568,4 @@ Solidis follows semantic versioning (SemVer):
 
 ## License
 
-Licensed under the MIT. See [LICENSE](/LICENSE) for more informations.
+Licensed under the MIT. See [LICENSE](/LICENSE) for more information.
