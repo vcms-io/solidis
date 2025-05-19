@@ -31,7 +31,7 @@
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/Min_Bundle_Size-<30KB-brightgreen" alt="Bundle Size"></a>
 </p>
 
-## Overview
+## 🔍 Overview
 
 <p align="center" width="100%">
   <img src="https://resources.vcms.io/assets/bundle-graph.png" alt="Bundle size comparison" width="600"/>
@@ -46,7 +46,7 @@ The library is designed for minimal bundle size with maximum type safety and per
 - **Type-safe** - Extensive TypeScript definitions for all commands
 - **Dependency-free** - Absolutely zero runtime dependencies
 
-## Benchmarks
+## 📊 Benchmarks
 
 <div align="center">
 
@@ -76,7 +76,7 @@ The library is designed for minimal bundle size with maximum type safety and per
   Solidis delivers blazing-fast performance with ZERO dependencies
 </p>
 
-## Key Features
+## ✨ Key Features
 
 - **Lightweight**
   - Zero dependencies
@@ -113,12 +113,12 @@ The library is designed for minimal bundle size with maximum type safety and per
   - Customizable transaction handling
   - Plugin architecture support
 
-## Requirements
+## 📋 Requirements
 
 - **Runtime**: Node.js 14 or higher
 - **Development**: Node.js 22 LTS recommended for optimal stability
 
-## Installation
+## 📥 Installation
 
 ```bash
 # Using npm
@@ -131,9 +131,9 @@ yarn add @vcms-io/solidis
 pnpm add @vcms-io/solidis
 ```
 
-## Usage
+## 💻 Usage
 
-### Client Types
+### 📦 Client Types
 
 Solidis offers two client implementations:
 
@@ -187,7 +187,7 @@ await client.hset('hash', 'field', 'value');
 await client.lpush('list', 'item-1', 'item-2');
 ```
 
-### Connection Management
+### 🔌 Connection Management
 
 ```typescript
 // Create client (with lazy connect)
@@ -209,7 +209,7 @@ client.on('end', () => console.log('Connection closed'));
 client.quit();
 ```
 
-### Basic Operations
+### ⚙️ Basic Operations
 
 ```typescript
 // Set a key
@@ -224,7 +224,7 @@ console.log(value); // 'value'
 await client.del('key');
 ```
 
-### Transactions
+### 💱 Transactions
 
 ```typescript
 // Start a transaction
@@ -247,7 +247,7 @@ transaction.set('key', 'value');
 transaction.discard(); // Cancel transaction
 ```
 
-### Pipelines
+### ⏩ Pipelines
 
 ```typescript
 // Create commands for a pipeline
@@ -263,7 +263,7 @@ const results = await client.send(commands);
 console.log(results); // [[ 'OK' ], [ 1 ], [ <Buffer 76 61 6c 75 65> ]]
 ```
 
-### Pub/Sub
+### 📡 Pub/Sub
 
 ```typescript
 // Subscribe to channels
@@ -277,7 +277,7 @@ await client.subscribe('news');
 await client.publish('news', 'Hello world!');
 ```
 
-## Configuration
+## ⚙️ Configuration
 
 Solidis provides extensive configuration options:
 
@@ -341,9 +341,9 @@ const client = new SolidisClient({
 });
 ```
 
-## Advanced Features
+## 🚀 Advanced Features
 
-### Custom Commands
+### 🛠️ Custom Commands
 
 ```typescript
 import { SolidisClient } from '@vcms-io/solidis';
@@ -370,7 +370,7 @@ const client = new SolidisClient({
 await client.fill(['key1', 'key2', 'key3'], 'value');
 ```
 
-### Raw Commands
+### ⚡ Raw Commands
 
 When you need to use a command that's not yet implemented:
 
@@ -379,7 +379,7 @@ When you need to use a command that's not yet implemented:
 const result = await client.send([['command', 'some', 'options']]);
 ```
 
-### Debugging
+### 🐛 Debugging
 
 Enable detailed debug logging:
 
@@ -398,11 +398,11 @@ client.on('debug', (entry) => {
 // DEBUG=solidis node app.js
 ```
 
-## Extensions
+## 🧩 Extensions
 
 The `@vcms-io/solidis-extensions` package provides additional functionality and utilities for Solidis clients. It includes pre-built extensions to enhance your Redis operations.
 
-### Installation
+### 📥 Installation
 
 ```bash
 # Using npm
@@ -415,13 +415,13 @@ yarn add @vcms-io/solidis-extensions
 pnpm add @vcms-io/solidis-extensions
 ```
 
-### Available Extensions
+### 📚 Available Extensions
 
 - **Spin Lock** - Thread-safe distributed lock
 
 Check the [extensions documentation](https://github.com/vcms-io/solidis-extensions) for detailed usage examples.
 
-## Error Handling
+## ⚠️ Error Handling
 
 Solidis provides detailed error classes for different failure modes:
 
@@ -452,7 +452,7 @@ try {
 }
 ```
 
-## Structure
+## 🏗️ Structure
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -492,7 +492,7 @@ The Solidis structure follows a clear component separation:
 - **Parser**: Processes RESP2/RESP3 protocol with optimized buffer handling
 - **PubSub**: Maintains subscription state and is used by Requester for pub/sub events
 
-## Event System
+## 🔔 Event System
 
 Solidis emits the following events:
 
@@ -513,11 +513,11 @@ client.on('unsubscribe', (channel, count) => console.log(`Unsubscribed from ${ch
 client.on('debug', (entry) => console.log(`[${entry.type}] ${entry.message}`));
 ```
 
-## Contributing
+## 🤝 Contributing
 
 Solidis is an open-source project and we welcome contributions from the community. Here's how you can contribute:
 
-### Development Setup
+### 💻 Development Setup
 
 ```bash
 # Clone the repository
@@ -534,7 +534,7 @@ npm run build
 npm test
 ```
 
-### Contribution Guidelines
+### 📜 Contribution Guidelines
 
 1. **Fork the Repository**: Start by forking the repository and then clone your fork.
 
@@ -552,20 +552,20 @@ npm test
    - Reference any related issues
    - Add appropriate documentation
 
-### Code Quality Guidelines
+### ✅ Code Quality Guidelines
 
 - **TypeScript**: Use strict typing and avoid `any` types and `as` cast where possible
 - **Dependencies**: Avoid adding new dependencies unless absolutely necessary
 - **Performance**: Consider performance implications of your changes
 - **Bundle Size**: Keep the bundle size minimal
 
-### Release Process
+### 🚀 Release Process
 
 Solidis follows semantic versioning (SemVer):
 - **Patch (0.0.x)**: Bug fixes and minor changes that don't affect the API
 - **Minor (0.x.0)**: New features added in a backward compatible manner
 - **Major (x.0.0)**: Breaking changes to the public API
 
-## License
+## 📄 License
 
 Licensed under the MIT. See [LICENSE](/LICENSE) for more information.
