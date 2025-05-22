@@ -242,7 +242,9 @@ export class SolidisRequester {
     return socket;
   }
 
-  async #waitForSocketDrain(): Promise<void> {
+  async #waitForSocketDrain(
+    connectionTimeoutId: NodeJS.Timeout,
+  ): Promise<void> {
     const socket = this.#getSocketOrThrow();
 
     return new Promise<void>((resolve) => {
@@ -254,6 +256,7 @@ export class SolidisRequester {
 
       const onDrain = () => {
         clearTimeout(drainTimeoutId);
+        clearTimeout(connectionTimeoutId);
 
         resolve();
       };
@@ -265,6 +268,11 @@ export class SolidisRequester {
   #getSocketWriteEventHandlers() {
     const socket = this.#getSocketOrThrow();
 
+    const timeoutId = setTimeout(() => {
+      handlers.isError = true;
+      handlers.error = new SolidisRequesterError('Socket timed out');
+    }, this.#options.socketWriteTimeout);
+
     const handlers: SolidisSocketWriteEventHandlers = {
       onError: (error: Error) => {
         handlers.isError = true;
@@ -272,19 +280,16 @@ export class SolidisRequester {
 
         clearTimeout(timeoutId);
       },
-      waitForDrain: () => this.#waitForSocketDrain(),
+      waitForDrain: () => this.#waitForSocketDrain(timeoutId),
       removeEventListeners: () => {
         socket.removeListener('error', handlers.onError);
         socket.removeListener('close', handlers.onError);
+
+        clearTimeout(timeoutId);
       },
       isError: false,
       error: null,
     };
-
-    const timeoutId = setTimeout(() => {
-      handlers.isError = true;
-      handlers.error = new SolidisRequesterError('Socket timed out');
-    }, this.#options.socketWriteTimeout);
 
     socket.once('error', handlers.onError);
     socket.once('close', handlers.onError);
