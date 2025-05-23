@@ -4,7 +4,6 @@
     "include": [
       "**/sources/**/*.ts",
       "**/sources/**/*.js",
-      "**/sources/**/*.graphql",
       "**/sources/**/*.json",
       "**/scripts/**/*.ts",
       "**/scripts/**/*.js",
