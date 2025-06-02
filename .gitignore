@@ -20,3 +20,6 @@ $RECYCLE.BIN/
 
 # Node.js
 node_modules
+
+# Next.js
+.next/
