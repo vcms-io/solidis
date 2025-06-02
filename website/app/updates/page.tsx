@@ -188,7 +188,7 @@ export default function UpdatesPage() {
 
                   {changes.length === 0 && release.body && (
                     <div className="prose prose-sm max-w-none">
-                      <ReactMarkdown>{release.body.slice(0, 300)}...</ReactMarkdown>
+                      <ReactMarkdown >{`${release.body.slice(0, 300)}...`}</ReactMarkdown>
                     </div>
                   )}
                 </CardContent>
