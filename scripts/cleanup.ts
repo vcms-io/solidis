@@ -1,7 +1,12 @@
-import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
-import { readdir } from 'node:fs/promises';
-import { join } from 'node:path';
-import { dirname } from 'node:path';
+import {
+  mkdir,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 
 type DtsMap = Map<string, Buffer>;
 

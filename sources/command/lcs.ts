@@ -1,9 +1,9 @@
 import {
-  UnexpectedReplyPrefix,
   executeCommand,
   newCommandError,
   tryReplyNumber,
   tryReplyToString,
+  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type {

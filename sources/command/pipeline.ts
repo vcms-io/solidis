@@ -1,7 +1,7 @@
 import {
-  UnexpectedReplyPrefix,
   guard,
   newCommandError,
+  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type { SolidisData, StringOrBuffer } from '../index.ts';

@@ -1,8 +1,8 @@
 import {
-  UnexpectedReplyPrefix,
   executeCommand,
   newCommandError,
   tryReplyToBoolean,
+  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 export function createCommand(key: string, items: string[]) {

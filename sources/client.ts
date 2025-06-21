@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 
 import { auth, hello, info, select } from './command/basic.ts';
 import {
+  generateDebugHandle,
   SolidisClientError,
   SolidisConnection,
   SolidisDebugMemory,
@@ -9,7 +10,6 @@ import {
   SolidisProtocols,
   SolidisPubSub,
   SolidisRequester,
-  generateDebugHandle,
   wrapWithError,
   wrapWithParserError,
   wrapWithSolidisClientError,
@@ -25,8 +25,8 @@ import type {
   SolidisData,
   SolidisDebugLogType,
   SolidisPSubscribeMethod,
-  SolidisSSubscribeMethod,
   SolidisSocket,
+  SolidisSSubscribeMethod,
   SolidisSubscribeMethod,
   StringOrBuffer,
 } from './index.ts';

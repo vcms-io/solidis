@@ -1,9 +1,9 @@
 import {
-  UnexpectedReplyPrefix,
   executeCommand,
   newCommandError,
   processPairedArray,
   tryReplyToNumber,
+  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type { CommandMinOrMaxOption, RespSortedSetMember } from '../index.ts';

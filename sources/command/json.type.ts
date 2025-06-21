@@ -1,11 +1,10 @@
-import {
-  InvalidReplyPrefix,
-  UnexpectedReplyPrefix,
-  executeCommand,
-  newCommandError,
-} from './utils/index.ts';
-
 import { RespJsonType } from '../index.ts';
+import {
+  executeCommand,
+  InvalidReplyPrefix,
+  newCommandError,
+  UnexpectedReplyPrefix,
+} from './utils/index.ts';
 
 export function createCommand(key: string, path?: string) {
   const command = ['JSON.TYPE', key];

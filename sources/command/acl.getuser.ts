@@ -1,10 +1,10 @@
 import {
-  InvalidReplyPrefix,
-  UnexpectedReplyPrefix,
   executeCommand,
+  InvalidReplyPrefix,
   newCommandError,
   tryReplyToMap,
   tryReplyToStringArray,
+  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type {

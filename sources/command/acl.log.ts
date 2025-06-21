@@ -1,13 +1,12 @@
+import { SolidisCommandError } from '../index.ts';
 import {
-  InvalidReplyPrefix,
-  UnexpectedReplyPrefix,
   executeCommand,
+  InvalidReplyPrefix,
   processPairedArray,
   tryReplyToNumber,
   tryReplyToString,
+  UnexpectedReplyPrefix,
 } from './utils/index.ts';
-
-import { SolidisCommandError } from '../index.ts';
 
 import type {
   RespAclLogEntry,

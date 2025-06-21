@@ -1,9 +1,9 @@
 import {
-  InvalidReplyPrefix,
-  UnexpectedReplyPrefix,
   executeCommand,
+  InvalidReplyPrefix,
   newCommandError,
   tryReplyToNumber,
+  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type { RespLatencyHistogram, StringOrBuffer } from '../index.ts';

@@ -3,8 +3,8 @@ import net from 'node:net';
 import tls from 'node:tls';
 
 import {
-  SolidisConnectionError,
   generateDebugHandle,
+  SolidisConnectionError,
   wrapWithSolidisConnectionError,
 } from '../index.ts';
 

@@ -1,9 +1,9 @@
 import {
-  InvalidReplyPrefix,
-  UnexpectedReplyPrefix,
   executeCommand,
+  InvalidReplyPrefix,
   newCommandError,
   tryReplyToStreamEntry,
+  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type { RespStreamReadResult } from '../index.ts';

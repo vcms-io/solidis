@@ -1,9 +1,9 @@
 import {
-  InvalidReplyPrefix,
-  UnexpectedReplyPrefix,
   buildTimeSeriesRangeCommand,
   executeCommand,
+  InvalidReplyPrefix,
   newCommandError,
+  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type { CommandTimeSeriesRangeOptions } from '../index.ts';

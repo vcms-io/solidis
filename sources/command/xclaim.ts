@@ -1,10 +1,10 @@
 import {
-  InvalidReplyPrefix,
-  UnexpectedReplyPrefix,
   executeCommand,
+  InvalidReplyPrefix,
   newCommandError,
   processPairedArray,
   tryReplyToString,
+  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type { RespStreamEntry } from '../index.ts';

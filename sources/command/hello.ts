@@ -1,12 +1,11 @@
+import { SolidisProtocols } from '../index.ts';
 import {
-  InvalidReplyPrefix,
   executeCommand,
+  InvalidReplyPrefix,
   newCommandError,
   tryReplyToMap,
   tryReplyToModuleInfo,
 } from './utils/index.ts';
-
-import { SolidisProtocols } from '../index.ts';
 
 import type { RespHelloInfo } from '../index.ts';
 

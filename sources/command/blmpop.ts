@@ -1,8 +1,8 @@
 import {
-  UnexpectedReplyPrefix,
   executeCommand,
   newCommandError,
   tryReplyToStringArray,
+  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type { CommandLeftOrRightOption, RespListMember } from '../index.ts';
