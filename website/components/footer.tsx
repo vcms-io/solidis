@@ -25,8 +25,18 @@ export function Footer() {
                 </Link>
               </li>
               <li>
+                <Link href="/architecture" className="text-gray-400 hover:text-white">
+                  Architecture
+                </Link>
+              </li>
+              <li>
                 <Link href="/api-reference" className="text-gray-400 hover:text-white">
                   API Reference
+                </Link>
+              </li>
+              <li>
+                <Link href="/benchmarks" className="text-gray-400 hover:text-white">
+                  Benchmarks
                 </Link>
               </li>
               <li>
@@ -58,6 +68,11 @@ export function Footer() {
               <li>
                 <Link href="https://github.com/vcms-io/solidis/discussions" className="text-gray-400 hover:text-white">
                   Discussions
+                </Link>
+              </li>
+              <li>
+                <Link href="/contributing" className="text-gray-400 hover:text-white">
+                  Contributing
                 </Link>
               </li>
               <li>

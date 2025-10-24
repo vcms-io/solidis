@@ -11,8 +11,11 @@ export function Navbar() {
 
   const navigation = [
     { name: "Getting Started", href: "/getting-started" },
+    { name: "Architecture", href: "/architecture" },
     { name: "API Reference", href: "/api-reference" },
+    { name: "Benchmarks", href: "/benchmarks" },
     { name: "Tutorials", href: "/tutorials" },
+    { name: "Contributing", href: "/contributing" },
     { name: "FAQ", href: "/faq" },
     { name: "Updates", href: "/updates" },
   ]
