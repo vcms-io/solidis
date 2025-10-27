@@ -120,3 +120,60 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Code syntax highlighting */
+@layer components {
+  pre code {
+    display: block;
+    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    line-height: 1.6;
+  }
+
+  /* TypeScript/JavaScript keywords */
+  pre code .keyword {
+    color: #c678dd;
+    font-weight: 600;
+  }
+
+  /* Strings */
+  pre code .string {
+    color: #98c379;
+  }
+
+  /* Comments */
+  pre code .comment {
+    color: #7f848e;
+    font-style: italic;
+  }
+
+  /* Functions */
+  pre code .function {
+    color: #61afef;
+  }
+
+  /* Numbers */
+  pre code .number {
+    color: #d19a66;
+  }
+
+  /* Classes and types */
+  pre code .class,
+  pre code .type {
+    color: #e5c07b;
+  }
+
+  /* Built-in objects */
+  pre code .builtin {
+    color: #e06c75;
+  }
+
+  /* Better readability for inline code */
+  :not(pre) > code {
+    background-color: rgba(110, 118, 129, 0.1);
+    color: #e06c75;
+    padding: 0.2em 0.4em;
+    border-radius: 0.25rem;
+    font-size: 0.9em;
+    font-weight: 500;
+  }
+}
