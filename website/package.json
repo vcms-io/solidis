@@ -13,13 +13,16 @@
     "@radix-ui/react-dialog": "^1.1.14",
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-tabs": "^1.1.12",
+    "@types/react-syntax-highlighter": "^15.5.13",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.511.0",
     "next": "15.3.3",
+    "next-intl": "^4.4.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
+    "react-syntax-highlighter": "^16.0.0",
     "tailwind-merge": "^3.3.0"
   },
   "devDependencies": {

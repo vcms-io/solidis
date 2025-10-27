@@ -1,0 +1,47 @@
+{
+  "nav": {
+    "gettingStarted": "Getting Started",
+    "architecture": "Architecture",
+    "apiReference": "API Reference",
+    "benchmarks": "Benchmarks",
+    "tutorials": "Tutorials",
+    "contributing": "Contributing",
+    "faq": "FAQ",
+    "updates": "Updates",
+    "github": "GitHub"
+  },
+  "home": {
+    "title": "Solidis",
+    "subtitle": "High-performance, SOLID-structured RESP client for Redis and other RESP-compatible servers",
+    "getStarted": "Get Started",
+    "viewApi": "View API Reference",
+    "whyChoose": "Why Choose Solidis?",
+    "whyDescription": "Built with performance and reliability in mind, following SOLID principles for maintainable code.",
+    "highPerformance": "High Performance",
+    "highPerformanceDesc": "Optimized for speed with efficient connection pooling and minimal overhead",
+    "solidArchitecture": "SOLID Architecture",
+    "solidArchitectureDesc": "Clean, maintainable code following SOLID principles for better extensibility",
+    "typescriptFirst": "TypeScript First",
+    "typescriptFirstDesc": "Full TypeScript support with comprehensive type definitions and IntelliSense",
+    "blazingFast": "Blazing Fast Performance",
+    "blazingFastDesc": "Solidis delivers up to 79% faster performance than IoRedis with zero dependencies",
+    "viewBenchmarks": "View All Benchmarks",
+    "getStartedMinutes": "Get Started in Minutes",
+    "getStartedDesc": "Install Solidis and start building high-performance Redis applications with just a few lines of code.",
+    "quickInstallation": "Quick Installation",
+    "communityActivity": "Community & Activity",
+    "communityDesc": "Join our growing community of developers using Solidis in production",
+    "comprehensiveDocs": "Comprehensive Documentation",
+    "comprehensiveDocsDesc": "Everything you need to master Solidis",
+    "gettingStartedCard": "Step-by-step guides for beginners and experienced developers",
+    "apiReferenceCard": "Complete API documentation with examples and type definitions",
+    "tutorialsCard": "Learn by building real-world applications and use cases"
+  },
+  "footer": {
+    "description": "High-performance RESP client for Redis and other RESP-compatible servers.",
+    "documentation": "Documentation",
+    "community": "Community",
+    "connect": "Connect",
+    "rights": "All rights reserved. Licensed under MIT."
+  }
+}

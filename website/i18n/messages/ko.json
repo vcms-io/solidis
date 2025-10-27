@@ -1,0 +1,47 @@
+{
+  "nav": {
+    "gettingStarted": "시작하기",
+    "architecture": "아키텍처",
+    "apiReference": "API 레퍼런스",
+    "benchmarks": "벤치마크",
+    "tutorials": "튜토리얼",
+    "contributing": "기여하기",
+    "faq": "FAQ",
+    "updates": "업데이트",
+    "github": "GitHub"
+  },
+  "home": {
+    "title": "Solidis",
+    "subtitle": "Redis 및 RESP 호환 서버를 위한 고성능 SOLID 구조의 RESP 클라이언트",
+    "getStarted": "시작하기",
+    "viewApi": "API 레퍼런스 보기",
+    "whyChoose": "왜 Solidis를 선택해야 하나요?",
+    "whyDescription": "성능과 안정성을 염두에 두고 구축되었으며, 유지보수 가능한 코드를 위해 SOLID 원칙을 따릅니다.",
+    "highPerformance": "고성능",
+    "highPerformanceDesc": "효율적인 커넥션 풀링과 최소한의 오버헤드로 속도를 최적화했습니다",
+    "solidArchitecture": "SOLID 아키텍처",
+    "solidArchitectureDesc": "더 나은 확장성을 위해 SOLID 원칙을 따르는 깔끔하고 유지보수 가능한 코드",
+    "typescriptFirst": "TypeScript 우선",
+    "typescriptFirstDesc": "포괄적인 타입 정의와 IntelliSense를 갖춘 완전한 TypeScript 지원",
+    "blazingFast": "놀라운 성능",
+    "blazingFastDesc": "Solidis는 의존성 없이 IoRedis보다 최대 79% 빠른 성능을 제공합니다",
+    "viewBenchmarks": "모든 벤치마크 보기",
+    "getStartedMinutes": "몇 분 만에 시작하기",
+    "getStartedDesc": "Solidis를 설치하고 몇 줄의 코드만으로 고성능 Redis 애플리케이션 구축을 시작하세요.",
+    "quickInstallation": "빠른 설치",
+    "communityActivity": "커뮤니티 & 활동",
+    "communityDesc": "프로덕션 환경에서 Solidis를 사용하는 성장하는 개발자 커뮤니티에 참여하세요",
+    "comprehensiveDocs": "포괄적인 문서",
+    "comprehensiveDocsDesc": "Solidis를 마스터하는 데 필요한 모든 것",
+    "gettingStartedCard": "초보자와 숙련된 개발자를 위한 단계별 가이드",
+    "apiReferenceCard": "예제와 타입 정의가 포함된 완전한 API 문서",
+    "tutorialsCard": "실제 애플리케이션과 사용 사례를 구축하며 학습"
+  },
+  "footer": {
+    "description": "Redis 및 RESP 호환 서버를 위한 고성능 RESP 클라이언트",
+    "documentation": "문서",
+    "community": "커뮤니티",
+    "connect": "연결",
+    "rights": "모든 권리 보유. MIT 라이선스."
+  }
+}
