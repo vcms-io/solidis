@@ -31,6 +31,8 @@
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/Min_Bundle_Size-<30KB-brightgreen" alt="Bundle Size"></a>
 </p>
 
+> **English** | [한국어](./README.ko.md)
+
 ## 🔍 Overview
 
 <p align="center" width="100%">
