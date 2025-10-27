@@ -5,8 +5,10 @@ import { Badge } from "@/components/ui/badge"
 import { Calendar, Tag, Star, ExternalLink, User, Clock, Wifi, WifiOff } from "lucide-react"
 import { useGitHubReleases } from "@/hooks/use-github-releases"
 import ReactMarkdown from "react-markdown"
+import { useI18n } from "@/lib/i18n-context"
 
 export default function UpdatesPage() {
+  const { t } = useI18n()
   const { releases, loading, error, fallback } = useGitHubReleases()
 
   const upcomingFeatures = [
@@ -69,22 +71,22 @@ export default function UpdatesPage() {
     <div className="container mx-auto max-w-4xl py-12 px-4">
       <div className="mb-12">
         <div className="flex items-center gap-2 mb-4">
-          <h1 className="text-4xl font-bold">Product Updates</h1>
+          <h1 className="text-4xl font-bold">{t("updates.title")}</h1>
           {fallback && (
             <div className="flex items-center gap-1 text-xs text-amber-600">
               <WifiOff className="h-3 w-3" />
-              <span>Cached data</span>
+              <span>{t("updates.cachedData")}</span>
             </div>
           )}
           {!fallback && !loading && (
             <div className="flex items-center gap-1 text-xs text-yellow-600">
               <Wifi className="h-3 w-3" />
-              <span>Live from GitHub</span>
+              <span>{t("updates.liveFromGitHub")}</span>
             </div>
           )}
         </div>
         <p className="text-xl text-gray-600">
-          Stay up to date with the latest Solidis releases, features, and improvements.
+          {t("updates.subtitle")}
         </p>
       </div>
 

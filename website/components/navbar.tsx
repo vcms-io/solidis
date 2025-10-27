@@ -5,16 +5,22 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Menu, Github, ExternalLink } from "lucide-react"
+import { useI18n } from "@/lib/i18n-context"
+import { LanguageSwitcher } from "@/components/language-switcher"
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
+  const { t } = useI18n()
 
   const navigation = [
-    { name: "Getting Started", href: "/getting-started" },
-    { name: "API Reference", href: "/api-reference" },
-    { name: "Tutorials", href: "/tutorials" },
-    { name: "FAQ", href: "/faq" },
-    { name: "Updates", href: "/updates" },
+    { name: t("nav.gettingStarted"), href: "/getting-started" },
+    { name: t("nav.architecture"), href: "/architecture" },
+    { name: t("nav.apiReference"), href: "/api-reference" },
+    { name: t("nav.benchmarks"), href: "/benchmarks" },
+    { name: t("nav.tutorials"), href: "/tutorials" },
+    { name: t("nav.contributing"), href: "/contributing" },
+    { name: t("nav.faq"), href: "/faq" },
+    { name: t("nav.updates"), href: "/updates" },
   ]
 
   return (
@@ -34,11 +40,13 @@ export function Navbar() {
           ))}
         </nav>
 
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-2">
+          <LanguageSwitcher />
           <Button variant="outline" size="sm" className="border-yellow-500 text-yellow-600 hover:bg-yellow-50" asChild>
             <Link href="https://github.com/vcms-io/solidis" target="_blank">
               <Github className="h-4 w-4 mr-2" />
-              GitHub
+              <span className="hidden sm:inline">{t("nav.github")}</span>
+              <span className="sm:hidden">GH</span>
               <ExternalLink className="h-3 w-3 ml-1" />
             </Link>
           </Button>

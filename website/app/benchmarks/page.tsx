@@ -1,8 +1,13 @@
+"use client"
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Zap, BarChart, Clock, Cpu } from "lucide-react"
+import { useI18n } from "@/lib/i18n-context"
 
 export default function BenchmarksPage() {
+  const { t } = useI18n()
+
   const benchmarkData = [
     {
       name: "Hash",
@@ -105,9 +110,9 @@ export default function BenchmarksPage() {
   return (
     <div className="container mx-auto max-w-6xl py-12 px-4">
       <div className="mb-8">
-        <h1 className="text-4xl font-bold mb-4">Performance Benchmarks</h1>
+        <h1 className="text-4xl font-bold mb-4">{t("benchmarks.title")}</h1>
         <p className="text-xl text-gray-600">
-          Solidis delivers blazing-fast performance with zero dependencies. See how it compares to other Redis clients.
+          {t("benchmarks.subtitle")}
         </p>
       </div>
 

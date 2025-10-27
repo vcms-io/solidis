@@ -7,9 +7,11 @@ import { Badge } from "@/components/ui/badge"
 import { ArrowRight, Book, Code, Zap, Shield, Users, Star, BarChart } from "lucide-react"
 import { useGitHubStats } from "@/hooks/use-github-stats"
 import { GitHubStats } from "@/components/github-stats"
+import { useI18n } from "@/lib/i18n-context"
 
 export default function HomePage() {
   const { stats, loading } = useGitHubStats()
+  const { t } = useI18n()
   return (
     <div className="flex flex-col min-h-screen">
       {/* Hero Section */}
@@ -24,15 +26,15 @@ export default function HomePage() {
               {stats.fallback && !loading && <span className="ml-1 text-xs opacity-75">(cached)</span>}
             </Badge>
             <h1 className="text-5xl md:text-7xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-              Solidis
+              {t("home.title")}
             </h1>
             <p className="text-xl md:text-2xl text-gray-300 max-w-3xl mx-auto">
-              High-performance, SOLID-structured RESP client for Redis and other RESP-compatible servers
+              {t("home.subtitle")}
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center mt-8">
               <Button size="lg" className="bg-yellow-500 hover:bg-yellow-600 text-black font-semibold" asChild>
                 <Link href="/getting-started">
-                  Get Started <ArrowRight className="ml-2 h-4 w-4" />
+                  {t("home.getStarted")} <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
               <Button
@@ -41,7 +43,7 @@ export default function HomePage() {
                 className="bg-white/10 hover:bg-white/20 text-white border-white/20"
                 asChild
               >
-                <Link href="/api-reference">View API Reference</Link>
+                <Link href="/api-reference">{t("home.viewApi")}</Link>
               </Button>
             </div>
           </div>
@@ -52,9 +54,9 @@ export default function HomePage() {
       <section className="py-20 px-4 bg-gray-50">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">Why Choose Solidis?</h2>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">{t("home.whyChoose")}</h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Built with performance and reliability in mind, following SOLID principles for maintainable code.
+              {t("home.whyDescription")}
             </p>
           </div>
 
@@ -62,9 +64,9 @@ export default function HomePage() {
             <Card>
               <CardHeader>
                 <Zap className="h-12 w-12 text-yellow-500 mb-4" />
-                <CardTitle>High Performance</CardTitle>
+                <CardTitle>{t("home.highPerformance")}</CardTitle>
                 <CardDescription>
-                  Optimized for speed with efficient connection pooling and minimal overhead
+                  {t("home.highPerformanceDesc")}
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -72,9 +74,9 @@ export default function HomePage() {
             <Card>
               <CardHeader>
                 <Shield className="h-12 w-12 text-yellow-600 mb-4" />
-                <CardTitle>SOLID Architecture</CardTitle>
+                <CardTitle>{t("home.solidArchitecture")}</CardTitle>
                 <CardDescription>
-                  Clean, maintainable code following SOLID principles for better extensibility
+                  {t("home.solidArchitectureDesc")}
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -82,9 +84,9 @@ export default function HomePage() {
             <Card>
               <CardHeader>
                 <Code className="h-12 w-12 text-yellow-700 mb-4" />
-                <CardTitle>TypeScript First</CardTitle>
+                <CardTitle>{t("home.typescriptFirst")}</CardTitle>
                 <CardDescription>
-                  Full TypeScript support with comprehensive type definitions and IntelliSense
+                  {t("home.typescriptFirstDesc")}
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -100,9 +102,9 @@ export default function HomePage() {
               <BarChart className="w-4 h-4 mr-1" />
               Performance
             </Badge>
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">Blazing Fast Performance</h2>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">{t("home.blazingFast")}</h2>
             <p className="text-xl text-gray-300 max-w-2xl mx-auto">
-              Solidis delivers up to 79% faster performance than IoRedis with zero dependencies
+              {t("home.blazingFastDesc")}
             </p>
           </div>
 
@@ -175,7 +177,7 @@ export default function HomePage() {
 
           <div className="mt-8 text-center">
             <Button variant="outline" className="border-yellow-500 text-yellow-400 hover:bg-yellow-500/20" asChild>
-              <Link href="/benchmarks">View All Benchmarks</Link>
+              <Link href="/benchmarks">{t("home.viewBenchmarks")}</Link>
             </Button>
           </div>
         </div>
@@ -186,9 +188,9 @@ export default function HomePage() {
         <div className="container mx-auto max-w-6xl">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
-              <h2 className="text-3xl md:text-4xl font-bold mb-6">Get Started in Minutes</h2>
+              <h2 className="text-3xl md:text-4xl font-bold mb-6">{t("home.getStartedMinutes")}</h2>
               <p className="text-lg text-gray-600 mb-8">
-                Install Solidis and start building high-performance Redis applications with just a few lines of code.
+                {t("home.getStartedDesc")}
               </p>
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
@@ -214,7 +216,7 @@ export default function HomePage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Quick Installation</CardTitle>
+                <CardTitle>{t("home.quickInstallation")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm">
@@ -237,9 +239,9 @@ export default function HomePage() {
       <section className="py-20 px-4 bg-gray-50">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">Community & Activity</h2>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">{t("home.communityActivity")}</h2>
             <p className="text-xl text-gray-600">
-              Join our growing community of developers using Solidis in production
+              {t("home.communityDesc")}
             </p>
           </div>
           <div className="max-w-2xl mx-auto">
@@ -252,20 +254,20 @@ export default function HomePage() {
       <section className="py-20 px-4 bg-gray-50">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">Comprehensive Documentation</h2>
-            <p className="text-xl text-gray-600">Everything you need to master Solidis</p>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">{t("home.comprehensiveDocs")}</h2>
+            <p className="text-xl text-gray-600">{t("home.comprehensiveDocsDesc")}</p>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             <Card className="hover:shadow-lg transition-shadow">
               <CardHeader>
                 <Book className="h-8 w-8 text-blue-600 mb-2" />
-                <CardTitle>Getting Started</CardTitle>
-                <CardDescription>Step-by-step guides for beginners and experienced developers</CardDescription>
+                <CardTitle>{t("nav.gettingStarted")}</CardTitle>
+                <CardDescription>{t("home.gettingStartedCard")}</CardDescription>
               </CardHeader>
               <CardContent>
                 <Button variant="outline" asChild className="w-full">
-                  <Link href="/getting-started">Start Learning</Link>
+                  <Link href="/getting-started">{t("home.getStarted")}</Link>
                 </Button>
               </CardContent>
             </Card>
@@ -273,12 +275,12 @@ export default function HomePage() {
             <Card className="hover:shadow-lg transition-shadow">
               <CardHeader>
                 <Code className="h-8 w-8 text-green-600 mb-2" />
-                <CardTitle>API Reference</CardTitle>
-                <CardDescription>Complete API documentation with examples and type definitions</CardDescription>
+                <CardTitle>{t("nav.apiReference")}</CardTitle>
+                <CardDescription>{t("home.apiReferenceCard")}</CardDescription>
               </CardHeader>
               <CardContent>
                 <Button variant="outline" asChild className="w-full">
-                  <Link href="/api-reference">Browse API</Link>
+                  <Link href="/api-reference">{t("home.viewApi")}</Link>
                 </Button>
               </CardContent>
             </Card>
@@ -286,12 +288,12 @@ export default function HomePage() {
             <Card className="hover:shadow-lg transition-shadow">
               <CardHeader>
                 <Users className="h-8 w-8 text-purple-600 mb-2" />
-                <CardTitle>Tutorials</CardTitle>
-                <CardDescription>Learn by building real-world applications and use cases</CardDescription>
+                <CardTitle>{t("nav.tutorials")}</CardTitle>
+                <CardDescription>{t("home.tutorialsCard")}</CardDescription>
               </CardHeader>
               <CardContent>
                 <Button variant="outline" asChild className="w-full">
-                  <Link href="/tutorials">View Tutorials</Link>
+                  <Link href="/tutorials">{t("nav.tutorials")}</Link>
                 </Button>
               </CardContent>
             </Card>
