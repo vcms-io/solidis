@@ -2,6 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Clock, User, CheckCircle, ArrowRight, MessageCircle } from "lucide-react"
 import Link from "next/link"
+import { CodeBlock } from '@/components/code-block'
 
 export default function ChatAppTutorial() {
   return (
@@ -60,7 +61,7 @@ export default function ChatAppTutorial() {
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <pre className="text-xs">{`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
+            <CodeBlock code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
 
 export interface Message {
   id: string;
@@ -201,7 +202,7 @@ export class ChatManager {
     const key = \`chat:users:\${roomId}\`;
     await this.publisher.srem(key, userId);
   }
-}`}</pre>
+}`} language="typescript" showLineNumbers={true} />
           </div>
         </CardContent>
       </Card>
@@ -217,7 +218,7 @@ export class ChatManager {
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <pre className="text-xs">{`import { WebSocketServer, WebSocket } from 'ws';
+            <CodeBlock code={`import { WebSocketServer, WebSocket } from 'ws';
 import { ChatManager, Message } from './chat-manager';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -397,7 +398,7 @@ export class ChatServer {
       message,
     });
   }
-}`}</pre>
+}`} language="typescript" showLineNumbers={true} />
           </div>
         </CardContent>
       </Card>
@@ -413,7 +414,7 @@ export class ChatServer {
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <pre className="text-xs">{`import { ChatManager } from './chat-manager';
+            <CodeBlock code={`import { ChatManager } from './chat-manager';
 import { ChatServer } from './chat-server';
 
 async function start() {
@@ -429,7 +430,7 @@ async function start() {
   console.log('WebSocket server running on ws://localhost:8080');
 }
 
-start().catch(console.error);`}</pre>
+start().catch(console.error);`} language="typescript" showLineNumbers={true} />
           </div>
         </CardContent>
       </Card>
@@ -443,7 +444,7 @@ start().catch(console.error);`}</pre>
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <pre className="text-xs">{`// Simple WebSocket client example
+            <CodeBlock code={`// Simple WebSocket client example
 const ws = new WebSocket('ws://localhost:8080');
 
 ws.onopen = () => {
@@ -481,7 +482,7 @@ function sendMessage(content) {
   }));
 }
 
-sendMessage('Hello, everyone!');`}</pre>
+sendMessage('Hello, everyone!');`} language="typescript" showLineNumbers={true} />
           </div>
         </CardContent>
       </Card>

@@ -2,6 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Clock, User, CheckCircle, ArrowRight, Layers } from "lucide-react"
 import Link from "next/link"
+import { CodeBlock } from '@/components/code-block'
 
 export default function JobQueueTutorial() {
   return (
@@ -60,7 +61,7 @@ export default function JobQueueTutorial() {
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <pre className="text-xs">{`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
+            <CodeBlock code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface Job<T = any> {
@@ -200,7 +201,7 @@ export class JobQueue {
     }
     return length;
   }
-}`}</pre>
+}`} language="typescript" showLineNumbers={true} />
           </div>
         </CardContent>
       </Card>
@@ -216,7 +217,7 @@ export class JobQueue {
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <pre className="text-xs">{`import { JobQueue, Job } from './job-queue';
+            <CodeBlock code={`import { JobQueue, Job } from './job-queue';
 
 type JobHandler<T = any> = (data: T) => Promise<void>;
 
@@ -296,7 +297,7 @@ export class JobWorker {
       await this.queue.failJob(job.id, message);
     }
   }
-}`}</pre>
+}`} language="typescript" showLineNumbers={true} />
           </div>
         </CardContent>
       </Card>
@@ -312,7 +313,7 @@ export class JobWorker {
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <pre className="text-xs">{`import { JobQueue } from './job-queue';
+            <CodeBlock code={`import { JobQueue } from './job-queue';
 import { JobWorker } from './job-worker';
 
 // Create queue
@@ -367,7 +368,7 @@ console.log('Queue stats:', stats);
 // Graceful shutdown
 process.on('SIGTERM', () => {
   worker.stop();
-});`}</pre>
+});`} language="typescript" showLineNumbers={true} />
           </div>
         </CardContent>
       </Card>

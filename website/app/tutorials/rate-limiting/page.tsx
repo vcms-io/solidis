@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Clock, User, CheckCircle, ArrowRight, Shield } from "lucide-react"
 import Link from "next/link"
+import { CodeBlock } from '@/components/code-block'
 
 export default function RateLimitingTutorial() {
   return (
@@ -65,7 +66,7 @@ export default function RateLimitingTutorial() {
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <pre className="text-xs">{`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
+            <CodeBlock code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
 
 export class FixedWindowRateLimiter {
   private client: SolidisFeaturedClient;
@@ -112,7 +113,7 @@ export class FixedWindowRateLimiter {
 
     return { allowed, remaining, resetAt };
   }
-}`}</pre>
+}`} language="typescript" showLineNumbers={true} />
           </div>
         </CardContent>
       </Card>
@@ -130,7 +131,7 @@ export class FixedWindowRateLimiter {
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <pre className="text-xs">{`export class SlidingWindowRateLimiter {
+            <CodeBlock code={`export class SlidingWindowRateLimiter {
   private client: SolidisFeaturedClient;
   private prefix: string;
 
@@ -187,7 +188,7 @@ export class FixedWindowRateLimiter {
 
     return { allowed, remaining, retryAfter };
   }
-}`}</pre>
+}`} language="typescript" showLineNumbers={true} />
           </div>
         </CardContent>
       </Card>
@@ -205,7 +206,7 @@ export class FixedWindowRateLimiter {
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <pre className="text-xs">{`export class TokenBucketRateLimiter {
+            <CodeBlock code={`export class TokenBucketRateLimiter {
   private client: SolidisFeaturedClient;
   private prefix: string;
 
@@ -265,7 +266,7 @@ export class FixedWindowRateLimiter {
       retryAfter,
     };
   }
-}`}</pre>
+}`} language="typescript" showLineNumbers={true} />
           </div>
         </CardContent>
       </Card>
@@ -283,7 +284,7 @@ export class FixedWindowRateLimiter {
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <pre className="text-xs">{`import { Request, Response, NextFunction } from 'express';
+            <CodeBlock code={`import { Request, Response, NextFunction } from 'express';
 import { SlidingWindowRateLimiter } from './sliding-window-limiter';
 
 export interface RateLimitOptions {
@@ -373,7 +374,7 @@ export function createLoginRateLimiter(limiter: SlidingWindowRateLimiter) {
       });
     },
   });
-}`}</pre>
+}`} language="typescript" showLineNumbers={true} />
           </div>
         </CardContent>
       </Card>
@@ -388,7 +389,7 @@ export function createLoginRateLimiter(limiter: SlidingWindowRateLimiter) {
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <pre className="text-xs">{`import express from 'express';
+            <CodeBlock code={`import express from 'express';
 import { SlidingWindowRateLimiter } from './sliding-window-limiter';
 import {
   createUserRateLimiter,
@@ -428,7 +429,7 @@ async function start() {
   });
 }
 
-start().catch(console.error);`}</pre>
+start().catch(console.error);`} language="typescript" showLineNumbers={true} />
           </div>
         </CardContent>
       </Card>

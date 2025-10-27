@@ -2,6 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Clock, User, CheckCircle, ArrowRight, Lock } from "lucide-react"
 import Link from "next/link"
+import { CodeBlock } from '@/components/code-block'
 
 export default function DistributedLockingTutorial() {
   return (
@@ -60,7 +61,7 @@ export default function DistributedLockingTutorial() {
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <pre className="text-xs">{`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
+            <CodeBlock code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
 import { randomUUID } from 'crypto';
 
 export class DistributedLock {
@@ -189,7 +190,7 @@ export class DistributedLock {
       await this.release(resource, token);
     }
   }
-}`}</pre>
+}`} language="typescript" showLineNumbers={true} />
           </div>
         </CardContent>
       </Card>
@@ -205,7 +206,7 @@ export class DistributedLock {
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <pre className="text-xs">{`import { DistributedLock } from './distributed-lock';
+            <CodeBlock code={`import { DistributedLock } from './distributed-lock';
 
 const lock = new DistributedLock();
 await lock.connect();
@@ -255,7 +256,7 @@ async function updateUserProfile(userId: string, data: any) {
     await db.updateUser(userId, updatedUser);
     await cache.invalidate(\`user:\${userId}\`);
   });
-}`}</pre>
+}`} language="typescript" showLineNumbers={true} />
           </div>
         </CardContent>
       </Card>

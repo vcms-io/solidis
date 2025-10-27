@@ -1,8 +1,8 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Clock, User, CheckCircle, ArrowRight, Zap, Database } from "lucide-react"
 import Link from "next/link"
+import { CodeBlock } from '@/components/code-block'
 
 export default function CacheLayerTutorial() {
   return (
@@ -93,7 +93,7 @@ export default function CacheLayerTutorial() {
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <pre className="text-xs">{`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
+            <CodeBlock code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
 
 export interface CacheOptions {
   ttl?: number; // Time to live in seconds
@@ -261,7 +261,7 @@ export class CacheManager {
     this.hits = 0;
     this.misses = 0;
   }
-}`}</pre>
+}`} language="typescript" showLineNumbers={true} />
           </div>
         </CardContent>
       </Card>
@@ -279,7 +279,7 @@ export class CacheManager {
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <pre className="text-xs">{`import { CacheManager } from './cache-manager';
+            <CodeBlock code={`import { CacheManager } from './cache-manager';
 
 interface User {
   id: string;
@@ -409,7 +409,7 @@ export class UserRepository {
       { ttl: 60 } // 1 minute (shorter for search results)
     );
   }
-}`}</pre>
+}`} language="typescript" showLineNumbers={true} />
           </div>
         </CardContent>
       </Card>
@@ -427,7 +427,7 @@ export class UserRepository {
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <pre className="text-xs">{`export class CacheWarmer {
+            <CodeBlock code={`export class CacheWarmer {
   private cache: CacheManager;
   private db: any;
 
@@ -485,7 +485,7 @@ export class UserRepository {
       }
     }, intervalMs);
   }
-}`}</pre>
+}`} language="typescript" showLineNumbers={true} />
           </div>
         </CardContent>
       </Card>
@@ -503,7 +503,7 @@ export class UserRepository {
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <pre className="text-xs">{`import express from 'express';
+            <CodeBlock code={`import express from 'express';
 import { CacheManager } from './cache-manager';
 import { UserRepository } from './user-repository';
 import { CacheWarmer } from './cache-warmer';
@@ -584,7 +584,7 @@ async function start() {
   });
 }
 
-start().catch(console.error);`}</pre>
+start().catch(console.error);`} language="typescript" showLineNumbers={true} />
           </div>
         </CardContent>
       </Card>

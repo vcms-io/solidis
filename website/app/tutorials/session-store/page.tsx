@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Clock, User, CheckCircle, ArrowRight, Code } from "lucide-react"
 import Link from "next/link"
+import { CodeBlock } from '@/components/code-block'
 
 export default function SessionStoreTutorial() {
   return (
@@ -144,7 +145,7 @@ export default function SessionStoreTutorial() {
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <pre className="text-xs">{`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
+            <CodeBlock code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface SessionData {
@@ -250,7 +251,7 @@ export class SessionStore {
     const result = await this.client.exists(key);
     return result === 1;
   }
-}`}</pre>
+}`} language="typescript" showLineNumbers={true} />
           </div>
         </CardContent>
       </Card>
@@ -268,7 +269,7 @@ export class SessionStore {
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <pre className="text-xs">{`import express, { Request, Response, NextFunction } from 'express';
+            <CodeBlock code={`import express, { Request, Response, NextFunction } from 'express';
 import { SessionStore, SessionData } from './session-store';
 
 // Extend Express Request type
@@ -329,7 +330,7 @@ export function createSessionMiddleware(store: SessionStore) {
 
     next();
   };
-}`}</pre>
+}`} language="typescript" showLineNumbers={true} />
           </div>
         </CardContent>
       </Card>
@@ -347,7 +348,7 @@ export function createSessionMiddleware(store: SessionStore) {
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <pre className="text-xs">{`import express from 'express';
+            <CodeBlock code={`import express from 'express';
 import cookieParser from 'cookie-parser';
 import { SessionStore } from './session-store';
 import { createSessionMiddleware } from './session-middleware';
@@ -417,7 +418,7 @@ async function start() {
   });
 }
 
-start().catch(console.error);`}</pre>
+start().catch(console.error);`} language="typescript" showLineNumbers={true} />
           </div>
         </CardContent>
       </Card>

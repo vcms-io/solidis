@@ -15,7 +15,10 @@
     "build": "npm run cleanup && tsc && npm run node:ts ./scripts/build.ts",
     "lint": "concurrently --raw \"biome check --write\" \"tsc --noEmit\"",
     "format": "biome format --write",
-    "node:ts": "node --import=./scripts/esm/register.js"
+    "node:ts": "node --import=./scripts/esm/register.js",
+    "web:dev": "cd ./website && npm run dev",
+    "web:build": "cd ./website && npm run build",
+    "web:start": "cd ./website && npm run start"
   },
   "types": "distributions/index.d.ts",
   "main": "distributions/index.cjs",

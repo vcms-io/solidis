@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Code, Book, Zap, Settings, Layers, Terminal, AlertTriangle } from "lucide-react"
 import { useI18n } from "@/lib/i18n-context"
+import { CodeBlock } from '@/components/code-block'
 
 export default function ApiReferencePage() {
   const { t } = useI18n()
@@ -72,9 +73,7 @@ export default function ApiReferencePage() {
                 <div className="space-y-6">
                   <div>
                     <h3 className="text-lg font-semibold mb-3">Constructor</h3>
-                    <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm">
-                      <div>new SolidisClient(options?: SolidisOptions)</div>
-                    </div>
+                    <CodeBlock code={`new SolidisClient(options?: SolidisOptions)`} language="typescript" showLineNumbers={true} />
                   </div>
 
                   <div>
@@ -120,10 +119,8 @@ export default function ApiReferencePage() {
                     </p>
                     <div className="bg-gray-50 p-4 rounded-lg">
                       <div className="text-sm font-medium mb-2">Example:</div>
-                      <div className="bg-gray-900 text-gray-100 p-3 rounded font-mono text-sm">
-                        <div>const client = new SolidisClient();</div>
-                        <div>await client.connect();</div>
-                      </div>
+                      <CodeBlock code={`const client = new SolidisClient();
+await client.connect();`} language="typescript" showLineNumbers={true} />
                     </div>
                   </TabsContent>
 
@@ -190,15 +187,15 @@ export default function ApiReferencePage() {
                   <div>
                     <h3 className="text-lg font-semibold mb-3">Example Usage</h3>
                     <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm">
-                      <div className="text-green-400">// Set a value</div>
-                      <div>await client.set('user:123', 'John Doe');</div>
+                      <CodeBlock code={`// Set a value
+await client.set('user:123', 'John Doe');
 
-                      <div className="mt-3 text-green-400">// Get a value</div>
-                      <div>const user = await client.get('user:123');</div>
-                      <div>console.log(user); // 'John Doe'</div>
+// Get a value
+const user = await client.get('user:123');
+console.log(user); // 'John Doe'
 
-                      <div className="mt-3 text-green-400">// Delete a key</div>
-                      <div>await client.del('user:123');</div>
+// Delete a key
+await client.del('user:123');`} language="typescript" showLineNumbers={true} />
                     </div>
                   </div>
                 </div>
@@ -225,15 +222,19 @@ export default function ApiReferencePage() {
 
                   <TabsContent value="transactions" className="space-y-4">
                     <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-                      <div className="text-green-400">// Start a transaction</div>
-                      <div>const transaction = client.multi();</div>
-                      <div className="mt-2 text-green-400">// Queue commands (no await needed)</div>
-                      <div>transaction.set('key', 'value');</div>
-                      <div>transaction.incr('counter');</div>
-                      <div>transaction.get('key');</div>
-                      <div className="mt-2 text-green-400">// Execute transaction</div>
-                      <div>const results = await transaction.exec();</div>
-                      <div>console.log(results); // [[ 'OK' ], [ 1 ], [ &lt;Buffer 76 61 6c 75 65&gt; ]]</div>
+                      <CodeBlock code={`// Start a transaction
+const transaction = client.multi();
+
+// Queue commands (no await needed)
+transaction.set('key', 'value');
+transaction.incr('counter');
+transaction.get('key');
+
+// Execute transaction
+const results = await transaction.exec();
+
+console.log(results); // [[ 'OK' ], [ 1 ], [ &lt;Buffer 76 61 6c 75 65&gt; ]]</div>
+                      `} language="typescript" showLineNumbers={true} />
                     </div>
                     <p className="text-sm text-gray-600">
                       Redis transactions allow the execution of a group of commands in a single step, with two important
@@ -244,15 +245,18 @@ export default function ApiReferencePage() {
 
                   <TabsContent value="pipelines" className="space-y-4">
                     <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-                      <div className="text-green-400">// Create commands for a pipeline</div>
-                      <div>const commands = [</div>
-                      <div className="ml-2">['set', 'pipeline', 'value'],</div>
-                      <div className="ml-2">['incr', 'counter'],</div>
-                      <div className="ml-2">['get', 'pipeline']</div>
-                      <div>];</div>
-                      <div className="mt-2 text-green-400">// Send commands as a pipeline</div>
-                      <div>const results = await client.send(commands);</div>
-                      <div>console.log(results); // [[ 'OK' ], [ 1 ], [ &lt;Buffer 76 61 6c 75 65&gt; ]]</div>
+                      <CodeBlock code={`// Create commands for a pipeline
+const commands = [
+  ['set', 'pipeline', 'value'],
+  ['incr', 'counter'],
+  ['get', 'pipeline']
+];
+
+// Send commands as a pipeline
+const results = await client.send(commands);
+
+console.log(results); // [[ 'OK' ], [ 1 ], [ &lt;Buffer 76 61 6c 75 65&gt; ]]</div>
+                      `} language="typescript" showLineNumbers={true} />
                     </div>
                     <p className="text-sm text-gray-600">
                       Pipelining is a technique to improve performance by sending multiple commands to the server
@@ -263,13 +267,14 @@ export default function ApiReferencePage() {
 
                   <TabsContent value="pubsub" className="space-y-4">
                     <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-                      <div className="text-green-400">// Subscribe to channels</div>
-                      <div>{"client.on('message', (channel, message) => {"}</div>
-                      <div className="ml-2">{"  console.log(`Received ${message} from ${channel}`);"}</div>
-                      <div>{"});"}</div>
-                      <div className="mt-2">await client.subscribe('news');</div>
-                      <div className="mt-4 text-green-400">// Publish from another client</div>
-                      <div>await client.publish('news', 'Hello world!');</div>
+                      <CodeBlock code={`// Subscribe to channels
+client.on('message', (channel, message) => {
+  console.log(\`Received \${message} from \${channel}\`);
+});
+
+await client.subscribe('news');`} language="typescript" showLineNumbers={true} />
+                      <CodeBlock code={`// Publish from another client
+await client.publish('news', 'Hello world!');`} language="typescript" showLineNumbers={true} />
                     </div>
                     <p className="text-sm text-gray-600">
                       Redis Pub/Sub implements the messaging paradigm where senders (publishers) send messages to a
@@ -292,41 +297,35 @@ export default function ApiReferencePage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-                  <div>const client = new SolidisClient({"{"}</div>
-                  <div className="ml-4 text-blue-400">// Connection</div>
-                  <div className="ml-4">uri: 'redis://localhost:6379',</div>
-                  <div className="ml-4">host: '127.0.0.1',</div>
-                  <div className="ml-4">port: 6379,</div>
-                  <div className="ml-4">useTLS: false,</div>
-                  <div className="ml-4">lazyConnect: false,</div>
-                  <div className="mt-2 ml-4 text-blue-400">// Authentication</div>
-                  <div className="ml-4">authentication: {"{"}</div>
-                  <div className="ml-8">username: 'user',</div>
-                  <div className="ml-8">password: 'password'</div>
-                  <div className="ml-4">{"}"},</div>
-                  <div className="ml-4">database: 0,</div>
-                  <div className="mt-2 ml-4 text-blue-400">// Protocol & Recovery</div>
-                  <div className="ml-4">clientName: 'solidis',</div>
-                  <div className="ml-4">protocol: 'RESP2', // 'RESP2' or 'RESP3'</div>
-                  <div className="ml-4">autoReconnect: true,</div>
-                  <div className="ml-4">enableReadyCheck: true,</div>
-                  <div className="ml-4">maxConnectionRetries: 20,</div>
-                  <div className="ml-4">connectionRetryDelay: 100,</div>
-                  <div className="mt-2 ml-4 text-blue-400">// Timeouts (milliseconds)</div>
-                  <div className="ml-4">commandTimeout: 5000,</div>
-                  <div className="ml-4">connectionTimeout: 2000,</div>
-                  <div className="ml-4">socketWriteTimeout: 1000,</div>
-                  <div className="ml-4">readyCheckInterval: 100,</div>
-                  <div className="mt-2 ml-4 text-blue-400">// Performance Tuning</div>
-                  <div className="ml-4">maxCommandsPerPipeline: 300,</div>
-                  <div className="ml-4">maxProcessRepliesPerChunk: 4 * 1024, // 4KB</div>
-                  <div className="ml-4">maxSocketWriteSizePerOnce: 64 * 1024, // 64KB</div>
-                  <div className="ml-4">rejectOnPartialPipelineError: false,</div>
-                  <div className="mt-2 ml-4 text-blue-400">// Debug Options</div>
-                  <div className="ml-4">debug: false,</div>
-                  <div className="ml-4">debugMaxEntries: 10 * 1024,</div>
-                  <div>{"}"});</div>
+                <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-a uto">
+                  <CodeBlock code={`const client = new SolidisClient({
+  uri: 'redis://localhost:6379',
+  host: '127.0.0.1',
+  port: 6379,
+  useTLS: false,
+  lazyConnect: false,
+  authentication: {"{"}
+  username: 'user',
+  password: 'password'
+  {"}"},
+  database: 0,
+  clientName: 'solidis',
+  protocol: 'RESP2', // 'RESP2' or 'RESP3'
+  autoReconnect: true,
+  enableReadyCheck: true,
+  maxConnectionRetries: 20,
+  connectionRetryDelay: 100,
+  commandTimeout: 5000,
+  connectionTimeout: 2000,
+  socketWriteTimeout: 1000,
+  readyCheckInterval: 100,
+  maxCommandsPerPipeline: 300,
+  maxProcessRepliesPerChunk: 4 * 1024, // 4KB
+  maxSocketWriteSizePerOnce: 64 * 1024, // 64KB
+  rejectOnPartialPipelineError: false,
+  debug: false,
+  debugMaxEntries: 10 * 1024,
+});`} language="typescript" showLineNumbers={true} />
                 </div>
               </CardContent>
             </Card>
@@ -350,30 +349,29 @@ export default function ApiReferencePage() {
                   </TabsList>
 
                   <TabsContent value="custom-commands" className="space-y-4">
-                    <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-                      <div className="text-green-400">// Import the client and commands</div>
-                      <div>import {"{ SolidisClient }"} from '@vcms-io/solidis';</div>
-                      <div>import {"{ get, set }"} from '@vcms-io/solidis/command';</div>
-                      <div className="mt-2">import type {"{ SolidisClientExtensions }"} from '@vcms-io/solidis';</div>
-                      <div className="mt-4 text-green-400">// Define extensions with custom commands</div>
-                      <div>const extensions = {"{"}</div>
-                      <div className="ml-2">get,</div>
-                      <div className="ml-2">set,</div>
-                      <div className="ml-2 text-green-400">// Custom command implementation</div>
-                      <div className="ml-2">
-                        fill: async function(this: typeof client, keys: string[], value: string) {"{"}
-                      </div>
-                      <div className="ml-4">{"return await Promise.all(keys.map((key) => this.set(key, value)));"}</div>
-                      <div className="ml-2">{"}"},</div>
-                      <div>{"}"} satisfies SolidisClientExtensions;</div>
-                      <div className="mt-4 text-green-400">// Initialize client with extensions</div>
-                      <div>const client = new SolidisClient({"{"}</div>
-                      <div className="ml-2">host: '127.0.0.1',</div>
-                      <div className="ml-2">port: 6379</div>
-                      <div>{"}"}).extend(extensions);</div>
-                      <div className="mt-4 text-green-400">// Use custom command</div>
-                      <div>await client.fill(['key1', 'key2', 'key3'], 'value');</div>
-                    </div>
+                    <CodeBlock code={`// Import the client and commands
+import { SolidisClient } from '@vcms-io/solidis';
+import { get, set } from '@vcms-io/solidis/command';
+import type { SolidisClientExtensions } from '@vcms-io/solidis';
+
+// Define extensions with custom commands
+const extensions = {
+  get,
+  set,
+  // Custom command implementation
+  fill: async function(this: typeof client, keys: string[], value: string) {
+    return await Promise.all(keys.map((key) => this.set(key, value)));
+  },
+} satisfies SolidisClientExtensions;
+
+// Initialize client with extensions
+const client = new SolidisClient({
+  host: '127.0.0.1',
+  port: 6379
+}).extend(extensions);
+
+// Use custom command
+await client.fill(['key1', 'key2', 'key3'], 'value');`} language="typescript" showLineNumbers={true} />
                     <p className="text-sm text-gray-600">
                       You can extend Solidis with custom commands to create higher-level abstractions or implement
                       specialized functionality for your application.
@@ -381,10 +379,8 @@ export default function ApiReferencePage() {
                   </TabsContent>
 
                   <TabsContent value="raw-commands" className="space-y-4">
-                    <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-                      <div className="text-green-400">// Using raw commands with send()</div>
-                      <div>const result = await client.send([['command', 'some', 'options']]);</div>
-                    </div>
+                      <CodeBlock code={`// Using raw commands with send()
+const result = await client.send([['command', 'some', 'options']]);`} language="typescript" showLineNumbers={true} />
                     <p className="text-sm text-gray-600">
                       When you need to use a command that's not yet implemented or for more direct control, you can use
                       the raw send method to execute any Redis command.
@@ -392,18 +388,18 @@ export default function ApiReferencePage() {
                   </TabsContent>
 
                   <TabsContent value="debugging" className="space-y-4">
-                    <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-                      <div className="text-green-400">// Enable debug mode</div>
-                      <div>const client = new SolidisClient({"{"}</div>
-                      <div className="ml-2">debug: true</div>
-                      <div>{"}"});</div>
-                      <div className="mt-4 text-green-400">// Listen for debug events</div>
-                      <div>{"client.on('debug', (entry) => {"}</div>
-                      <div className="ml-2">{"  console.log(`[${entry.type}] ${entry.message}`, entry.data);"}</div>
-                      <div>{"});"}</div>
-                      <div className="mt-4 text-green-400">// Alternative: environment variable</div>
-                      <div className="text-gray-400">// DEBUG=solidis node app.js</div>
-                    </div>
+                    <CodeBlock code={`// Enable debug mode
+const client = new SolidisClient({
+  debug: true
+});
+
+// Listen for debug events
+client.on('debug', (entry) => {
+  console.log(\`[\${entry.type}] \${entry.message}\`, entry.data);
+});
+
+// Alternative: environment variable
+// DEBUG=solidis node app.js`} language="typescript" showLineNumbers={true} />
                     <p className="text-sm text-gray-600">
                       Solidis provides detailed debugging capabilities to help you troubleshoot issues and understand
                       the internal workings of the client.
@@ -424,38 +420,32 @@ export default function ApiReferencePage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-                  <div className="text-green-400">// Import error classes</div>
-                  <div>import {"{"}</div>
-                  <div className="ml-2">SolidisClientError,</div>
-                  <div className="ml-2">SolidisConnectionError,</div>
-                  <div className="ml-2">SolidisParserError,</div>
-                  <div className="ml-2">SolidisPubSubError,</div>
-                  <div className="ml-2">SolidisRequesterError,</div>
-                  <div className="ml-2">unwrapSolidisError,</div>
-                  <div>{"}"} from '@vcms-io/solidis';</div>
-                  <div className="mt-4 text-green-400">// Error handling example</div>
-                  <div>try {"{"}</div>
-                  <div className="ml-2">await client.set('key', 'value');</div>
-                  <div>
-                    {"}"} catch (error) {"{"}
-                  </div>
-                  <div className="ml-2 text-green-400">// Get the root cause with stack trace</div>
-                  <div className="ml-2">console.error(unwrapSolidisError(error));</div>
-                  <div className="mt-2 ml-2 text-green-400">// Handle specific error types</div>
-                  <div className="ml-2">if (error instanceof SolidisConnectionError) {"{"}</div>
-                  <div className="ml-4">console.error('Connection error:', error.message);</div>
-                  <div className="ml-2">
-                    {"}"} else if (error instanceof SolidisParserError) {"{"}
-                  </div>
-                  <div className="ml-4">console.error('Parser error:', error.message);</div>
-                  <div className="ml-2">
-                    {"}"} else if (error instanceof SolidisClientError) {"{"}
-                  </div>
-                  <div className="ml-4">console.error('Client error:', error.message);</div>
-                  <div className="ml-2">{"}"}</div>
-                  <div>{"}"}</div>
-                </div>
+                <CodeBlock code={`// Import error classes
+import {
+  SolidisClientError,
+  SolidisConnectionError,
+  SolidisParserError,
+  SolidisPubSubError,
+  SolidisRequesterError,
+  unwrapSolidisError,
+} from '@vcms-io/solidis';
+
+// Error handling example
+try {
+  await client.set('key', 'value');
+} catch (error) {
+  // Get the root cause with stack trace
+  console.error(unwrapSolidisError(error));
+
+  // Handle specific error types
+  if (error instanceof SolidisConnectionError) {
+    console.error('Connection error:', error.message);
+  } else if (error instanceof SolidisParserError) {
+    console.error('Parser error:', error.message);
+  } else if (error instanceof SolidisClientError) {
+    console.error('Client error:', error.message);
+  }
+}`} language="typescript" showLineNumbers={true} />
                 <div className="mt-4">
                   <h3 className="text-lg font-semibold mb-3">Error Types</h3>
                   <ul className="space-y-2">
@@ -495,26 +485,20 @@ export default function ApiReferencePage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-                  <div className="text-green-400">// Connection events</div>
-                  <div>{"client.on('connect', () => console.log('Connected to server'));"}</div>
-                  <div>{"client.on('ready', () => console.log('Client is ready'));"}</div>
-                  <div>{"client.on('end', () => console.log('Connection closed'));"}</div>
-                  <div>{"client.on('error', (err) => console.error('Error:', err));"}</div>
-                  <div className="mt-4 text-green-400">// Pub/Sub events</div>
-                  <div>{"client.on('message', (channel, message) => console.log(`${channel}: ${message}`));"}</div>
-                  <div>
-                    {
-                      "client.on('pmessage', (pattern, channel, message) => console.log(`${pattern} ${channel}: ${message}`));"
-                    }
-                  </div>
-                  <div>{"client.on('subscribe', (channel, count) => console.log(`Subscribed to ${channel}`));"}</div>
-                  <div>
-                    {"client.on('unsubscribe', (channel, count) => console.log(`Unsubscribed from ${channel}`));"}
-                  </div>
-                  <div className="mt-4 text-green-400">// Debug events</div>
-                  <div>{"client.on('debug', (entry) => console.log(`[${entry.type}] ${entry.message}`));"}</div>
-                </div>
+                <CodeBlock code={`// Connection events
+client.on('connect', () => console.log('Connected to server'));
+client.on('ready', () => console.log('Client is ready'));
+client.on('end', () => console.log('Connection closed'));
+client.on('error', (err) => console.error('Error:', err));
+
+// Pub/Sub events
+client.on('message', (channel, message) => console.log(\`\${channel}: \${message}\`));
+client.on('pmessage', (pattern, channel, message) => console.log(\`\${pattern} \${channel}: \${message}\`));
+client.on('subscribe', (channel, count) => console.log(\`Subscribed to \${channel}\`));
+client.on('unsubscribe', (channel, count) => console.log(\`Unsubscribed from \${channel}\`));
+
+// Debug events
+client.on('debug', (entry) => console.log(\`[\${entry.type}] \${entry.message}\`));`} language="typescript" showLineNumbers={true} />
                 <div className="mt-4">
                   <h3 className="text-lg font-semibold mb-3">Event Types</h3>
                   <ul className="space-y-2">
