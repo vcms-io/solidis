@@ -118,5 +118,73 @@
     "bugReports": "Bug Reports",
     "communitySupport": "Community Support",
     "selfService": "Self-Service"
+  },
+  "architecture": {
+    "title": "Architecture Overview",
+    "subtitle": "Understanding Solidis's internal structure and SOLID design principles.",
+    "coreComponents": "Core Components",
+    "solidPrinciples": "SOLID Principles in Action",
+    "commandFlow": "Command Execution Flow",
+    "performanceOptimizations": "Performance Optimizations"
+  },
+  "apiReference": {
+    "title": "API Reference",
+    "subtitle": "Complete reference documentation for all Solidis classes, methods, and interfaces.",
+    "quickNavigation": "Quick Navigation",
+    "connectionMethods": "Connection Methods",
+    "basicOperations": "Basic Operations",
+    "advancedOperations": "Advanced Operations",
+    "configuration": "Configuration",
+    "advancedFeatures": "Advanced Features",
+    "errorHandling": "Error Handling",
+    "events": "Events"
+  },
+  "benchmarks": {
+    "title": "Performance Benchmarks",
+    "subtitle": "Real-world performance comparisons between Solidis and IoRedis.",
+    "testEnvironment": "Test Environment",
+    "benchmarkResults": "Benchmark Results",
+    "howToRun": "How to Run Benchmarks",
+    "methodology": "Methodology"
+  },
+  "contributing": {
+    "title": "Contributing to Solidis",
+    "subtitle": "Solidis is an open-source project and we welcome contributions from the community. Here's how you can help make Solidis better.",
+    "waysToContribute": "Ways to Contribute",
+    "codeContributions": "Code Contributions",
+    "codeContributionsDesc": "Fix bugs, add features, or improve performance",
+    "documentationCont": "Documentation",
+    "documentationContDesc": "Improve docs, add examples, or fix typos",
+    "testing": "Testing",
+    "testingDesc": "Add tests or improve test coverage",
+    "bugReportsTitle": "Bug Reports",
+    "bugReportsDesc": "Report issues with detailed information",
+    "developmentSetup": "Development Setup",
+    "developmentSetupDesc": "Setting up your development environment",
+    "workflowTitle": "Development Workflow",
+    "workflowDesc": "Our recommended workflow for contributors",
+    "codeQuality": "Code Quality Guidelines",
+    "prGuidelines": "Pull Request Guidelines",
+    "communityTitle": "Community"
+  },
+  "updates": {
+    "title": "Product Updates",
+    "subtitle": "Stay up to date with the latest Solidis releases, features, and improvements.",
+    "latestRelease": "Latest Release",
+    "latestReleaseDesc": "The newest version of Solidis is now available.",
+    "releaseHistory": "Release History",
+    "upcomingFeatures": "Upcoming Features",
+    "stayUpdated": "Stay Updated",
+    "stayUpdatedDesc": "Get notified about new releases and important updates",
+    "githubReleases": "GitHub Releases",
+    "githubReleasesDesc": "Watch the repository to get notified about new releases",
+    "npmUpdates": "npm Updates",
+    "npmUpdatesDesc": "Follow the package on npm to track new versions",
+    "viewOnGitHub": "View on GitHub →",
+    "viewOnNpm": "View on npm →",
+    "loadingReleases": "Loading releases...",
+    "liveFromGitHub": "Live from GitHub",
+    "cachedData": "Cached data",
+    "whatsChanged": "What's Changed:"
   }
 }

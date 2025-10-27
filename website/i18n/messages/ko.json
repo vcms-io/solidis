@@ -118,5 +118,73 @@
     "bugReports": "버그 보고",
     "communitySupport": "커뮤니티 지원",
     "selfService": "셀프 서비스"
+  },
+  "architecture": {
+    "title": "아키텍처 개요",
+    "subtitle": "Solidis의 내부 구조와 SOLID 디자인 원칙 이해하기.",
+    "coreComponents": "핵심 컴포넌트",
+    "solidPrinciples": "SOLID 원칙의 실제 적용",
+    "commandFlow": "명령 실행 흐름",
+    "performanceOptimizations": "성능 최적화"
+  },
+  "apiReference": {
+    "title": "API 레퍼런스",
+    "subtitle": "모든 Solidis 클래스, 메서드 및 인터페이스에 대한 완전한 레퍼런스 문서.",
+    "quickNavigation": "빠른 탐색",
+    "connectionMethods": "연결 메서드",
+    "basicOperations": "기본 작업",
+    "advancedOperations": "고급 작업",
+    "configuration": "구성",
+    "advancedFeatures": "고급 기능",
+    "errorHandling": "에러 처리",
+    "events": "이벤트"
+  },
+  "benchmarks": {
+    "title": "성능 벤치마크",
+    "subtitle": "Solidis와 IoRedis 간의 실제 성능 비교.",
+    "testEnvironment": "테스트 환경",
+    "benchmarkResults": "벤치마크 결과",
+    "howToRun": "벤치마크 실행 방법",
+    "methodology": "방법론"
+  },
+  "contributing": {
+    "title": "Solidis에 기여하기",
+    "subtitle": "Solidis는 오픈소스 프로젝트이며 커뮤니티의 기여를 환영합니다. Solidis를 더 좋게 만드는 방법을 알아보세요.",
+    "waysToContribute": "기여 방법",
+    "codeContributions": "코드 기여",
+    "codeContributionsDesc": "버그 수정, 기능 추가 또는 성능 개선",
+    "documentationCont": "문서",
+    "documentationContDesc": "문서 개선, 예제 추가 또는 오타 수정",
+    "testing": "테스트",
+    "testingDesc": "테스트 추가 또는 테스트 커버리지 향상",
+    "bugReportsTitle": "버그 보고",
+    "bugReportsDesc": "상세한 정보와 함께 이슈 보고",
+    "developmentSetup": "개발 환경 설정",
+    "developmentSetupDesc": "개발 환경 설정하기",
+    "workflowTitle": "개발 워크플로",
+    "workflowDesc": "기여자를 위한 권장 워크플로",
+    "codeQuality": "코드 품질 가이드라인",
+    "prGuidelines": "Pull Request 가이드라인",
+    "communityTitle": "커뮤니티"
+  },
+  "updates": {
+    "title": "제품 업데이트",
+    "subtitle": "최신 Solidis 릴리스, 기능 및 개선 사항을 확인하세요.",
+    "latestRelease": "최신 릴리스",
+    "latestReleaseDesc": "최신 버전의 Solidis를 사용할 수 있습니다.",
+    "releaseHistory": "릴리스 히스토리",
+    "upcomingFeatures": "향후 기능",
+    "stayUpdated": "업데이트 받기",
+    "stayUpdatedDesc": "새로운 릴리스 및 중요한 업데이트에 대한 알림 받기",
+    "githubReleases": "GitHub 릴리스",
+    "githubReleasesDesc": "리포지토리를 Watch하여 새 릴리스 알림 받기",
+    "npmUpdates": "npm 업데이트",
+    "npmUpdatesDesc": "npm에서 패키지를 팔로우하여 새 버전 추적",
+    "viewOnGitHub": "GitHub에서 보기 →",
+    "viewOnNpm": "npm에서 보기 →",
+    "loadingReleases": "릴리스 로딩 중...",
+    "liveFromGitHub": "GitHub에서 실시간",
+    "cachedData": "캐시된 데이터",
+    "whatsChanged": "변경 사항:"
   }
 }

@@ -1,15 +1,20 @@
+"use client"
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Code, Book, Zap, Settings, Layers, Terminal, AlertTriangle } from "lucide-react"
+import { useI18n } from "@/lib/i18n-context"
 
 export default function ApiReferencePage() {
+  const { t } = useI18n()
+
   return (
     <div className="container mx-auto max-w-6xl py-12 px-4">
       <div className="mb-8">
-        <h1 className="text-4xl font-bold mb-4">API Reference</h1>
+        <h1 className="text-4xl font-bold mb-4">{t("apiReference.title")}</h1>
         <p className="text-xl text-gray-600">
-          Complete reference documentation for all Solidis classes, methods, and interfaces.
+          {t("apiReference.subtitle")}
         </p>
       </div>
 

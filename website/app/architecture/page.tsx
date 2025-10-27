@@ -1,8 +1,13 @@
+"use client"
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Layers, Zap, Database, Network, Code, Shield, ArrowRight } from "lucide-react"
+import { useI18n } from "@/lib/i18n-context"
 
 export default function ArchitecturePage() {
+  const { t } = useI18n()
+
   const components = [
     {
       name: "SolidisClient",
@@ -106,10 +111,9 @@ export default function ArchitecturePage() {
   return (
     <div className="container mx-auto max-w-6xl py-12 px-4">
       <div className="mb-12">
-        <h1 className="text-4xl font-bold mb-4">Architecture</h1>
+        <h1 className="text-4xl font-bold mb-4">{t("architecture.title")}</h1>
         <p className="text-xl text-gray-600">
-          Solidis follows SOLID principles to create a maintainable, extensible, and high-performance Redis client
-          architecture.
+          {t("architecture.subtitle")}
         </p>
       </div>
 
@@ -160,7 +164,7 @@ export default function ArchitecturePage() {
 
       {/* Components */}
       <div className="mb-12">
-        <h2 className="text-3xl font-bold mb-6">Core Components</h2>
+        <h2 className="text-3xl font-bold mb-6">{t("architecture.coreComponents")}</h2>
         <div className="grid md:grid-cols-2 gap-6">
           {components.map((component, index) => (
             <Card key={index} className="hover:shadow-lg transition-shadow">
@@ -189,7 +193,7 @@ export default function ArchitecturePage() {
 
       {/* SOLID Principles */}
       <div className="mb-12">
-        <h2 className="text-3xl font-bold mb-6">SOLID Principles in Action</h2>
+        <h2 className="text-3xl font-bold mb-6">{t("architecture.solidPrinciples")}</h2>
         <p className="text-gray-600 mb-6">
           Solidis is built following SOLID design principles, ensuring maintainability, testability, and extensibility.
         </p>

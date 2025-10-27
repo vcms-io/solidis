@@ -1,8 +1,13 @@
+"use client"
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { GitBranch, Code, TestTube, FileText, Users, Star, AlertCircle } from "lucide-react"
+import { useI18n } from "@/lib/i18n-context"
 
 export default function ContributingPage() {
+  const { t } = useI18n()
+
   const contributionTypes = [
     {
       icon: <Code className="h-8 w-8 text-blue-600" />,
@@ -33,10 +38,9 @@ export default function ContributingPage() {
   return (
     <div className="container mx-auto max-w-6xl py-12 px-4">
       <div className="mb-12">
-        <h1 className="text-4xl font-bold mb-4">Contributing to Solidis</h1>
+        <h1 className="text-4xl font-bold mb-4">{t("contributing.title")}</h1>
         <p className="text-xl text-gray-600">
-          Solidis is an open-source project and we welcome contributions from the community. Here's how you can help
-          make Solidis better.
+          {t("contributing.subtitle")}
         </p>
       </div>
 
