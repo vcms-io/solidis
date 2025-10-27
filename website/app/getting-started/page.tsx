@@ -1,15 +1,20 @@
+"use client"
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CheckCircle, Terminal, Code, Zap, Package, Layers } from "lucide-react"
+import { useI18n } from "@/lib/i18n-context"
 
 export default function GettingStartedPage() {
+  const { t } = useI18n()
+
   return (
     <div className="container mx-auto max-w-4xl py-12 px-4">
       <div className="mb-8">
-        <h1 className="text-4xl font-bold mb-4">Getting Started with Solidis</h1>
+        <h1 className="text-4xl font-bold mb-4">{t("gettingStarted.title")}</h1>
         <p className="text-xl text-gray-600">
-          Learn how to integrate Solidis into your project and start building high-performance Redis applications.
+          {t("gettingStarted.subtitle")}
         </p>
       </div>
 
@@ -19,7 +24,7 @@ export default function GettingStartedPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CheckCircle className="h-5 w-5 text-yellow-600" />
-              Prerequisites
+              {t("gettingStarted.prerequisites")}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -45,9 +50,9 @@ export default function GettingStartedPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Terminal className="h-5 w-5 text-yellow-600" />
-              Installation
+              {t("gettingStarted.installation")}
             </CardTitle>
-            <CardDescription>Install Solidis using your preferred package manager</CardDescription>
+            <CardDescription>{t("gettingStarted.installationDesc")}</CardDescription>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="npm" className="w-full">
@@ -80,17 +85,16 @@ export default function GettingStartedPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Package className="h-5 w-5 text-yellow-600" />
-              Client Types
+              {t("gettingStarted.clientTypes")}
             </CardTitle>
-            <CardDescription>Choose the right client for your needs</CardDescription>
+            <CardDescription>{t("gettingStarted.clientTypesDesc")}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
               <div>
-                <h3 className="text-lg font-semibold mb-3">1. Basic Client (SolidisClient)</h3>
+                <h3 className="text-lg font-semibold mb-3">1. {t("gettingStarted.basicClient")}</h3>
                 <p className="text-sm text-gray-600 mb-3">
-                  The basic client contains minimal functionality to reduce bundle size. You need to extend it with
-                  specific commands:
+                  {t("gettingStarted.basicClientDesc")}
                 </p>
                 <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
                   <div className="text-green-400">// Import the basic client and commands</div>
@@ -117,8 +121,8 @@ export default function GettingStartedPage() {
               </div>
 
               <div>
-                <h3 className="text-lg font-semibold mb-3">2. Featured Client (SolidisFeaturedClient)</h3>
-                <p className="text-sm text-gray-600 mb-3">A convenience client with all RESP commands pre-loaded:</p>
+                <h3 className="text-lg font-semibold mb-3">2. {t("gettingStarted.featuredClient")}</h3>
+                <p className="text-sm text-gray-600 mb-3">{t("gettingStarted.featuredClientDesc")}</p>
                 <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
                   <div className="text-green-400">// Import the featured client</div>
                   <div>import {"{ SolidisFeaturedClient }"} from '@vcms-io/solidis/featured';</div>
@@ -142,9 +146,9 @@ export default function GettingStartedPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Layers className="h-5 w-5 text-yellow-600" />
-              Connection Management
+              {t("gettingStarted.connectionManagement")}
             </CardTitle>
-            <CardDescription>Learn how to manage Redis connections</CardDescription>
+            <CardDescription>{t("gettingStarted.connectionManagementDesc")}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
@@ -173,9 +177,9 @@ export default function GettingStartedPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Zap className="h-5 w-5 text-yellow-600" />
-              Basic Operations
+              {t("gettingStarted.basicOperations")}
             </CardTitle>
-            <CardDescription>Common Redis operations with Solidis</CardDescription>
+            <CardDescription>{t("gettingStarted.basicOperationsDesc")}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
@@ -195,9 +199,9 @@ export default function GettingStartedPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Code className="h-5 w-5 text-yellow-600" />
-              Transactions
+              {t("gettingStarted.transactions")}
             </CardTitle>
-            <CardDescription>Working with Redis transactions</CardDescription>
+            <CardDescription>{t("gettingStarted.transactionsDesc")}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
@@ -221,27 +225,27 @@ export default function GettingStartedPage() {
         {/* Next Steps */}
         <Card>
           <CardHeader>
-            <CardTitle>Next Steps</CardTitle>
-            <CardDescription>Continue your journey with Solidis</CardDescription>
+            <CardTitle>{t("gettingStarted.nextSteps")}</CardTitle>
+            <CardDescription>{t("gettingStarted.nextStepsDesc")}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid md:grid-cols-2 gap-4">
               <div className="p-4 border rounded-lg">
-                <h3 className="font-semibold mb-2">📚 API Reference</h3>
+                <h3 className="font-semibold mb-2">📚 {t("nav.apiReference")}</h3>
                 <p className="text-sm text-gray-600 mb-3">
-                  Explore the complete API documentation with detailed examples.
+                  {t("gettingStarted.apiReferenceLink")}
                 </p>
                 <a href="/api-reference" className="text-yellow-600 hover:underline text-sm">
-                  View API Reference →
+                  {t("gettingStarted.viewApiReference")}
                 </a>
               </div>
               <div className="p-4 border rounded-lg">
-                <h3 className="font-semibold mb-2">🎯 Tutorials</h3>
+                <h3 className="font-semibold mb-2">🎯 {t("nav.tutorials")}</h3>
                 <p className="text-sm text-gray-600 mb-3">
-                  Learn by building real-world applications with step-by-step guides.
+                  {t("gettingStarted.tutorialsLink")}
                 </p>
                 <a href="/tutorials" className="text-yellow-600 hover:underline text-sm">
-                  Start Learning →
+                  {t("gettingStarted.startLearning")}
                 </a>
               </div>
             </div>

@@ -1,12 +1,17 @@
+"use client"
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
 import { HelpCircle, Zap, Shield, Code } from "lucide-react"
+import { useI18n } from "@/lib/i18n-context"
 
 export default function FaqPage() {
+  const { t } = useI18n()
+
   const categories = [
     {
-      title: "Getting Started",
+      title: t("faq.gettingStartedCat"),
       icon: <HelpCircle className="h-5 w-5 text-yellow-600" />,
       questions: [
         {
@@ -27,7 +32,7 @@ export default function FaqPage() {
       ],
     },
     {
-      title: "Performance",
+      title: t("faq.performanceCat"),
       icon: <Zap className="h-5 w-5 text-yellow-600" />,
       questions: [
         {
@@ -48,7 +53,7 @@ export default function FaqPage() {
       ],
     },
     {
-      title: "Configuration",
+      title: t("faq.configurationCat"),
       icon: <Code className="h-5 w-5 text-yellow-600" />,
       questions: [
         {
@@ -69,7 +74,7 @@ export default function FaqPage() {
       ],
     },
     {
-      title: "Troubleshooting",
+      title: t("faq.troubleshootingCat"),
       icon: <Shield className="h-5 w-5 text-red-600" />,
       questions: [
         {
@@ -94,11 +99,11 @@ export default function FaqPage() {
   return (
     <div className="container mx-auto max-w-4xl py-12 px-4">
       <div className="mb-12">
-        <h1 className="text-4xl font-bold mb-4">Frequently Asked Questions</h1>
+        <h1 className="text-4xl font-bold mb-4">{t("faq.title")}</h1>
         <p className="text-xl text-gray-600">
-          Find quick answers to common questions about Solidis. Can't find what you're looking for?
+          {t("faq.subtitle")}
           <a href="https://github.com/vcms-io/solidis/discussions" className="text-yellow-600 hover:underline ml-1">
-            Ask on GitHub Discussions
+            {t("faq.askOnGitHub")}
           </a>
         </p>
       </div>
@@ -129,27 +134,27 @@ export default function FaqPage() {
       {/* Contact Section */}
       <Card className="mt-12">
         <CardHeader>
-          <CardTitle>Still Need Help?</CardTitle>
+          <CardTitle>{t("faq.stillNeedHelp")}</CardTitle>
           <CardDescription>
-            If you can't find the answer you're looking for, here are some ways to get help
+            {t("faq.stillNeedHelpDesc")}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid md:grid-cols-3 gap-4">
             <div className="text-center p-4 border rounded-lg">
-              <h3 className="font-semibold mb-2">GitHub Issues</h3>
-              <p className="text-sm text-gray-600 mb-3">Report bugs or request features</p>
-              <Badge variant="outline">Bug Reports</Badge>
+              <h3 className="font-semibold mb-2">{t("faq.githubIssues")}</h3>
+              <p className="text-sm text-gray-600 mb-3">{t("faq.githubIssuesDesc")}</p>
+              <Badge variant="outline">{t("faq.bugReports")}</Badge>
             </div>
             <div className="text-center p-4 border rounded-lg">
-              <h3 className="font-semibold mb-2">GitHub Discussions</h3>
-              <p className="text-sm text-gray-600 mb-3">Ask questions and get community help</p>
-              <Badge variant="outline">Community Support</Badge>
+              <h3 className="font-semibold mb-2">{t("faq.githubDiscussions")}</h3>
+              <p className="text-sm text-gray-600 mb-3">{t("faq.githubDiscussionsDesc")}</p>
+              <Badge variant="outline">{t("faq.communitySupport")}</Badge>
             </div>
             <div className="text-center p-4 border rounded-lg">
-              <h3 className="font-semibold mb-2">Documentation</h3>
-              <p className="text-sm text-gray-600 mb-3">Comprehensive guides and API reference</p>
-              <Badge variant="outline">Self-Service</Badge>
+              <h3 className="font-semibold mb-2">{t("faq.documentation")}</h3>
+              <p className="text-sm text-gray-600 mb-3">{t("faq.documentationDesc")}</p>
+              <Badge variant="outline">{t("faq.selfService")}</Badge>
             </div>
           </div>
         </CardContent>

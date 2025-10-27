@@ -1,54 +1,59 @@
+"use client"
+
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Clock, User, ArrowRight } from "lucide-react"
+import { useI18n } from "@/lib/i18n-context"
 
 export default function TutorialsPage() {
+  const { t } = useI18n()
+
   const tutorials = [
     {
-      title: "Building a Session Store",
-      description: "Learn how to implement a Redis-based session store for web applications using Solidis.",
-      difficulty: "Beginner",
+      title: t("tutorials.sessionStore"),
+      description: t("tutorials.sessionStoreDesc"),
+      difficulty: t("tutorials.beginner"),
       duration: "15 min",
       tags: ["sessions", "web", "authentication"],
       href: "/tutorials/session-store",
     },
     {
-      title: "Implementing a Cache Layer",
-      description: "Create a high-performance caching layer to speed up your application's database queries.",
-      difficulty: "Intermediate",
+      title: t("tutorials.cacheLayer"),
+      description: t("tutorials.cacheLayerDesc"),
+      difficulty: t("tutorials.intermediate"),
       duration: "25 min",
       tags: ["caching", "performance", "database"],
       href: "/tutorials/cache-layer",
     },
     {
-      title: "Real-time Chat Application",
-      description: "Build a real-time chat application using Redis pub/sub with Solidis and WebSockets.",
-      difficulty: "Advanced",
+      title: t("tutorials.chatApp"),
+      description: t("tutorials.chatAppDesc"),
+      difficulty: t("tutorials.advanced"),
       duration: "45 min",
       tags: ["pubsub", "realtime", "websockets"],
       href: "/tutorials/chat-app",
     },
     {
-      title: "Rate Limiting with Redis",
-      description: "Implement various rate limiting strategies using Redis and Solidis for API protection.",
-      difficulty: "Intermediate",
+      title: t("tutorials.rateLimiting"),
+      description: t("tutorials.rateLimitingDesc"),
+      difficulty: t("tutorials.intermediate"),
       duration: "20 min",
       tags: ["rate-limiting", "api", "security"],
       href: "/tutorials/rate-limiting",
     },
     {
-      title: "Distributed Locking",
-      description: "Learn how to implement distributed locks using Redis to coordinate between multiple processes.",
-      difficulty: "Advanced",
+      title: t("tutorials.distributedLocking"),
+      description: t("tutorials.distributedLockingDesc"),
+      difficulty: t("tutorials.advanced"),
       duration: "30 min",
       tags: ["locking", "distributed", "concurrency"],
       href: "/tutorials/distributed-locking",
     },
     {
-      title: "Job Queue Implementation",
-      description: "Create a robust job queue system using Redis lists and Solidis for background processing.",
-      difficulty: "Intermediate",
+      title: t("tutorials.jobQueue"),
+      description: t("tutorials.jobQueueDesc"),
+      difficulty: t("tutorials.intermediate"),
       duration: "35 min",
       tags: ["queues", "jobs", "background"],
       href: "/tutorials/job-queue",
@@ -56,25 +61,22 @@ export default function TutorialsPage() {
   ]
 
   const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case "Beginner":
-        return "bg-green-100 text-green-800"
-      case "Intermediate":
-        return "bg-yellow-100 text-yellow-800"
-      case "Advanced":
-        return "bg-red-100 text-red-800"
-      default:
-        return "bg-gray-100 text-gray-800"
-    }
+    const beginner = t("tutorials.beginner")
+    const intermediate = t("tutorials.intermediate")
+    const advanced = t("tutorials.advanced")
+
+    if (difficulty === beginner) return "bg-green-100 text-green-800"
+    if (difficulty === intermediate) return "bg-yellow-100 text-yellow-800"
+    if (difficulty === advanced) return "bg-red-100 text-red-800"
+    return "bg-gray-100 text-gray-800"
   }
 
   return (
     <div className="container mx-auto max-w-6xl py-12 px-4">
       <div className="mb-12">
-        <h1 className="text-4xl font-bold mb-4">Tutorials & Use Cases</h1>
+        <h1 className="text-4xl font-bold mb-4">{t("tutorials.title")}</h1>
         <p className="text-xl text-gray-600">
-          Learn Solidis through practical examples and real-world use cases. Each tutorial includes complete code
-          examples and explanations.
+          {t("tutorials.subtitle")}
         </p>
       </div>
 
@@ -104,7 +106,7 @@ export default function TutorialsPage() {
                 href={tutorial.href}
                 className="inline-flex items-center text-yellow-600 hover:text-yellow-800 font-medium text-sm"
               >
-                Start Tutorial
+                {t("tutorials.startTutorial")}
                 <ArrowRight className="h-4 w-4 ml-1" />
               </Link>
             </CardContent>
@@ -118,9 +120,9 @@ export default function TutorialsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <User className="h-5 w-5 text-blue-600" />
-              Recommended Learning Path
+              {t("tutorials.learningPath")}
             </CardTitle>
-            <CardDescription>Follow this path to master Solidis from basics to advanced concepts</CardDescription>
+            <CardDescription>{t("tutorials.learningPathDesc")}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -129,8 +131,8 @@ export default function TutorialsPage() {
                   1
                 </div>
                 <div>
-                  <div className="font-medium">Start with Getting Started Guide</div>
-                  <div className="text-sm text-gray-600">Learn the basics of installation and configuration</div>
+                  <div className="font-medium">{t("tutorials.step1")}</div>
+                  <div className="text-sm text-gray-600">{t("tutorials.step1Desc")}</div>
                 </div>
               </div>
               <div className="flex items-center gap-4 p-4 border rounded-lg">
@@ -138,8 +140,8 @@ export default function TutorialsPage() {
                   2
                 </div>
                 <div>
-                  <div className="font-medium">Build a Session Store</div>
-                  <div className="text-sm text-gray-600">Practice with a common real-world use case</div>
+                  <div className="font-medium">{t("tutorials.step2")}</div>
+                  <div className="text-sm text-gray-600">{t("tutorials.step2Desc")}</div>
                 </div>
               </div>
               <div className="flex items-center gap-4 p-4 border rounded-lg">
@@ -147,8 +149,8 @@ export default function TutorialsPage() {
                   3
                 </div>
                 <div>
-                  <div className="font-medium">Implement Caching</div>
-                  <div className="text-sm text-gray-600">Learn performance optimization techniques</div>
+                  <div className="font-medium">{t("tutorials.step3")}</div>
+                  <div className="text-sm text-gray-600">{t("tutorials.step3Desc")}</div>
                 </div>
               </div>
               <div className="flex items-center gap-4 p-4 border rounded-lg">
@@ -156,8 +158,8 @@ export default function TutorialsPage() {
                   4
                 </div>
                 <div>
-                  <div className="font-medium">Advanced Patterns</div>
-                  <div className="text-sm text-gray-600">Explore distributed locking, pub/sub, and job queues</div>
+                  <div className="font-medium">{t("tutorials.step4")}</div>
+                  <div className="text-sm text-gray-600">{t("tutorials.step4Desc")}</div>
                 </div>
               </div>
             </div>
