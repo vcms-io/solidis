@@ -1,5 +1,5 @@
 import { stdout } from 'node:process';
-import { Transform, Writable, pipeline } from 'node:stream';
+import { pipeline, Transform, Writable } from 'node:stream';
 
 import { SolidisStringSymbols } from '../common/constants.ts';
 

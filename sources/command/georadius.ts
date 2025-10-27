@@ -1,9 +1,9 @@
 import {
-  UnexpectedReplyPrefix,
   buildGeoRadiusCommand,
   executeCommand,
   newCommandError,
   tryReplyToGeoRadius,
+  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type {

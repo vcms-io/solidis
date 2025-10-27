@@ -1,11 +1,11 @@
 import {
-  UnexpectedReplyPrefix,
   buildSortedSetInterCommand,
   executeCommand,
   newCommandError,
   processPairedArray,
   tryReplyToNumber,
   tryReplyToStringArray,
+  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type {

@@ -65,11 +65,11 @@
     "distributions/**/*.{d.ts,mjs,cjs}"
   ],
   "devDependencies": {
-    "@biomejs/biome": "1.9.2",
-    "@types/node": "^22.15.21",
+    "@biomejs/biome": "2.0.4",
+    "@types/node": "^22.15.32",
     "chalk": "^5.4.1",
     "concurrently": "^9.1.2",
-    "esbuild": "^0.25.4",
+    "esbuild": "^0.25.5",
     "typescript": "^5.8.3"
   }
 }

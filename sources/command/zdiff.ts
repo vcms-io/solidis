@@ -1,10 +1,10 @@
 import {
-  UnexpectedReplyPrefix,
   executeCommand,
   newCommandError,
   processPairedArray,
   tryReplyToNumber,
   tryReplyToStringArray,
+  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type { RespSortedSetMember } from '../index.ts';

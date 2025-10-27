@@ -1,8 +1,8 @@
 import {
-  UnexpectedReplyPrefix,
   executeCommand,
   newCommandError,
   tryReplyToModuleInfo,
+  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type { RespModuleInfo } from '../index.ts';

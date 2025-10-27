@@ -1,7 +1,7 @@
 import {
-  UnexpectedReplyPrefix,
   executeCommand,
   newCommandError,
+  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type { RespWaitAOF } from '../index.ts';

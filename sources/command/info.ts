@@ -1,6 +1,5 @@
-import { executeCommand, tryReplyToString } from './utils/index.ts';
-
 import { SolidisStringSymbols } from '../index.ts';
+import { executeCommand, tryReplyToString } from './utils/index.ts';
 
 export function createCommand(section?: string) {
   const command = ['INFO'];

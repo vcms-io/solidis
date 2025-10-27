@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+
 import { build } from 'esbuild';
 
 import type { Plugin } from 'esbuild';

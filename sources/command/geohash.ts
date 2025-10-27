@@ -1,8 +1,8 @@
 import {
-  InvalidReplyPrefix,
-  UnexpectedReplyPrefix,
   executeCommand,
+  InvalidReplyPrefix,
   newCommandError,
+  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 export function createCommand(key: string, members: string[]) {

@@ -9,9 +9,9 @@ import {
 import type {
   SolidisClientFrozenOptions,
   SolidisData,
-  SolidisParseRequest,
   SolidisParsed,
   SolidisParsedBufferWithLength,
+  SolidisParseRequest,
   SolidisRespLengthType,
   SolidisRespPrimitiveType,
   SolidisRespSimpleLineType,

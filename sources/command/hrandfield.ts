@@ -1,10 +1,10 @@
 import {
-  UnexpectedReplyPrefix,
   executeCommand,
   newCommandError,
   processPairedArray,
   tryReplyToString,
   tryReplyToStringArray,
+  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type { RespHashField } from '../index.ts';

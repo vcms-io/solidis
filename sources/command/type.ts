@@ -1,10 +1,9 @@
+import { RespDataTypes } from '../index.ts';
 import {
-  UnexpectedReplyPrefix,
   executeCommand,
   newCommandError,
+  UnexpectedReplyPrefix,
 } from './utils/index.ts';
-
-import { RespDataTypes } from '../index.ts';
 
 export function createCommand(key: string) {
   return ['TYPE', key];

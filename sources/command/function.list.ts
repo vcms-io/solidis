@@ -1,5 +1,4 @@
 import {
-  UnexpectedReplyPrefix,
   executeCommand,
   newCommandError,
   tryReplyArray,
@@ -7,6 +6,7 @@ import {
   tryReplyToString,
   tryReplyToStringArray,
   tryReplyToStringOrNull,
+  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type {

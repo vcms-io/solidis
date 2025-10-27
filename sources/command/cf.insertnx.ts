@@ -1,9 +1,9 @@
 import {
-  UnexpectedReplyPrefix,
   buildCuckooFilterInsertCommand,
   executeCommand,
   newCommandError,
   tryReplyToBoolean,
+  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type { CommandCuckooFilterInsertOptions } from '../index.ts';

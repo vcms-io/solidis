@@ -1,10 +1,10 @@
 import {
-  InvalidReplyPrefix,
-  UnexpectedReplyPrefix,
   executeCommand,
+  InvalidReplyPrefix,
   newCommandError,
   tryReplyToNumber,
   tryReplyToString,
+  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type { RespFunctionStats } from '../index.ts';

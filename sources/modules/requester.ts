@@ -1,6 +1,4 @@
 import {
-  SolidisParser,
-  SolidisRequesterError,
   checkReplyIsArray,
   checkReplyIsMessageEvent,
   checkReplyIsPubSubEvent,
@@ -9,6 +7,8 @@ import {
   extractSubReplies,
   findErrorInReplies,
   generateDebugHandle,
+  SolidisParser,
+  SolidisRequesterError,
   wrapWithParserError,
   wrapWithSolidisRequesterError,
 } from '../index.ts';
