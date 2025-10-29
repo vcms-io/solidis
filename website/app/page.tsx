@@ -224,7 +224,7 @@ export default function HomePage() {
                   <CodeBlock code={`# Install Solidis
 npm install @vcms-io/solidis`} language="bash" />
                   <CodeBlock code={`# Basic usage
-import {"{ SolidisClient }"} from '@vcms-io/solidis';
+import { SolidisClient } from '@vcms-io/solidis';
 const client = new SolidisClient();
 await client.connect();`} language="typescript" />
                 </div>
