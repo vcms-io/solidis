@@ -282,9 +282,7 @@ async function updateUserProfile(userId: string, data: any) {
             </a>{" "}
             package which includes a battle-tested RedLock implementation.
           </p>
-          <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm">
-            npm install @vcms-io/solidis-extensions
-          </div>
+          <CodeBlock code="npm install @vcms-io/solidis-extensions" language="bash" />
         </CardContent>
       </Card>
 

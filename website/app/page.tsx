@@ -8,6 +8,7 @@ import { ArrowRight, Book, Code, Zap, Shield, Users, Star, BarChart } from "luci
 import { useGitHubStats } from "@/hooks/use-github-stats"
 import { GitHubStats } from "@/components/github-stats"
 import { useI18n } from "@/lib/i18n-context"
+import { CodeBlock } from '@/components/code-block'
 
 export default function HomePage() {
   const { stats, loading } = useGitHubStats()
@@ -197,7 +198,7 @@ export default function HomePage() {
                   <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold">
                     1
                   </div>
-                  <span>Install via npm or yarn</span>
+                  <span>Install via npm, yarn or pnpm</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold">
@@ -220,14 +221,12 @@ export default function HomePage() {
               </CardHeader>
               <CardContent>
                 <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm">
-                  <div className="text-green-400"># Install Solidis</div>
-                  <div className="mt-2">npm install @vcms-io/solidis</div>
-                  <div className="mt-4 text-green-400"># Basic usage</div>
-                  <div className="mt-2">
-                    <div>import {"{ SolidisClient }"} from '@vcms-io/solidis';</div>
-                    <div className="mt-1">const client = new SolidisClient();</div>
-                    <div className="mt-1">await client.connect();</div>
-                  </div>
+                  <CodeBlock code={`# Install Solidis
+npm install @vcms-io/solidis`} language="bash" />
+                  <CodeBlock code={`# Basic usage
+import {"{ SolidisClient }"} from '@vcms-io/solidis';
+const client = new SolidisClient();
+await client.connect();`} language="typescript" />
                 </div>
               </CardContent>
             </Card>
