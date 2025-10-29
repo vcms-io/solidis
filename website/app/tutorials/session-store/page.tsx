@@ -96,7 +96,7 @@ export default function SessionStoreTutorial() {
           </CardTitle>
           <CardDescription>Install dependencies and initialize the project</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent>
           <div>
             <h4 className="font-semibold mb-2">Install Dependencies</h4>
             <Tabs defaultValue="npm" className="w-full">
@@ -105,30 +105,30 @@ export default function SessionStoreTutorial() {
                 <TabsTrigger value="yarn">yarn</TabsTrigger>
                 <TabsTrigger value="pnpm">pnpm</TabsTrigger>
               </TabsList>
-              <TabsContent value="npm">
-                <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm">
-                  npm install @vcms-io/solidis express uuid
+              <TabsContent value="npm" className="space-y-4">
+                <CodeBlock code="npm install @vcms-io/solidis express uuid" language="bash" />
+                <div>
+                  <h4 className="font-semibold mb-2">TypeScript (Optional)</h4>
+                  <CodeBlock code="npm install -D @types/express @types/uuid typescript" language="bash" />
                 </div>
               </TabsContent>
-              <TabsContent value="yarn">
-                <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm">
-                  yarn add @vcms-io/solidis express uuid
+              <TabsContent value="yarn" className="space-y-4">
+                <CodeBlock code="yarn add @vcms-io/solidis express uuid" language="bash" />
+                <div>
+                  <h4 className="font-semibold mb-2">TypeScript (Optional)</h4>
+                  <CodeBlock code="yarn add -D @types/express @types/uuid typescript" language="bash" />
                 </div>
               </TabsContent>
-              <TabsContent value="pnpm">
-                <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm">
-                  pnpm add @vcms-io/solidis express uuid
+              <TabsContent value="pnpm" className="space-y-4">
+                <CodeBlock code="pnpm add @vcms-io/solidis express uuid" language="bash" />
+                <div>
+                  <h4 className="font-semibold mb-2">TypeScript (Optional)</h4>
+                  <CodeBlock code="pnpm add -D @types/express @types/uuid typescript" language="bash" />
                 </div>
               </TabsContent>
             </Tabs>
           </div>
 
-          <div>
-            <h4 className="font-semibold mb-2">TypeScript (Optional)</h4>
-            <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm">
-              npm install -D @types/express @types/uuid typescript
-            </div>
-          </div>
         </CardContent>
       </Card>
 
@@ -435,26 +435,20 @@ start().catch(console.error);`} language="typescript" showLineNumbers={true} />
           <div className="space-y-4">
             <div>
               <h4 className="font-semibold mb-2">Test Login</h4>
-              <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm">
-                {`curl -X POST http://localhost:3000/api/login \\
+              <CodeBlock code={`curl -X POST http://localhost:3000/api/login \\
   -H "Content-Type: application/json" \\
   -d '{"username":"demo","password":"password"}' \\
-  -c cookies.txt`}
-              </div>
+  -c cookies.txt`} language="bash" />
             </div>
 
             <div>
               <h4 className="font-semibold mb-2">Test Protected Endpoint</h4>
-              <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm">
-                {`curl http://localhost:3000/api/profile -b cookies.txt`}
-              </div>
+              <CodeBlock code={`curl http://localhost:3000/api/profile -b cookies.txt`} language="bash" />
             </div>
 
             <div>
               <h4 className="font-semibold mb-2">Test Logout</h4>
-              <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm">
-                {`curl -X POST http://localhost:3000/api/logout -b cookies.txt`}
-              </div>
+              <CodeBlock code={`curl -X POST http://localhost:3000/api/logout -b cookies.txt`} language="bash" />
             </div>
           </div>
         </CardContent>

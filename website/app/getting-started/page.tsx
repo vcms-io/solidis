@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CheckCircle, Terminal, Code, Zap, Package, Layers } from "lucide-react"
 import { useI18n } from "@/lib/i18n-context"
+import { CodeBlock } from '@/components/code-block'
 
 export default function GettingStartedPage() {
   const { t } = useI18n()
@@ -62,19 +63,13 @@ export default function GettingStartedPage() {
                 <TabsTrigger value="pnpm">pnpm</TabsTrigger>
               </TabsList>
               <TabsContent value="npm">
-                <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm">
-                  npm install @vcms-io/solidis
-                </div>
+                <CodeBlock code="npm install @vcms-io/solidis" language="bash" />
               </TabsContent>
               <TabsContent value="yarn">
-                <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm">
-                  yarn add @vcms-io/solidis
-                </div>
+                <CodeBlock code="yarn add @vcms-io/solidis" language="bash" />
               </TabsContent>
               <TabsContent value="pnpm">
-                <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm">
-                  pnpm add @vcms-io/solidis
-                </div>
+                <CodeBlock code="pnpm add @vcms-io/solidis" language="bash" />
               </TabsContent>
             </Tabs>
           </CardContent>
@@ -96,46 +91,38 @@ export default function GettingStartedPage() {
                 <p className="text-sm text-gray-600 mb-3">
                   {t("gettingStarted.basicClientDesc")}
                 </p>
-                <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-                  <div className="text-green-400">// Import the basic client and commands</div>
-                  <div>import {"{ SolidisClient }"} from '@vcms-io/solidis';</div>
-                  <div>import {"{ get }"} from '@vcms-io/solidis/command/get';</div>
-                  <div>import {"{ set }"} from '@vcms-io/solidis/command/set';</div>
-                  <div>import {"{ multi }"} from '@vcms-io/solidis/command/multi';</div>
-                  <div className="mt-2">import type {"{ SolidisClientExtensions }"} from '@vcms-io/solidis';</div>
-                  <div className="mt-4 text-green-400">// Define extensions with type safety</div>
-                  <div>const extensions = {"{"}</div>
-                  <div className="ml-2">get,</div>
-                  <div className="ml-2">set,</div>
-                  <div className="ml-2">multi</div>
-                  <div>{"}"} satisfies SolidisClientExtensions;</div>
-                  <div className="mt-4 text-green-400">// Initialize client with extensions</div>
-                  <div>const client = new SolidisClient({"{"}</div>
-                  <div className="ml-2">host: '127.0.0.1',</div>
-                  <div className="ml-2">port: 6379</div>
-                  <div>{"}"}).extend(extensions);</div>
-                  <div className="mt-4 text-green-400">// Use commands</div>
-                  <div>await client.set('key', 'value');</div>
-                  <div>const value = await client.get('key');</div>
-                </div>
+                <CodeBlock code={`// Import the basic client and commands
+import { SolidisClient } from '@vcms-io/solidis';
+import { get } from '@vcms-io/solidis/command/get';
+import { set } from '@vcms-io/solidis/command/set';
+import { multi } from '@vcms-io/solidis/command/multi';
+import type { SolidisClientExtensions } from '@vcms-io/solidis';
+
+// Define extensions with type safety
+const extensions = {
+  get,
+  set,
+  multi
+} satisfies SolidisClientExtensions;
+
+// Initialize client with extensions
+const client = new SolidisClient({
+  host: '127.0.0.1',
+  port: 6379
+}).extend(extensions);`} language="typescript" showLineNumbers={true} />
               </div>
 
               <div>
                 <h3 className="text-lg font-semibold mb-3">2. {t("gettingStarted.featuredClient")}</h3>
                 <p className="text-sm text-gray-600 mb-3">{t("gettingStarted.featuredClientDesc")}</p>
-                <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-                  <div className="text-green-400">// Import the featured client</div>
-                  <div>import {"{ SolidisFeaturedClient }"} from '@vcms-io/solidis/featured';</div>
-                  <div className="mt-4 text-green-400">// All RESP commands are pre-loaded</div>
-                  <div>const client = new SolidisFeaturedClient({"{"}</div>
-                  <div className="ml-2">host: '127.0.0.1',</div>
-                  <div className="ml-2">port: 6379</div>
-                  <div>{"}"});</div>
-                  <div className="mt-4 text-green-400">// Use any RESP command directly</div>
-                  <div>await client.set('key', 'value');</div>
-                  <div>await client.hset('hash', 'field', 'value');</div>
-                  <div>await client.lpush('list', 'item-1', 'item-2');</div>
-                </div>
+                <CodeBlock code={`// Import the featured client
+import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
+
+// All RESP commands are pre-loaded
+const client = new SolidisFeaturedClient({
+  host: '127.0.0.1',
+  port: 6379
+}).extend(extensions);`} language="typescript" showLineNumbers={true} />
               </div>
             </div>
           </CardContent>
@@ -151,24 +138,23 @@ export default function GettingStartedPage() {
             <CardDescription>{t("gettingStarted.connectionManagementDesc")}</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-              <div className="text-green-400">// Create client (with lazy connect)</div>
-              <div>const client = new SolidisClient({"{"}</div>
-              <div className="ml-2">uri: 'redis://127.0.0.1:6379',</div>
-              <div className="ml-2">lazyConnect: true</div>
-              <div>
-                {"}"}).extend({"{ get, set }"});
-              </div>
-              <div className="mt-4 text-green-400">// Explicitly connect when needed</div>
-              <div>await client.connect();</div>
-              <div className="mt-4 text-green-400">// Handle connection events</div>
-              <div>client.on('connect', () =&gt; console.log('Connected to server'));</div>
-              <div>client.on('ready', () =&gt; console.log('Client is ready for commands'));</div>
-              <div>client.on('error', (err) =&gt; console.error('Error occurred: ', err));</div>
-              <div>client.on('end', () =&gt; console.log('Connection closed'));</div>
-              <div className="mt-4 text-green-400">// Close connection when done</div>
-              <div>client.quit();</div>
-            </div>
+            <CodeBlock code={`// Create client (with lazy connect)
+const client = new SolidisClient({
+  uri: 'redis://127.0.0.1:6379',
+  lazyConnect: true
+}).extend({ get, set });
+
+// Explicitly connect when needed
+await client.connect();
+
+// Handle connection events
+client.on('connect', () => console.log('Connected to server'));
+client.on('ready', () => console.log('Client is ready for commands'));
+client.on('error', (err) => console.error('Error occurred: ', err));
+client.on('end', () => console.log('Connection closed'));
+
+// Close connection when done
+client.quit();`} language="typescript" showLineNumbers={true} />
           </CardContent>
         </Card>
 
@@ -182,15 +168,16 @@ export default function GettingStartedPage() {
             <CardDescription>{t("gettingStarted.basicOperationsDesc")}</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-              <div className="text-green-400">// Set a key</div>
-              <div>await client.set('key', 'value');</div>
-              <div className="mt-4 text-green-400">// Get a key</div>
-              <div>const value = await client.get('key');</div>
-              <div>console.log(value); // 'value'</div>
-              <div className="mt-4 text-green-400">// Delete a key</div>
-              <div>await client.del('key');</div>
-            </div>
+            <CodeBlock code={`// Set a key
+await client.set('key', 'value');
+
+// Get a key
+const value = await client.get('key');
+
+console.log(value); // 'value'
+
+// Delete a key
+await client.del('key');`} language="typescript" showLineNumbers={true} />
           </CardContent>
         </Card>
 
@@ -204,21 +191,13 @@ export default function GettingStartedPage() {
             <CardDescription>{t("gettingStarted.transactionsDesc")}</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-              <div className="text-green-400">// Start a transaction</div>
-              <div>const transaction = client.multi();</div>
-              <div className="mt-4 text-green-400">// Queue commands (no await needed)</div>
-              <div>transaction.set('key', 'value');</div>
-              <div>transaction.incr('counter');</div>
-              <div>transaction.get('key');</div>
-              <div className="mt-4 text-green-400">// Execute transaction</div>
-              <div>const results = await transaction.exec();</div>
-              <div>console.log(results); // [[ 'OK' ], [ 1 ], [ &lt;Buffer 76 61 6c 75 65&gt; ]]</div>
-              <div className="mt-4 text-green-400">// Or discard a transaction if needed</div>
-              <div>const transaction = client.multi();</div>
-              <div>transaction.set('key', 'value');</div>
-              <div>transaction.discard(); // Cancel transaction</div>
-            </div>
+              <CodeBlock code={`// Start a transaction
+const transaction = client.multi();
+
+// Queue commands (no await needed)
+transaction.set('key', 'value');
+transaction.incr('counter');
+transaction.get('key');`} language="typescript" showLineNumbers={true} />
           </CardContent>
         </Card>
 
