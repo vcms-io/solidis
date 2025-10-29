@@ -304,10 +304,10 @@ await client.publish('news', 'Hello world!');`} language="typescript" showLineNu
   port: 6379,
   useTLS: false,
   lazyConnect: false,
-  authentication: {"{"}
-  username: 'user',
-  password: 'password'
-  {"}"},
+  authentication: {
+    username: 'user',
+    password: 'password'
+  },
   database: 0,
   clientName: 'solidis',
   protocol: 'RESP2', // 'RESP2' or 'RESP3'
