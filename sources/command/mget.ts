@@ -11,6 +11,6 @@ export async function mget<T>(
   return await executeCommand(
     this,
     createCommand(...keys),
-    tryReplyToStringArray,
+    (reply, command) => tryReplyToStringArray(reply, command, true),
   );
 }

@@ -23,6 +23,6 @@ export async function jsonArrpop<T>(
   return await executeCommand(
     this,
     createCommand(key, path, index),
-    tryReplyToStringArray,
+    (reply, command) => tryReplyToStringArray(reply, command, true),
   );
 }
