@@ -1,4 +1,4 @@
-import type { SolidisRecursiveStringRecord } from './solidis.ts';
+import type { SolidisData, SolidisRecursiveStringRecord } from './solidis.ts';
 
 export const RespDataTypes = {
   STRING: 'STRING',
@@ -284,10 +284,7 @@ export interface RespMemoryStats {
   fragmentation: number;
   fragmentationBytes: number;
 }
-export interface RespMemoryUsage {
-  bytes: number;
-  peak: number;
-}
+export type RespMemoryUsage = number;
 export interface RespModuleInfo {
   name: string;
   version: number;
@@ -405,8 +402,8 @@ export interface RespStreamPendingEntry {
 }
 export interface RespStreamPendingInfo {
   pending: number;
-  minId: string;
-  maxId: string;
+  minId: string | null;
+  maxId: string | null;
   consumers: Array<{
     name: string;
     count: number;
@@ -423,3 +420,11 @@ export interface RespWaitAOF {
 export interface RespConfigInfo {
   [key: string]: string | undefined;
 }
+
+export interface RespClientTrackingInfo {
+  flags: string[];
+  redirect: number;
+  prefixes: string[];
+}
+
+export class RespPush extends Array<SolidisData> {}

@@ -1,8 +1,4 @@
-import {
-  executeCommand,
-  processPairedArray,
-  tryReplyNumber,
-} from './utils/index.ts';
+import { executeCommand, tryReplyToNumberRecord } from './utils/index.ts';
 
 import type { RespPubsubShardNumsub } from '../index.ts';
 
@@ -23,18 +19,6 @@ export async function pubsubShardnumsub<T>(
   return await executeCommand(
     this,
     createCommand(shardChannels),
-    (reply, command) => {
-      const result: RespPubsubShardNumsub = {};
-
-      processPairedArray(
-        reply,
-        (channel, count) => {
-          result[channel] = tryReplyNumber(count, command);
-        },
-        'PUBSUB_SHARDNUMSUB',
-      );
-
-      return result;
-    },
+    tryReplyToNumberRecord,
   );
 }

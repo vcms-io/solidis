@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 
-import { auth, hello, info, select } from './command/basic.ts';
+import { auth, clientSetname, hello, info, select } from './command/basic.ts';
 import {
   generateDebugHandle,
   SolidisClientError,
@@ -103,7 +103,7 @@ export class SolidisClient extends EventEmitter {
       const url = new URL(this.#options.uri);
 
       const host = url.hostname;
-      const port = url.port ? Number.parseInt(url.port) : 6379;
+      const port = url.port ? Number.parseInt(url.port, 10) : 6379;
 
       const username = this.#options.authentication.username || url.username;
       const password = this.#options.authentication.password || url.password;
@@ -224,6 +224,8 @@ export class SolidisClient extends EventEmitter {
   async #onConnect() {
     this.#debug?.('info', 'Solidis connection established');
 
+    this.#requester.setNegotiatedProtocol(SolidisProtocols.RESP2);
+
     this.emit('connect');
 
     const socket = this.#connection.socket;
@@ -243,6 +245,7 @@ export class SolidisClient extends EventEmitter {
         }
       }
 
+      await this.#applyClientName();
       await this.#readyCheck();
       await this.#recoveryAfterConnect();
 
@@ -317,6 +320,8 @@ export class SolidisClient extends EventEmitter {
     try {
       await this.hello(protocol, username, password, clientName);
 
+      this.#requester.setNegotiatedProtocol(protocol);
+
       if (username && password) {
         return true;
       }
@@ -325,6 +330,24 @@ export class SolidisClient extends EventEmitter {
     }
 
     return false;
+  }
+
+  async #applyClientName() {
+    const { clientName, protocol } = this.#options;
+
+    if (!clientName || protocol !== SolidisProtocols.RESP2) {
+      return;
+    }
+
+    try {
+      await clientSetname.call(this, clientName);
+    } catch (error) {
+      this.#debug?.(
+        'warn',
+        `CLIENT SETNAME "${clientName}" failed (non-fatal, likely ACL restriction)`,
+        error,
+      );
+    }
   }
 
   async #authenticate() {

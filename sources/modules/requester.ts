@@ -7,8 +7,11 @@ import {
   extractSubReplies,
   findErrorInReplies,
   generateDebugHandle,
+  RespPush,
   SolidisParser,
+  SolidisProtocols,
   SolidisRequesterError,
+  SolidisSubscribeCommandNameSet,
   wrapWithParserError,
   wrapWithSolidisRequesterError,
 } from '../index.ts';
@@ -48,6 +51,9 @@ export class SolidisRequester {
 
   #isOnRecovery = false;
 
+  #negotiatedProtocol: SolidisProtocols = SolidisProtocols.RESP2;
+  #pendingSubscribeCommandCount = 0;
+
   #debug?: (type: SolidisDebugLogType, message: string, data?: unknown) => void;
 
   constructor(options: SolidisRequesterOptions) {
@@ -55,6 +61,10 @@ export class SolidisRequester {
     this.#parser = new SolidisParser(options);
 
     this.#debug = generateDebugHandle(options.debugMemory);
+  }
+
+  public setNegotiatedProtocol(protocol: SolidisProtocols) {
+    this.#negotiatedProtocol = protocol;
   }
 
   public async send(commands: StringOrBuffer[][]): Promise<SolidisData[][]> {
@@ -102,7 +112,7 @@ export class SolidisRequester {
     );
 
     for (const pipelineChunk of pipelineChunks) {
-      const expectedReplyCount = pipelineChunk.pipelinedCommands.length;
+      const expectedReplyCount = pipelineChunk.expectedReplyCount;
       const commandsBuffer = commandsToBuffer(pipelineChunk.pipelinedCommands);
 
       this.#debug?.(
@@ -120,7 +130,10 @@ export class SolidisRequester {
         parsedReplies: [],
         expectedReplyCount,
         subRequests: pipelineChunk.subRequests,
+        subscribeCommandCount: pipelineChunk.subscribeCommandCount,
       };
+
+      this.#pendingSubscribeCommandCount += pipelineChunk.subscribeCommandCount;
 
       this.#setRequestTimeout(pipelineRequest, 'set');
       this.#requestQueue.push(pipelineRequest);
@@ -311,6 +324,7 @@ export class SolidisRequester {
       chunks: [],
       pipelinedCommands: [],
       subRequests: [],
+      subscribeCommandCount: 0,
     };
 
     for (const request of requests) {
@@ -319,11 +333,22 @@ export class SolidisRequester {
           this.#finalizePipelineChunkContext(context);
         }
 
+        let command = request.commands[index];
         const isLastCommand = index === request.commands.length - 1;
 
-        context.pipelinedCommands.push(request.commands[index]);
+        const isSubscribeFamily = this.#checkCommandIsSubscribeFamily(command);
+
+        if (isSubscribeFamily) {
+          command = this.#expandUnsubscribeAllCommand(command);
+          context.subscribeCommandCount += 1;
+        }
+
+        const replySpan = this.#getCommandReplySpan(command, isSubscribeFamily);
+
+        context.pipelinedCommands.push(command);
         context.subRequests.push({
           cursor: context.cursor,
+          span: replySpan,
           resolve: (subReplies: SolidisData[]) => {
             request.replies.push(subReplies);
 
@@ -336,7 +361,7 @@ export class SolidisRequester {
           },
         });
 
-        context.cursor += 1;
+        context.cursor += replySpan;
       }
     }
 
@@ -347,15 +372,89 @@ export class SolidisRequester {
     return context.chunks;
   }
 
+  #checkCommandIsSubscribeFamily(command: StringOrBuffer[]) {
+    const commandName = command[0];
+
+    if (commandName === undefined) {
+      return false;
+    }
+
+    const name =
+      typeof commandName === 'string' ? commandName : commandName.toString();
+
+    if (name.length < 9) {
+      return false;
+    }
+
+    if (SolidisSubscribeCommandNameSet.has(name)) {
+      return true;
+    }
+
+    return SolidisSubscribeCommandNameSet.has(name.toUpperCase());
+  }
+
+  #getCommandReplySpan(command: StringOrBuffer[], isSubscribeFamily: boolean) {
+    if (!isSubscribeFamily) {
+      return 1;
+    }
+
+    return Math.max(1, command.length - 1);
+  }
+
+  #expandUnsubscribeAllCommand(command: StringOrBuffer[]): StringOrBuffer[] {
+    if (command.length !== 1) {
+      return command;
+    }
+
+    const channels = this.#getUnsubscribeChannelSet(command[0]);
+
+    if (!channels || channels.size === 0) {
+      return command;
+    }
+
+    return [command[0], ...channels];
+  }
+
+  #getUnsubscribeChannelSet(
+    commandName: StringOrBuffer,
+  ): Set<string> | undefined {
+    const name = (
+      typeof commandName === 'string' ? commandName : commandName.toString()
+    ).toUpperCase();
+
+    const { pubSub } = this.#options;
+
+    switch (name) {
+      case 'UNSUBSCRIBE': {
+        return pubSub.subscribedChannels;
+      }
+
+      case 'SUNSUBSCRIBE': {
+        return pubSub.subscribedShardChannels;
+      }
+
+      case 'PUNSUBSCRIBE': {
+        return pubSub.subscribedPatterns;
+      }
+
+      default: {
+        return undefined;
+      }
+    }
+  }
+
   #finalizePipelineChunkContext(context: SolidisPipelineRequestChunkContext) {
     context.chunks.push({
       pipelinedCommands: context.pipelinedCommands,
       subRequests: context.subRequests,
+      subscribeCommandCount: context.subscribeCommandCount,
+      expectedReplyCount: context.cursor,
     });
 
     context.cursor = 0;
     context.pipelinedCommands = [];
     context.subRequests = [];
+    context.subscribeCommandCount = 0;
   }
 
   public onReply(
@@ -446,7 +545,11 @@ export class SolidisRequester {
 
     const reply = parsedReplies[0];
 
-    if (checkReplyIsArray(reply) && checkReplyIsPubSubEvent(reply)) {
+    if (
+      checkReplyIsArray(reply) &&
+      this.#checkReplyCanBePubSubEvent(reply) &&
+      checkReplyIsPubSubEvent(reply)
+    ) {
       pubSub.dispatchPubSubEvent(reply, emit);
 
       if (checkReplyIsMessageEvent(reply)) {
@@ -457,6 +560,21 @@ export class SolidisRequester {
     }
 
     return false;
+  }
+
+  #checkReplyCanBePubSubEvent(reply: SolidisData[]) {
+    if (reply instanceof RespPush) {
+      return true;
+    }
+
+    if (this.#negotiatedProtocol === SolidisProtocols.RESP3) {
+      return false;
+    }
+
+    return (
+      this.#options.pubSub.hasActiveSubscriptions ||
+      this.#pendingSubscribeCommandCount > 0
+    );
   }
 
   #resolveSingleReply(parsedReplies: SolidisData[]) {
@@ -486,6 +604,11 @@ export class SolidisRequester {
     if (request.sessionId !== this.#sessionId) {
       return;
     }
+
+    this.#pendingSubscribeCommandCount = Math.max(
+      0,
+      this.#pendingSubscribeCommandCount - request.subscribeCommandCount,
+    );
 
     this.#resolveSubRequests(request);
 
@@ -532,6 +655,8 @@ export class SolidisRequester {
 
       this.#parser = new SolidisParser(this.#options);
 
+      this.#options.connection.reset();
+
       this.#isOnRecovery = false;
     });
   }
@@ -560,7 +685,7 @@ export class SolidisRequester {
   }
 
   #resetStates() {
-    this.#sessionId += 1;
+    this.#pendingSubscribeCommandCount = 0;
 
     this.#requestQueue = [];
     this.#inflightQueue = [];

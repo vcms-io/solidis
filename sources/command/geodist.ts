@@ -11,7 +11,7 @@ export function createCommand(
   const command = ['GEODIST', key, member1, member2];
 
   if (unit) {
-    command.push(unit);
+    command.push(unit.toLowerCase());
   }
 
   return command;

@@ -1,7 +1,7 @@
 import {
   executeCommand,
-  InvalidReplyPrefix,
   newCommandError,
+  tryReplyToMap,
   UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
@@ -20,50 +20,21 @@ export async function xinfoConsumers<T>(
     this,
     createCommand(key, group),
     (reply, command) => {
-      if (Array.isArray(reply)) {
-        return reply.map((info) => {
-          if (!Array.isArray(info)) {
-            throw newCommandError(`${InvalidReplyPrefix}: ${info}`, command);
-          }
-
-          const result = new Map<string, string>();
-
-          for (let index = 0; index < info.length; index += 2) {
-            const key = info[index];
-            const value = info[index + 1];
-
-            if (!(typeof key === 'string' || key instanceof Buffer)) {
-              throw newCommandError(`${InvalidReplyPrefix}: ${key}`, command);
-            }
-
-            if (
-              !(
-                typeof value === 'string' ||
-                value instanceof Buffer ||
-                typeof value === 'number'
-              )
-            ) {
-              throw newCommandError(
-                `${InvalidReplyPrefix}: ${key}/${value}`,
-                command,
-              );
-            }
-
-            const keyString = `${key}`.toLowerCase();
-
-            result.set(keyString, `${value}`);
-          }
-
-          return {
-            name: String(result.get('name')),
-            pending: Number(result.get('pending')),
-            idle: Number(result.get('idle')),
-            inactive: Number(result.get('inactive')),
-          };
-        });
+      if (!Array.isArray(reply)) {
+        throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
       }
 
-      throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
+      return reply.map((info) => {
+        /** Each consumer is a flat field/value array (RESP2) or a map (RESP3). */
+        const result = tryReplyToMap(info, command);
+
+        return {
+          name: String(result.get('name')),
+          pending: Number(result.get('pending')),
+          idle: Number(result.get('idle')),
+          inactive: Number(result.get('inactive')),
+        };
+      });
     },
   );
 }

@@ -1,8 +1,7 @@
 import {
   executeCommand,
-  InvalidReplyPrefix,
   newCommandError,
-  processPairedArray,
+  tryReplyToStreamEntry,
   tryReplyToString,
   UnexpectedReplyPrefix,
 } from './utils/index.ts';
@@ -45,40 +44,26 @@ export async function xautoclaim<T>(
     this,
     createCommand(key, group, consumer, minIdleTime, start, count, justid),
     (reply, command) => {
-      if (Array.isArray(reply) && reply.length === 2) {
+      if (Array.isArray(reply) && (reply.length === 2 || reply.length === 3)) {
         const [nextId, entries] = reply;
 
         if (
           (typeof nextId === 'string' || nextId instanceof Buffer) &&
           Array.isArray(entries)
         ) {
+          if (justid) {
+            return {
+              nextId: `${nextId}`,
+              entries: entries.map((entry) => ({
+                id: tryReplyToString(entry),
+                fields: {},
+              })),
+            };
+          }
+
           return {
             nextId: `${nextId}`,
-            entries: entries.map((entry) => {
-              if (!Array.isArray(entry) || entry.length !== 2) {
-                throw newCommandError(
-                  `${InvalidReplyPrefix}: ${entry}`,
-                  command,
-                );
-              }
-
-              const [id, fields] = entry;
-
-              const parsedFields: Record<string, string> = {};
-
-              processPairedArray(
-                fields,
-                (key, value) => {
-                  parsedFields[key] = tryReplyToString(value);
-                },
-                command,
-              );
-
-              return {
-                id: tryReplyToString(id),
-                fields: parsedFields,
-              };
-            }),
+            entries: entries.map(tryReplyToStreamEntry),
           };
         }
       }

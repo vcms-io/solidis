@@ -1,18 +1,34 @@
-import { executeCommand, tryReplyNumber } from './utils/index.ts';
+import { executeCommand, tryReplyToNumberArray } from './utils/index.ts';
 
-export function createCommand(key: string, field: string, seconds: number) {
-  return ['HEXPIRE', key, field, `${seconds}`];
+import type { CommandExpireMode } from '../index.ts';
+
+export function createCommand(
+  key: string,
+  seconds: number,
+  fields: string[],
+  mode?: CommandExpireMode,
+) {
+  const command = ['HEXPIRE', key, `${seconds}`];
+
+  if (mode) {
+    command.push(mode);
+  }
+
+  command.push('FIELDS', `${fields.length}`, ...fields);
+
+  return command;
 }
 
 export async function hexpire<T>(
   this: T,
   key: string,
-  field: string,
   seconds: number,
-): Promise<number> {
+  fields: string[],
+  mode?: CommandExpireMode,
+): Promise<number[]> {
   return await executeCommand(
     this,
-    createCommand(key, field, seconds),
-    tryReplyNumber,
+    createCommand(key, seconds, fields, mode),
+    tryReplyToNumberArray,
   );
 }

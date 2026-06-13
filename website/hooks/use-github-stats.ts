@@ -1,14 +1,14 @@
-"use client"
+'use client';
 
-import { useState, useEffect } from "react"
+import { useEffect, useState } from 'react';
 
 interface GitHubStats {
-  stars: number
-  forks: number
-  watchers: number
-  openIssues: number
-  lastUpdated: string
-  fallback?: boolean
+  stars: number;
+  forks: number;
+  watchers: number;
+  openIssues: number;
+  lastUpdated: string;
+  fallback?: boolean;
 }
 
 const INITIAL_STATS: GitHubStats = {
@@ -18,44 +18,47 @@ const INITIAL_STATS: GitHubStats = {
   openIssues: 3,
   lastUpdated: new Date().toISOString(),
   fallback: true,
-}
+};
 
 export function useGitHubStats() {
-  const [stats, setStats] = useState<GitHubStats>(INITIAL_STATS)
-  const [loading, setLoading] = useState(false) // Start with false since we have initial data
-  const [error, setError] = useState<string | null>(null)
+  const [stats, setStats] = useState<GitHubStats>(INITIAL_STATS);
+  const [loading, setLoading] = useState(false); // Start with false since we have initial data
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchStats() {
       try {
-        setLoading(true)
+        setLoading(true);
 
-        const response = await fetch("/api/github", {
-          cache: "force-cache",
-        })
+        const response = await fetch('/api/github', {
+          cache: 'force-cache',
+        });
 
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`)
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        const data = await response.json()
-        setStats(data)
-        setError(null)
-      } catch (err) {
-        console.warn("Failed to fetch GitHub stats, using fallback data:", err)
-        setError(err instanceof Error ? err.message : "Unknown error")
+        const data = await response.json();
+        setStats(data);
+        setError(null);
+      } catch (error) {
+        console.warn(
+          'Failed to fetch GitHub stats, using fallback data:',
+          error,
+        );
+        setError(error instanceof Error ? error.message : 'Unknown error');
         // Keep the initial fallback data
-        setStats(INITIAL_STATS)
+        setStats(INITIAL_STATS);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
     }
 
     // Only try to fetch if we're in a browser environment
-    if (typeof window !== "undefined") {
-      fetchStats()
+    if (typeof window !== 'undefined') {
+      fetchStats();
     }
-  }, [])
+  }, []);
 
-  return { stats, loading, error }
+  return { stats, loading, error };
 }

@@ -24,3 +24,10 @@ node_modules
 # Next.js
 .next/
 *.tsbuildinfo
+
+# Coverage
+.coverage
+coverage
+
+# Log
+*.log

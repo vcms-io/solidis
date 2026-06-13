@@ -13,9 +13,10 @@ export async function time<T>(
 ): Promise<[seconds: number, microseconds: number]> {
   return await executeCommand(this, createCommand(), (reply, command) => {
     if (Array.isArray(reply) && reply.length === 2) {
-      const [seconds, microseconds] = reply;
+      const seconds = Number(`${reply[0]}`);
+      const microseconds = Number(`${reply[1]}`);
 
-      if (typeof seconds === 'number' && typeof microseconds === 'number') {
+      if (!Number.isNaN(seconds) && !Number.isNaN(microseconds)) {
         return [seconds, microseconds];
       }
     }

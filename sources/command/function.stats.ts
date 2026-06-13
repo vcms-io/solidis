@@ -1,10 +1,8 @@
 import {
   executeCommand,
-  InvalidReplyPrefix,
-  newCommandError,
+  tryReplyToMap,
   tryReplyToNumber,
   tryReplyToString,
-  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type { RespFunctionStats } from '../index.ts';
@@ -14,101 +12,47 @@ export function createCommand() {
 }
 
 export async function functionStats<T>(this: T): Promise<RespFunctionStats> {
-  return await executeCommand(
-    this,
-    createCommand(),
-    (reply, functionStatsCommand) => {
-      if (!Array.isArray(reply)) {
-        throw newCommandError(
-          `${UnexpectedReplyPrefix}: ${reply}`,
-          functionStatsCommand,
-        );
-      }
+  return await executeCommand(this, createCommand(), (reply, command) => {
+    /** RESP2 nests every level as flat arrays; RESP3 uses maps. */
+    const map = tryReplyToMap(reply, command);
 
-      const result: RespFunctionStats = {
-        runningScript: null,
-        engines: [],
+    const result: RespFunctionStats = {
+      runningScript: null,
+      engines: [],
+    };
+
+    const runningScript = map.get('running_script');
+
+    if (runningScript !== null && runningScript !== undefined) {
+      const scriptMap = tryReplyToMap(runningScript, command);
+
+      result.runningScript = {
+        name: tryReplyToString(scriptMap.get('name'), command),
+        command: tryReplyToString(scriptMap.get('command'), command),
+        duration: tryReplyToNumber(scriptMap.get('duration_ms'), command),
       };
+    }
 
-      for (const item of reply) {
-        if (!Array.isArray(item)) {
-          throw newCommandError(
-            `${InvalidReplyPrefix}: ${item}`,
-            functionStatsCommand,
-          );
-        }
+    const engines = map.get('engines');
 
-        const [key, value] = item;
+    if (engines !== null && engines !== undefined) {
+      for (const [engineName, engineInfo] of tryReplyToMap(engines, command)) {
+        const engineMap = tryReplyToMap(engineInfo, command);
 
-        if (!(typeof key === 'string' || key instanceof Buffer)) {
-          throw newCommandError(
-            `${InvalidReplyPrefix}: ${key}`,
-            functionStatsCommand,
-          );
-        }
-
-        switch (`${key}`) {
-          case 'running_script': {
-            if (value === null) {
-              break;
-            }
-
-            if (!Array.isArray(value)) {
-              throw newCommandError(
-                `${InvalidReplyPrefix}: ${value}`,
-                functionStatsCommand,
-              );
-            }
-
-            const [name, command, duration] = value;
-
-            result.runningScript = {
-              name: tryReplyToString(name),
-              command: tryReplyToString(command),
-              duration: tryReplyToNumber(duration),
-            };
-
-            break;
-          }
-
-          case 'engines': {
-            if (!Array.isArray(value)) {
-              throw newCommandError(
-                `${InvalidReplyPrefix}: ${value}`,
-                functionStatsCommand,
-              );
-            }
-
-            result.engines = value.map((engine) => {
-              if (!Array.isArray(engine)) {
-                throw newCommandError(
-                  `${InvalidReplyPrefix}: ${engine}`,
-                  functionStatsCommand,
-                );
-              }
-
-              const [name, libraries, functions] = engine;
-
-              return {
-                name: tryReplyToString(name),
-                libraries: tryReplyToNumber(libraries),
-                functions: tryReplyToNumber(functions),
-              };
-            });
-
-            break;
-          }
-
-          default: {
-            throw newCommandError(
-              `${InvalidReplyPrefix}: ${key}`,
-              functionStatsCommand,
-            );
-          }
-        }
+        result.engines.push({
+          name: `${engineName}`,
+          libraries: tryReplyToNumber(
+            engineMap.get('libraries_count') ?? engineMap.get('libraries'),
+            command,
+          ),
+          functions: tryReplyToNumber(
+            engineMap.get('functions_count') ?? engineMap.get('functions'),
+            command,
+          ),
+        });
       }
+    }
 
-      return result;
-    },
-  );
+    return result;
+  });
 }

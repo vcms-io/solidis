@@ -1,4 +1,4 @@
-import { executeCommand, tryReplyArray } from './utils/index.ts';
+import { executeCommand } from './utils/index.ts';
 
 import type { SolidisData } from '../index.ts';
 
@@ -16,10 +16,6 @@ export async function jsonResp<T>(
   this: T,
   key: string,
   path?: string,
-): Promise<SolidisData[]> {
-  return await executeCommand(
-    this,
-    createCommand(key, path),
-    (reply, command) => tryReplyArray(reply, command),
-  );
+): Promise<SolidisData> {
+  return await executeCommand(this, createCommand(key, path), (reply) => reply);
 }

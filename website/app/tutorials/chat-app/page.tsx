@@ -1,14 +1,18 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Clock, User, CheckCircle, ArrowRight, MessageCircle } from "lucide-react"
-import Link from "next/link"
-import { CodeBlock } from '@/components/code-block'
+import { ArrowRight, CheckCircle, Clock, MessageCircle } from 'lucide-react';
+import Link from 'next/link';
+
+import { CodeBlock } from '@/components/code-block';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function ChatAppTutorial() {
   return (
     <div className="container mx-auto max-w-4xl py-12 px-4">
       <div className="mb-8">
-        <Link href="/tutorials" className="text-yellow-600 hover:underline text-sm mb-4 inline-block">
+        <Link
+          href="/tutorials"
+          className="text-yellow-600 hover:underline text-sm mb-4 inline-block"
+        >
           ← Back to Tutorials
         </Link>
         <div className="flex items-center gap-4 mb-4">
@@ -18,9 +22,12 @@ export default function ChatAppTutorial() {
             <span className="text-sm">45 min</span>
           </div>
         </div>
-        <h1 className="text-4xl font-bold mb-4">Building a Real-time Chat Application</h1>
+        <h1 className="text-4xl font-bold mb-4">
+          Building a Real-time Chat Application
+        </h1>
         <p className="text-xl text-gray-600">
-          Create a scalable real-time chat system using Redis Pub/Sub with Solidis and WebSockets.
+          Create a scalable real-time chat system using Redis Pub/Sub with
+          Solidis and WebSockets.
         </p>
       </div>
 
@@ -61,7 +68,8 @@ export default function ChatAppTutorial() {
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <CodeBlock code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
+            <CodeBlock
+              code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
 
 export interface Message {
   id: string;
@@ -97,8 +105,8 @@ export class ChatManager {
     await this.subscriber.connect();
 
     // Set up message handler
-    this.subscriber.on('message', (channel: Buffer, message: Buffer) => {
-      const roomId = channel.toString().replace('chat:', '');
+    this.subscriber.on('message', (channel, message) => {
+      const roomId = channel.replace('chat:', '');
       const data = JSON.parse(message.toString()) as Message;
 
       const handler = this.messageHandlers.get(roomId);
@@ -155,8 +163,8 @@ export class ChatManager {
       JSON.stringify(message)
     );
 
-    // Keep only last 100 messages
-    await this.publisher.zremrangebyrank(key, 0, -101);
+    // Keep only last 100 messages (use raw command for ZREMRANGEBYRANK)
+    await this.publisher.send([['ZREMRANGEBYRANK', key, '0', '-101']]);
 
     // Set expiry (e.g., 7 days)
     await this.publisher.expire(key, 7 * 24 * 3600);
@@ -172,9 +180,9 @@ export class ChatManager {
     const key = \`chat:history:\${roomId}\`;
 
     // Get last N messages
-    const messages = await this.publisher.zrange(key, -limit, -1);
+    const messages = await this.publisher.zrange(key, \`\${-limit}\`, '-1');
 
-    return messages.map((msg) => JSON.parse(msg.toString()) as Message);
+    return (messages as string[]).map((msg) => JSON.parse(msg) as Message);
   }
 
   /**
@@ -182,8 +190,7 @@ export class ChatManager {
    */
   async getActiveUsers(roomId: string): Promise<string[]> {
     const key = \`chat:users:\${roomId}\`;
-    const members = await this.publisher.smembers(key);
-    return members.map((m) => m.toString());
+    return await this.publisher.smembers(key);
   }
 
   /**
@@ -202,7 +209,10 @@ export class ChatManager {
     const key = \`chat:users:\${roomId}\`;
     await this.publisher.srem(key, userId);
   }
-}`} language="typescript" showLineNumbers={true} />
+}`}
+              language="typescript"
+              showLineNumbers={true}
+            />
           </div>
         </CardContent>
       </Card>
@@ -218,7 +228,8 @@ export class ChatManager {
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <CodeBlock code={`import { WebSocketServer, WebSocket } from 'ws';
+            <CodeBlock
+              code={`import { WebSocketServer, WebSocket } from 'ws';
 import { ChatManager, Message } from './chat-manager';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -398,7 +409,10 @@ export class ChatServer {
       message,
     });
   }
-}`} language="typescript" showLineNumbers={true} />
+}`}
+              language="typescript"
+              showLineNumbers={true}
+            />
           </div>
         </CardContent>
       </Card>
@@ -414,7 +428,8 @@ export class ChatServer {
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <CodeBlock code={`import { ChatManager } from './chat-manager';
+            <CodeBlock
+              code={`import { ChatManager } from './chat-manager';
 import { ChatServer } from './chat-server';
 
 async function start() {
@@ -430,7 +445,10 @@ async function start() {
   console.log('WebSocket server running on ws://localhost:8080');
 }
 
-start().catch(console.error);`} language="typescript" showLineNumbers={true} />
+start().catch(console.error);`}
+              language="typescript"
+              showLineNumbers={true}
+            />
           </div>
         </CardContent>
       </Card>
@@ -444,7 +462,8 @@ start().catch(console.error);`} language="typescript" showLineNumbers={true} />
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <CodeBlock code={`// Simple WebSocket client example
+            <CodeBlock
+              code={`// Simple WebSocket client example
 const ws = new WebSocket('ws://localhost:8080');
 
 ws.onopen = () => {
@@ -482,7 +501,10 @@ function sendMessage(content) {
   }));
 }
 
-sendMessage('Hello, everyone!');`} language="typescript" showLineNumbers={true} />
+sendMessage('Hello, everyone!');`}
+              language="typescript"
+              showLineNumbers={true}
+            />
           </div>
         </CardContent>
       </Card>
@@ -496,20 +518,27 @@ sendMessage('Hello, everyone!');`} language="typescript" showLineNumbers={true} 
         </CardHeader>
         <CardContent>
           <div className="grid md:grid-cols-2 gap-4">
-            <Link href="/tutorials/job-queue" className="p-4 border rounded-lg hover:shadow-lg transition-shadow">
+            <Link
+              href="/tutorials/job-queue"
+              className="p-4 border rounded-lg hover:shadow-lg transition-shadow"
+            >
               <h3 className="font-semibold mb-2">Job Queue</h3>
-              <p className="text-sm text-gray-600">Process background jobs efficiently</p>
+              <p className="text-sm text-gray-600">
+                Process background jobs efficiently
+              </p>
             </Link>
             <Link
               href="/tutorials/session-store"
               className="p-4 border rounded-lg hover:shadow-lg transition-shadow"
             >
               <h3 className="font-semibold mb-2">Session Store</h3>
-              <p className="text-sm text-gray-600">Manage user sessions with Redis</p>
+              <p className="text-sm text-gray-600">
+                Manage user sessions with Redis
+              </p>
             </Link>
           </div>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

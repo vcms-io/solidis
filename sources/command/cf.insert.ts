@@ -1,9 +1,7 @@
 import {
   buildCuckooFilterInsertCommand,
   executeCommand,
-  newCommandError,
-  tryReplyToBoolean,
-  UnexpectedReplyPrefix,
+  tryReplyToBooleanArray,
 } from './utils/index.ts';
 
 import type { CommandCuckooFilterInsertOptions } from '../index.ts';
@@ -25,12 +23,6 @@ export async function cfInsert<T>(
   return await executeCommand(
     this,
     createCommand(key, items, options),
-    (reply, command) => {
-      if (Array.isArray(reply)) {
-        return reply.map((value) => tryReplyToBoolean(value, command));
-      }
-
-      throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
-    },
+    tryReplyToBooleanArray,
   );
 }

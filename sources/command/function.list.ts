@@ -17,7 +17,7 @@ import type {
 } from '../index.ts';
 
 function parseFunction(
-  func: unknown,
+  functionData: unknown,
   command: StringOrBuffer[],
 ): RespFunctionListFunction {
   const result: RespFunctionListFunction = {
@@ -26,7 +26,7 @@ function parseFunction(
     flags: [],
   };
 
-  const map = tryReplyToMap(func, command);
+  const map = tryReplyToMap(functionData, command);
   const name = tryReplyToString(map.get('name'), command);
   const description = tryReplyToStringOrNull(map.get('description'));
   const flags = tryReplyToStringArray(map.get('flags'), command);
@@ -57,7 +57,9 @@ function parseLibrary(
 
   result.libraryName = libraryName;
   result.engine = engine;
-  result.functions = functions.map((func) => parseFunction(func, command));
+  result.functions = functions.map((functionData) =>
+    parseFunction(functionData, command),
+  );
 
   if (withCode) {
     const code = tryReplyToString(map.get('library_code'));

@@ -1,9 +1,7 @@
 import {
   executeCommand,
-  InvalidReplyPrefix,
   newCommandError,
-  tryReplyToStreamEntry,
-  UnexpectedReplyPrefix,
+  tryReplyToStreamReadResultsOrNull,
 } from './utils/index.ts';
 
 import type { RespStreamReadResult } from '../index.ts';
@@ -43,31 +41,6 @@ export async function xread<T>(
   return await executeCommand(
     this,
     createCommand(keys, ids, count, block),
-    (reply, command) => {
-      if (reply === null) {
-        return null;
-      }
-
-      if (!Array.isArray(reply)) {
-        throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
-      }
-
-      return reply.map((stream): RespStreamReadResult => {
-        if (!Array.isArray(stream) || stream.length !== 2) {
-          throw newCommandError(`${InvalidReplyPrefix}: ${stream}`, command);
-        }
-
-        const [name, entries] = stream;
-
-        if (!Array.isArray(entries)) {
-          throw newCommandError(`${InvalidReplyPrefix}: ${entries}`, command);
-        }
-
-        return {
-          stream: String(name),
-          entries: entries.map(tryReplyToStreamEntry),
-        };
-      });
-    },
+    tryReplyToStreamReadResultsOrNull,
   );
 }

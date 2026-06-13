@@ -1,6 +1,6 @@
 import {
   executeCommand,
-  tryReplyNumber,
+  tryReplyToNumberScalarOrArray,
   tryReplyToStringArray,
 } from './utils/index.ts';
 
@@ -31,13 +31,13 @@ export async function jsonDebug<T>(
   subcommand: 'MEMORY',
   key: string,
   path?: string,
-): Promise<number>;
+): Promise<number | (number | null)[] | null>;
 export async function jsonDebug<T>(
   this: T,
   subcommand: 'MEMORY' | 'HELP',
   key?: string,
   path?: string,
-): Promise<string[] | number> {
+): Promise<string[] | number | (number | null)[] | null> {
   return await executeCommand(
     this,
     createCommand(subcommand, key, path),
@@ -46,7 +46,7 @@ export async function jsonDebug<T>(
         return tryReplyToStringArray(reply, command);
       }
 
-      return tryReplyNumber(reply, command);
+      return tryReplyToNumberScalarOrArray(reply, command);
     },
   );
 }

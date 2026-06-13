@@ -1,9 +1,6 @@
 import {
   executeCommand,
-  newCommandError,
-  processPairedArray,
-  tryReplyToNumber,
-  UnexpectedReplyPrefix,
+  tryReplyToSortedSetMembersOrNull,
 } from './utils/index.ts';
 
 import type { RespSortedSetMember } from '../index.ts';
@@ -26,29 +23,6 @@ export async function zpopmin<T>(
   return await executeCommand(
     this,
     createCommand(key, count),
-    (reply, command) => {
-      if (reply === null) {
-        return null;
-      }
-
-      if (!Array.isArray(reply)) {
-        throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
-      }
-
-      const results: RespSortedSetMember[] = [];
-
-      processPairedArray(
-        reply,
-        (member, score) => {
-          results.push({
-            member,
-            score: tryReplyToNumber(score, command),
-          });
-        },
-        'ZPOPMIN',
-      );
-
-      return results;
-    },
+    tryReplyToSortedSetMembersOrNull,
   );
 }

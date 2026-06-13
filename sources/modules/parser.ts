@@ -1,5 +1,6 @@
 import {
   RespError,
+  RespPush,
   SolidisNumberTypes,
   SolidisParserError,
   SolidisReplyBytes,
@@ -201,7 +202,7 @@ export class SolidisParser {
 
       /** RESP3 replies */
       case SolidisReplyBytes.PUSH: {
-        parsed = this.#parseSequence('Push');
+        parsed = this.#parseSequence('Push', (items) => RespPush.from(items));
 
         break;
       }

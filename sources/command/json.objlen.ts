@@ -1,4 +1,7 @@
-import { executeCommand, tryReplyToNumberArray } from './utils/index.ts';
+import {
+  executeCommand,
+  tryReplyToNumberScalarOrArray,
+} from './utils/index.ts';
 
 export function createCommand(key: string, path?: string) {
   const command = ['JSON.OBJLEN', key];
@@ -13,11 +16,20 @@ export function createCommand(key: string, path?: string) {
 export async function jsonObjlen<T>(
   this: T,
   key: string,
+): Promise<number | null>;
+export async function jsonObjlen<T>(
+  this: T,
+  key: string,
+  path: string,
+): Promise<number | (number | null)[] | null>;
+export async function jsonObjlen<T>(
+  this: T,
+  key: string,
   path?: string,
-): Promise<(number | null)[]> {
+): Promise<number | (number | null)[] | null> {
   return await executeCommand(
     this,
     createCommand(key, path),
-    (reply, command) => tryReplyToNumberArray(reply, command, true),
+    tryReplyToNumberScalarOrArray,
   );
 }

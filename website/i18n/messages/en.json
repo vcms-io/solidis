@@ -18,7 +18,7 @@
     "whyChoose": "Why Choose Solidis?",
     "whyDescription": "Built with performance and reliability in mind, following SOLID principles for maintainable code.",
     "highPerformance": "High Performance",
-    "highPerformanceDesc": "Optimized for speed with efficient connection pooling and minimal overhead",
+    "highPerformanceDesc": "Optimized for speed with automatic pipeline batching and zero-copy buffer operations",
     "solidArchitecture": "SOLID Architecture",
     "solidArchitectureDesc": "Clean, maintainable code following SOLID principles for better extensibility",
     "typescriptFirst": "TypeScript First",

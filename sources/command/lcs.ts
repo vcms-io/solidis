@@ -1,9 +1,8 @@
 import {
   executeCommand,
-  newCommandError,
   tryReplyNumber,
+  tryReplyToMap,
   tryReplyToString,
-  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type {
@@ -52,38 +51,37 @@ export async function lcs<T>(
       }
 
       if (options?.idx) {
-        if (Array.isArray(reply)) {
-          const matches: RespLCSMatch[] = [];
+        /**
+         * RESP2 returns a flat `['matches', [...], 'len', N]` array; RESP3
+         * returns a map keyed by `matches`/`len`. tryReplyToMap reconciles both.
+         */
+        const map = tryReplyToMap(reply, command);
 
-          const matchesData = reply[1];
+        const matches: RespLCSMatch[] = [];
+        const matchesData = map.get('matches');
 
-          if (Array.isArray(matchesData)) {
-            for (const matchInfo of matchesData) {
-              if (Array.isArray(matchInfo)) {
-                const [pos1, pos2, len] = matchInfo;
-                if (Array.isArray(pos1) && Array.isArray(pos2)) {
-                  const match: RespLCSMatch = {
-                    a: [Number(pos1[0]), Number(pos1[1])],
-                    b: [Number(pos2[0]), Number(pos2[1])],
-                  };
-                  if (options.withmatchlen && typeof len === 'number') {
-                    match.length = len;
-                  }
-                  matches.push(match);
+        if (Array.isArray(matchesData)) {
+          for (const matchInfo of matchesData) {
+            if (Array.isArray(matchInfo)) {
+              const [position1, position2, matchLength] = matchInfo;
+              if (Array.isArray(position1) && Array.isArray(position2)) {
+                const match: RespLCSMatch = {
+                  a: [Number(position1[0]), Number(position1[1])],
+                  b: [Number(position2[0]), Number(position2[1])],
+                };
+                if (options.withmatchlen && typeof matchLength === 'number') {
+                  match.length = matchLength;
                 }
+                matches.push(match);
               }
             }
           }
-
-          const length = reply[reply.length - 1];
-
-          return {
-            matches,
-            length: Number(length),
-          };
         }
 
-        throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
+        return {
+          matches,
+          length: Number(map.get('len')),
+        };
       }
 
       return tryReplyToString(reply, command);

@@ -1,4 +1,7 @@
-import { executeCommand, tryReplyToNumberArray } from './utils/index.ts';
+import {
+  executeCommand,
+  tryReplyToNullableNumberArray,
+} from './utils/index.ts';
 
 import type { CommandJsonArrIndexOptions } from '../index.ts';
 
@@ -31,6 +34,6 @@ export async function jsonArrindex<T>(
   return await executeCommand(
     this,
     createCommand(key, path, value, options),
-    (reply, command) => tryReplyToNumberArray(reply, command, true),
+    tryReplyToNullableNumberArray,
   );
 }

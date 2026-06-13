@@ -37,7 +37,7 @@ function parseCommandDoc(
   const deprecatedSince = result.get('deprecated_since');
   const replacedBy = result.get('replaced_by');
   const history = result.get('history');
-  const args = result.get('arguments');
+  const subArguments = result.get('arguments');
   const subcommands = result.get('subcommands');
 
   return {
@@ -49,7 +49,7 @@ function parseCommandDoc(
     deprecatedSince: deprecatedSince ? String(deprecatedSince) : undefined,
     replacedBy: replacedBy ? String(replacedBy) : undefined,
     history: history ? parseHistory(history, command) : undefined,
-    arguments: args ? parseArguments(args, command) : undefined,
+    arguments: subArguments ? parseArguments(subArguments, command) : undefined,
     subcommands: subcommands
       ? tryReplyToStringRecordRecursively(subcommands, command)
       : undefined,
@@ -103,14 +103,14 @@ function parseArguments(
     const type = result.get('type');
     const optional = result.get('optional') === true;
     const multiple = result.get('multiple') === true;
-    const args = result.get('arguments');
+    const subArguments = result.get('arguments');
 
     return {
       name: String(name),
       type: String(type),
       optional,
       multiple,
-      arguments: parseArguments(args, command),
+      arguments: parseArguments(subArguments, command),
     };
   });
 }

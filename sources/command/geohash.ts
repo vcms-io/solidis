@@ -1,8 +1,6 @@
 import {
   executeCommand,
-  InvalidReplyPrefix,
-  newCommandError,
-  UnexpectedReplyPrefix,
+  tryReplyToNullableStringArray,
 } from './utils/index.ts';
 
 export function createCommand(key: string, members: string[]) {
@@ -17,22 +15,6 @@ export async function geohash<T>(
   return await executeCommand(
     this,
     createCommand(key, members),
-    (reply, command) => {
-      if (!Array.isArray(reply)) {
-        throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
-      }
-
-      return reply.map((hash) => {
-        if (hash === null) {
-          return null;
-        }
-
-        if (typeof hash === 'string' || hash instanceof Buffer) {
-          return `${hash}`;
-        }
-
-        throw newCommandError(`${InvalidReplyPrefix}: ${hash}`, command);
-      });
-    },
+    tryReplyToNullableStringArray,
   );
 }

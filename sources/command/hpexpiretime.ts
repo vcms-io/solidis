@@ -1,13 +1,17 @@
-import { executeCommand, tryReplyNumber } from './utils/index.ts';
+import { executeCommand, tryReplyToNumberArray } from './utils/index.ts';
 
-export function createCommand(key: string, field: string) {
-  return ['HPEXPIRETIME', key, field];
+export function createCommand(key: string, fields: string[]) {
+  return ['HPEXPIRETIME', key, 'FIELDS', `${fields.length}`, ...fields];
 }
 
 export async function hpexpiretime<T>(
   this: T,
   key: string,
-  field: string,
-): Promise<number> {
-  return await executeCommand(this, createCommand(key, field), tryReplyNumber);
+  fields: string[],
+): Promise<number[]> {
+  return await executeCommand(
+    this,
+    createCommand(key, fields),
+    tryReplyToNumberArray,
+  );
 }

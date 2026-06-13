@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.0.4/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.5.0/schema.json",
   "files": {
     "includes": [
       "**/sources/**/*.ts",
@@ -8,11 +8,15 @@
       "**/scripts/**/*.ts",
       "**/scripts/**/*.js",
       "**/scripts/**/*.json",
+      "**/website/**/*.ts",
+      "**/website/**/*.tsx",
       "**/.vscode/**/*.json",
       "**/*.json",
       "!**/node_modules",
       "!**/distributions",
-      "!**/package.json"
+      "!**/package.json",
+      "!**/website/.next",
+      "!**/next-env.d.ts"
     ]
   },
   "formatter": {
@@ -49,7 +53,7 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "complexity": {
         "noStaticOnlyClass": "off"
       },
@@ -57,7 +61,8 @@
         "noUnusedVariables": "error"
       },
       "suspicious": {
-        "noExplicitAny": "error"
+        "noExplicitAny": "error",
+        "noEvolvingTypes": "error"
       },
       "style": {
         "useBlockStatements": "error",
@@ -77,6 +82,21 @@
       }
     }
   },
+  "overrides": [
+    {
+      "includes": ["**/website/**/*.tsx"],
+      "linter": {
+        "rules": {
+          "performance": {
+            "noImgElement": "off"
+          },
+          "suspicious": {
+            "noArrayIndexKey": "off"
+          }
+        }
+      }
+    }
+  ],
   "javascript": {
     "formatter": {
       "jsxQuoteStyle": "double",

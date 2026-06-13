@@ -69,6 +69,10 @@ export async function aclLog<T>(
   count?: number | 'RESET',
 ): Promise<RespAclLogEntry[]> {
   return await executeCommand(this, createCommand(count), (reply, command) => {
+    if (count === 'RESET') {
+      return [];
+    }
+
     if (!Array.isArray(reply)) {
       throw new SolidisCommandError(
         `${UnexpectedReplyPrefix}: ${reply}`,

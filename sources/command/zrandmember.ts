@@ -1,8 +1,7 @@
 import {
   executeCommand,
   newCommandError,
-  processPairedArray,
-  tryReplyToNumber,
+  tryReplyToSortedSetMembers,
   tryReplyToStringArray,
   UnexpectedReplyPrefix,
 } from './utils/index.ts';
@@ -57,20 +56,7 @@ export async function zrandmember<T>(
         return tryReplyToStringArray(reply, command);
       }
 
-      const results: RespSortedSetMember[] = [];
-
-      processPairedArray(
-        reply,
-        (member, score) => {
-          results.push({
-            member,
-            score: tryReplyToNumber(score, command),
-          });
-        },
-        'ZRANDMEMBER',
-      );
-
-      return results;
+      return tryReplyToSortedSetMembers(reply, command);
     },
   );
 }

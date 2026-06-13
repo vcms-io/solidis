@@ -1,9 +1,7 @@
 import {
   buildGeoSearchCommand,
   executeCommand,
-  newCommandError,
   tryReplyToGeoRadius,
-  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type {
@@ -32,12 +30,6 @@ export async function geosearch<T>(
   return await executeCommand(
     this,
     createCommand(key, from, by, options),
-    (reply, command) => {
-      if (!Array.isArray(reply)) {
-        throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
-      }
-
-      return tryReplyToGeoRadius(reply, 'GEOSEARCH', options);
-    },
+    (reply) => tryReplyToGeoRadius(reply, 'GEOSEARCH', options),
   );
 }

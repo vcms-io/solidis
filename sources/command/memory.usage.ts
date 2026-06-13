@@ -1,8 +1,4 @@
-import {
-  executeCommand,
-  newCommandError,
-  UnexpectedReplyPrefix,
-} from './utils/index.ts';
+import { executeCommand, tryReplyToNumberOrNull } from './utils/index.ts';
 
 import type { RespMemoryUsage } from '../index.ts';
 
@@ -24,19 +20,6 @@ export async function memoryUsage<T>(
   return await executeCommand(
     this,
     createCommand(key, samples),
-    (reply, command) => {
-      if (reply === null) {
-        return null;
-      }
-
-      if (Array.isArray(reply) && reply.length === 2) {
-        const [bytes, peak] = reply;
-        if (typeof bytes === 'number' && typeof peak === 'number') {
-          return { bytes, peak };
-        }
-      }
-
-      throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
-    },
+    tryReplyToNumberOrNull,
   );
 }

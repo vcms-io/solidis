@@ -1,4 +1,7 @@
-import { executeCommand, tryReplyToNumberArray } from './utils/index.ts';
+import {
+  executeCommand,
+  tryReplyToNumberScalarOrArray,
+} from './utils/index.ts';
 
 export function createCommand(key: string, value: string, path?: string) {
   const command = ['JSON.STRAPPEND', key];
@@ -16,11 +19,22 @@ export async function jsonStrappend<T>(
   this: T,
   key: string,
   value: string,
+): Promise<number | null>;
+export async function jsonStrappend<T>(
+  this: T,
+  key: string,
+  value: string,
+  path: string,
+): Promise<number | (number | null)[] | null>;
+export async function jsonStrappend<T>(
+  this: T,
+  key: string,
+  value: string,
   path?: string,
-): Promise<(number | null)[]> {
+): Promise<number | (number | null)[] | null> {
   return await executeCommand(
     this,
     createCommand(key, value, path),
-    (reply, command) => tryReplyToNumberArray(reply, command, true),
+    tryReplyToNumberScalarOrArray,
   );
 }

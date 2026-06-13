@@ -1,4 +1,4 @@
-import { executeCommand, tryReplyToString } from './utils/index.ts';
+import { executeCommand, tryReplyToStringOrNull } from './utils/index.ts';
 
 export function createCommand(key: string, field: string) {
   return ['HGET', key, field];
@@ -12,6 +12,6 @@ export async function hget<T>(
   return await executeCommand(
     this,
     createCommand(key, field),
-    tryReplyToString,
+    tryReplyToStringOrNull,
   );
 }

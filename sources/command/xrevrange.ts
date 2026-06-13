@@ -1,9 +1,4 @@
-import {
-  executeCommand,
-  newCommandError,
-  tryReplyToStreamEntry,
-  UnexpectedReplyPrefix,
-} from './utils/index.ts';
+import { executeCommand, tryReplyToStreamEntries } from './utils/index.ts';
 
 import type { RespStreamEntry } from '../index.ts';
 
@@ -20,12 +15,6 @@ export async function xrevrange<T>(
   return await executeCommand(
     this,
     createCommand(key, end, start),
-    (reply, command) => {
-      if (!Array.isArray(reply)) {
-        throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
-      }
-
-      return reply.map(tryReplyToStreamEntry);
-    },
+    tryReplyToStreamEntries,
   );
 }

@@ -1,11 +1,7 @@
 import {
   buildSortedSetInterCommand,
   executeCommand,
-  newCommandError,
-  processPairedArray,
-  tryReplyToNumber,
-  tryReplyToStringArray,
-  UnexpectedReplyPrefix,
+  tryReplyToStringsOrSortedSetMembers,
 } from './utils/index.ts';
 
 import type {
@@ -34,29 +30,7 @@ export async function zunion<T>(
   return await executeCommand(
     this,
     createCommand(keys, options),
-    (reply, command) => {
-      if (!Array.isArray(reply)) {
-        throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
-      }
-
-      if (!options.withScores) {
-        return tryReplyToStringArray(reply, command);
-      }
-
-      const result: RespSortedSetMember[] = [];
-
-      processPairedArray(
-        reply,
-        (member, score) => {
-          result.push({
-            member,
-            score: tryReplyToNumber(score, command),
-          });
-        },
-        'ZUNION',
-      );
-
-      return result;
-    },
+    (reply, command) =>
+      tryReplyToStringsOrSortedSetMembers(reply, command, options.withScores),
   );
 }

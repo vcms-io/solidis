@@ -1,4 +1,4 @@
-import { executeCommand, tryReplyNumber } from './utils/index.ts';
+import { executeCommand, tryReplyToNumber } from './utils/index.ts';
 
 export function createCommand(key: string, increment: number, member: string) {
   return ['ZINCRBY', key, `${increment}`, member];
@@ -13,6 +13,6 @@ export async function zincrby<T>(
   return await executeCommand(
     this,
     createCommand(key, increment, member),
-    tryReplyNumber,
+    tryReplyToNumber,
   );
 }

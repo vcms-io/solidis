@@ -1,120 +1,140 @@
-"use client"
+'use client';
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Layers, Zap, Database, Network, Code, Shield, ArrowRight } from "lucide-react"
-import { useI18n } from "@/lib/i18n-context"
+import {
+  ArrowRight,
+  Code,
+  Database,
+  Layers,
+  Network,
+  Shield,
+  Zap,
+} from 'lucide-react';
+
+import { Badge } from '@/components/ui/badge';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { useI18n } from '@/lib/i18n-context';
 
 export default function ArchitecturePage() {
-  const { t } = useI18n()
+  const { t } = useI18n();
 
   const components = [
     {
-      name: "SolidisClient",
+      name: 'SolidisClient',
       icon: <Code className="h-8 w-8 text-yellow-600" />,
-      description: "Core entry point that creates and coordinates all components",
+      description:
+        'Core entry point that creates and coordinates all components',
       responsibilities: [
-        "Component initialization and lifecycle management",
-        "Configuration management",
-        "Event coordination between components",
-        "Extension system for custom commands",
+        'Component initialization and lifecycle management',
+        'Configuration management',
+        'Event coordination between components',
+        'Extension system for custom commands',
       ],
     },
     {
-      name: "Connection",
+      name: 'Connection',
       icon: <Network className="h-8 w-8 text-blue-600" />,
-      description: "Manages TCP/TLS socket connections",
+      description: 'Manages TCP/TLS socket connections',
       responsibilities: [
-        "Socket connection establishment",
-        "Automatic reconnection with exponential backoff",
-        "TLS/SSL support",
-        "Connection state management",
-        "Auto-recovery for database selection and subscriptions",
+        'Socket connection establishment',
+        'Automatic reconnection with configurable retry delay',
+        'TLS/SSL support',
+        'Connection state management',
+        'Auto-recovery for database selection and subscriptions',
       ],
     },
     {
-      name: "Requester",
+      name: 'Requester',
       icon: <Zap className="h-8 w-8 text-green-600" />,
-      description: "Handles command pipelining and request states",
+      description: 'Handles command pipelining and request states',
       responsibilities: [
-        "Command queue management",
-        "Pipeline optimization",
-        "Request/response correlation",
-        "Command timeout handling",
-        "Transaction (MULTI/EXEC) coordination",
+        'Command queue management',
+        'Pipeline optimization',
+        'Request/response correlation',
+        'Command timeout handling',
+        'Transaction (MULTI/EXEC) coordination',
       ],
     },
     {
-      name: "Parser",
+      name: 'Parser',
       icon: <Database className="h-8 w-8 text-purple-600" />,
-      description: "Processes RESP2/RESP3 protocol with optimized buffer handling",
+      description:
+        'Processes RESP2/RESP3 protocol with optimized buffer handling',
       responsibilities: [
-        "RESP protocol parsing (RESP2 and RESP3)",
-        "Zero-copy buffer operations",
-        "Efficient memory management",
-        "Multi-byte character support",
-        "Binary-safe data handling",
+        'RESP protocol parsing (RESP2 and RESP3)',
+        'Zero-copy buffer operations',
+        'Efficient memory management',
+        'Multi-byte character support',
+        'Binary-safe data handling',
       ],
     },
     {
-      name: "PubSub",
+      name: 'PubSub',
       icon: <Shield className="h-8 w-8 text-red-600" />,
-      description: "Maintains subscription state for pub/sub functionality",
+      description: 'Maintains subscription state for pub/sub functionality',
       responsibilities: [
-        "Channel subscription management",
-        "Pattern subscription support",
-        "Message routing to event handlers",
-        "Subscription state recovery after reconnection",
+        'Channel subscription management',
+        'Pattern subscription support',
+        'Message routing to event handlers',
+        'Subscription state recovery after reconnection',
       ],
     },
     {
-      name: "Debug Memory",
+      name: 'Debug Memory',
       icon: <Layers className="h-8 w-8 text-gray-600" />,
-      description: "Centralized debug logging system",
+      description: 'Centralized debug logging system',
       responsibilities: [
-        "Debug event collection",
-        "Circular buffer for memory efficiency",
-        "Debug event filtering",
-        "Performance metrics tracking",
+        'Debug event collection',
+        'Circular buffer for memory efficiency',
+        'Debug event filtering',
+        'Performance metrics tracking',
       ],
     },
-  ]
+  ];
 
   const principles = [
     {
-      title: "Single Responsibility",
-      description: "Each component has a single, well-defined responsibility",
-      example: "Parser only handles RESP protocol parsing, not connection management",
+      title: 'Single Responsibility',
+      description: 'Each component has a single, well-defined responsibility',
+      example:
+        'Parser only handles RESP protocol parsing, not connection management',
     },
     {
-      title: "Open/Closed",
-      description: "Open for extension, closed for modification via the extension system",
-      example: "Add custom commands without modifying core client code",
+      title: 'Open/Closed',
+      description:
+        'Open for extension, closed for modification via the extension system',
+      example: 'Add custom commands without modifying core client code',
     },
     {
-      title: "Liskov Substitution",
-      description: "Components can be replaced with alternative implementations",
-      example: "Different parser implementations for RESP2 vs RESP3",
+      title: 'Liskov Substitution',
+      description:
+        'Components can be replaced with alternative implementations',
+      example: 'Different parser implementations for RESP2 vs RESP3',
     },
     {
-      title: "Interface Segregation",
-      description: "Minimal, focused interfaces between components",
-      example: "PubSub exposes only subscription-related methods",
+      title: 'Interface Segregation',
+      description: 'Minimal, focused interfaces between components',
+      example: 'PubSub exposes only subscription-related methods',
     },
     {
-      title: "Dependency Inversion",
-      description: "Components depend on abstractions, not concrete implementations",
-      example: "Client depends on parser interface, not specific parser implementation",
+      title: 'Dependency Inversion',
+      description:
+        'Components depend on abstractions, not concrete implementations',
+      example:
+        'Client depends on parser interface, not specific parser implementation',
     },
-  ]
+  ];
 
   return (
     <div className="container mx-auto max-w-6xl py-12 px-4">
       <div className="mb-12">
-        <h1 className="text-4xl font-bold mb-4">{t("architecture.title")}</h1>
-        <p className="text-xl text-gray-600">
-          {t("architecture.subtitle")}
-        </p>
+        <h1 className="text-4xl font-bold mb-4">{t('architecture.title')}</h1>
+        <p className="text-xl text-gray-600">{t('architecture.subtitle')}</p>
       </div>
 
       {/* Architecture Diagram */}
@@ -125,7 +145,8 @@ export default function ArchitecturePage() {
             System Architecture
           </CardTitle>
           <CardDescription>
-            Overview of how Solidis components work together to provide a robust Redis client
+            Overview of how Solidis components work together to provide a robust
+            Redis client
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -164,7 +185,9 @@ export default function ArchitecturePage() {
 
       {/* Components */}
       <div className="mb-12">
-        <h2 className="text-3xl font-bold mb-6">{t("architecture.coreComponents")}</h2>
+        <h2 className="text-3xl font-bold mb-6">
+          {t('architecture.coreComponents')}
+        </h2>
         <div className="grid md:grid-cols-2 gap-6">
           {components.map((component, index) => (
             <Card key={index} className="hover:shadow-lg transition-shadow">
@@ -176,10 +199,12 @@ export default function ArchitecturePage() {
                 <CardDescription>{component.description}</CardDescription>
               </CardHeader>
               <CardContent>
-                <h4 className="font-semibold mb-2 text-sm">Key Responsibilities:</h4>
+                <h4 className="font-semibold mb-2 text-sm">
+                  Key Responsibilities:
+                </h4>
                 <ul className="space-y-1">
-                  {component.responsibilities.map((responsibility, idx) => (
-                    <li key={idx} className="flex items-start gap-2 text-sm">
+                  {component.responsibilities.map((responsibility, index) => (
+                    <li key={index} className="flex items-start gap-2 text-sm">
                       <span className="text-yellow-600 mt-1">•</span>
                       <span className="text-gray-600">{responsibility}</span>
                     </li>
@@ -193,9 +218,12 @@ export default function ArchitecturePage() {
 
       {/* SOLID Principles */}
       <div className="mb-12">
-        <h2 className="text-3xl font-bold mb-6">{t("architecture.solidPrinciples")}</h2>
+        <h2 className="text-3xl font-bold mb-6">
+          {t('architecture.solidPrinciples')}
+        </h2>
         <p className="text-gray-600 mb-6">
-          Solidis is built following SOLID design principles, ensuring maintainability, testability, and extensibility.
+          Solidis is built following SOLID design principles, ensuring
+          maintainability, testability, and extensibility.
         </p>
         <div className="space-y-4">
           {principles.map((principle, index) => (
@@ -209,7 +237,9 @@ export default function ArchitecturePage() {
                       </Badge>
                       {principle.title}
                     </CardTitle>
-                    <CardDescription className="mt-2">{principle.description}</CardDescription>
+                    <CardDescription className="mt-2">
+                      {principle.description}
+                    </CardDescription>
                   </div>
                 </div>
               </CardHeader>
@@ -233,7 +263,9 @@ export default function ArchitecturePage() {
             <ArrowRight className="h-5 w-5 text-yellow-600" />
             Command Execution Flow
           </CardTitle>
-          <CardDescription>How commands flow through the Solidis architecture</CardDescription>
+          <CardDescription>
+            How commands flow through the Solidis architecture
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
@@ -244,7 +276,11 @@ export default function ArchitecturePage() {
               <div>
                 <div className="font-medium mb-1">Client receives command</div>
                 <div className="text-sm text-gray-600">
-                  User calls a command method (e.g., <code className="bg-gray-100 px-1 py-0.5 rounded">client.set('key', 'value')</code>)
+                  User calls a command method (e.g.,{' '}
+                  <code className="bg-gray-100 px-1 py-0.5 rounded">
+                    client.set('key', 'value')
+                  </code>
+                  )
                 </div>
               </div>
             </div>
@@ -268,7 +304,8 @@ export default function ArchitecturePage() {
               <div>
                 <div className="font-medium mb-1">Connection sends data</div>
                 <div className="text-sm text-gray-600">
-                  Command is serialized to RESP protocol and sent through the TCP socket
+                  Command is serialized to RESP protocol and sent through the
+                  TCP socket
                 </div>
               </div>
             </div>
@@ -278,9 +315,12 @@ export default function ArchitecturePage() {
                 4
               </div>
               <div>
-                <div className="font-medium mb-1">Parser processes response</div>
+                <div className="font-medium mb-1">
+                  Parser processes response
+                </div>
                 <div className="text-sm text-gray-600">
-                  Parser reads and parses RESP response from Redis using zero-copy operations
+                  Parser reads and parses RESP response from Redis using
+                  zero-copy operations
                 </div>
               </div>
             </div>
@@ -290,9 +330,12 @@ export default function ArchitecturePage() {
                 5
               </div>
               <div>
-                <div className="font-medium mb-1">Requester resolves promise</div>
+                <div className="font-medium mb-1">
+                  Requester resolves promise
+                </div>
                 <div className="text-sm text-gray-600">
-                  Parsed response is matched to the original command and the promise is resolved
+                  Parsed response is matched to the original command and the
+                  promise is resolved
                 </div>
               </div>
             </div>
@@ -319,43 +362,52 @@ export default function ArchitecturePage() {
             <Zap className="h-5 w-5 text-yellow-600" />
             Performance Optimizations
           </CardTitle>
-          <CardDescription>Key architectural decisions that make Solidis fast</CardDescription>
+          <CardDescription>
+            Key architectural decisions that make Solidis fast
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid md:grid-cols-2 gap-6">
             <div>
               <h4 className="font-semibold mb-3">Zero-Copy Operations</h4>
               <p className="text-sm text-gray-600 mb-2">
-                The parser uses buffer slicing instead of copying data, reducing memory allocations and improving
-                throughput for large payloads.
+                The parser uses buffer slicing instead of copying data, reducing
+                memory allocations and improving throughput for large payloads.
               </p>
             </div>
 
             <div>
               <h4 className="font-semibold mb-3">Pipeline Batching</h4>
               <p className="text-sm text-gray-600 mb-2">
-                Commands are automatically batched in pipelines to reduce network round trips, configurable via{" "}
-                <code className="bg-gray-100 px-1 py-0.5 rounded text-xs">maxCommandsPerPipeline</code>.
+                Commands are automatically batched in pipelines to reduce
+                network round trips, configurable via{' '}
+                <code className="bg-gray-100 px-1 py-0.5 rounded text-xs">
+                  maxCommandsPerPipeline
+                </code>
+                .
               </p>
             </div>
 
             <div>
-              <h4 className="font-semibold mb-3">Efficient Buffer Management</h4>
+              <h4 className="font-semibold mb-3">
+                Efficient Buffer Management
+              </h4>
               <p className="text-sm text-gray-600 mb-2">
-                Smart buffer allocation and reuse strategies minimize garbage collection pressure and memory overhead.
+                Smart buffer allocation and reuse strategies minimize garbage
+                collection pressure and memory overhead.
               </p>
             </div>
 
             <div>
               <h4 className="font-semibold mb-3">Lazy Connections</h4>
               <p className="text-sm text-gray-600 mb-2">
-                Optional lazy connection mode delays connection establishment until needed, reducing resource usage for
-                idle clients.
+                Optional lazy connection mode delays connection establishment
+                until needed, reducing resource usage for idle clients.
               </p>
             </div>
           </div>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

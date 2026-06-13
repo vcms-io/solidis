@@ -99,6 +99,31 @@ export class SolidisConnection extends EventEmitter {
     this.emit('end');
   }
 
+  public reset() {
+    const socket = this.#socket;
+
+    if (!socket) {
+      return;
+    }
+
+    this.#isConnected = false;
+    this.#socket = null;
+
+    socket.removeAllListeners();
+    socket.on('error', () => {});
+    socket.destroy();
+
+    if (this.#isQuitted || !this.#options.autoReconnect) {
+      return;
+    }
+
+    void this.#tryBackgroundReconnect().catch((error) => {
+      this.#debug?.('debug', 'Solidis connection failed to reset reconnect.', {
+        error,
+      });
+    });
+  }
+
   async #tryConnectWithRetry() {
     let attemptIndex = 0;
 
@@ -260,7 +285,7 @@ export class SolidisConnection extends EventEmitter {
           return;
         }
 
-        if (!this.#options || !this.#options.autoReconnect) {
+        if (!this.#options?.autoReconnect) {
           return;
         }
 

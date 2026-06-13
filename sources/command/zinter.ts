@@ -1,11 +1,7 @@
 import {
   buildSortedSetInterCommand,
   executeCommand,
-  newCommandError,
-  processPairedArray,
-  tryReplyToNumber,
-  tryReplyToStringArray,
-  UnexpectedReplyPrefix,
+  tryReplyToStringsOrSortedSetMembers,
 } from './utils/index.ts';
 
 import type {
@@ -34,29 +30,7 @@ export async function zinter<T>(
   return await executeCommand(
     this,
     createCommand(keys, options),
-    (reply, command) => {
-      if (!Array.isArray(reply)) {
-        throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
-      }
-
-      if (!options.withScores) {
-        return tryReplyToStringArray(reply, command);
-      }
-
-      const results: RespSortedSetMember[] = [];
-
-      processPairedArray(
-        reply,
-        (member, score) => {
-          results.push({
-            member,
-            score: tryReplyToNumber(score, command),
-          });
-        },
-        'ZINTER',
-      );
-
-      return results;
-    },
+    (reply, command) =>
+      tryReplyToStringsOrSortedSetMembers(reply, command, options.withScores),
   );
 }

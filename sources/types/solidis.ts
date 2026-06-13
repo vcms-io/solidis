@@ -137,6 +137,7 @@ export interface SolidisRequest {
 
 export interface SolidisPipelineSubRequest {
   cursor: number;
+  span: number;
   resolve: SolidisSubRequestResolveHandler;
   reject: SolidisRejectHandler;
 }
@@ -149,12 +150,15 @@ export interface SolidisPipelineRequest {
   parsedReplies: SolidisData[];
   expectedReplyCount: number;
   subRequests: SolidisPipelineSubRequest[];
+  subscribeCommandCount: number;
   timeoutId?: NodeJS.Timeout;
 }
 
 export interface SolidisPipelineRequestChunk {
   pipelinedCommands: StringOrBuffer[][];
   subRequests: SolidisPipelineSubRequest[];
+  subscribeCommandCount: number;
+  expectedReplyCount: number;
 }
 
 export interface SolidisPipelineRequestChunkContext {
@@ -162,6 +166,7 @@ export interface SolidisPipelineRequestChunkContext {
   chunks: SolidisPipelineRequestChunk[];
   pipelinedCommands: StringOrBuffer[][];
   subRequests: SolidisPipelineSubRequest[];
+  subscribeCommandCount: number;
 }
 
 export interface SolidisSubscribeEvents {
@@ -175,6 +180,7 @@ export interface SolidisSubscribeEvents {
 
 export interface SolidisPubSubEvents extends SolidisSubscribeEvents {
   message: (channel: string, message: StringOrBuffer) => void;
+  smessage: (channel: string, message: StringOrBuffer) => void;
   pmessage: (pattern: string, channel: string, message: StringOrBuffer) => void;
 }
 
@@ -243,10 +249,10 @@ export type SolidisDebugEvents = {
   pushed: (entry: SolidisDebugLog) => void;
   close: () => void;
   drain: () => void;
-  error: (err: Error) => void;
+  error: (error: Error) => void;
   finish: () => void;
-  pipe: (src: NodeJS.ReadableStream) => void;
-  unpipe: (src: NodeJS.ReadableStream) => void;
+  pipe: (source: NodeJS.ReadableStream) => void;
+  unpipe: (source: NodeJS.ReadableStream) => void;
 };
 
 export interface SolidisDebugMemoryEventHandlers<T = SolidisDebugMemory> {

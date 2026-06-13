@@ -3,8 +3,9 @@ import {
   executeCommand,
   InvalidReplyPrefix,
   newCommandError,
-  UnexpectedReplyPrefix,
 } from './utils/index.ts';
+
+import type { StringOrBuffer } from '../index.ts';
 
 export function createCommand(key: string, path?: string) {
   const command = ['JSON.TYPE', key];
@@ -16,30 +17,59 @@ export function createCommand(key: string, path?: string) {
   return command;
 }
 
+function parseJsonType(
+  item: unknown,
+  command: string | StringOrBuffer[] | undefined,
+): RespJsonType | null {
+  if (item === null) {
+    return null;
+  }
+
+  const value = item instanceof Buffer ? item.toString() : item;
+  const matched = RespJsonType.find((t) => t === value);
+
+  if (matched !== undefined) {
+    return matched;
+  }
+
+  throw newCommandError(`${InvalidReplyPrefix}: ${item}`, command);
+}
+
+export async function jsonType<T>(
+  this: T,
+  key: string,
+): Promise<RespJsonType | null>;
+export async function jsonType<T>(
+  this: T,
+  key: string,
+  path: string,
+): Promise<RespJsonType | (RespJsonType | null)[] | null>;
 export async function jsonType<T>(
   this: T,
   key: string,
   path?: string,
-): Promise<(RespJsonType | null)[]> {
+): Promise<RespJsonType | (RespJsonType | null)[] | null> {
   return await executeCommand(
     this,
     createCommand(key, path),
     (reply, command) => {
       if (Array.isArray(reply)) {
-        return reply.map((item) => {
-          if (item === null) {
-            return null;
-          }
+        if (path === undefined && reply.length === 1) {
+          return parseJsonType(reply[0], command);
+        }
 
-          if (RespJsonType.includes(item as RespJsonType)) {
-            return item as RespJsonType;
-          }
+        if (
+          path !== undefined &&
+          reply.length === 1 &&
+          Array.isArray(reply[0])
+        ) {
+          return reply[0].map((item) => parseJsonType(item, command));
+        }
 
-          throw newCommandError(`${InvalidReplyPrefix}: ${item}`, command);
-        });
+        return reply.map((item) => parseJsonType(item, command));
       }
 
-      throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
+      return parseJsonType(reply, command);
     },
   );
 }

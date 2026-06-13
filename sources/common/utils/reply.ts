@@ -1,7 +1,6 @@
 import {
   RespError,
-  SolidisMessageEvent,
-  SolidisPMessageEvent,
+  SolidisMessageEventNameSet,
   SolidisPubSubEventNameSet,
 } from '../../index.ts';
 
@@ -54,17 +53,15 @@ export function checkReplyIsMessageEvent(reply: SolidisData[]): boolean {
     return false;
   }
 
-  const eventNameString = eventName.toString('latin1');
-
-  const isMessageEvent = SolidisMessageEvent === eventNameString;
-  const isPMessageEvent = SolidisPMessageEvent === eventNameString;
-
-  return isMessageEvent || isPMessageEvent;
+  return SolidisMessageEventNameSet.has(eventName.toString('latin1'));
 }
 
 export function extractSubReplies(
   parsedReplies: SolidisData[],
   subRequest: SolidisPipelineSubRequest,
 ): SolidisData[] {
-  return parsedReplies.slice(subRequest.cursor, subRequest.cursor + 1);
+  return parsedReplies.slice(
+    subRequest.cursor,
+    subRequest.cursor + subRequest.span,
+  );
 }

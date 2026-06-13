@@ -1,14 +1,24 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Clock, User, CheckCircle, ArrowRight, Lock } from "lucide-react"
-import Link from "next/link"
-import { CodeBlock } from '@/components/code-block'
+import { ArrowRight, CheckCircle, Clock, Lock } from 'lucide-react';
+import Link from 'next/link';
+
+import { CodeBlock } from '@/components/code-block';
+import { Badge } from '@/components/ui/badge';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 
 export default function DistributedLockingTutorial() {
   return (
     <div className="container mx-auto max-w-4xl py-12 px-4">
       <div className="mb-8">
-        <Link href="/tutorials" className="text-yellow-600 hover:underline text-sm mb-4 inline-block">
+        <Link
+          href="/tutorials"
+          className="text-yellow-600 hover:underline text-sm mb-4 inline-block"
+        >
           ← Back to Tutorials
         </Link>
         <div className="flex items-center gap-4 mb-4">
@@ -18,9 +28,12 @@ export default function DistributedLockingTutorial() {
             <span className="text-sm">30 min</span>
           </div>
         </div>
-        <h1 className="text-4xl font-bold mb-4">Distributed Locking with Redis</h1>
+        <h1 className="text-4xl font-bold mb-4">
+          Distributed Locking with Redis
+        </h1>
         <p className="text-xl text-gray-600">
-          Learn how to implement distributed locks to coordinate operations across multiple processes and servers.
+          Learn how to implement distributed locks to coordinate operations
+          across multiple processes and servers.
         </p>
       </div>
 
@@ -61,7 +74,8 @@ export default function DistributedLockingTutorial() {
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <CodeBlock code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
+            <CodeBlock
+              code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
 import { randomUUID } from 'crypto';
 
 export class DistributedLock {
@@ -93,11 +107,11 @@ export class DistributedLock {
 
     // SET NX EX: Set if not exists with expiry
     const result = await this.client.set(key, value, {
-      NX: true,
-      EX: ttlSeconds,
+      setIfKeyNotExists: true,
+      expireInSeconds: ttlSeconds,
     });
 
-    return result === 'OK' ? value : null;
+    return result !== null ? value : null;
   }
 
   /**
@@ -115,10 +129,7 @@ export class DistributedLock {
       end
     \`;
 
-    const result = await this.client.eval(script, {
-      keys: [key],
-      arguments: [token],
-    });
+    const result = await this.client.eval(script, [key], [token]);
 
     return result === 1;
   }
@@ -142,10 +153,7 @@ export class DistributedLock {
       end
     \`;
 
-    const result = await this.client.eval(script, {
-      keys: [key],
-      arguments: [token, ttlSeconds.toString()],
-    });
+    const result = await this.client.eval(script, [key], [token, ttlSeconds.toString()]);
 
     return result === 1;
   }
@@ -190,7 +198,10 @@ export class DistributedLock {
       await this.release(resource, token);
     }
   }
-}`} language="typescript" showLineNumbers={true} />
+}`}
+              language="typescript"
+              showLineNumbers={true}
+            />
           </div>
         </CardContent>
       </Card>
@@ -206,7 +217,8 @@ export class DistributedLock {
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <CodeBlock code={`import { DistributedLock } from './distributed-lock';
+            <CodeBlock
+              code={`import { DistributedLock } from './distributed-lock';
 
 const lock = new DistributedLock();
 await lock.connect();
@@ -256,7 +268,10 @@ async function updateUserProfile(userId: string, data: any) {
     await db.updateUser(userId, updatedUser);
     await cache.invalidate(\`user:\${userId}\`);
   });
-}`} language="typescript" showLineNumbers={true} />
+}`}
+              language="typescript"
+              showLineNumbers={true}
+            />
           </div>
         </CardContent>
       </Card>
@@ -267,11 +282,13 @@ async function updateUserProfile(userId: string, data: any) {
             <Lock className="h-5 w-5 text-yellow-600" />
             RedLock Algorithm (Using Extensions)
           </CardTitle>
-          <CardDescription>For production-grade distributed locking</CardDescription>
+          <CardDescription>
+            For production-grade distributed locking
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-gray-600 mb-4">
-            For production use, consider using the{" "}
+            For production use, consider using the{' '}
             <a
               href="https://github.com/vcms-io/solidis-extensions"
               className="text-yellow-600 hover:underline"
@@ -279,10 +296,13 @@ async function updateUserProfile(userId: string, data: any) {
               rel="noopener noreferrer"
             >
               @vcms-io/solidis-extensions
-            </a>{" "}
+            </a>{' '}
             package which includes a battle-tested RedLock implementation.
           </p>
-          <CodeBlock code="npm install @vcms-io/solidis-extensions" language="bash" />
+          <CodeBlock
+            code="npm install @vcms-io/solidis-extensions"
+            language="bash"
+          />
         </CardContent>
       </Card>
 
@@ -296,21 +316,29 @@ async function updateUserProfile(userId: string, data: any) {
               <span className="text-green-600 mt-1">✓</span>
               <div>
                 <div className="font-medium">Always set appropriate TTL</div>
-                <div className="text-sm text-gray-600">Prevent deadlocks from crashed processes</div>
+                <div className="text-sm text-gray-600">
+                  Prevent deadlocks from crashed processes
+                </div>
               </div>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-green-600 mt-1">✓</span>
               <div>
                 <div className="font-medium">Use unique lock tokens</div>
-                <div className="text-sm text-gray-600">Prevent accidental lock release by other processes</div>
+                <div className="text-sm text-gray-600">
+                  Prevent accidental lock release by other processes
+                </div>
               </div>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-green-600 mt-1">✓</span>
               <div>
-                <div className="font-medium">Implement lock renewal for long operations</div>
-                <div className="text-sm text-gray-600">Extend TTL while work is in progress</div>
+                <div className="font-medium">
+                  Implement lock renewal for long operations
+                </div>
+                <div className="text-sm text-gray-600">
+                  Extend TTL while work is in progress
+                </div>
               </div>
             </li>
           </ul>
@@ -326,17 +354,27 @@ async function updateUserProfile(userId: string, data: any) {
         </CardHeader>
         <CardContent>
           <div className="grid md:grid-cols-2 gap-4">
-            <Link href="/tutorials/job-queue" className="p-4 border rounded-lg hover:shadow-lg transition-shadow">
+            <Link
+              href="/tutorials/job-queue"
+              className="p-4 border rounded-lg hover:shadow-lg transition-shadow"
+            >
               <h3 className="font-semibold mb-2">Job Queue</h3>
-              <p className="text-sm text-gray-600">Build a background job processing system</p>
+              <p className="text-sm text-gray-600">
+                Build a background job processing system
+              </p>
             </Link>
-            <Link href="/tutorials/cache-layer" className="p-4 border rounded-lg hover:shadow-lg transition-shadow">
+            <Link
+              href="/tutorials/cache-layer"
+              className="p-4 border rounded-lg hover:shadow-lg transition-shadow"
+            >
               <h3 className="font-semibold mb-2">Cache Layer</h3>
-              <p className="text-sm text-gray-600">Implement caching strategies</p>
+              <p className="text-sm text-gray-600">
+                Implement caching strategies
+              </p>
             </Link>
           </div>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

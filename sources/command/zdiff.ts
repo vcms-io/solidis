@@ -1,10 +1,6 @@
 import {
   executeCommand,
-  newCommandError,
-  processPairedArray,
-  tryReplyToNumber,
-  tryReplyToStringArray,
-  UnexpectedReplyPrefix,
+  tryReplyToStringsOrSortedSetMembers,
 } from './utils/index.ts';
 
 import type { RespSortedSetMember } from '../index.ts';
@@ -27,29 +23,7 @@ export async function zdiff<T>(
   return await executeCommand(
     this,
     createCommand(keys, withScores),
-    (reply, command) => {
-      if (!Array.isArray(reply)) {
-        throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
-      }
-
-      if (!withScores) {
-        return tryReplyToStringArray(reply, command);
-      }
-
-      const result: RespSortedSetMember[] = [];
-
-      processPairedArray(
-        reply,
-        (member, score) => {
-          result.push({
-            member,
-            score: tryReplyToNumber(score, command),
-          });
-        },
-        'ZDIFF',
-      );
-
-      return result;
-    },
+    (reply, command) =>
+      tryReplyToStringsOrSortedSetMembers(reply, command, withScores),
   );
 }

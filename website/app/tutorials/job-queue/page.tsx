@@ -1,14 +1,18 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Clock, User, CheckCircle, ArrowRight, Layers } from "lucide-react"
-import Link from "next/link"
-import { CodeBlock } from '@/components/code-block'
+import { ArrowRight, CheckCircle, Clock, Layers } from 'lucide-react';
+import Link from 'next/link';
+
+import { CodeBlock } from '@/components/code-block';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function JobQueueTutorial() {
   return (
     <div className="container mx-auto max-w-4xl py-12 px-4">
       <div className="mb-8">
-        <Link href="/tutorials" className="text-yellow-600 hover:underline text-sm mb-4 inline-block">
+        <Link
+          href="/tutorials"
+          className="text-yellow-600 hover:underline text-sm mb-4 inline-block"
+        >
           ← Back to Tutorials
         </Link>
         <div className="flex items-center gap-4 mb-4">
@@ -20,7 +24,8 @@ export default function JobQueueTutorial() {
         </div>
         <h1 className="text-4xl font-bold mb-4">Building a Job Queue System</h1>
         <p className="text-xl text-gray-600">
-          Create a robust background job processing system using Redis lists for reliable task execution.
+          Create a robust background job processing system using Redis lists for
+          reliable task execution.
         </p>
       </div>
 
@@ -61,7 +66,8 @@ export default function JobQueueTutorial() {
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <CodeBlock code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
+            <CodeBlock
+              code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface Job<T = any> {
@@ -128,13 +134,13 @@ export class JobQueue {
    */
   async getNextJob(): Promise<Job | null> {
     // Get highest priority job
-    const jobs = await this.client.zpopmax(this.queueName);
+    const result = await this.client.zpopmax(this.queueName);
 
-    if (jobs.length === 0) {
+    if (!result || result.length === 0) {
       return null;
     }
 
-    const job = JSON.parse(jobs[0].toString()) as Job;
+    const job = JSON.parse(result[0].member) as Job;
 
     // Move to processing queue
     await this.client.hset(this.processingName, job.id, JSON.stringify(job));
@@ -159,7 +165,7 @@ export class JobQueue {
       return;
     }
 
-    const job = JSON.parse(jobData.toString()) as Job;
+    const job = JSON.parse(jobData) as Job;
     job.attempts++;
 
     if (job.attempts >= job.maxAttempts) {
@@ -201,7 +207,10 @@ export class JobQueue {
     }
     return length;
   }
-}`} language="typescript" showLineNumbers={true} />
+}`}
+              language="typescript"
+              showLineNumbers={true}
+            />
           </div>
         </CardContent>
       </Card>
@@ -217,7 +226,8 @@ export class JobQueue {
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <CodeBlock code={`import { JobQueue, Job } from './job-queue';
+            <CodeBlock
+              code={`import { JobQueue, Job } from './job-queue';
 
 type JobHandler<T = any> = (data: T) => Promise<void>;
 
@@ -297,7 +307,10 @@ export class JobWorker {
       await this.queue.failJob(job.id, message);
     }
   }
-}`} language="typescript" showLineNumbers={true} />
+}`}
+              language="typescript"
+              showLineNumbers={true}
+            />
           </div>
         </CardContent>
       </Card>
@@ -313,7 +326,8 @@ export class JobWorker {
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <CodeBlock code={`import { JobQueue } from './job-queue';
+            <CodeBlock
+              code={`import { JobQueue } from './job-queue';
 import { JobWorker } from './job-worker';
 
 // Create queue
@@ -368,7 +382,10 @@ console.log('Queue stats:', stats);
 // Graceful shutdown
 process.on('SIGTERM', () => {
   worker.stop();
-});`} language="typescript" showLineNumbers={true} />
+});`}
+              language="typescript"
+              showLineNumbers={true}
+            />
           </div>
         </CardContent>
       </Card>
@@ -386,28 +403,36 @@ process.on('SIGTERM', () => {
               <span className="text-green-600 mt-1">✓</span>
               <div>
                 <div className="font-medium">Delayed Jobs</div>
-                <div className="text-sm text-gray-600">Schedule jobs to run at a specific time</div>
+                <div className="text-sm text-gray-600">
+                  Schedule jobs to run at a specific time
+                </div>
               </div>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-green-600 mt-1">✓</span>
               <div>
                 <div className="font-medium">Job Progress Tracking</div>
-                <div className="text-sm text-gray-600">Update and monitor job progress in real-time</div>
+                <div className="text-sm text-gray-600">
+                  Update and monitor job progress in real-time
+                </div>
               </div>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-green-600 mt-1">✓</span>
               <div>
                 <div className="font-medium">Multiple Workers</div>
-                <div className="text-sm text-gray-600">Scale horizontally by running multiple worker processes</div>
+                <div className="text-sm text-gray-600">
+                  Scale horizontally by running multiple worker processes
+                </div>
               </div>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-green-600 mt-1">✓</span>
               <div>
                 <div className="font-medium">Job Deduplication</div>
-                <div className="text-sm text-gray-600">Prevent duplicate jobs from being queued</div>
+                <div className="text-sm text-gray-600">
+                  Prevent duplicate jobs from being queued
+                </div>
               </div>
             </li>
           </ul>
@@ -428,15 +453,22 @@ process.on('SIGTERM', () => {
               className="p-4 border rounded-lg hover:shadow-lg transition-shadow"
             >
               <h3 className="font-semibold mb-2">Distributed Locking</h3>
-              <p className="text-sm text-gray-600">Prevent race conditions in job processing</p>
+              <p className="text-sm text-gray-600">
+                Prevent race conditions in job processing
+              </p>
             </Link>
-            <Link href="/tutorials/cache-layer" className="p-4 border rounded-lg hover:shadow-lg transition-shadow">
+            <Link
+              href="/tutorials/cache-layer"
+              className="p-4 border rounded-lg hover:shadow-lg transition-shadow"
+            >
               <h3 className="font-semibold mb-2">Cache Layer</h3>
-              <p className="text-sm text-gray-600">Cache job results for better performance</p>
+              <p className="text-sm text-gray-600">
+                Cache job results for better performance
+              </p>
             </Link>
           </div>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

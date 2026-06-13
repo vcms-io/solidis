@@ -2,6 +2,7 @@ import {
   executeCommand,
   InvalidReplyPrefix,
   newCommandError,
+  tryReplyToNumber,
   UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
@@ -24,36 +25,25 @@ export async function geopos<T>(
         throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
       }
 
-      return reply.map((pos) => {
-        if (pos === null) {
+      return reply.map((position) => {
+        if (position === null) {
           return null;
         }
 
-        if (!Array.isArray(pos) || pos.length !== 2) {
-          throw newCommandError(`${InvalidReplyPrefix}: ${pos}`, command);
+        if (!Array.isArray(position) || position.length !== 2) {
+          throw newCommandError(`${InvalidReplyPrefix}: ${position}`, command);
         }
 
-        const [longitude, latitude] = pos;
+        const [longitude, latitude] = position;
 
-        if (typeof longitude !== 'string' && !(longitude instanceof Buffer)) {
-          throw newCommandError(`${InvalidReplyPrefix}: ${longitude}`, command);
-        }
-
-        if (typeof latitude !== 'string' && !(latitude instanceof Buffer)) {
-          throw newCommandError(`${InvalidReplyPrefix}: ${latitude}`, command);
-        }
-
-        const lon = Number.parseFloat(`${longitude}`);
-        const lat = Number.parseFloat(`${latitude}`);
-
-        if (Number.isNaN(lon) || Number.isNaN(lat)) {
-          throw newCommandError(
-            `${InvalidReplyPrefix}: ${longitude},${latitude}`,
-            command,
-          );
-        }
-
-        return { longitude: lon, latitude: lat };
+        /**
+         * RESP2 encodes coordinates as bulk strings; RESP3 returns native
+         * doubles. tryReplyToNumber normalises both shapes.
+         */
+        return {
+          longitude: tryReplyToNumber(longitude, command),
+          latitude: tryReplyToNumber(latitude, command),
+        };
       });
     },
   );

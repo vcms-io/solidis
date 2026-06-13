@@ -1,0 +1,46 @@
+name: Coverage
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/coverage.yaml"
+      - "sources/**"
+      - "scripts/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/coverage.yaml"
+      - "sources/**"
+      - "scripts/**"
+
+concurrency:
+  group: coverage-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    services:
+      server:
+        image: redis/redis-stack-server:latest
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - name: Run coverage
+        run: npm run test:coverage
+        env:
+          SOLIDIS_TEST_HOST: 127.0.0.1
+          SOLIDIS_TEST_PORT: 6379
