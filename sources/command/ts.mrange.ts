@@ -1,9 +1,7 @@
 import {
   buildTimeSeriesRangeCommand,
   executeCommand,
-  InvalidReplyPrefix,
-  newCommandError,
-  UnexpectedReplyPrefix,
+  tryReplyToTimeSeriesMultiRangeResults,
 } from './utils/index.ts';
 
 import type { CommandTimeSeriesRangeOptions } from '../index.ts';
@@ -14,18 +12,16 @@ export function createCommand(
   filter: Record<string, string>,
   options: CommandTimeSeriesRangeOptions,
 ) {
-  const baseCommand = [
-    'TS.MRANGE',
-    `${fromTimestamp}`,
-    `${toTimestamp}`,
-    'FILTER',
-  ];
+  const baseCommand = ['TS.MRANGE', `${fromTimestamp}`, `${toTimestamp}`];
+  const command = buildTimeSeriesRangeCommand(baseCommand, options);
+
+  command.push('FILTER');
 
   for (const [label, value] of Object.entries(filter)) {
-    baseCommand.push(label, '=', value);
+    command.push(`${label}=${value}`);
   }
 
-  return buildTimeSeriesRangeCommand(baseCommand, options);
+  return command;
 }
 
 export async function tsMrange<T>(
@@ -43,50 +39,6 @@ export async function tsMrange<T>(
   return await executeCommand(
     this,
     createCommand(fromTimestamp, toTimestamp, filter, options),
-    (reply, command) => {
-      if (!Array.isArray(reply)) {
-        throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
-      }
-
-      return reply.map((item) => {
-        if (!Array.isArray(item) || item.length !== 2) {
-          throw newCommandError(`${InvalidReplyPrefix}: ${item}`, command);
-        }
-
-        const [key, samples] = item;
-        if (typeof key !== 'string') {
-          throw newCommandError(`${InvalidReplyPrefix}: ${key}`, command);
-        }
-
-        if (!Array.isArray(samples)) {
-          throw newCommandError(`${InvalidReplyPrefix}: ${samples}`, command);
-        }
-
-        return {
-          key,
-          samples: samples.map((sample) => {
-            if (!Array.isArray(sample) || sample.length !== 2) {
-              throw newCommandError(
-                `${InvalidReplyPrefix}: ${sample}`,
-                command,
-              );
-            }
-
-            const [timestamp, value] = sample;
-            if (typeof timestamp !== 'string' || typeof value !== 'string') {
-              throw newCommandError(
-                `${InvalidReplyPrefix}: ${timestamp}/${value}`,
-                command,
-              );
-            }
-
-            return {
-              timestamp: Number(timestamp),
-              value: Number(value),
-            };
-          }),
-        };
-      });
-    },
+    tryReplyToTimeSeriesMultiRangeResults,
   );
 }

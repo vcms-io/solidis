@@ -1,10 +1,7 @@
 import {
   executeCommand,
-  InvalidReplyPrefix,
-  newCommandError,
-  processPairedArray,
-  tryReplyToString,
-  UnexpectedReplyPrefix,
+  tryReplyToStreamEntries,
+  tryReplyToStringArray,
 } from './utils/index.ts';
 
 import type { RespStreamEntry } from '../index.ts';
@@ -58,37 +55,16 @@ export async function xclaim<T>(
   minIdleTime: number,
   ids: string[],
   options?: XclaimOptions,
-): Promise<RespStreamEntry[]> {
+): Promise<RespStreamEntry[] | string[]> {
   return await executeCommand(
     this,
     createCommand(key, group, consumer, minIdleTime, ids, options),
     (reply, command) => {
-      if (Array.isArray(reply)) {
-        return reply.map((entry) => {
-          if (!Array.isArray(entry) || entry.length !== 2) {
-            throw newCommandError(`${InvalidReplyPrefix}: ${entry}`, command);
-          }
-
-          const [id, fields] = entry;
-
-          const parsedFields: Record<string, string> = {};
-
-          processPairedArray(
-            fields,
-            (key, value) => {
-              parsedFields[key] = tryReplyToString(value);
-            },
-            command,
-          );
-
-          return {
-            id: tryReplyToString(id),
-            fields: parsedFields,
-          };
-        });
+      if (options?.justid) {
+        return tryReplyToStringArray(reply, command);
       }
 
-      throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
+      return tryReplyToStreamEntries(reply, command);
     },
   );
 }

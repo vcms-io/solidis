@@ -23,6 +23,14 @@ export class SolidisPubSub {
     return this.#psubscribedPatterns;
   }
 
+  public get hasActiveSubscriptions() {
+    return (
+      this.#subscribedChannels.size > 0 ||
+      this.#subscribedShardChannels.size > 0 ||
+      this.#psubscribedPatterns.size > 0
+    );
+  }
+
   public dispatchPubSubEvent(
     reply: SolidisData[],
     emit: SolidisClientEventHandlers['emit'],
@@ -32,8 +40,9 @@ export class SolidisPubSub {
     const event = pubSubReply[0];
 
     switch (event) {
-      case 'message': {
-        this.#dispatchMessage(pubSubReply, emit);
+      case 'message':
+      case 'smessage': {
+        this.#dispatchMessage(event, pubSubReply, emit);
 
         return;
       }
@@ -74,6 +83,7 @@ export class SolidisPubSub {
   }
 
   #dispatchMessage(
+    event: 'message' | 'smessage',
     pubSubReply: SolidisTranslatedPubSubReplies,
     emit: SolidisClientEventHandlers['emit'],
   ) {
@@ -81,12 +91,12 @@ export class SolidisPubSub {
     const message = pubSubReply[2];
 
     if (typeof channel !== 'string' || typeof message !== 'string') {
-      this.#dispatchPubSubError('message:type', pubSubReply, emit);
+      this.#dispatchPubSubError(`${event}:type`, pubSubReply, emit);
 
       return;
     }
 
-    emit('message', channel, message);
+    emit(event, channel, message);
   }
 
   #dispatchPmessage(

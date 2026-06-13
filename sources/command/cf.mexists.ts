@@ -1,9 +1,4 @@
-import {
-  executeCommand,
-  newCommandError,
-  tryReplyToBoolean,
-  UnexpectedReplyPrefix,
-} from './utils/index.ts';
+import { executeCommand, tryReplyToBooleanArray } from './utils/index.ts';
 
 export function createCommand(key: string, items: string[]) {
   return ['CF.MEXISTS', key, ...items];
@@ -17,12 +12,6 @@ export async function cfMexists<T>(
   return await executeCommand(
     this,
     createCommand(key, items),
-    (reply, command) => {
-      if (Array.isArray(reply)) {
-        return reply.map((value) => tryReplyToBoolean(value, command));
-      }
-
-      throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
-    },
+    tryReplyToBooleanArray,
   );
 }

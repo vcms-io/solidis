@@ -1,9 +1,13 @@
-import { executeCommand, tryReplyToStringOrNull } from './utils/index.ts';
+import { executeCommand, tryReplyToBinaryStringOrNull } from './utils/index.ts';
 
 export function createCommand(key: string) {
   return ['DUMP', key];
 }
 
 export async function dump<T>(this: T, key: string): Promise<string | null> {
-  return await executeCommand(this, createCommand(key), tryReplyToStringOrNull);
+  return await executeCommand(
+    this,
+    createCommand(key),
+    tryReplyToBinaryStringOrNull,
+  );
 }

@@ -1,8 +1,4 @@
-import {
-  executeCommand,
-  tryReplyArray,
-  tryReplyToStreamEntry,
-} from './utils/index.ts';
+import { executeCommand, tryReplyToStreamEntries } from './utils/index.ts';
 
 import type { RespStreamEntry } from '../index.ts';
 
@@ -19,8 +15,6 @@ export async function xrange<T>(
   return await executeCommand(
     this,
     createCommand(key, start, end),
-    (reply, command) => {
-      return tryReplyArray(reply, command).map(tryReplyToStreamEntry);
-    },
+    tryReplyToStreamEntries,
   );
 }

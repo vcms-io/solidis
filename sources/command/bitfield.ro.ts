@@ -8,8 +8,8 @@ export function createCommand(
 ) {
   const command = ['BITFIELD_RO', key];
 
-  for (const op of operations) {
-    command.push('GET', op.type, `${op.offset}`);
+  for (const operation of operations) {
+    command.push('GET', operation.type, `${operation.offset}`);
   }
 
   return command;

@@ -31,7 +31,7 @@ export function createCommand(key: string, full?: boolean, count?: number) {
 }
 
 function parseConsumer(
-  info: unknown[],
+  info: unknown,
   command: StringOrBuffer[],
 ): RespStreamGroupConsumer {
   const result = tryReplyToMap(info, command);
@@ -64,7 +64,7 @@ function parseConsumer(
 }
 
 function parseGroup(
-  info: unknown[],
+  info: unknown,
   command: StringOrBuffer[],
 ): RespStreamGroupDetail {
   const result = tryReplyToMap(info, command);
@@ -101,13 +101,7 @@ function parseGroup(
         deliveryCount: Number(deliveryCount),
       };
     }),
-    consumers: consumers.map((consumer) => {
-      if (!Array.isArray(consumer)) {
-        throw newCommandError(`${InvalidReplyPrefix}: ${consumer}`, command);
-      }
-
-      return parseConsumer(consumer, command);
-    }),
+    consumers: consumers.map((consumer) => parseConsumer(consumer, command)),
   };
 }
 
@@ -162,13 +156,7 @@ export async function xinfoStream<T>(
         ...baseInformation,
         recordedFirstEntryId: String(result.get('recorded-first-entry-id')),
         entries: entries.map(tryReplyToStreamEntry),
-        groups: groups.map((group) => {
-          if (!Array.isArray(group)) {
-            throw newCommandError(`${InvalidReplyPrefix}: ${group}`, command);
-          }
-
-          return parseGroup(group, command);
-        }),
+        groups: groups.map((group) => parseGroup(group, command)),
       };
     },
   );

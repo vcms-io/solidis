@@ -18,7 +18,7 @@
     "whyChoose": "왜 Solidis를 선택해야 하나요?",
     "whyDescription": "성능과 안정성을 염두에 두고 구축되었으며, 유지보수 가능한 코드를 위해 SOLID 원칙을 따릅니다.",
     "highPerformance": "고성능",
-    "highPerformanceDesc": "효율적인 커넥션 풀링과 최소한의 오버헤드로 속도를 최적화했습니다",
+    "highPerformanceDesc": "자동 파이프라인 배칭과 제로카피 버퍼 연산으로 속도를 최적화했습니다",
     "solidArchitecture": "SOLID 아키텍처",
     "solidArchitectureDesc": "더 나은 확장성을 위해 SOLID 원칙을 따르는 깔끔하고 유지보수 가능한 코드",
     "typescriptFirst": "TypeScript 우선",

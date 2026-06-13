@@ -1,9 +1,8 @@
 import {
   buildScanCommand,
   executeCommand,
-  processPairedArray,
   tryReplyToScan,
-  tryReplyToString,
+  tryReplyToStringRecord,
 } from './utils/index.ts';
 
 import type { CommandScanBaseOptions, RespHashField } from '../index.ts';
@@ -32,16 +31,6 @@ export async function* hscan<T>(
     const [newCursor, elements] = tryReplyToScan(reply);
     cursor = newCursor;
 
-    const result: Record<string, string> = {};
-
-    processPairedArray(
-      elements,
-      (field, value) => {
-        result[field] = tryReplyToString(value, command);
-      },
-      'HSCAN',
-    );
-
-    yield result;
+    yield tryReplyToStringRecord(elements, 'HSCAN');
   } while (cursor !== '0');
 }

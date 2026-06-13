@@ -31,14 +31,17 @@ export async function tsGet<T>(
 
       const [timestamp, value] = reply;
 
-      if (typeof timestamp !== 'string' || typeof value !== 'string') {
+      const timestampNumber = Number(`${timestamp}`);
+      const valueNumber = Number(`${value}`);
+
+      if (Number.isNaN(timestampNumber) || Number.isNaN(valueNumber)) {
         throw newCommandError(
           `${UnexpectedReplyPrefix}: ${timestamp}/${value}`,
           command,
         );
       }
 
-      return [Number(timestamp), Number(value)];
+      return [timestampNumber, valueNumber];
     },
   );
 }

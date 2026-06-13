@@ -1,22 +1,34 @@
-"use client"
+'use client';
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CheckCircle, Terminal, Code, Zap, Package, Layers } from "lucide-react"
-import { useI18n } from "@/lib/i18n-context"
-import { CodeBlock } from '@/components/code-block'
+import {
+  CheckCircle,
+  Code,
+  Layers,
+  Package,
+  Terminal,
+  Zap,
+} from 'lucide-react';
+
+import { CodeBlock } from '@/components/code-block';
+import { Badge } from '@/components/ui/badge';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useI18n } from '@/lib/i18n-context';
 
 export default function GettingStartedPage() {
-  const { t } = useI18n()
+  const { t } = useI18n();
 
   return (
     <div className="container mx-auto max-w-4xl py-12 px-4">
       <div className="mb-8">
-        <h1 className="text-4xl font-bold mb-4">{t("gettingStarted.title")}</h1>
-        <p className="text-xl text-gray-600">
-          {t("gettingStarted.subtitle")}
-        </p>
+        <h1 className="text-4xl font-bold mb-4">{t('gettingStarted.title')}</h1>
+        <p className="text-xl text-gray-600">{t('gettingStarted.subtitle')}</p>
       </div>
 
       <div className="space-y-8">
@@ -25,7 +37,7 @@ export default function GettingStartedPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CheckCircle className="h-5 w-5 text-yellow-600" />
-              {t("gettingStarted.prerequisites")}
+              {t('gettingStarted.prerequisites')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -51,9 +63,11 @@ export default function GettingStartedPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Terminal className="h-5 w-5 text-yellow-600" />
-              {t("gettingStarted.installation")}
+              {t('gettingStarted.installation')}
             </CardTitle>
-            <CardDescription>{t("gettingStarted.installationDesc")}</CardDescription>
+            <CardDescription>
+              {t('gettingStarted.installationDesc')}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="npm" className="w-full">
@@ -63,7 +77,10 @@ export default function GettingStartedPage() {
                 <TabsTrigger value="pnpm">pnpm</TabsTrigger>
               </TabsList>
               <TabsContent value="npm">
-                <CodeBlock code="npm install @vcms-io/solidis" language="bash" />
+                <CodeBlock
+                  code="npm install @vcms-io/solidis"
+                  language="bash"
+                />
               </TabsContent>
               <TabsContent value="yarn">
                 <CodeBlock code="yarn add @vcms-io/solidis" language="bash" />
@@ -80,49 +97,61 @@ export default function GettingStartedPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Package className="h-5 w-5 text-yellow-600" />
-              {t("gettingStarted.clientTypes")}
+              {t('gettingStarted.clientTypes')}
             </CardTitle>
-            <CardDescription>{t("gettingStarted.clientTypesDesc")}</CardDescription>
+            <CardDescription>
+              {t('gettingStarted.clientTypesDesc')}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
               <div>
-                <h3 className="text-lg font-semibold mb-3">1. {t("gettingStarted.basicClient")}</h3>
+                <h3 className="text-lg font-semibold mb-3">
+                  1. {t('gettingStarted.basicClient')}
+                </h3>
                 <p className="text-sm text-gray-600 mb-3">
-                  {t("gettingStarted.basicClientDesc")}
+                  {t('gettingStarted.basicClientDesc')}
                 </p>
-                <CodeBlock code={`// Import the basic client and commands
+                <CodeBlock
+                  code={`// Import the basic client and commands
 import { SolidisClient } from '@vcms-io/solidis';
-import { get } from '@vcms-io/solidis/command/get';
-import { set } from '@vcms-io/solidis/command/set';
-import { multi } from '@vcms-io/solidis/command/multi';
+import { get, set, multi } from '@vcms-io/solidis/command';
 import type { SolidisClientExtensions } from '@vcms-io/solidis';
 
 // Define extensions with type safety
 const extensions = {
   get,
   set,
-  multi
+  multi,
 } satisfies SolidisClientExtensions;
 
 // Initialize client with extensions
 const client = new SolidisClient({
   host: '127.0.0.1',
-  port: 6379
-}).extend(extensions);`} language="typescript" showLineNumbers={true} />
+  port: 6379,
+}).extend(extensions);`}
+                  language="typescript"
+                  showLineNumbers={true}
+                />
               </div>
 
               <div>
-                <h3 className="text-lg font-semibold mb-3">2. {t("gettingStarted.featuredClient")}</h3>
-                <p className="text-sm text-gray-600 mb-3">{t("gettingStarted.featuredClientDesc")}</p>
-                <CodeBlock code={`// Import the featured client
-import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
+                <h3 className="text-lg font-semibold mb-3">
+                  2. {t('gettingStarted.featuredClient')}
+                </h3>
+                <p className="text-sm text-gray-600 mb-3">
+                  {t('gettingStarted.featuredClientDesc')}
+                </p>
+                <CodeBlock
+                  code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
 
-// All RESP commands are pre-loaded
 const client = new SolidisFeaturedClient({
   host: '127.0.0.1',
-  port: 6379
-}).extend(extensions);`} language="typescript" showLineNumbers={true} />
+  port: 6379,
+});`}
+                  language="typescript"
+                  showLineNumbers={true}
+                />
               </div>
             </div>
           </CardContent>
@@ -133,15 +162,18 @@ const client = new SolidisFeaturedClient({
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Layers className="h-5 w-5 text-yellow-600" />
-              {t("gettingStarted.connectionManagement")}
+              {t('gettingStarted.connectionManagement')}
             </CardTitle>
-            <CardDescription>{t("gettingStarted.connectionManagementDesc")}</CardDescription>
+            <CardDescription>
+              {t('gettingStarted.connectionManagementDesc')}
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <CodeBlock code={`// Create client (with lazy connect)
+            <CodeBlock
+              code={`// Create client (with lazy connect)
 const client = new SolidisClient({
   uri: 'redis://127.0.0.1:6379',
-  lazyConnect: true
+  lazyConnect: true,
 }).extend({ get, set });
 
 // Explicitly connect when needed
@@ -151,10 +183,14 @@ await client.connect();
 client.on('connect', () => console.log('Connected to server'));
 client.on('ready', () => console.log('Client is ready for commands'));
 client.on('error', (err) => console.error('Error occurred: ', err));
+client.on('close', () => console.log('Connection closed by server'));
 client.on('end', () => console.log('Connection closed'));
 
 // Close connection when done
-client.quit();`} language="typescript" showLineNumbers={true} />
+client.quit();`}
+              language="typescript"
+              showLineNumbers={true}
+            />
           </CardContent>
         </Card>
 
@@ -163,12 +199,15 @@ client.quit();`} language="typescript" showLineNumbers={true} />
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Zap className="h-5 w-5 text-yellow-600" />
-              {t("gettingStarted.basicOperations")}
+              {t('gettingStarted.basicOperations')}
             </CardTitle>
-            <CardDescription>{t("gettingStarted.basicOperationsDesc")}</CardDescription>
+            <CardDescription>
+              {t('gettingStarted.basicOperationsDesc')}
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <CodeBlock code={`// Set a key
+            <CodeBlock
+              code={`// Set a key
 await client.set('key', 'value');
 
 // Get a key
@@ -177,7 +216,10 @@ const value = await client.get('key');
 console.log(value); // 'value'
 
 // Delete a key
-await client.del('key');`} language="typescript" showLineNumbers={true} />
+await client.del('key');`}
+              language="typescript"
+              showLineNumbers={true}
+            />
           </CardContent>
         </Card>
 
@@ -186,45 +228,61 @@ await client.del('key');`} language="typescript" showLineNumbers={true} />
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Code className="h-5 w-5 text-yellow-600" />
-              {t("gettingStarted.transactions")}
+              {t('gettingStarted.transactions')}
             </CardTitle>
-            <CardDescription>{t("gettingStarted.transactionsDesc")}</CardDescription>
+            <CardDescription>
+              {t('gettingStarted.transactionsDesc')}
+            </CardDescription>
           </CardHeader>
           <CardContent>
-              <CodeBlock code={`// Start a transaction
-const transaction = client.multi();
+            <CodeBlock
+              code={`const transaction = client.multi();
 
-// Queue commands (no await needed)
 transaction.set('key', 'value');
 transaction.incr('counter');
-transaction.get('key');`} language="typescript" showLineNumbers={true} />
+transaction.get('key');
+
+const results = await transaction.exec();`}
+              language="typescript"
+              showLineNumbers={true}
+            />
           </CardContent>
         </Card>
 
         {/* Next Steps */}
         <Card>
           <CardHeader>
-            <CardTitle>{t("gettingStarted.nextSteps")}</CardTitle>
-            <CardDescription>{t("gettingStarted.nextStepsDesc")}</CardDescription>
+            <CardTitle>{t('gettingStarted.nextSteps')}</CardTitle>
+            <CardDescription>
+              {t('gettingStarted.nextStepsDesc')}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid md:grid-cols-2 gap-4">
               <div className="p-4 border rounded-lg">
-                <h3 className="font-semibold mb-2">📚 {t("nav.apiReference")}</h3>
+                <h3 className="font-semibold mb-2">
+                  📚 {t('nav.apiReference')}
+                </h3>
                 <p className="text-sm text-gray-600 mb-3">
-                  {t("gettingStarted.apiReferenceLink")}
+                  {t('gettingStarted.apiReferenceLink')}
                 </p>
-                <a href="/api-reference" className="text-yellow-600 hover:underline text-sm">
-                  {t("gettingStarted.viewApiReference")}
+                <a
+                  href="/api-reference"
+                  className="text-yellow-600 hover:underline text-sm"
+                >
+                  {t('gettingStarted.viewApiReference')}
                 </a>
               </div>
               <div className="p-4 border rounded-lg">
-                <h3 className="font-semibold mb-2">🎯 {t("nav.tutorials")}</h3>
+                <h3 className="font-semibold mb-2">🎯 {t('nav.tutorials')}</h3>
                 <p className="text-sm text-gray-600 mb-3">
-                  {t("gettingStarted.tutorialsLink")}
+                  {t('gettingStarted.tutorialsLink')}
                 </p>
-                <a href="/tutorials" className="text-yellow-600 hover:underline text-sm">
-                  {t("gettingStarted.startLearning")}
+                <a
+                  href="/tutorials"
+                  className="text-yellow-600 hover:underline text-sm"
+                >
+                  {t('gettingStarted.startLearning')}
                 </a>
               </div>
             </div>
@@ -232,5 +290,5 @@ transaction.get('key');`} language="typescript" showLineNumbers={true} />
         </Card>
       </div>
     </div>
-  )
+  );
 }

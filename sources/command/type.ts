@@ -17,12 +17,16 @@ export async function type<T>(
     if (typeof reply === 'string' || reply instanceof Buffer) {
       const typeString = `${reply}`.toUpperCase();
 
-      if (Object.values(RespDataTypes).includes(typeString as RespDataTypes)) {
-        return typeString as RespDataTypes;
-      }
-
       if (typeString === 'NONE') {
         return 'NONE';
+      }
+
+      const matched = Object.values(RespDataTypes).find(
+        (v) => v === typeString,
+      );
+
+      if (matched !== undefined) {
+        return matched;
       }
     }
 

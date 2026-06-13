@@ -1,6 +1,6 @@
 {
   "name": "@vcms-io/solidis",
-  "version": "0.0.6",
+  "version": "0.1.0",
   "author": "Jay Lee <jay@vendit.co.kr>",
   "description": "High-performance, SOLID-structured RESP client for Redis and other RESP-compatible servers",
   "repository": {
@@ -13,9 +13,13 @@
     "prepack": "npm run build",
     "cleanup": "npm run --silent node:ts ./scripts/cleanup.ts",
     "build": "npm run cleanup && tsc && npm run node:ts ./scripts/build.ts",
-    "lint": "concurrently --raw \"biome check --write\" \"tsc --noEmit\"",
+    "lint": "concurrently --raw \"biome check --write\" \"tsc --noEmit\" \"tsc --noEmit --project scripts/tests/tsconfig.json\"",
     "format": "biome format --write",
     "node:ts": "node --import=./scripts/esm/register.js",
+    "test": "npm run test:commands && npm run test:client",
+    "test:commands": "node --import=./scripts/esm/register.js --test ./scripts/tests/commands/*.test.ts",
+    "test:client": "node --import=./scripts/esm/register.js --test --test-concurrency=1 ./scripts/tests/client/*.test.ts",
+    "test:coverage": "npm run node:ts ./scripts/tests/coverage.ts",
     "web:dev": "cd ./website && npm run dev",
     "web:build": "cd ./website && npm run build",
     "web:start": "cd ./website && npm run start"
@@ -68,11 +72,12 @@
     "distributions/**/*.{d.ts,mjs,cjs}"
   ],
   "devDependencies": {
-    "@biomejs/biome": "2.0.4",
-    "@types/node": "^22.15.32",
-    "chalk": "^5.4.1",
-    "concurrently": "^9.1.2",
-    "esbuild": "^0.25.5",
-    "typescript": "^5.8.3"
+    "@biomejs/biome": "2.5.0",
+    "@types/node": "^22.19.21",
+    "c8": "^11.0.0",
+    "chalk": "^5.6.2",
+    "concurrently": "^10.0.3",
+    "esbuild": "^0.28.1",
+    "typescript": "^6.0.3"
   }
 }

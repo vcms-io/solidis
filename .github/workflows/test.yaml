@@ -1,0 +1,77 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint & type-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - run: npm run lint
+
+  integration:
+    name: Integration (${{ matrix.label }})
+    runs-on: ubuntu-latest
+    needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: redis-7
+            image: redis:7-alpine
+          - label: redis-6
+            image: redis:6-alpine
+          - label: redis-stack-latest
+            image: redis/redis-stack-server:latest
+          - label: redis-stack-7.2
+            image: redis/redis-stack-server:7.2.0-v20
+          - label: redis-stack-6
+            image: redis/redis-stack-server:6.2.6-v19
+          - label: valkey-9
+            image: valkey/valkey:9-alpine
+          - label: valkey-8
+            image: valkey/valkey:8-alpine
+          - label: valkey-7
+            image: valkey/valkey:7-alpine
+          - label: valkey-bundle-9
+            image: valkey/valkey-bundle:latest
+          - label: valkey-bundle-8
+            image: valkey/valkey-bundle:8-alpine
+    services:
+      server:
+        image: ${{ matrix.image }}
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping || valkey-cli ping"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - name: Run integration suite
+        run: npm run test
+        env:
+          SOLIDIS_TEST_HOST: 127.0.0.1
+          SOLIDIS_TEST_PORT: 6379
+          SOLIDIS_TEST_LABEL: ${{ matrix.label }}

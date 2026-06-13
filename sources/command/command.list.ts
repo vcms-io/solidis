@@ -6,15 +6,15 @@ export function createCommand(filter?: RespCommandListFilter) {
   const command = ['COMMAND', 'LIST'];
 
   if (filter?.module) {
-    command.push('MODULE', filter.module);
+    command.push('FILTERBY', 'MODULE', filter.module);
   }
 
   if (filter?.aclcat) {
-    command.push('ACLCAT', filter.aclcat);
+    command.push('FILTERBY', 'ACLCAT', filter.aclcat);
   }
 
   if (filter?.pattern) {
-    command.push('PATTERN', filter.pattern);
+    command.push('FILTERBY', 'PATTERN', filter.pattern);
   }
 
   return command;

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server';
 
 // Fallback data to use when GitHub API is unavailable
 const FALLBACK_DATA = {
@@ -17,27 +17,27 @@ export async function GET() {
     const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
 
     const response = await fetch(
-      "https://api.github.com/repos/vcms-io/solidis",
+      'https://api.github.com/repos/vcms-io/solidis',
       {
         headers: {
-          Accept: "application/vnd.github.v3+json",
-          "User-Agent": "Solidis-Documentation-Site",
+          Accept: 'application/vnd.github.v3+json',
+          'User-Agent': 'Solidis-Documentation-Site',
         },
         signal: controller.signal,
         next: { revalidate: 7200 }, // Cache for 2 hours to reduce API calls
-      }
+      },
     );
 
     clearTimeout(timeoutId);
 
     // Handle different HTTP status codes
     if (response.status === 403) {
-      console.warn("GitHub API rate limit exceeded or access forbidden");
+      console.warn('GitHub API rate limit exceeded or access forbidden');
       return NextResponse.json(FALLBACK_DATA);
     }
 
     if (response.status === 404) {
-      console.warn("GitHub repository not found");
+      console.warn('GitHub repository not found');
       return NextResponse.json(FALLBACK_DATA);
     }
 
@@ -58,10 +58,10 @@ export async function GET() {
     });
   } catch (error) {
     // Handle network errors, timeouts, etc.
-    if (error instanceof Error && error.name === "AbortError") {
-      console.warn("GitHub API request timed out");
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.warn('GitHub API request timed out');
     } else {
-      console.error("Error fetching GitHub data:", error);
+      console.error('Error fetching GitHub data:', error);
     }
 
     return NextResponse.json(FALLBACK_DATA);

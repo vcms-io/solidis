@@ -1,7 +1,7 @@
 import {
   executeCommand,
-  InvalidReplyPrefix,
   newCommandError,
+  tryReplyToMap,
   UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
@@ -16,50 +16,27 @@ export async function xinfoGroups<T>(
   key: string,
 ): Promise<RespStreamGroupInfo[]> {
   return await executeCommand(this, createCommand(key), (reply, command) => {
-    if (Array.isArray(reply)) {
-      return reply.map((info) => {
-        if (!Array.isArray(info)) {
-          throw newCommandError(`${InvalidReplyPrefix}: ${info}`, command);
-        }
-
-        const result = new Map<string, string | number>();
-        for (let index = 0; index < info.length; index += 2) {
-          const key = info[index];
-          const value = info[index + 1];
-
-          if (!(typeof key === 'string' || key instanceof Buffer)) {
-            throw newCommandError(`${InvalidReplyPrefix}: ${key}`, command);
-          }
-
-          if (
-            !(
-              typeof value === 'string' ||
-              value instanceof Buffer ||
-              typeof value === 'number'
-            )
-          ) {
-            throw newCommandError(
-              `${InvalidReplyPrefix}: ${key}/${value}`,
-              command,
-            );
-          }
-
-          const keyString = `${key}`.toLowerCase();
-
-          result.set(keyString, `${value}`);
-        }
-
-        return {
-          name: String(result.get('name')),
-          consumers: Number(result.get('consumers')),
-          pending: Number(result.get('pending')),
-          lastDeliveredId: String(result.get('last-delivered-id')),
-          entriesRead: Number(result.get('entries-read')),
-          lag: Number(result.get('lag')),
-        };
-      });
+    if (!Array.isArray(reply)) {
+      throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
     }
 
-    throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
+    return reply.map((info) => {
+      /**
+       * Each group is a flat field/value array under RESP2 and a map under
+       * RESP3; tryReplyToMap normalises both.
+       */
+      const result = tryReplyToMap(info, command);
+
+      const entriesRead = result.get('entries-read');
+
+      return {
+        name: String(result.get('name')),
+        consumers: Number(result.get('consumers')),
+        pending: Number(result.get('pending')),
+        lastDeliveredId: String(result.get('last-delivered-id')),
+        entriesRead: entriesRead === null ? 0 : Number(entriesRead),
+        lag: Number(result.get('lag')),
+      };
+    });
   });
 }

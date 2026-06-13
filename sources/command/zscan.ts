@@ -1,9 +1,8 @@
 import {
   buildScanCommand,
   executeCommand,
-  processPairedArray,
-  tryReplyToNumber,
   tryReplyToScan,
+  tryReplyToSortedSetMembers,
 } from './utils/index.ts';
 
 import type { CommandScanBaseOptions, RespSortedSetMember } from '../index.ts';
@@ -32,19 +31,6 @@ export async function* zscan<T>(
     const [newCursor, elements] = tryReplyToScan(reply);
     cursor = newCursor;
 
-    const result: RespSortedSetMember[] = [];
-
-    processPairedArray(
-      elements,
-      (member, score) => {
-        result.push({
-          member,
-          score: tryReplyToNumber(score, command),
-        });
-      },
-      'ZSCAN',
-    );
-
-    yield result;
+    yield tryReplyToSortedSetMembers(elements, command);
   } while (cursor !== '0');
 }

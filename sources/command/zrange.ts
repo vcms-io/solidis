@@ -1,11 +1,7 @@
 import {
   buildSortedSetRangeCommand,
   executeCommand,
-  newCommandError,
-  processPairedArray,
-  tryReplyToNumber,
-  tryReplyToStringArray,
-  UnexpectedReplyPrefix,
+  tryReplyToStringsOrSortedSetMembers,
 } from './utils/index.ts';
 
 import type { CommandZRangeOptions, RespSortedSetMember } from '../index.ts';
@@ -29,29 +25,7 @@ export async function zrange<T>(
   return await executeCommand(
     this,
     createCommand(key, min, max, options),
-    (reply, command) => {
-      if (!Array.isArray(reply)) {
-        throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
-      }
-
-      if (!options.withScores) {
-        return tryReplyToStringArray(reply, command);
-      }
-
-      const result: RespSortedSetMember[] = [];
-
-      processPairedArray(
-        reply.flat(),
-        (member, score) => {
-          result.push({
-            member,
-            score: tryReplyToNumber(score, command),
-          });
-        },
-        'ZRANGE',
-      );
-
-      return result;
-    },
+    (reply, command) =>
+      tryReplyToStringsOrSortedSetMembers(reply, command, options.withScores),
   );
 }

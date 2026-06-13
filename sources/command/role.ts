@@ -14,7 +14,7 @@ export function createCommand() {
 export async function role<T>(this: T): Promise<RespRole> {
   return await executeCommand(this, createCommand(), (reply, command) => {
     if (Array.isArray(reply) && reply.length >= 1) {
-      const [role] = reply;
+      const role = `${reply[0]}`;
 
       if (role === 'master' && reply.length === 3) {
         const [, replicationOffset, slaves] = reply;

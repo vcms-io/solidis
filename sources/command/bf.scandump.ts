@@ -1,9 +1,4 @@
-import {
-  executeCommand,
-  InvalidReplyPrefix,
-  newCommandError,
-  UnexpectedReplyPrefix,
-} from './utils/index.ts';
+import { executeCommand, tryReplyToScanDump } from './utils/index.ts';
 
 export function createCommand(key: string, iterator: number) {
   return ['BF.SCANDUMP', key, `${iterator}`];
@@ -17,18 +12,6 @@ export async function bfScandump<T>(
   return await executeCommand(
     this,
     createCommand(key, iterator),
-    (reply, command) => {
-      if (Array.isArray(reply) && reply.length === 2) {
-        const [nextIterator, data] = reply;
-
-        if (!(data instanceof Buffer)) {
-          throw newCommandError(`${InvalidReplyPrefix}: ${data}`, command);
-        }
-
-        return [Number(nextIterator), data];
-      }
-
-      throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
-    },
+    tryReplyToScanDump,
   );
 }

@@ -1,22 +1,34 @@
-import { executeCommand, tryReplyNumber } from './utils/index.ts';
+import { executeCommand, tryReplyToNumberArray } from './utils/index.ts';
+
+import type { CommandExpireMode } from '../index.ts';
 
 export function createCommand(
   key: string,
-  field: string,
   milliseconds: number,
+  fields: string[],
+  mode?: CommandExpireMode,
 ) {
-  return ['HPEXPIRE', key, field, `${milliseconds}`];
+  const command = ['HPEXPIRE', key, `${milliseconds}`];
+
+  if (mode) {
+    command.push(mode);
+  }
+
+  command.push('FIELDS', `${fields.length}`, ...fields);
+
+  return command;
 }
 
 export async function hpexpire<T>(
   this: T,
   key: string,
-  field: string,
   milliseconds: number,
-): Promise<number> {
+  fields: string[],
+  mode?: CommandExpireMode,
+): Promise<number[]> {
   return await executeCommand(
     this,
-    createCommand(key, field, milliseconds),
-    tryReplyNumber,
+    createCommand(key, milliseconds, fields, mode),
+    tryReplyToNumberArray,
   );
 }

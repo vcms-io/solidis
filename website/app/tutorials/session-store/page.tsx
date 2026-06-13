@@ -1,16 +1,26 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Clock, User, CheckCircle, ArrowRight, Code } from "lucide-react"
-import Link from "next/link"
-import { CodeBlock } from '@/components/code-block'
+import { ArrowRight, CheckCircle, Clock, Code, User } from 'lucide-react';
+import Link from 'next/link';
+
+import { CodeBlock } from '@/components/code-block';
+import { Badge } from '@/components/ui/badge';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function SessionStoreTutorial() {
   return (
     <div className="container mx-auto max-w-4xl py-12 px-4">
       {/* Header */}
       <div className="mb-8">
-        <Link href="/tutorials" className="text-yellow-600 hover:underline text-sm mb-4 inline-block">
+        <Link
+          href="/tutorials"
+          className="text-yellow-600 hover:underline text-sm mb-4 inline-block"
+        >
           ← Back to Tutorials
         </Link>
         <div className="flex items-center gap-4 mb-4">
@@ -24,10 +34,13 @@ export default function SessionStoreTutorial() {
             <span className="text-sm">Beginner friendly</span>
           </div>
         </div>
-        <h1 className="text-4xl font-bold mb-4">Building a Session Store with Redis</h1>
+        <h1 className="text-4xl font-bold mb-4">
+          Building a Session Store with Redis
+        </h1>
         <p className="text-xl text-gray-600">
-          Learn how to implement a Redis-based session store for web applications using Solidis. Perfect for
-          authentication and user state management.
+          Learn how to implement a Redis-based session store for web
+          applications using Solidis. Perfect for authentication and user state
+          management.
         </p>
       </div>
 
@@ -94,7 +107,9 @@ export default function SessionStoreTutorial() {
             </div>
             Project Setup
           </CardTitle>
-          <CardDescription>Install dependencies and initialize the project</CardDescription>
+          <CardDescription>
+            Install dependencies and initialize the project
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div>
@@ -106,29 +121,46 @@ export default function SessionStoreTutorial() {
                 <TabsTrigger value="pnpm">pnpm</TabsTrigger>
               </TabsList>
               <TabsContent value="npm" className="space-y-4">
-                <CodeBlock code="npm install @vcms-io/solidis express uuid" language="bash" />
+                <CodeBlock
+                  code="npm install @vcms-io/solidis express uuid"
+                  language="bash"
+                />
                 <div>
                   <h4 className="font-semibold mb-2">TypeScript (Optional)</h4>
-                  <CodeBlock code="npm install -D @types/express @types/uuid typescript" language="bash" />
+                  <CodeBlock
+                    code="npm install -D @types/express @types/uuid typescript"
+                    language="bash"
+                  />
                 </div>
               </TabsContent>
               <TabsContent value="yarn" className="space-y-4">
-                <CodeBlock code="yarn add @vcms-io/solidis express uuid" language="bash" />
+                <CodeBlock
+                  code="yarn add @vcms-io/solidis express uuid"
+                  language="bash"
+                />
                 <div>
                   <h4 className="font-semibold mb-2">TypeScript (Optional)</h4>
-                  <CodeBlock code="yarn add -D @types/express @types/uuid typescript" language="bash" />
+                  <CodeBlock
+                    code="yarn add -D @types/express @types/uuid typescript"
+                    language="bash"
+                  />
                 </div>
               </TabsContent>
               <TabsContent value="pnpm" className="space-y-4">
-                <CodeBlock code="pnpm add @vcms-io/solidis express uuid" language="bash" />
+                <CodeBlock
+                  code="pnpm add @vcms-io/solidis express uuid"
+                  language="bash"
+                />
                 <div>
                   <h4 className="font-semibold mb-2">TypeScript (Optional)</h4>
-                  <CodeBlock code="pnpm add -D @types/express @types/uuid typescript" language="bash" />
+                  <CodeBlock
+                    code="pnpm add -D @types/express @types/uuid typescript"
+                    language="bash"
+                  />
                 </div>
               </TabsContent>
             </Tabs>
           </div>
-
         </CardContent>
       </Card>
 
@@ -141,11 +173,14 @@ export default function SessionStoreTutorial() {
             </div>
             Create Session Manager Class
           </CardTitle>
-          <CardDescription>Build a reusable session manager using Solidis</CardDescription>
+          <CardDescription>
+            Build a reusable session manager using Solidis
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <CodeBlock code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
+            <CodeBlock
+              code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface SessionData {
@@ -179,8 +214,8 @@ export class SessionStore {
     await this.client.connect();
   }
 
-  async disconnect(): Promise<void> {
-    await this.client.quit();
+  disconnect(): void {
+    this.client.quit();
   }
 
   private getKey(sessionId: string): string {
@@ -199,7 +234,7 @@ export class SessionStore {
     await this.client.set(
       key,
       JSON.stringify(sessionData),
-      { EX: this.ttl }
+      { expireInSeconds: this.ttl }
     );
 
     return sessionId;
@@ -213,7 +248,7 @@ export class SessionStore {
       return null;
     }
 
-    return JSON.parse(data.toString());
+    return JSON.parse(data);
   }
 
   async update(sessionId: string, data: Partial<SessionData>): Promise<boolean> {
@@ -228,7 +263,7 @@ export class SessionStore {
     await this.client.set(
       key,
       JSON.stringify(updatedData),
-      { EX: this.ttl }
+      { expireInSeconds: this.ttl }
     );
 
     return true;
@@ -243,7 +278,7 @@ export class SessionStore {
   async refresh(sessionId: string): Promise<boolean> {
     const key = this.getKey(sessionId);
     const result = await this.client.expire(key, this.ttl);
-    return result === 1;
+    return result > 0;
   }
 
   async exists(sessionId: string): Promise<boolean> {
@@ -251,7 +286,10 @@ export class SessionStore {
     const result = await this.client.exists(key);
     return result === 1;
   }
-}`} language="typescript" showLineNumbers={true} />
+}`}
+              language="typescript"
+              showLineNumbers={true}
+            />
           </div>
         </CardContent>
       </Card>
@@ -265,11 +303,14 @@ export class SessionStore {
             </div>
             Create Express Middleware
           </CardTitle>
-          <CardDescription>Integrate the session store with Express.js</CardDescription>
+          <CardDescription>
+            Integrate the session store with Express.js
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <CodeBlock code={`import express, { Request, Response, NextFunction } from 'express';
+            <CodeBlock
+              code={`import express, { Request, Response, NextFunction } from 'express';
 import { SessionStore, SessionData } from './session-store';
 
 // Extend Express Request type
@@ -330,7 +371,10 @@ export function createSessionMiddleware(store: SessionStore) {
 
     next();
   };
-}`} language="typescript" showLineNumbers={true} />
+}`}
+              language="typescript"
+              showLineNumbers={true}
+            />
           </div>
         </CardContent>
       </Card>
@@ -344,11 +388,14 @@ export function createSessionMiddleware(store: SessionStore) {
             </div>
             Usage Example
           </CardTitle>
-          <CardDescription>Putting it all together in your Express app</CardDescription>
+          <CardDescription>
+            Putting it all together in your Express app
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <CodeBlock code={`import express from 'express';
+            <CodeBlock
+              code={`import express from 'express';
 import cookieParser from 'cookie-parser';
 import { SessionStore } from './session-store';
 import { createSessionMiddleware } from './session-middleware';
@@ -418,7 +465,10 @@ async function start() {
   });
 }
 
-start().catch(console.error);`} language="typescript" showLineNumbers={true} />
+start().catch(console.error);`}
+              language="typescript"
+              showLineNumbers={true}
+            />
           </div>
         </CardContent>
       </Card>
@@ -435,20 +485,31 @@ start().catch(console.error);`} language="typescript" showLineNumbers={true} />
           <div className="space-y-4">
             <div>
               <h4 className="font-semibold mb-2">Test Login</h4>
-              <CodeBlock code={`curl -X POST http://localhost:3000/api/login \\
+              <CodeBlock
+                code={`curl -X POST http://localhost:3000/api/login \\
   -H "Content-Type: application/json" \\
   -d '{"username":"demo","password":"password"}' \\
-  -c cookies.txt`} language="bash" />
+  -c cookies.txt`}
+                language="bash"
+              />
             </div>
 
             <div>
               <h4 className="font-semibold mb-2">Test Protected Endpoint</h4>
-              <CodeBlock code={`curl http://localhost:3000/api/profile -b cookies.txt`} language="bash" />
+              <CodeBlock
+                code={'curl http://localhost:3000/api/profile -b cookies.txt'}
+                language="bash"
+              />
             </div>
 
             <div>
               <h4 className="font-semibold mb-2">Test Logout</h4>
-              <CodeBlock code={`curl -X POST http://localhost:3000/api/logout -b cookies.txt`} language="bash" />
+              <CodeBlock
+                code={
+                  'curl -X POST http://localhost:3000/api/logout -b cookies.txt'
+                }
+                language="bash"
+              />
             </div>
           </div>
         </CardContent>
@@ -464,11 +525,23 @@ start().catch(console.error);`} language="typescript" showLineNumbers={true} />
             <li className="flex items-start gap-2">
               <span className="text-green-600 mt-1">✓</span>
               <div>
-                <div className="font-medium">Use secure cookies in production</div>
+                <div className="font-medium">
+                  Use secure cookies in production
+                </div>
                 <div className="text-sm text-gray-600">
-                  Always set <code className="bg-gray-100 px-1 py-0.5 rounded">httpOnly</code>,{" "}
-                  <code className="bg-gray-100 px-1 py-0.5 rounded">secure</code>, and{" "}
-                  <code className="bg-gray-100 px-1 py-0.5 rounded">sameSite</code> flags
+                  Always set{' '}
+                  <code className="bg-gray-100 px-1 py-0.5 rounded">
+                    httpOnly
+                  </code>
+                  ,{' '}
+                  <code className="bg-gray-100 px-1 py-0.5 rounded">
+                    secure
+                  </code>
+                  , and{' '}
+                  <code className="bg-gray-100 px-1 py-0.5 rounded">
+                    sameSite
+                  </code>{' '}
+                  flags
                 </div>
               </div>
             </li>
@@ -477,7 +550,8 @@ start().catch(console.error);`} language="typescript" showLineNumbers={true} />
               <div>
                 <div className="font-medium">Implement session rotation</div>
                 <div className="text-sm text-gray-600">
-                  Regenerate session IDs after login to prevent session fixation attacks
+                  Regenerate session IDs after login to prevent session fixation
+                  attacks
                 </div>
               </div>
             </li>
@@ -486,16 +560,18 @@ start().catch(console.error);`} language="typescript" showLineNumbers={true} />
               <div>
                 <div className="font-medium">Set appropriate TTL values</div>
                 <div className="text-sm text-gray-600">
-                  Balance between user experience and security based on your application needs
+                  Balance between user experience and security based on your
+                  application needs
                 </div>
               </div>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-green-600 mt-1">✓</span>
               <div>
-                <div className="font-medium">Use connection pooling</div>
+                <div className="font-medium">Reuse client instances</div>
                 <div className="text-sm text-gray-600">
-                  Reuse Redis connections across requests for better performance
+                  Share a single SolidisClient across requests for better
+                  performance
                 </div>
               </div>
             </li>
@@ -504,7 +580,9 @@ start().catch(console.error);`} language="typescript" showLineNumbers={true} />
               <div>
                 <div className="font-medium">Monitor session counts</div>
                 <div className="text-sm text-gray-600">
-                  Use <code className="bg-gray-100 px-1 py-0.5 rounded">SCAN</code> command to track active sessions
+                  Use{' '}
+                  <code className="bg-gray-100 px-1 py-0.5 rounded">SCAN</code>{' '}
+                  command to track active sessions
                 </div>
               </div>
             </li>
@@ -527,18 +605,22 @@ start().catch(console.error);`} language="typescript" showLineNumbers={true} />
               className="p-4 border rounded-lg hover:shadow-lg transition-shadow"
             >
               <h3 className="font-semibold mb-2">Cache Layer Tutorial</h3>
-              <p className="text-sm text-gray-600">Learn how to implement caching for better performance</p>
+              <p className="text-sm text-gray-600">
+                Learn how to implement caching for better performance
+              </p>
             </Link>
             <Link
               href="/tutorials/rate-limiting"
               className="p-4 border rounded-lg hover:shadow-lg transition-shadow"
             >
               <h3 className="font-semibold mb-2">Rate Limiting Tutorial</h3>
-              <p className="text-sm text-gray-600">Protect your APIs with Redis-based rate limiting</p>
+              <p className="text-sm text-gray-600">
+                Protect your APIs with Redis-based rate limiting
+              </p>
             </Link>
           </div>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

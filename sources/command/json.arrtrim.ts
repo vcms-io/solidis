@@ -1,4 +1,7 @@
-import { executeCommand, tryReplyToNumberArray } from './utils/index.ts';
+import {
+  executeCommand,
+  tryReplyToNullableNumberArray,
+} from './utils/index.ts';
 
 import type { CommandJsonArrTrimOptions } from '../index.ts';
 
@@ -19,6 +22,6 @@ export async function jsonArrtrim<T>(
   return await executeCommand(
     this,
     createCommand(key, path, options),
-    (reply, command) => tryReplyToNumberArray(reply, command, true),
+    tryReplyToNullableNumberArray,
   );
 }

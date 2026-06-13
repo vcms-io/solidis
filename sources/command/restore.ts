@@ -8,7 +8,12 @@ export function createCommand(
   serializedValue: StringOrBuffer,
   options?: CommandRestoreOptions,
 ) {
-  const command: StringOrBuffer[] = ['RESTORE', key, `${ttl}`, serializedValue];
+  const payload =
+    typeof serializedValue === 'string'
+      ? Buffer.from(serializedValue, 'latin1')
+      : serializedValue;
+
+  const command: StringOrBuffer[] = ['RESTORE', key, `${ttl}`, payload];
 
   if (options) {
     if (options.replace === true) {

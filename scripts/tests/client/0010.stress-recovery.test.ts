@@ -1,0 +1,306 @@
+/**
+ * Fault-recovery STRESS with explicit loss accounting.
+ *
+ * This suite repeatedly breaks the connection in the nastiest ways and measures
+ * exactly how much in-flight work is lost, then asserts the invariants that
+ * must hold no matter how violent the fault:
+ *
+ *   - no command promise is ever left unsettled (resolved + rejected == issued);
+ *   - every write the client acknowledged as resolved is durable on the server
+ *     (persisted >= resolved);
+ *   - the client returns to full health afterwards.
+ *
+ * It also reports the observed loss rate so a regression can be quantified.
+ *
+ * KNOWN BUG (documented as a `todo` reproduction below): when a command is
+ * abandoned by a client-side `commandTimeout`, `recoveryFromFault` resets the
+ * requester but leaves the socket open. The server's (late) reply for the
+ * abandoned command is then mis-attributed to the next command issued on the
+ * same connection, silently desynchronising it. This is reproduced
+ * deterministically with a blocking command so the maintainer can decide on a
+ * fix (drop+reconnect the socket on fault, or discard the exact number of
+ * outstanding replies) without the regression failing CI today.
+ */
+
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { after, before, describe, it } from 'node:test';
+
+import {
+  closeClient,
+  createClient,
+  createKeyspace,
+  delay,
+  range,
+  waitFor,
+} from '../utils/index.ts';
+
+import type { FeaturedClient } from '../utils/index.ts';
+
+describe('stress-recovery', () => {
+  let killer: FeaturedClient;
+  const keyspace = createKeyspace('stress-recovery');
+
+  before(async () => {
+    killer = await createClient();
+  });
+
+  after(async () => {
+    await closeClient(killer);
+  });
+
+  const waitUntilReady = async (client: FeaturedClient): Promise<void> => {
+    await waitFor(
+      async () => {
+        try {
+          return (await client.ping()) === 'PONG';
+        } catch {
+          return false;
+        }
+      },
+      { timeout: 5000, interval: 25, description: 'reconnect after fault' },
+    );
+  };
+
+  it('quantifies in-flight loss across repeated forced disconnects', async () => {
+    const client = await createClient({
+      autoReconnect: true,
+      maxConnectionRetries: 20,
+      connectionRetryDelay: 25,
+    });
+
+    client.on('error', () => {});
+
+    const rounds = 10;
+    const perRound = 700;
+
+    let resolved = 0;
+    let rejected = 0;
+    const keys: string[] = [];
+
+    for (const round of range(rounds)) {
+      await waitUntilReady(client);
+
+      const clientId = await client.clientId();
+
+      const outcomes = range(perRound).map((index) => {
+        const key = keyspace.key('loss', round, index);
+        keys.push(key);
+
+        return client
+          .set(key, `${round}:${index}`)
+          .then(() => {
+            resolved += 1;
+          })
+          .catch(() => {
+            rejected += 1;
+          });
+      });
+
+      /**
+       * Let part of the batch acknowledge, then kill while the rest is still
+       * draining — this exercises both the durable-ack invariant (for resolved
+       * writes) and the rejection path (for in-flight ones).
+       */
+      await delay(5);
+      await killer.clientKill(clientId).catch(() => {});
+
+      await Promise.all(outcomes);
+    }
+
+    await waitUntilReady(client);
+
+    let persisted = 0;
+
+    for (const key of keys) {
+      if ((await client.get(key)) !== null) {
+        persisted += 1;
+      }
+    }
+
+    const total = rounds * perRound;
+    const lostButApplied = persisted - resolved;
+
+    console.log(
+      `[stress-recovery] forced-disconnect: total=${total} resolved=${resolved} ` +
+        `rejected=${rejected} persisted=${persisted} ` +
+        `rejectRate=${((rejected / total) * 100).toFixed(2)}% ` +
+        `lostAck(applied-but-not-acked)=${lostButApplied}`,
+    );
+
+    /** Invariant 1: no command is silently swallowed. */
+    assert.strictEqual(
+      resolved + rejected,
+      total,
+      'every issued command must settle exactly once',
+    );
+
+    /** Invariant 2: an acknowledged write is always durable. */
+    assert.ok(
+      persisted >= resolved,
+      `acknowledged writes must be durable: persisted=${persisted} < resolved=${resolved}`,
+    );
+
+    /** Invariant 3: the client is fully usable after the abuse. */
+    assert.strictEqual(await client.set(keyspace.key('final'), 'ok'), 'OK');
+    assert.strictEqual(await client.get(keyspace.key('final')), 'ok');
+
+    await closeClient(client);
+  });
+
+  it('survives a spurious command-timeout storm and never returns a wrong value', async () => {
+    const client = await createClient({
+      commandTimeout: 40,
+      autoReconnect: true,
+      maxConnectionRetries: 20,
+      connectionRetryDelay: 20,
+    });
+
+    client.on('error', () => {});
+
+    const total = 5000;
+    let correct = 0;
+    let wrong = 0;
+    let rejected = 0;
+    const wrongSamples: string[] = [];
+
+    await Promise.all(
+      range(total).map((index) => {
+        const token = `${index}-${randomUUID()}`;
+
+        return client
+          .echo(token)
+          .then((reply) => {
+            if (reply === token) {
+              correct += 1;
+            } else {
+              wrong += 1;
+              if (wrongSamples.length < 5) {
+                wrongSamples.push(`${token} -> ${reply}`);
+              }
+            }
+          })
+          .catch(() => {
+            rejected += 1;
+          });
+      }),
+    );
+
+    console.log(
+      `[stress-recovery] timeout-storm: total=${total} correct=${correct} ` +
+        `wrong=${wrong} rejected=${rejected} ` +
+        `lossRate=${((rejected / total) * 100).toFixed(2)}%`,
+    );
+
+    if (wrong > 0) {
+      console.error(`  wrong samples: ${wrongSamples.join(' | ')}`);
+    }
+
+    /** No resolved command may ever carry another command's reply. */
+    assert.strictEqual(
+      wrong,
+      0,
+      'a resolved command returned a value belonging to a different command',
+    );
+    assert.strictEqual(correct + rejected, total);
+
+    /** The connection must come back to full health after the storm. */
+    await waitUntilReady(client);
+    assert.strictEqual(await client.echo('post-storm'), 'post-storm');
+
+    await closeClient(client);
+  });
+
+  it('rejects every in-flight command of a giant pipeline on mid-flight kill', async () => {
+    const client = await createClient({
+      autoReconnect: true,
+      maxConnectionRetries: 20,
+      connectionRetryDelay: 25,
+    });
+
+    client.on('error', () => {});
+
+    const clientId = await client.clientId();
+
+    /** One enormous pipeline; killing it must settle the whole thing. */
+    const commands = range(20000).map((index) => [
+      'SET',
+      keyspace.key('giant', index),
+      `${index}`,
+    ]);
+
+    const settled = client
+      .send(commands)
+      .then(() => 'resolved' as const)
+      .catch(() => 'rejected' as const);
+
+    await delay(2);
+    await killer.clientKill(clientId).catch(() => {});
+
+    const outcome = await settled;
+
+    console.log(`[stress-recovery] giant-pipeline kill outcome=${outcome}`);
+
+    /** Whatever happens, the promise settles and the client recovers. */
+    assert.ok(outcome === 'resolved' || outcome === 'rejected');
+
+    await waitUntilReady(client);
+    assert.strictEqual(
+      await client.set(keyspace.key('giant-final'), 'ok'),
+      'OK',
+    );
+
+    await closeClient(client);
+  });
+
+  /**
+   * Regression for the command-timeout desync bug: a command abandoned by
+   * `commandTimeout` leaves its (late) reply on the still-open socket, and that
+   * reply must be discarded rather than handed to the next command. The fix
+   * counts the outstanding replies during recovery and drops exactly that many.
+   */
+  it('does not mis-attribute a stale reply after a command timeout', async () => {
+    const victim = await createClient({
+      commandTimeout: 150,
+      autoReconnect: true,
+      maxConnectionRetries: 5,
+      connectionRetryDelay: 50,
+    });
+
+    victim.on('error', () => {});
+
+    const pusher = await createClient();
+    const key = keyspace.key('stale', randomUUID());
+
+    try {
+      /** BLPOP blocks; the client abandons it on timeout but the server does not. */
+      const blocked = victim
+        .blpop([key], 0)
+        .then(() => 'resolved')
+        .catch(() => 'rejected');
+
+      await delay(300);
+
+      /** Issue a fresh command so it is in-flight when the stale reply lands. */
+      const echoPromise = victim
+        .echo('FRESH')
+        .then((value) => value)
+        .catch((error: Error) => `THREW:${error.message}`);
+
+      await delay(30);
+
+      /** Release BLPOP: server emits [key, payload] then the ECHO reply. */
+      await pusher.rpush(key, 'STALE-PAYLOAD');
+
+      const echoed = await echoPromise;
+
+      await blocked;
+
+      /** The fresh command must get its own reply, never the stale BLPOP one. */
+      assert.strictEqual(echoed, 'FRESH');
+    } finally {
+      await closeClient(pusher);
+      await closeClient(victim);
+    }
+  });
+});

@@ -1,9 +1,8 @@
 import {
   executeCommand,
   newCommandError,
-  processPairedArray,
-  tryReplyToString,
   tryReplyToStringArray,
+  tryReplyToStringRecord,
   UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
@@ -47,17 +46,8 @@ export async function hrandfield<T>(
 
       if (Array.isArray(reply)) {
         if (withvalues && count !== undefined) {
-          const result: RespHashField = {};
-
-          processPairedArray(
-            reply,
-            (field, value) => {
-              result[field] = tryReplyToString(value, command);
-            },
-            'HRANDFIELD',
-          );
-
-          return result;
+          /** RESP3 nests each field/value as a pair; flatten to match RESP2. */
+          return tryReplyToStringRecord(reply.flat(), 'HRANDFIELD');
         }
 
         return tryReplyToStringArray(reply, command);

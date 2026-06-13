@@ -61,14 +61,27 @@ export async function xpending<T>(
 
         const [pending, minId, maxId, consumers] = reply;
 
+        /**
+         * When the group has no pending entries the server replies with a nil
+         * id range and a nil consumers list, which is a valid (empty) summary.
+         */
+        if (consumers === null) {
+          return {
+            pending: Number(pending),
+            minId: minId === null ? null : String(minId),
+            maxId: maxId === null ? null : String(maxId),
+            consumers: [],
+          };
+        }
+
         if (!Array.isArray(consumers)) {
           throw newCommandError(`${InvalidReplyPrefix}: ${consumers}`, command);
         }
 
         return {
           pending: Number(pending),
-          minId: String(minId),
-          maxId: String(maxId),
+          minId: minId === null ? null : String(minId),
+          maxId: maxId === null ? null : String(maxId),
           consumers: consumers.map((consumer) => {
             if (!Array.isArray(consumer) || consumer.length !== 2) {
               throw newCommandError(

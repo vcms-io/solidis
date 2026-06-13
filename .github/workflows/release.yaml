@@ -8,8 +8,13 @@ on:
       - 'package.json'
 
 jobs:
+  test:
+    name: Test
+    uses: ./.github/workflows/test.yaml
+
   check-version:
     name: Check Version
+    needs: test
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.extract.outputs.version }}

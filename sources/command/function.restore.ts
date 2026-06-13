@@ -6,7 +6,11 @@ export function createCommand(
   dump: string,
   options?: CommandFunctionRestoreOptions,
 ) {
-  const command = ['FUNCTION', 'RESTORE'];
+  const command: (string | Buffer)[] = [
+    'FUNCTION',
+    'RESTORE',
+    Buffer.from(dump, 'latin1'),
+  ];
 
   if (options?.replace) {
     command.push('REPLACE');
@@ -19,8 +23,6 @@ export function createCommand(
   if (options?.append) {
     command.push('APPEND');
   }
-
-  command.push(dump);
 
   return command;
 }

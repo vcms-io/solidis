@@ -1,16 +1,25 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Clock, User, CheckCircle, ArrowRight, Shield } from "lucide-react"
-import Link from "next/link"
-import { CodeBlock } from '@/components/code-block'
+import { ArrowRight, CheckCircle, Clock, Shield } from 'lucide-react';
+import Link from 'next/link';
+
+import { CodeBlock } from '@/components/code-block';
+import { Badge } from '@/components/ui/badge';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 
 export default function RateLimitingTutorial() {
   return (
     <div className="container mx-auto max-w-4xl py-12 px-4">
       {/* Header */}
       <div className="mb-8">
-        <Link href="/tutorials" className="text-yellow-600 hover:underline text-sm mb-4 inline-block">
+        <Link
+          href="/tutorials"
+          className="text-yellow-600 hover:underline text-sm mb-4 inline-block"
+        >
           ← Back to Tutorials
         </Link>
         <div className="flex items-center gap-4 mb-4">
@@ -22,7 +31,8 @@ export default function RateLimitingTutorial() {
         </div>
         <h1 className="text-4xl font-bold mb-4">Rate Limiting with Redis</h1>
         <p className="text-xl text-gray-600">
-          Protect your APIs from abuse and ensure fair resource allocation using Redis-based rate limiting strategies.
+          Protect your APIs from abuse and ensure fair resource allocation using
+          Redis-based rate limiting strategies.
         </p>
       </div>
 
@@ -62,11 +72,14 @@ export default function RateLimitingTutorial() {
             </div>
             Fixed Window Rate Limiter
           </CardTitle>
-          <CardDescription>Simple and efficient rate limiting strategy</CardDescription>
+          <CardDescription>
+            Simple and efficient rate limiting strategy
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <CodeBlock code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
+            <CodeBlock
+              code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
 
 export class FixedWindowRateLimiter {
   private client: SolidisFeaturedClient;
@@ -113,7 +126,10 @@ export class FixedWindowRateLimiter {
 
     return { allowed, remaining, resetAt };
   }
-}`} language="typescript" showLineNumbers={true} />
+}`}
+              language="typescript"
+              showLineNumbers={true}
+            />
           </div>
         </CardContent>
       </Card>
@@ -127,11 +143,14 @@ export class FixedWindowRateLimiter {
             </div>
             Sliding Window Rate Limiter
           </CardTitle>
-          <CardDescription>More accurate rate limiting with smooth distribution</CardDescription>
+          <CardDescription>
+            More accurate rate limiting with smooth distribution
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <CodeBlock code={`export class SlidingWindowRateLimiter {
+            <CodeBlock
+              code={`export class SlidingWindowRateLimiter {
   private client: SolidisFeaturedClient;
   private prefix: string;
 
@@ -179,16 +198,19 @@ export class FixedWindowRateLimiter {
     // Calculate retry after (when oldest request will expire)
     let retryAfter = 0;
     if (!allowed && count > 0) {
-      const oldest = await this.client.zrange(cacheKey, 0, 0, { WITHSCORES: true });
+      const oldest = await this.client.zrange(cacheKey, '0', '0', { withScores: true });
       if (oldest.length > 0) {
-        const oldestScore = Number.parseInt(oldest[1].toString());
+        const oldestScore = oldest[0].score;
         retryAfter = Math.ceil((oldestScore + windowSeconds * 1000 - now) / 1000);
       }
     }
 
     return { allowed, remaining, retryAfter };
   }
-}`} language="typescript" showLineNumbers={true} />
+}`}
+              language="typescript"
+              showLineNumbers={true}
+            />
           </div>
         </CardContent>
       </Card>
@@ -202,11 +224,14 @@ export class FixedWindowRateLimiter {
             </div>
             Token Bucket Rate Limiter
           </CardTitle>
-          <CardDescription>Allow burst traffic while maintaining average rate</CardDescription>
+          <CardDescription>
+            Allow burst traffic while maintaining average rate
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <CodeBlock code={`export class TokenBucketRateLimiter {
+            <CodeBlock
+              code={`export class TokenBucketRateLimiter {
   private client: SolidisFeaturedClient;
   private prefix: string;
 
@@ -237,8 +262,8 @@ export class FixedWindowRateLimiter {
 
     // Get bucket state
     const result = await this.client.hmget(cacheKey, 'tokens', 'lastRefill');
-    let tokens = result[0] ? Number.parseFloat(result[0].toString()) : capacity;
-    let lastRefill = result[1] ? Number.parseInt(result[1].toString()) : now;
+    let tokens = result[0] ? Number.parseFloat(result[0]) : capacity;
+    let lastRefill = result[1] ? Number.parseInt(result[1]) : now;
 
     // Calculate tokens to add
     const timePassed = (now - lastRefill) / 1000;
@@ -252,10 +277,8 @@ export class FixedWindowRateLimiter {
     }
 
     // Update bucket state
-    await this.client.hset(cacheKey, {
-      tokens: tokens.toString(),
-      lastRefill: now.toString(),
-    });
+    await this.client.hset(cacheKey, 'tokens', tokens.toString());
+    await this.client.hset(cacheKey, 'lastRefill', now.toString());
     await this.client.expire(cacheKey, Math.ceil(capacity / refillRate) + 60);
 
     const retryAfter = allowed ? 0 : Math.ceil((1 - tokens) / refillRate);
@@ -266,7 +289,10 @@ export class FixedWindowRateLimiter {
       retryAfter,
     };
   }
-}`} language="typescript" showLineNumbers={true} />
+}`}
+              language="typescript"
+              showLineNumbers={true}
+            />
           </div>
         </CardContent>
       </Card>
@@ -280,11 +306,14 @@ export class FixedWindowRateLimiter {
             </div>
             Express Middleware Integration
           </CardTitle>
-          <CardDescription>Easy-to-use middleware for your Express application</CardDescription>
+          <CardDescription>
+            Easy-to-use middleware for your Express application
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <CodeBlock code={`import { Request, Response, NextFunction } from 'express';
+            <CodeBlock
+              code={`import { Request, Response, NextFunction } from 'express';
 import { SlidingWindowRateLimiter } from './sliding-window-limiter';
 
 export interface RateLimitOptions {
@@ -374,7 +403,10 @@ export function createLoginRateLimiter(limiter: SlidingWindowRateLimiter) {
       });
     },
   });
-}`} language="typescript" showLineNumbers={true} />
+}`}
+              language="typescript"
+              showLineNumbers={true}
+            />
           </div>
         </CardContent>
       </Card>
@@ -389,7 +421,8 @@ export function createLoginRateLimiter(limiter: SlidingWindowRateLimiter) {
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <CodeBlock code={`import express from 'express';
+            <CodeBlock
+              code={`import express from 'express';
 import { SlidingWindowRateLimiter } from './sliding-window-limiter';
 import {
   createUserRateLimiter,
@@ -429,7 +462,10 @@ async function start() {
   });
 }
 
-start().catch(console.error);`} language="typescript" showLineNumbers={true} />
+start().catch(console.error);`}
+              language="typescript"
+              showLineNumbers={true}
+            />
           </div>
         </CardContent>
       </Card>
@@ -446,29 +482,40 @@ start().catch(console.error);`} language="typescript" showLineNumbers={true} />
               <div>
                 <div className="font-medium">Choose the right algorithm</div>
                 <div className="text-sm text-gray-600">
-                  Fixed window for simplicity, sliding window for accuracy, token bucket for burst traffic
+                  Fixed window for simplicity, sliding window for accuracy,
+                  token bucket for burst traffic
                 </div>
               </div>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-green-600 mt-1">✓</span>
               <div>
-                <div className="font-medium">Always include rate limit headers</div>
-                <div className="text-sm text-gray-600">Help clients understand and respect rate limits</div>
+                <div className="font-medium">
+                  Always include rate limit headers
+                </div>
+                <div className="text-sm text-gray-600">
+                  Help clients understand and respect rate limits
+                </div>
               </div>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-green-600 mt-1">✓</span>
               <div>
                 <div className="font-medium">Fail open on errors</div>
-                <div className="text-sm text-gray-600">Don't block all traffic if Redis is down</div>
+                <div className="text-sm text-gray-600">
+                  Don't block all traffic if Redis is down
+                </div>
               </div>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-green-600 mt-1">✓</span>
               <div>
-                <div className="font-medium">Use different limits for different endpoints</div>
-                <div className="text-sm text-gray-600">More restrictive for expensive operations</div>
+                <div className="font-medium">
+                  Use different limits for different endpoints
+                </div>
+                <div className="text-sm text-gray-600">
+                  More restrictive for expensive operations
+                </div>
               </div>
             </li>
           </ul>
@@ -490,15 +537,22 @@ start().catch(console.error);`} language="typescript" showLineNumbers={true} />
               className="p-4 border rounded-lg hover:shadow-lg transition-shadow"
             >
               <h3 className="font-semibold mb-2">Distributed Locking</h3>
-              <p className="text-sm text-gray-600">Coordinate actions across multiple servers</p>
+              <p className="text-sm text-gray-600">
+                Coordinate actions across multiple servers
+              </p>
             </Link>
-            <Link href="/tutorials/cache-layer" className="p-4 border rounded-lg hover:shadow-lg transition-shadow">
+            <Link
+              href="/tutorials/cache-layer"
+              className="p-4 border rounded-lg hover:shadow-lg transition-shadow"
+            >
               <h3 className="font-semibold mb-2">Cache Layer</h3>
-              <p className="text-sm text-gray-600">Improve performance with caching strategies</p>
+              <p className="text-sm text-gray-600">
+                Improve performance with caching strategies
+              </p>
             </Link>
           </div>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

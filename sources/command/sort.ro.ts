@@ -1,4 +1,7 @@
-import { executeCommand, tryReplyToStringArray } from './utils/index.ts';
+import {
+  executeCommand,
+  tryReplyToNullableStringArray,
+} from './utils/index.ts';
 
 import type { CommandSortOptions } from '../index.ts';
 
@@ -40,10 +43,10 @@ export async function sortRo<T>(
   this: T,
   key: string,
   options?: CommandSortOptions,
-): Promise<string[]> {
+): Promise<(string | null)[]> {
   return await executeCommand(
     this,
     createCommand(key, options),
-    tryReplyToStringArray,
+    tryReplyToNullableStringArray,
   );
 }

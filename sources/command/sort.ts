@@ -51,7 +51,7 @@ export async function sort<T>(
   this: T,
   key: string,
   options?: CommandSortOptions,
-): Promise<string[]>;
+): Promise<(string | null)[]>;
 export async function sort<T>(
   this: T,
   key: string,
@@ -61,7 +61,7 @@ export async function sort<T>(
   this: T,
   key: string,
   options?: CommandSortOptions | CommandSortStoreOptions,
-): Promise<string[] | number> {
+): Promise<(string | null)[] | number> {
   return await executeCommand(
     this,
     createCommand(key, options),
@@ -70,7 +70,7 @@ export async function sort<T>(
         return tryReplyToNumber(reply, command);
       }
 
-      return tryReplyToStringArray(reply, command);
+      return tryReplyToStringArray(reply, command, true);
     },
   );
 }

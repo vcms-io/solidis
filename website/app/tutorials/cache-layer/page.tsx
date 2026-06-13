@@ -1,15 +1,32 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Clock, User, CheckCircle, ArrowRight, Zap, Database } from "lucide-react"
-import Link from "next/link"
-import { CodeBlock } from '@/components/code-block'
+import {
+  ArrowRight,
+  CheckCircle,
+  Clock,
+  Database,
+  User,
+  Zap,
+} from 'lucide-react';
+import Link from 'next/link';
+
+import { CodeBlock } from '@/components/code-block';
+import { Badge } from '@/components/ui/badge';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 
 export default function CacheLayerTutorial() {
   return (
     <div className="container mx-auto max-w-4xl py-12 px-4">
       {/* Header */}
       <div className="mb-8">
-        <Link href="/tutorials" className="text-yellow-600 hover:underline text-sm mb-4 inline-block">
+        <Link
+          href="/tutorials"
+          className="text-yellow-600 hover:underline text-sm mb-4 inline-block"
+        >
           ← Back to Tutorials
         </Link>
         <div className="flex items-center gap-4 mb-4">
@@ -23,10 +40,13 @@ export default function CacheLayerTutorial() {
             <span className="text-sm">Some Redis experience needed</span>
           </div>
         </div>
-        <h1 className="text-4xl font-bold mb-4">Implementing a High-Performance Cache Layer</h1>
+        <h1 className="text-4xl font-bold mb-4">
+          Implementing a High-Performance Cache Layer
+        </h1>
         <p className="text-xl text-gray-600">
-          Create a robust caching layer to dramatically improve your application's performance by reducing database
-          load and response times.
+          Create a robust caching layer to dramatically improve your
+          application's performance by reducing database load and response
+          times.
         </p>
       </div>
 
@@ -89,11 +109,14 @@ export default function CacheLayerTutorial() {
             </div>
             Create Cache Manager
           </CardTitle>
-          <CardDescription>Build a flexible cache manager with multiple strategies</CardDescription>
+          <CardDescription>
+            Build a flexible cache manager with multiple strategies
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <CodeBlock code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
+            <CodeBlock
+              code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
 
 export interface CacheOptions {
   ttl?: number; // Time to live in seconds
@@ -125,8 +148,8 @@ export class CacheManager {
     await this.client.connect();
   }
 
-  async disconnect(): Promise<void> {
-    await this.client.quit();
+  disconnect(): void {
+    this.client.quit();
   }
 
   private getKey(key: string): string {
@@ -142,7 +165,7 @@ export class CacheManager {
 
     if (value) {
       this.hits++;
-      return JSON.parse(value.toString()) as T;
+      return JSON.parse(value) as T;
     }
 
     this.misses++;
@@ -163,7 +186,7 @@ export class CacheManager {
     await this.client.set(
       cacheKey,
       JSON.stringify(value),
-      { EX: ttl }
+      { expireInSeconds: ttl }
     );
   }
 
@@ -202,16 +225,13 @@ export class CacheManager {
    */
   async deletePattern(pattern: string): Promise<number> {
     const keys: string[] = [];
-    let cursor = 0;
 
-    do {
-      const result = await this.client.scan(
-        cursor,
-        { MATCH: \`\${this.prefix}\${pattern}\`, COUNT: 100 }
-      );
-      cursor = result[0];
-      keys.push(...result[1].map((k: Buffer) => k.toString()));
-    } while (cursor !== 0);
+    for await (const batch of this.client.scan({
+      match: \`\${this.prefix}\${pattern}\`,
+      count: 100,
+    })) {
+      keys.push(...batch);
+    }
 
     if (keys.length === 0) {
       return 0;
@@ -236,7 +256,7 @@ export class CacheManager {
     const cacheKey = this.getKey(key);
     const expiry = ttl || this.defaultTTL;
     const result = await this.client.expire(cacheKey, expiry);
-    return result === 1;
+    return result > 0;
   }
 
   /**
@@ -261,7 +281,10 @@ export class CacheManager {
     this.hits = 0;
     this.misses = 0;
   }
-}`} language="typescript" showLineNumbers={true} />
+}`}
+              language="typescript"
+              showLineNumbers={true}
+            />
           </div>
         </CardContent>
       </Card>
@@ -275,11 +298,14 @@ export class CacheManager {
             </div>
             Integrate with Database
           </CardTitle>
-          <CardDescription>Example with a user repository pattern</CardDescription>
+          <CardDescription>
+            Example with a user repository pattern
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <CodeBlock code={`import { CacheManager } from './cache-manager';
+            <CodeBlock
+              code={`import { CacheManager } from './cache-manager';
 
 interface User {
   id: string;
@@ -409,7 +435,10 @@ export class UserRepository {
       { ttl: 60 } // 1 minute (shorter for search results)
     );
   }
-}`} language="typescript" showLineNumbers={true} />
+}`}
+              language="typescript"
+              showLineNumbers={true}
+            />
           </div>
         </CardContent>
       </Card>
@@ -427,7 +456,8 @@ export class UserRepository {
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <CodeBlock code={`export class CacheWarmer {
+            <CodeBlock
+              code={`export class CacheWarmer {
   private cache: CacheManager;
   private db: any;
 
@@ -485,7 +515,10 @@ export class UserRepository {
       }
     }, intervalMs);
   }
-}`} language="typescript" showLineNumbers={true} />
+}`}
+              language="typescript"
+              showLineNumbers={true}
+            />
           </div>
         </CardContent>
       </Card>
@@ -499,11 +532,14 @@ export class UserRepository {
             </div>
             Complete Usage Example
           </CardTitle>
-          <CardDescription>Putting it all together in your application</CardDescription>
+          <CardDescription>
+            Putting it all together in your application
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <CodeBlock code={`import express from 'express';
+            <CodeBlock
+              code={`import express from 'express';
 import { CacheManager } from './cache-manager';
 import { UserRepository } from './user-repository';
 import { CacheWarmer } from './cache-warmer';
@@ -584,7 +620,10 @@ async function start() {
   });
 }
 
-start().catch(console.error);`} language="typescript" showLineNumbers={true} />
+start().catch(console.error);`}
+              language="typescript"
+              showLineNumbers={true}
+            />
           </div>
         </CardContent>
       </Card>
@@ -604,29 +643,40 @@ start().catch(console.error);`} language="typescript" showLineNumbers={true} />
               <div>
                 <div className="font-medium">Use appropriate TTL values</div>
                 <div className="text-sm text-gray-600">
-                  Longer TTL for static data, shorter for frequently changing data
+                  Longer TTL for static data, shorter for frequently changing
+                  data
                 </div>
               </div>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-green-600 mt-1">✓</span>
               <div>
-                <div className="font-medium">Implement cache stampede protection</div>
-                <div className="text-sm text-gray-600">Use locks to prevent multiple simultaneous cache misses</div>
+                <div className="font-medium">
+                  Implement cache stampede protection
+                </div>
+                <div className="text-sm text-gray-600">
+                  Use locks to prevent multiple simultaneous cache misses
+                </div>
               </div>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-green-600 mt-1">✓</span>
               <div>
                 <div className="font-medium">Monitor cache hit rates</div>
-                <div className="text-sm text-gray-600">Aim for 80%+ hit rate for optimal performance</div>
+                <div className="text-sm text-gray-600">
+                  Aim for 80%+ hit rate for optimal performance
+                </div>
               </div>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-green-600 mt-1">✓</span>
               <div>
-                <div className="font-medium">Use pipelining for batch operations</div>
-                <div className="text-sm text-gray-600">Reduce network round trips when caching multiple items</div>
+                <div className="font-medium">
+                  Use pipelining for batch operations
+                </div>
+                <div className="text-sm text-gray-600">
+                  Reduce network round trips when caching multiple items
+                </div>
               </div>
             </li>
             <li className="flex items-start gap-2">
@@ -634,7 +684,8 @@ start().catch(console.error);`} language="typescript" showLineNumbers={true} />
               <div>
                 <div className="font-medium">Implement tiered caching</div>
                 <div className="text-sm text-gray-600">
-                  Combine in-memory cache (Node.js) with Redis for maximum performance
+                  Combine in-memory cache (Node.js) with Redis for maximum
+                  performance
                 </div>
               </div>
             </li>
@@ -654,19 +705,27 @@ start().catch(console.error);`} language="typescript" showLineNumbers={true} />
           <div className="space-y-4">
             <div className="border-l-4 border-blue-500 pl-4">
               <h4 className="font-semibold mb-1">Time-based (TTL)</h4>
-              <p className="text-sm text-gray-600">Best for: Data that changes predictably over time</p>
+              <p className="text-sm text-gray-600">
+                Best for: Data that changes predictably over time
+              </p>
             </div>
             <div className="border-l-4 border-green-500 pl-4">
               <h4 className="font-semibold mb-1">Event-based</h4>
-              <p className="text-sm text-gray-600">Best for: Data that changes based on user actions</p>
+              <p className="text-sm text-gray-600">
+                Best for: Data that changes based on user actions
+              </p>
             </div>
             <div className="border-l-4 border-purple-500 pl-4">
               <h4 className="font-semibold mb-1">Pattern-based</h4>
-              <p className="text-sm text-gray-600">Best for: Invalidating related cache entries</p>
+              <p className="text-sm text-gray-600">
+                Best for: Invalidating related cache entries
+              </p>
             </div>
             <div className="border-l-4 border-yellow-500 pl-4">
               <h4 className="font-semibold mb-1">Write-through</h4>
-              <p className="text-sm text-gray-600">Best for: Data consistency requirements</p>
+              <p className="text-sm text-gray-600">
+                Best for: Data consistency requirements
+              </p>
             </div>
           </div>
         </CardContent>
@@ -687,15 +746,22 @@ start().catch(console.error);`} language="typescript" showLineNumbers={true} />
               className="p-4 border rounded-lg hover:shadow-lg transition-shadow"
             >
               <h3 className="font-semibold mb-2">Distributed Locking</h3>
-              <p className="text-sm text-gray-600">Prevent race conditions in distributed systems</p>
+              <p className="text-sm text-gray-600">
+                Prevent race conditions in distributed systems
+              </p>
             </Link>
-            <Link href="/tutorials/job-queue" className="p-4 border rounded-lg hover:shadow-lg transition-shadow">
+            <Link
+              href="/tutorials/job-queue"
+              className="p-4 border rounded-lg hover:shadow-lg transition-shadow"
+            >
               <h3 className="font-semibold mb-2">Job Queue Implementation</h3>
-              <p className="text-sm text-gray-600">Build a background job processing system</p>
+              <p className="text-sm text-gray-600">
+                Build a background job processing system
+              </p>
             </Link>
           </div>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

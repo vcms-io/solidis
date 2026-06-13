@@ -19,22 +19,22 @@ import type {
 } from '../../index.ts';
 
 export function guard(
-  T: unknown,
+  client: unknown,
   command?: StringOrBuffer[],
-): T is SolidisClient {
-  if (typeof T !== 'object' || T === null) {
+): client is SolidisClient {
+  if (typeof client !== 'object' || client === null) {
     throw newCommandError('This is not a valid solidis client', command);
   }
 
-  if (!('send' in T) || typeof T.send !== 'function') {
+  if (!('send' in client) || typeof client.send !== 'function') {
     throw newCommandError('Send method is not implemented', command);
   }
 
   /**
    * Returns false only when the client is in a transaction context
    */
-  if ('pipeQueue' in T && Array.isArray(T.pipeQueue) && command) {
-    T.pipeQueue.push(command);
+  if ('pipeQueue' in client && Array.isArray(client.pipeQueue) && command) {
+    client.pipeQueue.push(command);
 
     return false;
   }
@@ -153,10 +153,14 @@ export function buildGeoSearchCommand(
       'BYBOX',
       `${by.bybox.width}`,
       `${by.bybox.height}`,
-      by.bybox.unit,
+      by.bybox.unit.toLowerCase(),
     );
   } else if (by.byradius) {
-    command.push('BYRADIUS', `${by.byradius.radius}`, by.byradius.unit);
+    command.push(
+      'BYRADIUS',
+      `${by.byradius.radius}`,
+      by.byradius.unit.toLowerCase(),
+    );
   }
 
   if (options?.withCoord) {

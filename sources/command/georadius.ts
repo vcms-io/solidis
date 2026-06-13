@@ -1,9 +1,7 @@
 import {
   buildGeoRadiusCommand,
   executeCommand,
-  newCommandError,
   tryReplyToGeoRadius,
-  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type {
@@ -21,7 +19,14 @@ export function createCommand(
   options?: CommandGeoRadiusOptions,
 ) {
   return buildGeoRadiusCommand(
-    ['GEORADIUS', key, `${longitude}`, `${latitude}`, `${radius}`, unit],
+    [
+      'GEORADIUS',
+      key,
+      `${longitude}`,
+      `${latitude}`,
+      `${radius}`,
+      unit.toLowerCase(),
+    ],
     options,
   );
 }
@@ -38,13 +43,9 @@ export async function georadius<T>(
   return await executeCommand(
     this,
     createCommand(key, longitude, latitude, radius, unit, options),
-    (reply, command) => {
+    (reply) => {
       if (typeof reply === 'number') {
         return reply;
-      }
-
-      if (!Array.isArray(reply)) {
-        throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
       }
 
       return tryReplyToGeoRadius(reply, 'GEORADIUS', options);

@@ -12,126 +12,50 @@ export function createCommand(...events: string[]) {
   return ['LATENCY', 'HISTOGRAM', ...events];
 }
 
-function parseHistogramData(histogramData: number[]): Record<number, number>;
 function parseHistogramData(
-  histogramData: Record<string, number>,
-): Record<number, number>;
-function parseHistogramData(
-  histogramData: number[] | Record<string, number>,
+  data: unknown,
+  command: StringOrBuffer[],
 ): Record<number, number> {
   const result: Record<number, number> = {};
 
-  if (Array.isArray(histogramData)) {
-    for (let index = 0; index < histogramData.length; index += 2) {
-      const latency = tryReplyToNumber(histogramData[index]);
-      const count = tryReplyToNumber(histogramData[index + 1]);
-
-      result[latency] = count;
+  if (data instanceof Map) {
+    for (const [key, value] of data) {
+      result[tryReplyToNumber(key, command)] = tryReplyToNumber(value, command);
     }
 
     return result;
   }
 
-  for (const [key, value] of Object.entries(histogramData)) {
-    result[tryReplyToNumber(key)] = value;
+  if (!Array.isArray(data)) {
+    throw newCommandError(`${InvalidReplyPrefix}: ${data}`, command);
+  }
+
+  for (let index = 0; index < data.length; index += 2) {
+    result[tryReplyToNumber(data[index], command)] = tryReplyToNumber(
+      data[index + 1],
+      command,
+    );
   }
 
   return result;
 }
 
-function isValidArrayLatencyHistogram(
-  reply: unknown,
-): reply is Array<
-  string | [string | Buffer, number, string | Buffer, number[]]
-> {
-  if (!Array.isArray(reply) || reply.length < 2 || reply.length % 2 !== 0) {
-    return false;
-  }
-
-  for (let index = 0; index < reply.length; index += 2) {
-    const commandName = reply[index];
-    const data = reply[index + 1];
-
-    if (
-      !(typeof commandName === 'string' || Buffer.isBuffer(commandName)) ||
-      !Array.isArray(data) ||
-      data.length !== 4
-    ) {
-      return false;
-    }
-
-    if (
-      !(
-        data[0] === 'calls' ||
-        (Buffer.isBuffer(data[0]) && `${data[0]}` === 'calls')
-      ) ||
-      typeof data[1] !== 'number' ||
-      !(
-        data[2] === 'histogram_usec' ||
-        (Buffer.isBuffer(data[2]) && `${data[2]}` === 'histogram_usec')
-      ) ||
-      !Array.isArray(data[3])
-    ) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-function isValidMapLatencyHistogram(reply: unknown): reply is Record<
-  string,
-  {
-    calls: number;
-    histogram_usec: Record<string, number>;
-  }
-> {
-  if (!reply || typeof reply !== 'object' || Array.isArray(reply)) {
-    return false;
-  }
-
-  return Object.entries(reply).every(
-    ([_, data]) =>
-      data &&
-      typeof data === 'object' &&
-      'calls' in data &&
-      typeof data.calls === 'number' &&
-      'histogram_usec' in data &&
-      typeof data.histogram_usec === 'object',
-  );
-}
-
 function parseArrayLatencyHistogram(
-  reply: unknown,
+  reply: unknown[],
   command: StringOrBuffer[],
 ): Record<string, RespLatencyHistogram> {
   const result: Record<string, RespLatencyHistogram> = {};
 
-  if (!isValidArrayLatencyHistogram(reply)) {
-    throw newCommandError(
-      `${UnexpectedReplyPrefix}: ${JSON.stringify(reply)}`,
-      command,
-    );
-  }
-
   for (let index = 0; index < reply.length; index += 2) {
-    const commandName = Buffer.isBuffer(reply[index])
-      ? `${reply[index]}`
-      : reply[index];
     const data = reply[index + 1];
 
-    if (!(typeof commandName === 'string') || !Array.isArray(data)) {
-      throw newCommandError(
-        `${InvalidReplyPrefix}: ${commandName} => ${data}`,
-        command,
-      );
+    if (!Array.isArray(data) || data.length !== 4) {
+      throw newCommandError(`${InvalidReplyPrefix}: ${data}`, command);
     }
 
-    const [, calls, , histogramData] = data;
-
-    result[commandName] = {
-      calls,
-      histogramUsec: parseHistogramData(histogramData),
+    result[String(reply[index])] = {
+      calls: tryReplyToNumber(data[1], command),
+      histogramUsec: parseHistogramData(data[3], command),
     };
   }
 
@@ -139,19 +63,19 @@ function parseArrayLatencyHistogram(
 }
 
 function parseMapLatencyHistogram(
-  reply: unknown,
+  reply: Map<unknown, unknown>,
   command: StringOrBuffer[],
 ): Record<string, RespLatencyHistogram> {
   const result: Record<string, RespLatencyHistogram> = {};
 
-  if (!isValidMapLatencyHistogram(reply)) {
-    throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
-  }
+  for (const [key, value] of reply) {
+    if (!(value instanceof Map)) {
+      throw newCommandError(`${InvalidReplyPrefix}: ${value}`, command);
+    }
 
-  for (const [commandName, data] of Object.entries(reply)) {
-    result[commandName] = {
-      calls: data.calls,
-      histogramUsec: parseHistogramData(data.histogram_usec),
+    result[String(key)] = {
+      calls: tryReplyToNumber(value.get('calls'), command),
+      histogramUsec: parseHistogramData(value.get('histogram_usec'), command),
     };
   }
 

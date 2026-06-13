@@ -94,6 +94,7 @@ export const SolidisPubSubEventNames = [
   ...[
     'message',
     'pmessage',
+    'smessage',
     'subscribe',
     'ssubscribe',
     'psubscribe',
@@ -105,5 +106,21 @@ export const SolidisPubSubEventNames = [
 
 export const SolidisPubSubEventNameSet = new Set(SolidisPubSubEventNames);
 
+export const SolidisMessageEventNameSet = new Set([
+  'message',
+  'pmessage',
+  'smessage',
+]);
+
+export const SolidisSubscribeCommandNameSet = new Set([
+  'SUBSCRIBE',
+  'SSUBSCRIBE',
+  'PSUBSCRIBE',
+  'UNSUBSCRIBE',
+  'SUNSUBSCRIBE',
+  'PUNSUBSCRIBE',
+]);
+
 export const SolidisMessageEvent = SolidisPubSubEventNames[0];
 export const SolidisPMessageEvent = SolidisPubSubEventNames[1];
+export const SolidisSMessageEvent = SolidisPubSubEventNames[2];

@@ -1,4 +1,7 @@
-import { executeCommand, tryReplyToStringArray } from './utils/index.ts';
+import {
+  executeCommand,
+  tryReplyToNullableStringArray,
+} from './utils/index.ts';
 
 export function createCommand(...keys: string[]) {
   return ['MGET', ...keys];
@@ -11,6 +14,6 @@ export async function mget<T>(
   return await executeCommand(
     this,
     createCommand(...keys),
-    (reply, command) => tryReplyToStringArray(reply, command, true),
+    tryReplyToNullableStringArray,
   );
 }

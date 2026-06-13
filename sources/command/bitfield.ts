@@ -1,4 +1,7 @@
-import { executeCommand, tryReplyToNumberArray } from './utils/index.ts';
+import {
+  executeCommand,
+  tryReplyToNullableNumberArray,
+} from './utils/index.ts';
 
 import type {
   CommandBitfieldOperationOption,
@@ -16,15 +19,15 @@ export function createCommand(
     command.push('OVERFLOW', overflow);
   }
 
-  for (const op of operations) {
-    command.push(op.operation);
-    command.push(op.type);
-    command.push(`${op.offset}`);
+  for (const operation of operations) {
+    command.push(operation.operation);
+    command.push(operation.type);
+    command.push(`${operation.offset}`);
 
-    if (op.operation === 'SET') {
-      command.push(`${op.value}`);
-    } else if (op.operation === 'INCRBY') {
-      command.push(`${op.increment}`);
+    if (operation.operation === 'SET') {
+      command.push(`${operation.value}`);
+    } else if (operation.operation === 'INCRBY') {
+      command.push(`${operation.increment}`);
     }
   }
 
@@ -36,7 +39,7 @@ export async function bitfield<T>(
   key: string,
   operations: CommandBitfieldOperationOption[],
   overflow?: RespBitfieldOverflow,
-): Promise<number[] | null> {
+): Promise<(number | null)[] | null> {
   return await executeCommand(
     this,
     createCommand(key, operations, overflow),
@@ -45,7 +48,7 @@ export async function bitfield<T>(
         return null;
       }
 
-      return tryReplyToNumberArray(reply, command);
+      return tryReplyToNullableNumberArray(reply, command);
     },
   );
 }

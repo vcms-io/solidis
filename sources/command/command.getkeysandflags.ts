@@ -33,10 +33,6 @@ export async function commandGetkeysandflags<T>(
             throw newCommandError(`${InvalidReplyPrefix}: ${key}`, command);
           }
 
-          if (!Array.isArray(flags)) {
-            throw newCommandError(`${InvalidReplyPrefix}: ${flags}`, command);
-          }
-
           return {
             key: `${key}`,
             flags: tryReplyToStringArray(flags, command),

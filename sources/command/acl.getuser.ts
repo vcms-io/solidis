@@ -47,7 +47,7 @@ export async function aclGetuser<T>(
         return null;
       }
 
-      if (!Array.isArray(reply)) {
+      if (!Array.isArray(reply) && !(reply instanceof Map)) {
         throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
       }
 
