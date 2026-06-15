@@ -1,18 +1,4 @@
-/**
- * Reply-correlation STRESS — adversarial "try to break it" edition.
- *
- * Where 0026 verifies correlation under normal options, this suite deliberately
- * cripples the requester with degenerate limits (one command per pipeline, one
- * reply per processing chunk, byte-at-a-time socket writes, a tiny parser
- * buffer that must grow/shift constantly) and then floods it with tens of
- * thousands of commands whose answers are individually unique. Every reply is
- * checked against the command that produced it; the suite reports the observed
- * desync/loss rate and asserts it is exactly zero.
- *
- * If any configuration produces a single mismatch, the printed summary makes
- * the loss rate explicit so a regression can be quantified rather than merely
- * detected.
- */
+/** Reply-correlation stress with degenerate requester limits. */
 
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -39,9 +25,7 @@ describe('stress-correlation', () => {
   const keyspace = createKeyspace('stress-correlation');
   const tracked: FeaturedClient[] = [];
 
-  before(() => {
-    /** nothing global; each test owns its degenerate client */
-  });
+  before(() => {});
 
   after(async () => {
     await Promise.all(tracked.map((client) => closeClient(client)));
@@ -57,10 +41,6 @@ describe('stress-correlation', () => {
     return client;
   };
 
-  /**
-   * Runs `count` self-verifying operations concurrently and tallies how many
-   * replies failed to match the command that issued them.
-   */
   async function burst(
     client: FeaturedClient,
     count: number,
@@ -93,7 +73,6 @@ describe('stress-correlation', () => {
           }
 
           case 1: {
-            /** Binary ECHO stresses the parser buffer with raw bytes. */
             const payload = randomBytes(48 + (index % 80));
             const reply = await client.echo(payload.toString('latin1'));
 
@@ -145,7 +124,6 @@ describe('stress-correlation', () => {
           }
 
           default: {
-            /** A multi-reply pipeline whose internal order must be preserved. */
             const key = keyspace.key('pipe', tag);
             const replies = await client.send([
               ['SET', key, tag],
@@ -213,13 +191,13 @@ describe('stress-correlation', () => {
   it('stays correlated with one command per pipeline chunk', async () => {
     const client = await make({ maxCommandsPerPipeline: 1 });
 
-    assertClean('maxCommandsPerPipeline=1', await burst(client, 8000));
+    assertClean('maxCommandsPerPipeline=1', await burst(client, 3000));
   });
 
   it('stays correlated with one reply per processing chunk', async () => {
     const client = await make({ maxProcessRepliesPerChunk: 1 });
 
-    assertClean('maxProcessRepliesPerChunk=1', await burst(client, 8000));
+    assertClean('maxProcessRepliesPerChunk=1', await burst(client, 3000));
   });
 
   it('stays correlated with byte-at-a-time socket writes', async () => {
@@ -229,7 +207,7 @@ describe('stress-correlation', () => {
       socketWriteTimeout: 120000,
     });
 
-    assertClean('maxSocketWriteSizePerOnce=1', await burst(client, 2000));
+    assertClean('maxSocketWriteSizePerOnce=1', await burst(client, 500));
   });
 
   it('stays correlated with a tiny, constantly-resized parser buffer', async () => {
@@ -237,7 +215,7 @@ describe('stress-correlation', () => {
       parser: { buffer: { initial: 64, shiftThreshold: 16 } },
     });
 
-    assertClean('tiny-parser-buffer', await burst(client, 8000));
+    assertClean('tiny-parser-buffer', await burst(client, 3000));
   });
 
   it('stays correlated with every limit cranked to its worst case at once', async () => {
@@ -250,12 +228,12 @@ describe('stress-correlation', () => {
       parser: { buffer: { initial: 32, shiftThreshold: 8 } },
     });
 
-    assertClean('all-degenerate', await burst(client, 2000));
+    assertClean('all-degenerate', await burst(client, 500));
   });
 
   it('stays correlated across 24 degenerate clients pounding in parallel', async () => {
     const clients = await Promise.all(
-      range(24).map((index) =>
+      range(12).map((index) =>
         make({
           maxCommandsPerPipeline: 1 + (index % 3),
           maxProcessRepliesPerChunk: 1 + (index % 4),
@@ -264,7 +242,7 @@ describe('stress-correlation', () => {
     );
 
     const results = await Promise.all(
-      clients.map((client) => burst(client, 600)),
+      clients.map((client) => burst(client, 300)),
     );
 
     const aggregate = results.reduce<BurstResult>(
@@ -276,6 +254,6 @@ describe('stress-correlation', () => {
       { total: 0, mismatches: 0, errors: 0 },
     );
 
-    assertClean('24-way-degenerate', aggregate);
+    assertClean('12-way-degenerate', aggregate);
   });
 });

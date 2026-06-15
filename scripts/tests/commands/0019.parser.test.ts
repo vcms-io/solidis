@@ -1,13 +1,4 @@
-/**
- * Aggressive, protocol-level fuzzing of the RESP parser.
- *
- * These tests drive {@link SolidisParser} directly with hand-crafted byte
- * sequences ??every RESP2 and RESP3 type, binary payloads containing the CRLF
- * delimiter, fragmentation down to a single byte per chunk, deeply nested
- * aggregates, and deliberately malformed frames ??to confirm the parser is
- * binary-safe, reassembles partial frames correctly, and fails loudly (with a
- * SolidisParserError) on corrupt input rather than crashing or hanging.
- */
+/** Protocol-level fuzzing of the RESP parser. */
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';

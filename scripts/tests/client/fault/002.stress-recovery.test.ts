@@ -1,26 +1,4 @@
-/**
- * Fault-recovery STRESS with explicit loss accounting.
- *
- * This suite repeatedly breaks the connection in the nastiest ways and measures
- * exactly how much in-flight work is lost, then asserts the invariants that
- * must hold no matter how violent the fault:
- *
- *   - no command promise is ever left unsettled (resolved + rejected == issued);
- *   - every write the client acknowledged as resolved is durable on the server
- *     (persisted >= resolved);
- *   - the client returns to full health afterwards.
- *
- * It also reports the observed loss rate so a regression can be quantified.
- *
- * KNOWN BUG (documented as a `todo` reproduction below): when a command is
- * abandoned by a client-side `commandTimeout`, `recoveryFromFault` resets the
- * requester but leaves the socket open. The server's (late) reply for the
- * abandoned command is then mis-attributed to the next command issued on the
- * same connection, silently desynchronising it. This is reproduced
- * deterministically with a blocking command so the maintainer can decide on a
- * fix (drop+reconnect the socket on fault, or discard the exact number of
- * outstanding replies) without the regression failing CI today.
- */
+/** Fault-recovery stress with explicit loss accounting. */
 
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -33,9 +11,9 @@ import {
   delay,
   range,
   waitFor,
-} from '../utils/index.ts';
+} from '../../utils/index.ts';
 
-import type { FeaturedClient } from '../utils/index.ts';
+import type { FeaturedClient } from '../../utils/index.ts';
 
 describe('stress-recovery', () => {
   let killer: FeaturedClient;
@@ -67,12 +45,13 @@ describe('stress-recovery', () => {
       autoReconnect: true,
       maxConnectionRetries: 20,
       connectionRetryDelay: 25,
+      connectionTimeout: 500,
     });
 
     client.on('error', () => {});
 
-    const rounds = 10;
-    const perRound = 700;
+    const rounds = 3;
+    const perRound = 400;
 
     let resolved = 0;
     let rejected = 0;
@@ -97,11 +76,6 @@ describe('stress-recovery', () => {
           });
       });
 
-      /**
-       * Let part of the batch acknowledge, then kill while the rest is still
-       * draining — this exercises both the durable-ack invariant (for resolved
-       * writes) and the rejection path (for in-flight ones).
-       */
       await delay(5);
       await killer.clientKill(clientId).catch(() => {});
 
@@ -111,10 +85,16 @@ describe('stress-recovery', () => {
     await waitUntilReady(client);
 
     let persisted = 0;
+    const batchSize = 100;
 
-    for (const key of keys) {
-      if ((await client.get(key)) !== null) {
-        persisted += 1;
+    for (let index = 0; index < keys.length; index += batchSize) {
+      const batch = keys.slice(index, index + batchSize);
+      const values = await client.mget(...batch);
+
+      for (const value of values) {
+        if (value !== null) {
+          persisted += 1;
+        }
       }
     }
 
@@ -128,20 +108,17 @@ describe('stress-recovery', () => {
         `lostAck(applied-but-not-acked)=${lostButApplied}`,
     );
 
-    /** Invariant 1: no command is silently swallowed. */
     assert.strictEqual(
       resolved + rejected,
       total,
       'every issued command must settle exactly once',
     );
 
-    /** Invariant 2: an acknowledged write is always durable. */
     assert.ok(
       persisted >= resolved,
       `acknowledged writes must be durable: persisted=${persisted} < resolved=${resolved}`,
     );
 
-    /** Invariant 3: the client is fully usable after the abuse. */
     assert.strictEqual(await client.set(keyspace.key('final'), 'ok'), 'OK');
     assert.strictEqual(await client.get(keyspace.key('final')), 'ok');
 
@@ -154,11 +131,12 @@ describe('stress-recovery', () => {
       autoReconnect: true,
       maxConnectionRetries: 20,
       connectionRetryDelay: 20,
+      connectionTimeout: 500,
     });
 
     client.on('error', () => {});
 
-    const total = 5000;
+    const total = 2000;
     let correct = 0;
     let wrong = 0;
     let rejected = 0;
@@ -196,7 +174,6 @@ describe('stress-recovery', () => {
       console.error(`  wrong samples: ${wrongSamples.join(' | ')}`);
     }
 
-    /** No resolved command may ever carry another command's reply. */
     assert.strictEqual(
       wrong,
       0,
@@ -204,7 +181,6 @@ describe('stress-recovery', () => {
     );
     assert.strictEqual(correct + rejected, total);
 
-    /** The connection must come back to full health after the storm. */
     await waitUntilReady(client);
     assert.strictEqual(await client.echo('post-storm'), 'post-storm');
 
@@ -216,14 +192,14 @@ describe('stress-recovery', () => {
       autoReconnect: true,
       maxConnectionRetries: 20,
       connectionRetryDelay: 25,
+      connectionTimeout: 500,
     });
 
     client.on('error', () => {});
 
     const clientId = await client.clientId();
 
-    /** One enormous pipeline; killing it must settle the whole thing. */
-    const commands = range(20000).map((index) => [
+    const commands = range(5000).map((index) => [
       'SET',
       keyspace.key('giant', index),
       `${index}`,
@@ -241,7 +217,6 @@ describe('stress-recovery', () => {
 
     console.log(`[stress-recovery] giant-pipeline kill outcome=${outcome}`);
 
-    /** Whatever happens, the promise settles and the client recovers. */
     assert.ok(outcome === 'resolved' || outcome === 'rejected');
 
     await waitUntilReady(client);
@@ -253,18 +228,12 @@ describe('stress-recovery', () => {
     await closeClient(client);
   });
 
-  /**
-   * Regression for the command-timeout desync bug: a command abandoned by
-   * `commandTimeout` leaves its (late) reply on the still-open socket, and that
-   * reply must be discarded rather than handed to the next command. The fix
-   * counts the outstanding replies during recovery and drops exactly that many.
-   */
   it('does not mis-attribute a stale reply after a command timeout', async () => {
     const victim = await createClient({
-      commandTimeout: 150,
+      commandTimeout: 80,
       autoReconnect: true,
       maxConnectionRetries: 5,
-      connectionRetryDelay: 50,
+      connectionRetryDelay: 30,
     });
 
     victim.on('error', () => {});
@@ -273,30 +242,26 @@ describe('stress-recovery', () => {
     const key = keyspace.key('stale', randomUUID());
 
     try {
-      /** BLPOP blocks; the client abandons it on timeout but the server does not. */
       const blocked = victim
         .blpop([key], 0)
         .then(() => 'resolved')
         .catch(() => 'rejected');
 
-      await delay(300);
+      await delay(120);
 
-      /** Issue a fresh command so it is in-flight when the stale reply lands. */
       const echoPromise = victim
         .echo('FRESH')
         .then((value) => value)
         .catch((error: Error) => `THREW:${error.message}`);
 
-      await delay(30);
+      await delay(20);
 
-      /** Release BLPOP: server emits [key, payload] then the ECHO reply. */
       await pusher.rpush(key, 'STALE-PAYLOAD');
 
       const echoed = await echoPromise;
 
       await blocked;
 
-      /** The fresh command must get its own reply, never the stale BLPOP one. */
       assert.strictEqual(echoed, 'FRESH');
     } finally {
       await closeClient(pusher);

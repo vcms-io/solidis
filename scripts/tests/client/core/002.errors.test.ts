@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
-import { SolidisFeaturedClient } from '../../../sources/client/featured.ts';
+import { SolidisFeaturedClient } from '../../../../sources/client/featured.ts';
 import {
   RespError,
   SolidisClientError,
@@ -21,15 +21,15 @@ import {
   wrapWithSolidisClientError,
   wrapWithSolidisConnectionError,
   wrapWithSolidisRequesterError,
-} from '../../../sources/index.ts';
+} from '../../../../sources/index.ts';
 import {
   buildClientOptions,
   closeClient,
   createClient,
   createKeyspace,
-} from '../utils/index.ts';
+} from '../../utils/index.ts';
 
-import type { FeaturedClient } from '../utils/index.ts';
+import type { FeaturedClient } from '../../utils/index.ts';
 
 describe('errors', () => {
   let client: FeaturedClient;

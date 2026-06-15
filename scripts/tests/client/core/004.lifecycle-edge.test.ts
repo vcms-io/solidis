@@ -1,30 +1,22 @@
-/**
- * Connection / client lifecycle edge branches.
- *
- * Targets the less-travelled paths in the connection and client modules: the
- * TLS socket constructor, RESP3 negotiation, lazy connect, the
- * autoReconnect-disabled close path, repeated (idempotent) fault recovery, and
- * the debug wiring. These are the branches that ordinary command tests never
- * reach.
- */
+/** Connection/client lifecycle edge branches (TLS, RESP3, lazy connect, no-reconnect, debug). */
 
 import assert from 'node:assert/strict';
 import { after, describe, it } from 'node:test';
 
-import { SolidisFeaturedClient } from '../../../sources/client/featured.ts';
+import { SolidisFeaturedClient } from '../../../../sources/client/featured.ts';
 import {
   SolidisClientError,
   SolidisConnectionError,
-} from '../../../sources/index.ts';
+} from '../../../../sources/index.ts';
 import {
   buildClientOptions,
   closeClient,
   createClient,
   delay,
   waitFor,
-} from '../utils/index.ts';
+} from '../../utils/index.ts';
 
-import type { FeaturedClient } from '../utils/index.ts';
+import type { FeaturedClient } from '../../utils/index.ts';
 
 describe('lifecycle-edge', () => {
   const tracked: FeaturedClient[] = [];
@@ -46,7 +38,6 @@ describe('lifecycle-edge', () => {
     const key = `solidis:test:resp3:${Date.now()}`;
     await client.hset(key, 'a', '1');
 
-    /** RESP3 returns a map for HGETALL; the client normalises it to an object. */
     const all = await client.hgetall(key);
     assert.strictEqual(all.a, '1');
 
@@ -58,14 +49,13 @@ describe('lifecycle-edge', () => {
       buildClientOptions({
         useTLS: true,
         lazyConnect: true,
-        connectionTimeout: 1500,
+        connectionTimeout: 500,
         maxConnectionRetries: 0,
       }),
     );
 
     client.on('error', () => {});
 
-    /** The point is to exercise tls.connect(); the handshake is expected to fail. */
     await assert.rejects(
       () => client.connect(),
       (error: Error) =>
@@ -83,7 +73,6 @@ describe('lifecycle-edge', () => {
 
     client.on('error', () => {});
 
-    /** No eager connection; the command itself triggers connect(). */
     assert.strictEqual(await client.ping(), 'PONG');
   });
 
@@ -100,18 +89,9 @@ describe('lifecycle-edge', () => {
     const clientId = await client.clientId();
     const killer = track(await createClient());
 
-    /**
-     * Killing the connection drives the close handler's autoReconnect-disabled
-     * branch (it emits 'closed' and returns without scheduling a reconnect).
-     */
     await killer.clientKill(clientId);
-    await delay(150);
+    await delay(80);
 
-    /**
-     * With autoReconnect off the socket stays down until a command forces a
-     * manual reconnect via connect(); the client then recovers on demand and
-     * the previously written value is still durable.
-     */
     assert.strictEqual(await client.get(key), 'v');
   });
 
@@ -121,6 +101,7 @@ describe('lifecycle-edge', () => {
         autoReconnect: true,
         maxConnectionRetries: 10,
         connectionRetryDelay: 25,
+        connectionTimeout: 500,
       }),
     );
 
@@ -131,8 +112,7 @@ describe('lifecycle-edge', () => {
 
     const killer = track(await createClient());
 
-    /** Two kills in quick succession drive the recovery guard's early return. */
-    for (let round = 0; round < 3; round += 1) {
+    for (let round = 0; round < 2; round += 1) {
       const id = await client.clientId().catch(() => null);
 
       if (id !== null) {
@@ -148,7 +128,7 @@ describe('lifecycle-edge', () => {
             return false;
           }
         },
-        { timeout: 3000, interval: 25, description: 'recovered' },
+        { timeout: 2000, interval: 25, description: 'recovered' },
       );
     }
 

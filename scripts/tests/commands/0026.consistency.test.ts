@@ -1,14 +1,4 @@
-/**
- * Reply-correlation consistency.
- *
- * The requester resolves replies *positionally* from an in-flight queue, so a
- * single miscounted or misrouted reply would silently shift every subsequent
- * answer onto the wrong promise. These tests hammer the client with large,
- * randomly interleaved bursts of heterogeneous commands where **each operation
- * carries its own uniquely-determined expected answer**, then assert every
- * resolved value matches the command that produced it. Any desynchronisation
- * surfaces as a concrete value mismatch rather than a vague failure.
- */
+/** Reply-correlation consistency. */
 
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -25,16 +15,11 @@ import {
 
 import type { FeaturedClient } from '../utils/index.ts';
 
-/** A single self-verifying operation: it runs a command and checks its reply. */
 interface ConsistencyOperation {
   label: string;
   execute: () => Promise<void>;
 }
 
-/**
- * Deterministic pseudo-random generator so a failing seed is reproducible and
- * the interleaving is identical across runs.
- */
 function createRandom(seed: number): () => number {
   let state = seed >>> 0;
 
@@ -69,11 +54,6 @@ describe('consistency', () => {
     await closeAllClients();
   });
 
-  /**
-   * Builds one operation drawn from a varied pool. Every generator seeds its
-   * own unique key/value so the expected reply is known up-front and unique
-   * enough to detect cross-talk between concurrent commands.
-   */
   function buildOperation(
     target: FeaturedClient,
     index: number,
@@ -83,7 +63,6 @@ describe('consistency', () => {
 
     switch (variant) {
       case 0: {
-        /** ECHO is the sharpest probe: the reply must equal the unique input. */
         const token = `echo-${tag}`;
 
         return {
@@ -211,10 +190,6 @@ describe('consistency', () => {
       }
 
       case 10: {
-        /**
-         * A deliberately failing command interleaved with the rest: the inline
-         * RespError must land on *this* operation, not corrupt its neighbours.
-         */
         const key = keyspace.key('type-error', tag);
 
         return {
@@ -231,7 +206,6 @@ describe('consistency', () => {
       }
 
       default: {
-        /** A multi-command pipeline whose replies must stay internally ordered. */
         const key = keyspace.key('pipeline', tag);
 
         return {
@@ -300,7 +274,6 @@ describe('consistency', () => {
       tokens.map((token) => client.echo(token)),
     );
 
-    /** A single shifted reply would break this exact, ordered comparison. */
     assert.deepStrictEqual(replies, tokens);
   });
 
@@ -319,11 +292,6 @@ describe('consistency', () => {
   });
 
   it('interleaves blocking and non-blocking commands without cross-talk', async () => {
-    /**
-     * A blocking BLPOP occupies its own connection until a push arrives. Fast
-     * commands on a *separate* connection must stay perfectly correlated in the
-     * meantime, and the delayed BLPOP reply must route back to its own promise.
-     */
     const blockKey = keyspace.key('blpop-target');
     const blockingClient = await createClient();
     const pusher = await createClient();
@@ -331,7 +299,6 @@ describe('consistency', () => {
     try {
       const blocked = blockingClient.blpop([blockKey], 2);
 
-      /** These run on the unblocked main connection and must resolve at once. */
       const fast = await Promise.all(
         range(50).map((index) => client.echo(`fast-${index}`)),
       );

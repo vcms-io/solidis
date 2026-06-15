@@ -1,8 +1,4 @@
-/**
- * Generic key-space commands: existence, type introspection, renaming,
- * copying, moving across databases, serialization (DUMP/RESTORE), and the full
- * expiration family (EXPIRE/PEXPIRE/EXPIREAT/??PERSIST).
- */
+/** Generic key-space commands: existence, type, rename, copy, move, DUMP/RESTORE, expiration. */
 
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';

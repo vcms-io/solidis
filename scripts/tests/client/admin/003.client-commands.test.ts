@@ -12,9 +12,9 @@ import {
   createKeyspace,
   detectServerCapabilities,
   waitFor,
-} from '../utils/index.ts';
+} from '../../utils/index.ts';
 
-import type { FeaturedClient, ServerCapabilities } from '../utils/index.ts';
+import type { FeaturedClient, ServerCapabilities } from '../../utils/index.ts';
 
 describe('client-commands', () => {
   let client: FeaturedClient;
@@ -273,7 +273,6 @@ describe('client-commands', () => {
 
   it('unblocks a client by id', async () => {
     const id = await client.clientId();
-    /** The client is not blocked, so UNBLOCK reports 0 (nothing unblocked). */
     assert.strictEqual(await client.clientUnblock(id), 0);
   });
 
@@ -307,7 +306,6 @@ describe('client-commands', () => {
 
       const settlement = await pending;
 
-      /** UNBLOCK ... ERROR forces the blocked BLPOP to reject. */
       assert.strictEqual(settlement.rejected, true);
       assert.ok(settlement.error instanceof Error);
     } finally {
@@ -316,7 +314,6 @@ describe('client-commands', () => {
   });
 
   it('toggles client caching mode', async () => {
-    /** CLIENT CACHING is only valid in OPTIN/OPTOUT tracking mode. */
     await assert.rejects(
       () => client.clientCaching('YES'),
       (error: Error) => /tracking mode|OPTIN|OPTOUT/i.test(error.message),
@@ -420,7 +417,6 @@ describe('client-commands', () => {
   });
 
   it('switches client reply mode', async () => {
-    /** CLIENT REPLY ON synchronously acknowledges with OK. */
     assert.strictEqual(await client.clientReply('ON'), 'OK');
   });
 
@@ -449,7 +445,9 @@ describe('client-commands', () => {
   });
 
   it('constructs AUTH with single password argument', async () => {
-    const { createCommand } = await import('../../../sources/command/auth.ts');
+    const { createCommand } = await import(
+      '../../../../sources/command/auth.ts'
+    );
 
     const command = createCommand('mypassword');
 

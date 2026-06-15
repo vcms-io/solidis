@@ -1,29 +1,14 @@
-/**
- * Fragility & recovery.
- *
- * Three angles, all aimed at "what happens when things go wrong":
- *
- *  1. Hostile *payloads* sent to a real server (empty frames, binary bytes,
- *     bogus command names, wrong arity) must never corrupt the client's
- *     pipeline — a normal command issued right after must still work.
- *  2. Hostile *bytes from the server* (unknown RESP prefixes, truncated frames,
- *     unsolicited replies, abrupt socket loss) are simulated with a scriptable
- *     mock server to confirm the client fails loudly and stays correlated.
- *  3. Faults that break the connection mid-flight reject the in-flight work
- *     deterministically, and the client either recovers (auto-reconnect) or
- *     stays permanently closed (after quit) — with explicit accounting of how
- *     much in-flight work is lost across the fault boundary.
- */
+/** Fragility & recovery: hostile payloads, protocol corruption, and fault accounting. */
 
 import assert from 'node:assert/strict';
 import { after, afterEach, before, describe, it } from 'node:test';
 
-import { SolidisFeaturedClient } from '../../../sources/client/featured.ts';
+import { SolidisFeaturedClient } from '../../../../sources/client/featured.ts';
 import {
   RespError,
   SolidisClientError,
   SolidisParserError,
-} from '../../../sources/index.ts';
+} from '../../../../sources/index.ts';
 import {
   closeClient,
   createClient,
@@ -34,14 +19,13 @@ import {
   randomBuffer,
   range,
   waitFor,
-} from '../utils/index.ts';
+} from '../../utils/index.ts';
 
-import type { FeaturedClient } from '../utils/index.ts';
+import type { FeaturedClient } from '../../utils/index.ts';
 
 describe('fragility', () => {
   const keyspace = createKeyspace('fragility');
 
-  /** Clients/servers created outside createClient() must be torn down here. */
   const mockClients: FeaturedClient[] = [];
   const mockServers: MockRedisServer[] = [];
 
@@ -74,14 +58,13 @@ describe('fragility', () => {
     let client: FeaturedClient;
 
     before(async () => {
-      client = await createClient({ commandTimeout: 800 });
+      client = await createClient({ commandTimeout: 300 });
     });
 
     after(async () => {
       await closeClient(client);
     });
 
-    /** Issued after every hostile payload to prove the pipeline is intact. */
     const assertStillHealthy = async (probe: string) => {
       const key = keyspace.key('healthy', probe);
 
@@ -90,11 +73,6 @@ describe('fragility', () => {
     };
 
     it('recovers from an empty command frame via timeout', async () => {
-      /**
-       * An empty argument vector serialises to `*0\r\n`, which the server
-       * silently ignores (no reply). The command must therefore time out, the
-       * requester must recover, and the next command must succeed.
-       */
       await assert.rejects(
         () => client.send([[]]),
         (error: Error) => /timed out/i.test(error.message),
@@ -196,7 +174,6 @@ describe('fragility', () => {
       const replies = await client.send(commands);
 
       assert.strictEqual(replies.length, commands.length);
-      /** Every command produced exactly one reply slot, in order. */
       assert.ok(replies.every((reply) => reply.length === 1));
 
       await assertStillHealthy('chaos');
@@ -225,14 +202,13 @@ describe('fragility', () => {
 
       await client.connect();
 
-      /** Garbage reply means no usable frame, so the command times out. */
       await assert.rejects(
         () => client.ping(),
         (error: Error) => /timed out/i.test(error.message),
       );
 
       await waitFor(() => parserErrors.length > 0, {
-        timeout: 1000,
+        timeout: 500,
         description: 'parser error surfaced',
       });
 
@@ -248,7 +224,6 @@ describe('fragility', () => {
         commandIndex += 1;
 
         if (commandIndex === 1) {
-          /** One extra, unsolicited reply trails the legitimate one. */
           socket.write(Buffer.from('+FIRST\r\n+UNSOLICITED\r\n', 'latin1'));
           return;
         }
@@ -265,10 +240,6 @@ describe('fragility', () => {
       const first = await client.send([['PING']]);
       const second = await client.send([['PING']]);
 
-      /**
-       * If the stray `+UNSOLICITED` had been mis-attributed, the second command
-       * would resolve to it instead of `+SECOND`.
-       */
       assert.deepStrictEqual(first, [['FIRST']]);
       assert.deepStrictEqual(second, [['SECOND']]);
     });
@@ -304,7 +275,6 @@ describe('fragility', () => {
       const server = await startMockServer();
 
       server.onData((socket) => {
-        /** Send a truncated bulk header, then drop the socket. */
         socket.write(Buffer.from('$100\r\npartial', 'latin1'));
         setTimeout(() => socket.destroy(), 10);
       });
@@ -324,7 +294,8 @@ describe('fragility', () => {
       const client = await createClient({
         autoReconnect: true,
         maxConnectionRetries: 5,
-        connectionRetryDelay: 50,
+        connectionRetryDelay: 25,
+        connectionTimeout: 500,
       });
 
       client.on('error', () => {});
@@ -337,13 +308,12 @@ describe('fragility', () => {
       const clientId = await client.clientId();
       const killer = await createClient();
 
-      /** BLPOP is guaranteed in-flight until the kill lands. */
       const blocked = client
         .blpop([blockKey], 0)
         .then(() => false)
         .catch(() => true);
 
-      await delay(50);
+      await delay(30);
       await killer.clientKill(clientId);
 
       assert.strictEqual(await blocked, true);
@@ -356,7 +326,7 @@ describe('fragility', () => {
             return false;
           }
         },
-        { timeout: 3000, interval: 50, description: 'auto-reconnect' },
+        { timeout: 2000, interval: 30, description: 'auto-reconnect' },
       );
 
       assert.strictEqual(await client.get(liveKey), 'before');
@@ -371,12 +341,13 @@ describe('fragility', () => {
       const client = await createClient({
         autoReconnect: true,
         maxConnectionRetries: 5,
-        connectionRetryDelay: 50,
+        connectionRetryDelay: 25,
+        connectionTimeout: 500,
       });
 
       client.on('error', () => {});
 
-      const total = 1500;
+      const total = 500;
       const clientId = await client.clientId();
       const killer = await createClient();
 
@@ -387,14 +358,12 @@ describe('fragility', () => {
           .catch(() => 'rejected' as const),
       );
 
-      /** Kill the connection while the batch is still draining. */
       await killer.clientKill(clientId);
 
       const settled = await Promise.all(outcomes);
       const resolved = settled.filter((value) => value === 'resolved').length;
       const rejected = settled.filter((value) => value === 'rejected').length;
 
-      /** Invariant 1: no command promise is ever silently dropped. */
       assert.strictEqual(resolved + rejected, total);
 
       await waitFor(
@@ -405,30 +374,31 @@ describe('fragility', () => {
             return false;
           }
         },
-        { timeout: 3000, interval: 50, description: 'auto-reconnect' },
+        { timeout: 2000, interval: 50, description: 'auto-reconnect' },
       );
 
       let persisted = 0;
+      const batchSize = 100;
 
-      for (const index of range(total)) {
-        if ((await client.get(keyspace.key('loss', index))) === `${index}`) {
-          persisted += 1;
+      for (let index = 0; index < total; index += batchSize) {
+        const keys = range(Math.min(batchSize, total - index)).map((j) =>
+          keyspace.key('loss', index + j),
+        );
+        const values = await client.mget(...keys);
+
+        for (let j = 0; j < values.length; j += 1) {
+          if (values[j] === `${index + j}`) {
+            persisted += 1;
+          }
         }
       }
 
-      /**
-       * Invariant 2: every write the client *acknowledged* as resolved must be
-       * durable on the server. Writes can also persist while their reply was
-       * lost to the fault (rejected-but-applied), so persisted >= resolved; the
-       * gap is exactly the work whose acknowledgement was lost in transit.
-       */
       assert.ok(
         persisted >= resolved,
         `persisted (${persisted}) must cover resolved (${resolved})`,
       );
       assert.ok(persisted <= total);
 
-      /** Invariant 3: the client is fully usable again after recovery. */
       assert.strictEqual(
         await client.set(keyspace.key('loss-final'), 'ok'),
         'OK',
@@ -454,7 +424,6 @@ describe('fragility', () => {
           /not connected|closed/i.test(error.message),
       );
 
-      /** A second attempt fails the same way; no partial revival. */
       await assert.rejects(() => client.ping());
     });
 

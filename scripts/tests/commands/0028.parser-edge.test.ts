@@ -1,12 +1,4 @@
-/**
- * Parser edge & adversarial branch coverage.
- *
- * Complements 0019 by driving the rarely-hit corners of {@link SolidisParser}:
- * negative-length aggregates, frames truncated at every internal boundary,
- * null map keys, attribute frames whose payload is not a map, and malformed
- * RESP3 scalars (doubles, big numbers, blob errors) that must degrade into a
- * RespError rather than throwing or corrupting the stream.
- */
+/** Parser edge & adversarial branch coverage. */
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';

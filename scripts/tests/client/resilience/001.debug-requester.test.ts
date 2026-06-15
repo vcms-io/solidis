@@ -7,16 +7,16 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
-import { RespError } from '../../../sources/index.ts';
+import { RespError } from '../../../../sources/index.ts';
 import {
   closeClient,
   createClient,
   createKeyspace,
   delay,
   waitFor,
-} from '../utils/index.ts';
+} from '../../utils/index.ts';
 
-import type { FeaturedClient } from '../utils/index.ts';
+import type { FeaturedClient } from '../../utils/index.ts';
 
 describe('debug-requester', () => {
   let client: FeaturedClient;
@@ -33,7 +33,7 @@ describe('debug-requester', () => {
   describe('debug memory', () => {
     it('writes entries and respects max capacity', async () => {
       const { SolidisDebugMemory } = await import(
-        '../../../sources/modules/debug.ts'
+        '../../../../sources/modules/debug.ts'
       );
 
       const memory = new SolidisDebugMemory(3);
@@ -52,7 +52,7 @@ describe('debug-requester', () => {
 
     it('clears logs', async () => {
       const { SolidisDebugMemory } = await import(
-        '../../../sources/modules/debug.ts'
+        '../../../../sources/modules/debug.ts'
       );
 
       const memory = new SolidisDebugMemory(10);
@@ -68,7 +68,7 @@ describe('debug-requester', () => {
 
     it('adds timestamp when not provided', async () => {
       const { SolidisDebugMemory } = await import(
-        '../../../sources/modules/debug.ts'
+        '../../../../sources/modules/debug.ts'
       );
 
       const memory = new SolidisDebugMemory(10);
@@ -83,7 +83,7 @@ describe('debug-requester', () => {
 
     it('emits pushed event on write', async () => {
       const { SolidisDebugMemory } = await import(
-        '../../../sources/modules/debug.ts'
+        '../../../../sources/modules/debug.ts'
       );
 
       const memory = new SolidisDebugMemory(10);
@@ -112,7 +112,7 @@ describe('debug-requester', () => {
 
     it('transforms debug log with data field', async () => {
       const { SolidisDebugTransform } = await import(
-        '../../../sources/modules/debug.ts'
+        '../../../../sources/modules/debug.ts'
       );
 
       const transform = new SolidisDebugTransform();
@@ -133,7 +133,7 @@ describe('debug-requester', () => {
 
     it('transforms debug log without data field', async () => {
       const { SolidisDebugTransform } = await import(
-        '../../../sources/modules/debug.ts'
+        '../../../../sources/modules/debug.ts'
       );
 
       const transform = new SolidisDebugTransform();
@@ -156,7 +156,7 @@ describe('debug-requester', () => {
   describe('debug handle generator', () => {
     it('returns undefined when no debug memory provided', async () => {
       const { generateDebugHandle } = await import(
-        '../../../sources/common/utils/debug.ts'
+        '../../../../sources/common/utils/debug.ts'
       );
 
       const handle = generateDebugHandle(undefined);
@@ -166,10 +166,10 @@ describe('debug-requester', () => {
 
     it('returns a function that writes to debug memory', async () => {
       const { generateDebugHandle } = await import(
-        '../../../sources/common/utils/debug.ts'
+        '../../../../sources/common/utils/debug.ts'
       );
       const { SolidisDebugMemory } = await import(
-        '../../../sources/modules/debug.ts'
+        '../../../../sources/modules/debug.ts'
       );
 
       const memory = new SolidisDebugMemory(10);
@@ -196,7 +196,7 @@ describe('debug-requester', () => {
 
       try {
         const { SolidisDebugMemory } = await import(
-          '../../../sources/modules/debug.ts'
+          '../../../../sources/modules/debug.ts'
         );
 
         const memory = new SolidisDebugMemory(10);
@@ -220,7 +220,7 @@ describe('debug-requester', () => {
   describe('debug command', () => {
     it('constructs DEBUG command with subcommand and parameters', async () => {
       const { createCommand } = await import(
-        '../../../sources/command/debug.ts'
+        '../../../../sources/command/debug.ts'
       );
 
       const command = createCommand('SLEEP', '0');
@@ -231,11 +231,6 @@ describe('debug-requester', () => {
     it('executes DEBUG SLEEP 0 without error', async () => {
       const reply = await client.debug('SLEEP', '0');
 
-      /**
-       * DEBUG may be disabled (`enable-debug-command`); in that case the client
-       * surfaces the inline RespError rather than throwing. Either way the
-       * reply is a known value, never undefined or garbage.
-       */
       if (reply instanceof RespError) {
         assert.match(`${reply.message}`, /DEBUG|not allowed|unknown/i);
         return;
@@ -271,7 +266,8 @@ describe('debug-requester', () => {
     it('recovers after fault and accepts new commands', async () => {
       const recoveryClient = await createClient({
         maxConnectionRetries: 5,
-        connectionRetryDelay: 50,
+        connectionRetryDelay: 25,
+        connectionTimeout: 500,
         autoReconnect: true,
       });
 
@@ -281,7 +277,6 @@ describe('debug-requester', () => {
 
       await recoveryClient.set(key, 'before');
 
-      /** Inject a real fault: another client force-closes this connection. */
       const clientId = await recoveryClient.clientId();
       const killer = await createClient();
 
@@ -293,7 +288,6 @@ describe('debug-requester', () => {
       await reconnected;
       await closeClient(killer);
 
-      /** The reconnected client must serve new commands and see persisted data. */
       assert.strictEqual(await recoveryClient.get(key), 'before');
       assert.strictEqual(await recoveryClient.set(key, 'after'), 'OK');
       assert.strictEqual(await recoveryClient.get(key), 'after');
@@ -363,10 +357,6 @@ describe('debug-requester', () => {
 
       await strictClient.set(key, 'hello');
 
-      /**
-       * With rejectOnPartialPipelineError the inline error reply is surfaced
-       * directly as the rejection, so the caller sees the original RespError.
-       */
       await assert.rejects(
         () => strictClient.incr(key),
         (error: Error) =>
@@ -408,7 +398,8 @@ describe('debug-requester', () => {
       const faultClient = await createClient({
         autoReconnect: true,
         maxConnectionRetries: 3,
-        connectionRetryDelay: 50,
+        connectionRetryDelay: 25,
+        connectionTimeout: 500,
       });
 
       faultClient.on('error', () => {});
@@ -422,30 +413,20 @@ describe('debug-requester', () => {
 
       const killerClient = await createClient();
 
-      /**
-       * A BLPOP on an empty list is guaranteed to still be in-flight when the
-       * connection is killed, so its settlement deterministically exercises the
-       * fault path instead of racing a fast localhost reply.
-       */
       const pendingSettled = faultClient
         .blpop([blockKey], 0)
         .then(() => ({ rejected: false, error: undefined as unknown }))
         .catch((error: unknown) => ({ rejected: true, error }));
 
-      await delay(50);
+      await delay(30);
 
       await killerClient.clientKill(clientId);
 
       const settlement = await pendingSettled;
 
-      /**
-       * A command interrupted by a socket fault must reject (it can never be
-       * silently dropped); the matching reply was lost with the old session.
-       */
       assert.strictEqual(settlement.rejected, true);
       assert.ok(settlement.error instanceof Error);
 
-      /** Poll until the auto-reconnect has restored a usable connection. */
       await waitFor(
         async () => {
           try {
@@ -454,7 +435,7 @@ describe('debug-requester', () => {
             return false;
           }
         },
-        { timeout: 3000, interval: 50, description: 'reconnect after fault' },
+        { timeout: 2000, interval: 30, description: 'reconnect after fault' },
       );
 
       assert.strictEqual(await faultClient.set(key, 'recovered'), 'OK');
@@ -470,7 +451,8 @@ describe('debug-requester', () => {
       const recoveryClient = await createClient({
         autoReconnect: true,
         maxConnectionRetries: 3,
-        connectionRetryDelay: 50,
+        connectionRetryDelay: 25,
+        connectionTimeout: 500,
       });
 
       recoveryClient.on('error', () => {});
@@ -484,7 +466,7 @@ describe('debug-requester', () => {
 
       await killerClient.clientKill(clientId);
 
-      await delay(500);
+      await delay(150);
 
       const value = await recoveryClient.get(key);
 

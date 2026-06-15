@@ -1,15 +1,9 @@
 /**
  * Unified coverage runner.
  *
- * The two test tiers cannot share a single process: command suites are
- * timing-sensitive and must run in isolated child processes (in parallel),
- * while client suites mutate global server state and must run serially. To
- * still produce one merged coverage report, both tiers write raw V8 coverage
- * into a shared directory via NODE_V8_COVERAGE, which c8 then merges.
- *
- * Child processes use native TypeScript stripping rather than the esbuild
- * loader so each source module keeps its own file identity (the loader bundles
- * everything inline, which hides sources/ from V8 coverage).
+ * commands: parallel. client/admin: serial, alone (global state).
+ * client/{core,resilience,fault}: serial per group, groups in parallel.
+ * Uses NODE_V8_COVERAGE + native TS stripping for per-file identity.
  */
 
 import { spawn } from 'node:child_process';
@@ -35,6 +29,10 @@ function listTests(group: string): string[] {
 }
 
 function spawnTests(files: string[], concurrency?: number): Promise<number> {
+  if (files.length === 0) {
+    return Promise.resolve(0);
+  }
+
   const command = [
     '--experimental-strip-types',
     '--no-warnings',
@@ -76,10 +74,18 @@ function report(): Promise<number> {
 }
 
 const commandsCode = await spawnTests(listTests('commands'));
-const clientCode = await spawnTests(listTests('client'), 1);
+const adminCode = await spawnTests(listTests('client/admin'), 1);
+const restCodes = await Promise.all(
+  ['client/core', 'client/resilience', 'client/fault'].map((group) =>
+    spawnTests(listTests(group), 1),
+  ),
+);
 
 await report();
 
 rmSync(coverageDirectory, { recursive: true });
 
-process.exitCode = commandsCode === 0 && clientCode === 0 ? 0 : 1;
+const allClientCodes = [adminCode, ...restCodes];
+
+process.exitCode =
+  commandsCode === 0 && allClientCodes.every((code) => code === 0) ? 0 : 1;

@@ -1,10 +1,4 @@
-/**
- * Geospatial commands: GEOADD, GEOPOS, GEODIST, GEOHASH, and GEOSEARCH with
- * radius/box queries plus the WITHCOORD/WITHDIST/WITHHASH projections.
- *
- * Uses the canonical Sicily dataset (Palermo / Catania) so distances are
- * easily cross-checked against published Redis examples.
- */
+/** Geospatial commands: GEOADD, GEOPOS, GEODIST, GEOHASH, GEOSEARCH. */
 
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';

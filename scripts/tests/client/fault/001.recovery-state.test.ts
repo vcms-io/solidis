@@ -1,13 +1,4 @@
-/**
- * Reconnection STATE recovery.
- *
- * Auto-reconnect alone is not enough: after the socket comes back the client
- * must restore the session state the caller established before the fault —
- * specifically the selected database and any active subscriptions (governed by
- * the `autoRecovery` option). These tests force a disconnect with CLIENT KILL
- * and assert the recovered connection behaves as if nothing happened, and that
- * disabling a recovery flag is genuinely honoured.
- */
+/** Reconnection state recovery: database re-selection and subscription restoration. */
 
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
@@ -17,9 +8,9 @@ import {
   createClient,
   createKeyspace,
   waitFor,
-} from '../utils/index.ts';
+} from '../../utils/index.ts';
 
-import type { FeaturedClient } from '../utils/index.ts';
+import type { FeaturedClient } from '../../utils/index.ts';
 
 describe('recovery-state', () => {
   let killer: FeaturedClient;
@@ -33,11 +24,6 @@ describe('recovery-state', () => {
     await closeClient(killer);
   });
 
-  /**
-   * Force-closes `target`'s server-side connection and waits for it to become
-   * ready again. The client id is taken as a parameter because a subscribed
-   * RESP2 connection cannot issue CLIENT ID itself.
-   */
   const forceReconnect = async (
     target: FeaturedClient,
     clientId: number,
@@ -53,7 +39,8 @@ describe('recovery-state', () => {
       database: 3,
       autoReconnect: true,
       maxConnectionRetries: 5,
-      connectionRetryDelay: 50,
+      connectionRetryDelay: 25,
+      connectionTimeout: 500,
     });
 
     client.on('error', () => {});
@@ -65,17 +52,11 @@ describe('recovery-state', () => {
 
       await client.set(key, 'on-db-3');
 
-      /** Sanity: the write landed on db 3, invisible to a db 0 connection. */
       assert.strictEqual(await probe.get(key), null);
       assert.match(await client.clientInfo(), /\bdb=3\b/);
 
       await forceReconnect(client, await client.clientId());
 
-      /**
-       * The reconnected connection must be back on db 3. CLIENT INFO is checked
-       * directly (rather than relying on a key surviving) so the assertion is
-       * immune to unrelated global writes on the shared server.
-       */
       assert.match(await client.clientInfo(), /\bdb=3\b/);
 
       const afterKey = keyspace.key('db', 'after');
@@ -96,7 +77,8 @@ describe('recovery-state', () => {
     const subscriber = await createClient({
       autoReconnect: true,
       maxConnectionRetries: 5,
-      connectionRetryDelay: 50,
+      connectionRetryDelay: 25,
+      connectionTimeout: 500,
     });
 
     subscriber.on('error', () => {});
@@ -112,7 +94,6 @@ describe('recovery-state', () => {
     });
 
     try {
-      /** Capture the id before subscribing; CLIENT ID is blocked once subscribed. */
       const subscriberId = await subscriber.clientId();
 
       await subscriber.subscribe(channel);
@@ -129,13 +110,11 @@ describe('recovery-state', () => {
 
       await forceReconnect(subscriber, subscriberId);
 
-      /** After reconnect the subscription must be re-established server-side. */
       await waitFor(
         async () => (await publisher.pubsubNumsub([channel]))[channel] === 1,
         { timeout: 3000, description: 'subscription restored' },
       );
 
-      /** And messages must flow to the same handler again. */
       await waitFor(
         async () => {
           await publisher.publish(channel, 'after');
@@ -160,7 +139,8 @@ describe('recovery-state', () => {
     const subscriber = await createClient({
       autoReconnect: true,
       maxConnectionRetries: 5,
-      connectionRetryDelay: 50,
+      connectionRetryDelay: 25,
+      connectionTimeout: 500,
       autoRecovery: {
         database: true,
         subscribe: false,
@@ -186,10 +166,6 @@ describe('recovery-state', () => {
 
       await forceReconnect(subscriber, subscriberId);
 
-      /**
-       * With re-subscription disabled the reconnected connection must NOT be
-       * subscribed; the server should report zero subscribers for the channel.
-       */
       await waitFor(
         async () => {
           try {

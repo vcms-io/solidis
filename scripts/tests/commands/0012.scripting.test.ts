@@ -1,8 +1,4 @@
-/**
- * Lua scripting: EVAL/EVAL_RO, the SCRIPT LOAD + EVALSHA cache cycle, and
- * SCRIPT EXISTS. Replies flow through unchanged, so bulk strings arrive as
- * Buffers and are normalised in the assertions.
- */
+/** Lua scripting: EVAL/EVAL_RO, SCRIPT LOAD/EVALSHA, SCRIPT EXISTS. */
 
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';

@@ -1,11 +1,4 @@
-/**
- * Publish/subscribe messaging: channel and pattern subscriptions, message
- * delivery, subscription bookkeeping events, shard pub/sub, and introspection
- * (PUBSUB CHANNELS / NUMSUB).
- *
- * A subscribed RESP2 connection may only issue subscription commands, so every
- * test pairs a dedicated subscriber client with a separate publisher client.
- */
+/** Publish/subscribe messaging: channels, patterns, shard pub/sub, and introspection. */
 
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it } from 'node:test';

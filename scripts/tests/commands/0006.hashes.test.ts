@@ -1,9 +1,4 @@
-/**
- * Hash value type: field CRUD, bulk get/set, counters, random sampling, and
- * incremental iteration, and the hash-field-expiration family
- * (HEXPIRE/HTTL/HPERSIST/??, which is gated on a server new enough to support
- * per-field TTLs.
- */
+/** Hash value type: field CRUD, counters, random sampling, iteration, and per-field TTLs. */
 
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';

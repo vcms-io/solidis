@@ -1,16 +1,4 @@
-/**
- * RESP3 reply-shape coverage.
- *
- * The default test connection speaks RESP2. RESP3 changes the wire shape of
- * many replies — doubles arrive as native numbers, maps as `Map`, sets as
- * `Set`, and sorted-set members as nested `[member, score]` pairs. This suite
- * reconnects with `protocol: 'RESP3'` and asserts the client normalises every
- * one of those shapes to exactly the value a RESP2 caller would receive.
- *
- * These cases previously surfaced real parser bugs (ZPOPMIN/ZPOPMAX with COUNT,
- * ZMSCORE, GEOPOS, XINFO GROUPS, TS.INFO all threw on RESP3 shapes); the parsers
- * were fixed at the source and these assertions now guard against regressions.
- */
+/** RESP3 reply-shape coverage and regression guards. */
 
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
@@ -401,7 +389,6 @@ describe('resp3-shapes', () => {
     const [entry] = results;
 
     assert.strictEqual(entry.member, 'Palermo');
-    /** RESP3 returns the distance as a native double, not a bulk string. */
     assert.strictEqual(typeof entry.distance, 'number');
     assert.ok(entry.distance !== undefined && entry.distance > 0);
     assert.ok(entry.position !== undefined);
