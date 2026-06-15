@@ -143,7 +143,6 @@ export interface SolidisPipelineSubRequest {
 }
 
 export interface SolidisPipelineRequest {
-  sessionId: number;
   resolve: SolidisRequestResolveHandler;
   reject: SolidisRejectHandler;
   commandsBuffer: Buffer;

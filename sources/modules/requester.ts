@@ -33,8 +33,6 @@ import type {
 export class SolidisRequester {
   #options: SolidisRequesterOptions;
 
-  #sessionId = 0;
-
   #parser: SolidisParser;
 
   #requestQueue: SolidisPipelineRequest[] = [];
@@ -121,7 +119,6 @@ export class SolidisRequester {
       );
 
       const pipelineRequest: SolidisPipelineRequest = {
-        sessionId: this.#sessionId,
         resolve: () => {},
         reject: (error: unknown) => {
           this.#rejectSubRequests(pipelineRequest, error);
@@ -145,8 +142,6 @@ export class SolidisRequester {
   }
 
   async #flushRequestQueue() {
-    const sessionId = this.#sessionId;
-
     this.#debug?.('debug', 'Solidis requester will flush queue.');
 
     while (this.#requestQueue.length > 0) {
@@ -154,14 +149,6 @@ export class SolidisRequester {
 
       if (!request) {
         return;
-      }
-
-      if (request.sessionId !== sessionId) {
-        request.reject(
-          new SolidisRequesterError('Stale request: old session.'),
-        );
-
-        continue;
       }
 
       this.#inflightQueue.push(request);
@@ -172,10 +159,7 @@ export class SolidisRequester {
       );
 
       try {
-        await this.#writeBufferToSocketInChunks(
-          request.commandsBuffer,
-          sessionId,
-        );
+        await this.#writeBufferToSocketInChunks(request.commandsBuffer);
       } catch (error: unknown) {
         this.recoveryFromFault(wrapWithSolidisRequesterError(error));
         break;
@@ -186,10 +170,6 @@ export class SolidisRequester {
   #setRequestTimeout(request: SolidisPipelineRequest, action: 'set' | 'clear') {
     if (action === 'set' && this.#options.commandTimeout > 0) {
       request.timeoutId = setTimeout(() => {
-        if (request.sessionId !== this.#sessionId) {
-          return;
-        }
-
         this.recoveryFromFault(
           new SolidisRequesterError(
             `Solidis command(s) timed out after ${this.#options.commandTimeout} ms.`,
@@ -203,7 +183,7 @@ export class SolidisRequester {
     }
   }
 
-  async #writeBufferToSocketInChunks(buffer: Buffer, sessionId: number) {
+  async #writeBufferToSocketInChunks(buffer: Buffer) {
     const { maxSocketWriteSizePerOnce } = this.#options;
 
     const eventHandlers = this.#getSocketWriteEventHandlers();
@@ -223,7 +203,7 @@ export class SolidisRequester {
           await eventHandlers.waitForDrain();
         }
 
-        if (this.#isOnRecovery || sessionId !== this.#sessionId) {
+        if (this.#isOnRecovery) {
           throw new SolidisRequesterError('Stale request: old session.');
         }
 
@@ -581,10 +561,6 @@ export class SolidisRequester {
     const request = this.#inflightQueue[0];
     const reply = parsedReplies.shift();
 
-    if (request.sessionId !== this.#sessionId) {
-      return;
-    }
-
     if (typeof reply !== 'undefined') {
       request.parsedReplies.push(reply);
     }
@@ -600,10 +576,6 @@ export class SolidisRequester {
 
   #resolvePipelineRequest(request: SolidisPipelineRequest) {
     this.#setRequestTimeout(request, 'clear');
-
-    if (request.sessionId !== this.#sessionId) {
-      return;
-    }
 
     this.#pendingSubscribeCommandCount = Math.max(
       0,
