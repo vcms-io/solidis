@@ -129,7 +129,9 @@ function progressBar(percentage: number): string {
 }
 
 function formatPercentage(percentage: number): string {
-  return percentage === 100 ? '100%' : `**${percentage}%**`;
+  return percentage === 100
+    ? '🟢 **100%**'
+    : `${statusIcon(percentage)} ${percentage}%`;
 }
 
 function buildMarkdown(
