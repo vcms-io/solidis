@@ -1,24 +1,18 @@
-/**
- * Connection lifecycle, handshake, and reconnection behaviour.
- *
- * These tests exercise the client independently of any single data command:
- * lazy versus eager connect, event ordering, protocol negotiation, database
- * selection, and graceful teardown.
- */
+/** Connection lifecycle, handshake, and reconnection behaviour. */
 
 import assert from 'node:assert/strict';
 import { after, describe, it } from 'node:test';
 
-import { SolidisFeaturedClient } from '../../../sources/client/featured.ts';
-import { SolidisClientError } from '../../../sources/index.ts';
+import { SolidisFeaturedClient } from '../../../../sources/client/featured.ts';
+import { SolidisClientError } from '../../../../sources/index.ts';
 import {
   buildClientOptions,
   closeClient,
   createClient,
   delay,
-} from '../utils/index.ts';
+} from '../../utils/index.ts';
 
-import type { FeaturedClient } from '../utils/index.ts';
+import type { FeaturedClient } from '../../utils/index.ts';
 
 describe('connection', () => {
   const trackedClients: FeaturedClient[] = [];
@@ -115,7 +109,6 @@ describe('connection', () => {
 
     client.quit();
 
-    /** Wait for the actual teardown signal rather than a no-op predicate. */
     await ended;
 
     await assert.rejects(

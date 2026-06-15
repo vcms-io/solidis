@@ -19,8 +19,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  lint:
+    name: Lint & type-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - run: npm run lint
+
   coverage:
     name: Coverage
+    needs: lint
     runs-on: ubuntu-latest
     services:
       server:
@@ -32,15 +45,32 @@ jobs:
           --health-interval 2s
           --health-timeout 3s
           --health-retries 30
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
       - run: npm install
       - name: Run coverage
-        run: npm run test:coverage
+        run: npm run test:coverage 2>&1 | tee /tmp/coverage.txt
         env:
           SOLIDIS_TEST_HOST: 127.0.0.1
           SOLIDIS_TEST_PORT: 6379
+      - name: Generate report
+        if: always()
+        run: npm run --silent node:ts ./scripts/workflows/coverage/report.ts /tmp/coverage.txt /tmp/coverage.md
+      - name: Job summary
+        if: always()
+        run: cat /tmp/coverage.md >> "$GITHUB_STEP_SUMMARY"
+      - name: PR comment
+        if: always() && github.event_name == 'pull_request'
+        run: >-
+          npm run node:ts ./scripts/workflows/coverage/comment.ts
+          /tmp/coverage.md
+          ${{ github.repository }}
+          ${{ github.event.pull_request.number }}
+          ${{ github.token }}

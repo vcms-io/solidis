@@ -1,9 +1,4 @@
-/**
- * High-concurrency stress tests. These exercise the requester's pipelining and
- * back-pressure handling under thousands of in-flight commands, across both a
- * single shared connection and many independent clients, and verify that
- * atomic server-side operations stay consistent.
- */
+/** High-concurrency stress: pipelining, back-pressure, and atomicity. */
 
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';

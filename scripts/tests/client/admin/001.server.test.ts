@@ -7,9 +7,13 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
-import { closeClient, createClient, createKeyspace } from '../utils/index.ts';
+import {
+  closeClient,
+  createClient,
+  createKeyspace,
+} from '../../utils/index.ts';
 
-import type { FeaturedClient } from '../utils/index.ts';
+import type { FeaturedClient } from '../../utils/index.ts';
 
 describe('server', () => {
   let client: FeaturedClient;
@@ -132,7 +136,7 @@ describe('server', () => {
 
   it('constructs REPLCONF with subcommand and arguments', async () => {
     const { createCommand } = await import(
-      '../../../sources/command/replconf.ts'
+      '../../../../sources/command/replconf.ts'
     );
 
     assert.deepStrictEqual(createCommand('GETACK', '*'), [
@@ -149,7 +153,7 @@ describe('server', () => {
 
   it('constructs MODULE LOAD with parameters', async () => {
     const { createCommand } = await import(
-      '../../../sources/command/module.load.ts'
+      '../../../../sources/command/module.load.ts'
     );
 
     const command = createCommand('/path/to/module.so', ['arg1', 'arg2']);
@@ -165,7 +169,7 @@ describe('server', () => {
 
   it('constructs MODULE LOAD without parameters', async () => {
     const { createCommand } = await import(
-      '../../../sources/command/module.load.ts'
+      '../../../../sources/command/module.load.ts'
     );
 
     assert.deepStrictEqual(createCommand('/path/to/module.so'), [
@@ -177,7 +181,7 @@ describe('server', () => {
 
   it('constructs MODULE LOADEX with config and parameters', async () => {
     const { createCommand } = await import(
-      '../../../sources/command/module.loadex.ts'
+      '../../../../sources/command/module.loadex.ts'
     );
 
     const command = createCommand(
@@ -204,7 +208,7 @@ describe('server', () => {
 
   it('constructs MODULE LOADEX without config or parameters', async () => {
     const { createCommand } = await import(
-      '../../../sources/command/module.loadex.ts'
+      '../../../../sources/command/module.loadex.ts'
     );
 
     assert.deepStrictEqual(createCommand('/path/to/module.so'), [
@@ -216,7 +220,7 @@ describe('server', () => {
 
   it('constructs MODULE UNLOAD', async () => {
     const { createCommand } = await import(
-      '../../../sources/command/module.unload.ts'
+      '../../../../sources/command/module.unload.ts'
     );
 
     assert.deepStrictEqual(createCommand('mymodule'), [
@@ -228,7 +232,7 @@ describe('server', () => {
 
   it('parses module info with path and arguments', async () => {
     const { tryReplyToModuleInfo } = await import(
-      '../../../sources/command/utils/reply.ts'
+      '../../../../sources/command/utils/reply.ts'
     );
 
     const info = tryReplyToModuleInfo([
@@ -250,7 +254,7 @@ describe('server', () => {
 
   it('parses recursive string record from reply', async () => {
     const { tryReplyToStringRecordRecursively } = await import(
-      '../../../sources/command/utils/reply.ts'
+      '../../../../sources/command/utils/reply.ts'
     );
 
     const result = tryReplyToStringRecordRecursively([

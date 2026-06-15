@@ -1,9 +1,4 @@
-/**
- * Realistic, multi-command application scenarios that combine several data
- * types and mix synchronous transaction semantics with asynchronous fan-out:
- * rate limiting, leaderboards, work queues, session storage, cache-aside, and
- * tag indexes.
- */
+/** Realistic multi-command application scenarios. */
 
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';

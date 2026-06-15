@@ -1,9 +1,4 @@
-/**
- * Binary safety and RESP3 protocol coverage: arbitrary byte payloads, embedded
- * NUL bytes, multi-byte UTF-8, large values, and verification that the core
- * commands behave identically once the connection negotiates RESP3 (where
- * maps, sets, and doubles use dedicated wire types).
- */
+/** Binary safety and RESP3 protocol coverage. */
 
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';

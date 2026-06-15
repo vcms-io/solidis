@@ -1,8 +1,4 @@
-/**
- * Stream value type: append/length/range scans, XREAD, trimming/deletion,
- * stream introspection, and the full consumer-group lifecycle
- * (XGROUP CREATE ??XREADGROUP ??XACK ??XPENDING).
- */
+/** Stream value type and consumer-group lifecycle. */
 
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
@@ -153,11 +149,6 @@ describe('streams', () => {
 
     assert.strictEqual(await client.xack(key, group, ['1-1', '2-1']), 2);
 
-    /**
-     * Verify the now-empty PEL through the range form. The summary form is
-     * avoided here because the client throws on its nil consumers field when
-     * nothing is pending.
-     */
     const remaining = await client.xpending(key, group, '-', '+', 10);
 
     assert.deepStrictEqual(remaining, []);
@@ -232,7 +223,6 @@ describe('streams', () => {
 
     const deleted = await client.xgroupDelconsumer(key, group, 'new-consumer');
 
-    /** The consumer existed but owned no pending entries, so 0 are removed. */
     assert.strictEqual(deleted, 0);
   });
 
@@ -402,11 +392,6 @@ describe('streams', () => {
 
     const pending = await client.xpending(key, group);
 
-    /**
-     * NOACK means delivered entries are never added to the PEL, so the group
-     * summary must report exactly zero pending entries. The previous
-     * conditional let a wrong shape (or a null) silently pass.
-     */
     assert.ok(
       pending !== null &&
         typeof pending === 'object' &&
@@ -528,7 +513,6 @@ describe('streams', () => {
       0,
     );
 
-    /** Both unacked entries are older than the 0ms IDLE filter. */
     assert.ok(Array.isArray(entries));
     assert.strictEqual(entries.length, 2);
     assert.deepStrictEqual(
@@ -569,7 +553,6 @@ describe('streams', () => {
       10,
     );
 
-    /** The single buffered entry must be delivered before BLOCK elapses. */
     assert.ok(Array.isArray(result));
     assert.strictEqual(result.length, 1);
     assert.deepStrictEqual(result[0].entries, [
@@ -649,7 +632,6 @@ describe('streams', () => {
       justid: true,
     });
 
-    /** JUSTID returns only the claimed ids, not the field/value payloads. */
     assert.deepStrictEqual(result, ['1-1']);
   });
 
@@ -671,7 +653,6 @@ describe('streams', () => {
       true,
     );
 
-    /** JUSTID claims the id but carries no field payload. */
     assert.strictEqual(result.nextId, '0-0');
     assert.deepStrictEqual(result.entries, [{ id: '1-1', fields: {} }]);
   });

@@ -1,8 +1,4 @@
-/**
- * Raw pipelining via client.send(): reply ordering, large batches that exceed
- * maxCommandsPerPipeline (forcing internal chunking), binary round-trips, and
- * error isolation within a batch.
- */
+/** Raw pipelining via client.send(): ordering, chunking, binary round-trips, error isolation. */
 
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';

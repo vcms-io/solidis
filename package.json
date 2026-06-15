@@ -1,6 +1,6 @@
 {
   "name": "@vcms-io/solidis",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": "Jay Lee <jay@vendit.co.kr>",
   "description": "High-performance, SOLID-structured RESP client for Redis and other RESP-compatible servers",
   "repository": {
@@ -18,7 +18,7 @@
     "node:ts": "node --import=./scripts/esm/register.js",
     "test": "npm run test:commands && npm run test:client",
     "test:commands": "node --import=./scripts/esm/register.js --test ./scripts/tests/commands/*.test.ts",
-    "test:client": "node --import=./scripts/esm/register.js --test --test-concurrency=1 ./scripts/tests/client/*.test.ts",
+    "test:client": "node --import=./scripts/esm/register.js --test --test-concurrency=1 ./scripts/tests/client/**/*.test.ts",
     "test:coverage": "npm run node:ts ./scripts/tests/coverage.ts",
     "web:dev": "cd ./website && npm run dev",
     "web:build": "cd ./website && npm run build",

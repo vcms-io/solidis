@@ -1,11 +1,4 @@
-/**
- * Blocking list and sorted-set commands: BLPOP, BRPOP, BLMOVE, BLMPOP,
- * BRPOPLPUSH, BZPOPMIN, BZPOPMAX, and BZMPOP.
- *
- * Each test pre-populates data so the blocking command returns immediately
- * (timeout = 0) rather than relying on asynchronous pushes from a second
- * client.
- */
+/** Blocking list and sorted-set commands. */
 
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
@@ -15,9 +8,9 @@ import {
   createClient,
   createKeyspace,
   detectServerCapabilities,
-} from '../utils/index.ts';
+} from '../../utils/index.ts';
 
-import type { FeaturedClient } from '../utils/index.ts';
+import type { FeaturedClient } from '../../utils/index.ts';
 
 describe('blocking', () => {
   let client: FeaturedClient;

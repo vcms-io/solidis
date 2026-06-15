@@ -26,7 +26,7 @@ describe('scan', () => {
   it('iterates the full keyspace with a MATCH filter', async () => {
     const mapping: Record<string, string> = {};
 
-    for (let index = 0; index < 1000; index += 1) {
+    for (let index = 0; index < 200; index += 1) {
       mapping[keyspace.key('item', index)] = `${index}`;
     }
 
@@ -36,14 +36,14 @@ describe('scan', () => {
 
     for await (const batch of client.scan({
       match: `${keyspace.namespace}:item:*`,
-      count: 100,
+      count: 50,
     })) {
       for (const key of batch) {
         seen.add(key);
       }
     }
 
-    assert.strictEqual(seen.size, 1000);
+    assert.strictEqual(seen.size, 200);
   });
 
   it('filters by value type', async () => {

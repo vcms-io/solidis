@@ -1,10 +1,4 @@
-/**
- * MULTI/EXEC transactions, DISCARD, and WATCH-based optimistic locking.
- *
- * The transaction client queues commands synchronously (no await) and flushes
- * them as a single MULTI?�EXEC pipeline on exec(), returning the array of
- * per-command replies.
- */
+/** MULTI/EXEC transactions, DISCARD, and WATCH-based optimistic locking. */
 
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';

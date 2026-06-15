@@ -6,15 +6,15 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
-import { RespError } from '../../../sources/index.ts';
+import { RespError } from '../../../../sources/index.ts';
 import {
   closeClient,
   createClient,
   createKeyspace,
   detectServerCapabilities,
-} from '../utils/index.ts';
+} from '../../utils/index.ts';
 
-import type { FeaturedClient, ServerCapabilities } from '../utils/index.ts';
+import type { FeaturedClient, ServerCapabilities } from '../../utils/index.ts';
 
 describe('server-admin', () => {
   let client: FeaturedClient;
@@ -112,7 +112,6 @@ describe('server-admin', () => {
     const length = await client.slowlogLen();
 
     assert.strictEqual(typeof length, 'number');
-    /** The PING issued above with a zero threshold guarantees an entry. */
     assert.ok(length >= 1);
   });
 
@@ -185,11 +184,6 @@ describe('server-admin', () => {
       .bgsave(true)
       .catch((error: Error) => error.message);
 
-    /**
-     * The client only treats a literal `OK` as a resolved value, so the status
-     * line ("Background saving started/scheduled") surfaces through the catch;
-     * either way the message must describe the save, not an arbitrary failure.
-     */
     assert.match(result, /saving (started|scheduled)|already|in progress/i);
   });
 
@@ -244,15 +238,9 @@ describe('server-admin', () => {
     assert.strictEqual(await client.get(key), 'first');
   });
 
-  /**
-   * Shadow tests: verify command construction reaches the server without
-   * causing destructive side effects. Commands that would kill the connection
-   * (SHUTDOWN, REPLICAOF) are tested via error interception only.
-   */
-
   it('verifies SHUTDOWN command construction without sending', async () => {
     const { createCommand } = await import(
-      '../../../sources/command/shutdown.ts'
+      '../../../../sources/command/shutdown.ts'
     );
 
     assert.deepStrictEqual(createCommand(), ['SHUTDOWN']);
@@ -281,7 +269,9 @@ describe('server-admin', () => {
   });
 
   it('verifies HELLO command construction with all option branches', async () => {
-    const { createCommand } = await import('../../../sources/command/hello.ts');
+    const { createCommand } = await import(
+      '../../../../sources/command/hello.ts'
+    );
 
     assert.deepStrictEqual(createCommand('RESP3'), ['HELLO', '3']);
     assert.deepStrictEqual(createCommand('RESP2'), ['HELLO', '2']);
@@ -320,7 +310,7 @@ describe('server-admin', () => {
 
   it('verifies SORT_RO command construction with all options', async () => {
     const { createCommand } = await import(
-      '../../../sources/command/sort.ro.ts'
+      '../../../../sources/command/sort.ro.ts'
     );
 
     assert.deepStrictEqual(createCommand('key'), ['SORT_RO', 'key']);
@@ -384,7 +374,7 @@ describe('server-admin', () => {
 
   it('verifies FUNCTION LIST command construction with options', async () => {
     const { createCommand } = await import(
-      '../../../sources/command/function.list.ts'
+      '../../../../sources/command/function.list.ts'
     );
 
     assert.deepStrictEqual(createCommand(), ['FUNCTION', 'LIST']);
@@ -410,7 +400,7 @@ describe('server-admin', () => {
 
   it('verifies FUNCTION RESTORE command construction with options', async () => {
     const { createCommand } = await import(
-      '../../../sources/command/function.restore.ts'
+      '../../../../sources/command/function.restore.ts'
     );
 
     const dump = 'fakebinarydump';
@@ -436,7 +426,7 @@ describe('server-admin', () => {
 
   it('verifies MIGRATE command construction with all options', async () => {
     const { createCommand } = await import(
-      '../../../sources/command/migrate.ts'
+      '../../../../sources/command/migrate.ts'
     );
 
     assert.deepStrictEqual(createCommand('10.0.0.1', 6380, 'mykey', 0, 5000), [
@@ -511,7 +501,7 @@ describe('server-admin', () => {
 
   it('verifies FAILOVER command construction with all options', async () => {
     const { createCommand } = await import(
-      '../../../sources/command/failover.ts'
+      '../../../../sources/command/failover.ts'
     );
 
     assert.deepStrictEqual(createCommand(), ['FAILOVER']);
@@ -564,11 +554,6 @@ describe('server-admin', () => {
   it('executes DEBUG SLEEP 0 without blocking', async () => {
     const [[reply]] = await client.send([['DEBUG', 'SLEEP', '0']]);
 
-    /**
-     * DEBUG is gated behind `enable-debug-command` on hardened builds (Redis
-     * Stack), so the reply is either OK or a specific "not allowed" RespError —
-     * never an unrelated value.
-     */
     if (reply instanceof RespError) {
       assert.match(`${reply.message}`, /DEBUG|not allowed|unknown/i);
       return;
@@ -580,10 +565,6 @@ describe('server-admin', () => {
   it('rewrites the config file with CONFIG REWRITE', async () => {
     const result = await client.configRewrite().catch((error: Error) => error);
 
-    /**
-     * Succeeds with OK when started from a config file; otherwise it must fail
-     * with the specific "running without a config file" error.
-     */
     if (result instanceof Error) {
       assert.match(`${result.message}`, /config file/i);
       return;
@@ -607,10 +588,6 @@ describe('server-admin', () => {
 
     const result = await client.objectFreq(key).catch((error: Error) => error);
 
-    /**
-     * OBJECT FREQ is only valid under an LFU maxmemory-policy; with the default
-     * policy it must reject with the LFU-specific error rather than any error.
-     */
     if (result instanceof Error) {
       assert.match(`${result.message}`, /LFU|maxmemory/i);
       return;
@@ -683,7 +660,6 @@ describe('server-admin', () => {
     const histograms = await client.latencyHistogram('ping');
 
     assert.strictEqual(typeof histograms, 'object');
-    /** The 10 pings above must be recorded in the ping histogram. */
     assert.ok('ping' in histograms, 'expected a ping histogram entry');
     assert.strictEqual(typeof histograms.ping.calls, 'number');
     assert.ok(histograms.ping.calls >= 10);
@@ -696,7 +672,6 @@ describe('server-admin', () => {
       return;
     }
 
-    /** With no function running, FUNCTION KILL must reject with NOTBUSY. */
     await assert.rejects(
       () => client.functionKill(),
       (error: Error) => /NOTBUSY|No scripts|not running/i.test(error.message),
@@ -708,7 +683,9 @@ describe('server-admin', () => {
   });
 
   it('verifies AUTH command construction without sending', async () => {
-    const { createCommand } = await import('../../../sources/command/auth.ts');
+    const { createCommand } = await import(
+      '../../../../sources/command/auth.ts'
+    );
 
     assert.deepStrictEqual(createCommand('user', 'pass'), [
       'AUTH',
@@ -724,7 +701,7 @@ describe('server-admin', () => {
 
   it('verifies REPLICAOF command construction without sending', async () => {
     const { createCommand } = await import(
-      '../../../sources/command/replicaof.ts'
+      '../../../../sources/command/replicaof.ts'
     );
 
     assert.strictEqual(createCommand('127.0.0.1', 6379)[0], 'REPLICAOF');
@@ -733,13 +710,17 @@ describe('server-admin', () => {
   });
 
   it('verifies SYNC command construction', async () => {
-    const { createCommand } = await import('../../../sources/command/sync.ts');
+    const { createCommand } = await import(
+      '../../../../sources/command/sync.ts'
+    );
 
     assert.deepStrictEqual(createCommand(), ['SYNC']);
   });
 
   it('verifies RESET command construction', async () => {
-    const { createCommand } = await import('../../../sources/command/reset.ts');
+    const { createCommand } = await import(
+      '../../../../sources/command/reset.ts'
+    );
 
     assert.deepStrictEqual(createCommand(), ['RESET']);
   });
@@ -752,7 +733,7 @@ describe('server-admin', () => {
 
   it('verifies MODULE LOAD command construction', async () => {
     const { createCommand } = await import(
-      '../../../sources/command/module.load.ts'
+      '../../../../sources/command/module.load.ts'
     );
 
     assert.deepStrictEqual(createCommand('/path/to/module.so'), [
@@ -764,7 +745,7 @@ describe('server-admin', () => {
 
   it('verifies MODULE UNLOAD command construction', async () => {
     const { createCommand } = await import(
-      '../../../sources/command/module.unload.ts'
+      '../../../../sources/command/module.unload.ts'
     );
 
     assert.deepStrictEqual(createCommand('mymodule'), [
@@ -776,7 +757,7 @@ describe('server-admin', () => {
 
   it('verifies MODULE LOADEX command construction', async () => {
     const { createCommand } = await import(
-      '../../../sources/command/module.loadex.ts'
+      '../../../../sources/command/module.loadex.ts'
     );
 
     const command = createCommand('/path/to/module.so');
@@ -789,7 +770,6 @@ describe('server-admin', () => {
   it('resets latency events by name', async () => {
     const reset = await client.latencyReset(['command']);
 
-    /** LATENCY RESET returns the number of event time series it cleared. */
     assert.strictEqual(typeof reset, 'number');
     assert.ok(reset >= 0);
   });
@@ -833,7 +813,9 @@ describe('server-admin', () => {
   });
 
   it('verifies SORT command construction with all options', async () => {
-    const { createCommand } = await import('../../../sources/command/sort.ts');
+    const { createCommand } = await import(
+      '../../../../sources/command/sort.ts'
+    );
 
     assert.deepStrictEqual(createCommand('key'), ['SORT', 'key']);
 
@@ -906,7 +888,7 @@ describe('server-admin', () => {
 
   it('verifies RESTORE command construction with all options', async () => {
     const { createCommand } = await import(
-      '../../../sources/command/restore.ts'
+      '../../../../sources/command/restore.ts'
     );
 
     const base = createCommand('key', 0, 'dump');
@@ -949,7 +931,9 @@ describe('server-admin', () => {
   });
 
   it('verifies GETEX command construction with all TTL modes', async () => {
-    const { createCommand } = await import('../../../sources/command/getex.ts');
+    const { createCommand } = await import(
+      '../../../../sources/command/getex.ts'
+    );
 
     assert.deepStrictEqual(createCommand('key'), ['GETEX', 'key']);
 
@@ -983,7 +967,9 @@ describe('server-admin', () => {
   });
 
   it('verifies LCS command construction with all options', async () => {
-    const { createCommand } = await import('../../../sources/command/lcs.ts');
+    const { createCommand } = await import(
+      '../../../../sources/command/lcs.ts'
+    );
 
     assert.deepStrictEqual(createCommand('a', 'b'), ['LCS', 'a', 'b']);
 
@@ -1023,7 +1009,7 @@ describe('server-admin', () => {
 
   it('verifies CLIENT TRACKING command construction with all options', async () => {
     const { createCommand } = await import(
-      '../../../sources/command/client.tracking.ts'
+      '../../../../sources/command/client.tracking.ts'
     );
 
     assert.deepStrictEqual(createCommand('ON'), ['CLIENT', 'TRACKING', 'ON']);
@@ -1093,7 +1079,9 @@ describe('server-admin', () => {
   });
 
   it('verifies LPOS command construction with all options', async () => {
-    const { createCommand } = await import('../../../sources/command/lpos.ts');
+    const { createCommand } = await import(
+      '../../../../sources/command/lpos.ts'
+    );
 
     assert.deepStrictEqual(createCommand('key', 'el'), ['LPOS', 'key', 'el']);
 
@@ -1129,7 +1117,7 @@ describe('server-admin', () => {
 
   it('verifies LATENCY HISTOGRAM command construction', async () => {
     const { createCommand } = await import(
-      '../../../sources/command/latency.histogram.ts'
+      '../../../../sources/command/latency.histogram.ts'
     );
 
     assert.deepStrictEqual(createCommand('ping'), [
