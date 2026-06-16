@@ -58,6 +58,34 @@ describe('pubsub', () => {
     assert.strictEqual(`${received[0].message}`, 'hello');
   });
 
+  it('preserves binary message payloads', async () => {
+    const channel = keyspace.key('binary');
+    const payload = Buffer.from([0, 255, 1, 254, 2, 253]);
+    const received: StringOrBuffer[] = [];
+
+    subscriber.on('message', (_incomingChannel, message) => {
+      received.push(message);
+    });
+
+    await subscriber.subscribe(channel);
+
+    await waitFor(
+      async () =>
+        Object.keys(await publisher.pubsubNumsub([channel]))[0] === channel &&
+        (await publisher.pubsubNumsub([channel]))[channel] === 1,
+      { description: 'subscriber registered' },
+    );
+
+    await publisher.send([['PUBLISH', channel, payload]]);
+
+    await waitFor(() => received.length > 0, {
+      description: 'binary message delivered',
+    });
+
+    assert.ok(Buffer.isBuffer(received[0]));
+    assert.deepStrictEqual(received[0], payload);
+  });
+
   it('fans out to multiple channels', async () => {
     const first = keyspace.key('multi', 'first');
     const second = keyspace.key('multi', 'second');
@@ -281,7 +309,7 @@ describe('pubsub', () => {
     );
 
     assert.strictEqual(events.length, 1);
-    assert.deepStrictEqual(events[0], ['message', 'ch1', 'hello']);
+    assert.deepStrictEqual(events[0], ['message', 'ch1', Buffer.from('hello')]);
   });
 
   it('dispatches pmessage events via SolidisPubSub', async () => {
@@ -308,7 +336,12 @@ describe('pubsub', () => {
     );
 
     assert.strictEqual(events.length, 1);
-    assert.deepStrictEqual(events[0], ['pmessage', 'ch:*', 'ch:1', 'data']);
+    assert.deepStrictEqual(events[0], [
+      'pmessage',
+      'ch:*',
+      'ch:1',
+      Buffer.from('data'),
+    ]);
   });
 
   it('tracks subscribe/unsubscribe state in SolidisPubSub', async () => {

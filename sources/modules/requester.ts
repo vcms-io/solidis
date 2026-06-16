@@ -4,7 +4,6 @@ import {
   checkReplyIsPubSubEvent,
   commandsToBuffer,
   extractNextChunkToWrite,
-  extractSubReplies,
   findErrorInReplies,
   generateDebugHandle,
   RespPush,
@@ -124,7 +123,9 @@ export class SolidisRequester {
           this.#rejectSubRequests(pipelineRequest, error);
         },
         commandsBuffer,
-        parsedReplies: [],
+        subRequestIndex: 0,
+        currentSubReplies: [],
+        receivedReplyCount: 0,
         expectedReplyCount,
         subRequests: pipelineChunk.subRequests,
         subscribeCommandCount: pipelineChunk.subscribeCommandCount,
@@ -327,7 +328,6 @@ export class SolidisRequester {
 
         context.pipelinedCommands.push(command);
         context.subRequests.push({
-          cursor: context.cursor,
           span: replySpan,
           resolve: (subReplies: SolidisData[]) => {
             request.replies.push(subReplies);
@@ -452,27 +452,79 @@ export class SolidisRequester {
     }
   }
 
-  async #scheduleReplies(emit: SolidisClientEventHandlers['emit']) {
-    this.#replyLock = this.#replyLock.then(() => {
-      this.#processReplies(emit);
-
-      this.#replyBuffers = [];
+  #scheduleReplies(emit: SolidisClientEventHandlers['emit']) {
+    this.#replyLock = this.#replyLock.then(async () => {
+      await this.#processReplies(emit);
     });
   }
 
   async #processReplies(emit: SolidisClientEventHandlers['emit']) {
-    const { maxProcessRepliesPerChunk: maxChunkSize } = this.#options;
+    const {
+      maxProcessRepliesPerChunk: maxReplyCount,
+      maxProcessReplyBytesPerChunk: maxReplyBytes,
+    } = this.#options;
 
-    let parsedReplies: SolidisData[];
+    for (const { replyBuffers, shouldYield } of this.#chunkReplyBuffers(
+      maxReplyBytes,
+    )) {
+      let parsedReplies: SolidisData[];
 
-    try {
-      parsedReplies = await this.#parser.queueParse(...this.#replyBuffers);
-    } catch (parserError: unknown) {
-      emit('error', wrapWithParserError(parserError));
+      try {
+        parsedReplies = await this.#parser.queueParse(...replyBuffers);
+      } catch (parserError: unknown) {
+        emit('error', wrapWithParserError(parserError));
 
-      return;
+        return;
+      }
+
+      this.#resolveRepliesInChunks(parsedReplies, maxReplyCount, emit);
+
+      if (shouldYield) {
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
+    }
+  }
+
+  *#chunkReplyBuffers(
+    maxBytes: number,
+  ): Generator<{ replyBuffers: Buffer[]; shouldYield: boolean }> {
+    const limit = Math.max(1, maxBytes);
+    const replyBuffers = this.#replyBuffers.splice(0);
+
+    let chunkBytes = 0;
+    let chunk: Buffer[] = [];
+
+    for (const replyBuffer of replyBuffers) {
+      let offset = 0;
+
+      while (offset < replyBuffer.length) {
+        const remainingBytes = limit - chunkBytes;
+        const nextSize = Math.min(replyBuffer.length - offset, remainingBytes);
+
+        chunk.push(replyBuffer.subarray(offset, offset + nextSize));
+
+        chunkBytes += nextSize;
+        offset += nextSize;
+
+        if (chunkBytes >= limit) {
+          yield { replyBuffers: chunk, shouldYield: true };
+
+          chunkBytes = 0;
+          chunk = [];
+        }
+      }
     }
 
+    if (chunk.length > 0) {
+      yield { replyBuffers: chunk, shouldYield: false };
+    }
+  }
+
+  #resolveRepliesInChunks(
+    parsedReplies: SolidisData[],
+    maxChunkSize: number,
+    emit: SolidisClientEventHandlers['emit'],
+  ) {
     const length = parsedReplies.length;
 
     if (length === 0) {
@@ -486,10 +538,13 @@ export class SolidisRequester {
     }
 
     for (let index = 0; index < length; index += maxChunkSize) {
-      const chunk = parsedReplies.slice(index, index + maxChunkSize);
-
       setImmediate(() => {
-        this.#resolveReplies(chunk, emit);
+        this.#resolveReplies(
+          parsedReplies,
+          emit,
+          index,
+          Math.min(index + maxChunkSize, length),
+        );
       });
     }
   }
@@ -497,20 +552,22 @@ export class SolidisRequester {
   #resolveReplies(
     parsedReplies: SolidisData[],
     emit: SolidisClientEventHandlers['emit'],
+    start = 0,
+    end = parsedReplies.length,
   ) {
-    while (parsedReplies.length > 0) {
-      if (this.#checkSkipForPubSubEvent(parsedReplies, emit)) {
+    for (let index = start; index < end; index += 1) {
+      const reply = parsedReplies[index];
+
+      if (this.#checkSkipForPubSubEvent(reply, emit)) {
         continue;
       }
 
       if (this.#inflightQueue.length < 1) {
-        parsedReplies.shift();
-
         continue;
       }
 
       try {
-        this.#resolveSingleReply(parsedReplies);
+        this.#resolveSingleReply(reply);
       } catch (error: unknown) {
         throw wrapWithSolidisRequesterError(error);
       }
@@ -518,12 +575,10 @@ export class SolidisRequester {
   }
 
   #checkSkipForPubSubEvent(
-    parsedReplies: SolidisData[],
+    reply: SolidisData,
     emit: SolidisClientEventHandlers['emit'],
   ) {
     const { pubSub } = this.#options;
-
-    const reply = parsedReplies[0];
 
     if (
       checkReplyIsArray(reply) &&
@@ -533,8 +588,6 @@ export class SolidisRequester {
       pubSub.dispatchPubSubEvent(reply, emit);
 
       if (checkReplyIsMessageEvent(reply)) {
-        parsedReplies.shift();
-
         return true;
       }
     }
@@ -557,17 +610,74 @@ export class SolidisRequester {
     );
   }
 
-  #resolveSingleReply(parsedReplies: SolidisData[]) {
+  #resolveSingleReply(reply: SolidisData) {
     const request = this.#inflightQueue[0];
-    const reply = parsedReplies.shift();
 
-    if (typeof reply !== 'undefined') {
-      request.parsedReplies.push(reply);
+    if (!request) {
+      return;
     }
 
-    if (request.parsedReplies.length === request.expectedReplyCount) {
+    const subRequest = request.subRequests[request.subRequestIndex];
+
+    if (!subRequest) {
+      return;
+    }
+
+    request.receivedReplyCount += 1;
+
+    this.#processSubRequest(request, reply);
+
+    if (request.receivedReplyCount === request.expectedReplyCount) {
       this.#resolvePipelineRequest(request);
     }
+  }
+
+  #processSubRequest(request: SolidisPipelineRequest, reply: SolidisData) {
+    const subRequest = request.subRequests[request.subRequestIndex];
+
+    if (!subRequest) {
+      return;
+    }
+
+    if (subRequest.span === 1) {
+      this.#resolveSubRequest(subRequest, [reply]);
+
+      request.subRequestIndex += 1;
+
+      return;
+    }
+
+    request.currentSubReplies.push(reply);
+
+    if (request.currentSubReplies.length === subRequest.span) {
+      this.#resolveSubRequest(subRequest, request.currentSubReplies);
+
+      request.subRequestIndex += 1;
+      request.currentSubReplies = [];
+    }
+  }
+
+  #resolveSubRequest(
+    subRequest: SolidisPipelineSubRequest,
+    subReplies: SolidisData[],
+  ) {
+    const { rejectOnPartialPipelineError } = this.#options;
+
+    if (!rejectOnPartialPipelineError) {
+      subRequest.resolve(subReplies);
+
+      return;
+    }
+
+    const foundErrorReply = findErrorInReplies(subReplies);
+
+    if (foundErrorReply) {
+      subRequest.reject(foundErrorReply);
+
+      return;
+    }
+
+    subRequest.resolve(subReplies);
   }
 
   #shiftInflightRequest() {
@@ -582,36 +692,7 @@ export class SolidisRequester {
       this.#pendingSubscribeCommandCount - request.subscribeCommandCount,
     );
 
-    this.#resolveSubRequests(request);
-
     this.#shiftInflightRequest();
-  }
-
-  #resolveSubRequests(request: SolidisPipelineRequest) {
-    const { parsedReplies } = request;
-
-    for (const subRequest of request.subRequests) {
-      const subReplies = extractSubReplies(parsedReplies, subRequest);
-
-      this.#resolveSubRequest(subRequest, subReplies);
-    }
-  }
-
-  #resolveSubRequest(
-    subRequest: SolidisPipelineSubRequest,
-    subReplies: SolidisData[],
-  ) {
-    const { rejectOnPartialPipelineError } = this.#options;
-
-    const foundErrorReply = findErrorInReplies(subReplies);
-
-    if (foundErrorReply && rejectOnPartialPipelineError) {
-      subRequest.reject(foundErrorReply);
-
-      return;
-    }
-
-    subRequest.resolve(subReplies);
   }
 
   public recoveryFromFault(error: Error) {

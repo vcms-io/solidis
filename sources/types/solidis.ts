@@ -57,6 +57,7 @@ export interface SolidisClientOptions {
   maxCommandsPerPipeline?: number;
   maxEventListenersForClient?: number;
   maxEventListenersForSocket?: number;
+  maxProcessReplyBytesPerChunk?: number;
   maxProcessRepliesPerChunk?: number;
   maxSocketWriteSizePerOnce?: number;
   parser?: {
@@ -123,11 +124,6 @@ export type SolidisParsedBufferWithLength =
     })
   | null;
 
-export interface SolidisParseRequest {
-  resolve: (value: SolidisData[]) => void;
-  reject: (reason?: unknown) => void;
-}
-
 export interface SolidisRequest {
   commands: StringOrBuffer[][];
   resolve: SolidisRequestResolveHandler;
@@ -136,7 +132,6 @@ export interface SolidisRequest {
 }
 
 export interface SolidisPipelineSubRequest {
-  cursor: number;
   span: number;
   resolve: SolidisSubRequestResolveHandler;
   reject: SolidisRejectHandler;
@@ -146,7 +141,9 @@ export interface SolidisPipelineRequest {
   resolve: SolidisRequestResolveHandler;
   reject: SolidisRejectHandler;
   commandsBuffer: Buffer;
-  parsedReplies: SolidisData[];
+  subRequestIndex: number;
+  currentSubReplies: SolidisData[];
+  receivedReplyCount: number;
   expectedReplyCount: number;
   subRequests: SolidisPipelineSubRequest[];
   subscribeCommandCount: number;
@@ -186,8 +183,8 @@ export interface SolidisPubSubEvents extends SolidisSubscribeEvents {
 export type SolidisTranslatedPubSubReplies = [
   string | null,
   string | null,
-  number | string | null,
-  string | null,
+  number | StringOrBuffer | null,
+  StringOrBuffer | null,
 ];
 
 export interface SolidisClientEvents extends SolidisPubSubEvents {

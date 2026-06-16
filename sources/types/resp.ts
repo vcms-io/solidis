@@ -297,7 +297,6 @@ export interface RespPubsubNumsub {
 export interface RespPubsubShardNumsub {
   [shardChannel: string]: number;
 }
-export type RespRoleType = 'master' | 'slave' | 'sentinel';
 export interface RespRoleMaster {
   role: 'master';
   replicationOffset: number;

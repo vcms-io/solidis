@@ -12,7 +12,6 @@ import type {
   SolidisData,
   SolidisParsed,
   SolidisParsedBufferWithLength,
-  SolidisParseRequest,
   SolidisRespLengthType,
   SolidisRespPrimitiveType,
   SolidisRespSimpleLineType,
@@ -21,18 +20,13 @@ import type {
 
 export class SolidisParser {
   #buffer: Buffer;
+  #bufferHasBorrowedSlices = false;
+  #bufferIsExternal = false;
+  #initialBufferSize: number;
   #shiftThreshold: number;
 
   #readOffset = 0;
   #writeOffset = 0;
-
-  #parseRequests: SolidisParseRequest[] = [];
-  #parseBuffers: Buffer[] = [];
-
-  /** Reserved for future implementation */
-  #parsedAttributes: Map<string, SolidisData>[] = [];
-
-  #scheduledParsing?: NodeJS.Immediate;
 
   constructor(options: SolidisClientFrozenOptions) {
     const {
@@ -42,57 +36,32 @@ export class SolidisParser {
     } = options;
 
     this.#buffer = Buffer.allocUnsafe(initial);
+    this.#initialBufferSize = initial;
     this.#shiftThreshold = shiftThreshold;
   }
 
   public async queueParse(...buffers: Buffer[]): Promise<SolidisData[]> {
-    return new Promise<SolidisData[]>((resolve, reject) => {
-      this.#parseRequests.push({ resolve, reject });
-      this.#parseBuffers.push(...buffers);
-
-      if (!this.#scheduledParsing) {
-        this.#scheduledParsing = setImmediate(() => {
-          this.#processParseRequests();
-
-          this.#scheduledParsing = undefined;
-        });
-      }
-    });
+    return this.#parseBuffers(buffers);
   }
 
-  #processParseRequests() {
-    let parsedDataArray: SolidisData[] = [];
-    let parseError: unknown = null;
-
-    this.#appendBuffers();
-
-    try {
-      parsedDataArray = this.#parse();
-    } catch (error) {
-      parseError = error;
-    }
-
-    for (let index = 0; index < this.#parseRequests.length; index += 1) {
-      if (parseError) {
-        this.#parseRequests[index].reject(parseError);
-
-        continue;
-      }
-
-      this.#parseRequests[index].resolve(parsedDataArray);
-    }
-
-    this.#parseRequests = [];
-  }
-
-  #parse() {
+  #parseBuffers(buffers: Buffer[]) {
     const parsedDataArray: SolidisData[] = [];
 
+    for (let index = 0; index < buffers.length; index += 1) {
+      this.#appendBuffer(buffers[index]);
+
+      this.#parse(parsedDataArray);
+    }
+
+    return parsedDataArray;
+  }
+
+  #parse(parsedDataArray: SolidisData[]) {
     while (true) {
       const parsed: SolidisParsed = this.#tryParseOnce();
 
       if (parsed === null) {
-        break;
+        return;
       }
 
       if (!parsed.ignore) {
@@ -101,34 +70,58 @@ export class SolidisParser {
 
       this.#tryShiftInternalBuffer();
     }
-
-    return parsedDataArray;
   }
 
-  #appendBuffers() {
-    for (let index = 0; index < this.#parseBuffers.length; index += 1) {
-      const parseBuffer = this.#parseBuffers[index];
+  #appendBuffer(parseBuffer: Buffer) {
+    if (this.#readOffset === this.#writeOffset) {
+      this.#buffer = parseBuffer;
+      this.#bufferHasBorrowedSlices = false;
+      this.#bufferIsExternal = true;
+      this.#readOffset = 0;
+      this.#writeOffset = parseBuffer.length;
 
-      if (this.#writeOffset + parseBuffer.length > this.#buffer.length) {
-        this.#growInternalBuffer(this.#writeOffset + parseBuffer.length);
-      }
-
-      parseBuffer.copy(this.#buffer, this.#writeOffset);
-
-      this.#writeOffset += parseBuffer.length;
+      return;
     }
 
-    this.#parseBuffers = [];
+    if (this.#bufferIsExternal) {
+      this.#moveUnreadBytesToInternalBuffer(parseBuffer.length);
+    }
+
+    if (this.#writeOffset + parseBuffer.length > this.#buffer.length) {
+      this.#growInternalBuffer(this.#writeOffset + parseBuffer.length);
+    }
+
+    parseBuffer.copy(this.#buffer, this.#writeOffset);
+
+    this.#writeOffset += parseBuffer.length;
   }
 
-  #growInternalBuffer(minCapacity: number) {
-    let newCapacity = this.#buffer.length;
+  #moveUnreadBytesToInternalBuffer(additionalCapacity: number) {
+    const remainingBytes = this.#writeOffset - this.#readOffset;
+    const minCapacity = remainingBytes + additionalCapacity;
+    const newBuffer = this.#allocateInternalBuffer(minCapacity);
+
+    this.#buffer.copy(newBuffer, 0, this.#readOffset, this.#writeOffset);
+
+    this.#buffer = newBuffer;
+    this.#bufferHasBorrowedSlices = false;
+    this.#bufferIsExternal = false;
+    this.#readOffset = 0;
+    this.#writeOffset = remainingBytes;
+  }
+
+  #allocateInternalBuffer(minCapacity: number) {
+    let newCapacity = Math.max(this.#initialBufferSize, this.#buffer.length);
 
     while (newCapacity < minCapacity) {
       newCapacity *= 2;
     }
 
-    const newBuffer: Buffer = Buffer.allocUnsafe(newCapacity);
+    return Buffer.allocUnsafe(newCapacity);
+  }
+
+  #growInternalBuffer(minCapacity: number) {
+    const newBuffer = this.#allocateInternalBuffer(minCapacity);
 
     this.#buffer.copy(newBuffer, 0, this.#readOffset, this.#writeOffset);
 
@@ -136,6 +129,8 @@ export class SolidisParser {
     this.#readOffset = 0;
 
     this.#buffer = newBuffer;
+    this.#bufferHasBorrowedSlices = false;
+    this.#bufferIsExternal = false;
   }
 
   #tryShiftInternalBuffer() {
@@ -143,6 +138,10 @@ export class SolidisParser {
       this.#readOffset = 0;
       this.#writeOffset = 0;
 
+      return;
+    }
+
+    if (this.#bufferIsExternal || this.#bufferHasBorrowedSlices) {
       return;
     }
 
@@ -277,28 +276,6 @@ export class SolidisParser {
     return parsed;
   }
 
-  #tryParseAtOffset(startingOffset: number): SolidisParsed {
-    const backupReadOffset = this.#readOffset;
-    const backupWriteOffset = this.#writeOffset;
-
-    this.#readOffset = startingOffset;
-
-    const parsed: SolidisParsed = this.#tryParseOnce();
-    const length = this.#readOffset - startingOffset;
-
-    this.#readOffset = backupReadOffset;
-    this.#writeOffset = backupWriteOffset;
-
-    if (parsed === null) {
-      return null;
-    }
-
-    return {
-      data: parsed.data,
-      length,
-    };
-  }
-
   #parseInteger(): SolidisParsed {
     const parsed = this.#parseNumeric('Integer');
 
@@ -334,7 +311,7 @@ export class SolidisParser {
         }
 
         default: {
-          data = Buffer.from(parsed.data);
+          data = this.#borrowParsedBuffer(parsed.data);
           break;
         }
       }
@@ -344,6 +321,14 @@ export class SolidisParser {
       data,
       length: parsed.length,
     };
+  }
+
+  #borrowParsedBuffer(buffer: Buffer) {
+    if (!this.#bufferIsExternal) {
+      this.#bufferHasBorrowedSlices = true;
+    }
+
+    return buffer;
   }
 
   #parseSimpleLine(type: SolidisRespSimpleLineType): SolidisParsed {
@@ -464,8 +449,6 @@ export class SolidisParser {
 
     const { data: lengthData, length: lengthLength } = lengthObject;
 
-    const startPosition = this.#readOffset + 1 + lengthLength;
-
     if (lengthData < 0) {
       return {
         data: null,
@@ -473,43 +456,53 @@ export class SolidisParser {
       };
     }
 
-    let offset = startPosition;
-
     const map = new Map<string, SolidisData>();
 
+    const readOffsetState = this.#readOffset;
+
+    this.#readOffset += 1 + lengthLength;
+
     for (let index = 0; index < lengthData; index += 1) {
-      if (offset >= this.#writeOffset) {
+      if (this.#readOffset >= this.#writeOffset) {
+        this.#readOffset = readOffsetState;
+
         return null;
       }
 
-      const key = this.#tryParseAtOffset(offset);
+      const key: SolidisParsed = this.#tryParseOnce();
 
-      if (!key) {
+      if (key === null) {
+        this.#readOffset = readOffsetState;
+
         return null;
       }
 
-      offset += key.length;
+      if (this.#readOffset >= this.#writeOffset) {
+        this.#readOffset = readOffsetState;
 
-      if (offset >= this.#writeOffset) {
         return null;
       }
 
-      const value = this.#tryParseAtOffset(offset);
+      const value: SolidisParsed = this.#tryParseOnce();
 
-      if (!value) {
+      if (value === null) {
+        this.#readOffset = readOffsetState;
+
         return null;
       }
-
-      offset += value.length;
 
       if (key.data) {
         map.set(key.data.toString(), value.data);
       }
     }
 
+    const totalLength = this.#readOffset - readOffsetState;
+
+    this.#readOffset = readOffsetState;
+
     return {
       data: map,
-      length: offset - this.#readOffset,
+      length: totalLength,
     };
   }
 
@@ -518,10 +511,6 @@ export class SolidisParser {
 
     if (!parsed) {
       return null;
-    }
-
-    if (parsed.data instanceof Map) {
-      this.#parsedAttributes.push(parsed.data);
     }
 
     return {
@@ -550,29 +539,37 @@ export class SolidisParser {
       };
     }
 
-    const items: SolidisData[] = [];
+    const items = new Array<SolidisData>(lengthData);
 
-    let position = this.#readOffset + 1 + lengthLength;
+    const readOffsetState = this.#readOffset;
+
+    this.#readOffset += 1 + lengthLength;
 
     for (let index = 0; index < lengthData; index += 1) {
-      if (position >= this.#writeOffset) {
+      if (this.#readOffset >= this.#writeOffset) {
+        this.#readOffset = readOffsetState;
+
         return null;
       }
 
-      const parsed = this.#tryParseAtOffset(position);
+      const parsed: SolidisParsed = this.#tryParseOnce();
 
-      if (!parsed) {
+      if (parsed === null) {
+        this.#readOffset = readOffsetState;
+
         return null;
       }
 
-      items.push(parsed.data);
-
-      position += parsed.length;
+      items[index] = parsed.data;
     }
+
+    const totalLength = this.#readOffset - readOffsetState;
+
+    this.#readOffset = readOffsetState;
 
     return {
       data: transform ? transform(items) : items,
-      length: position - this.#readOffset,
+      length: totalLength,
     };
   }
 

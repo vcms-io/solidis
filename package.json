@@ -13,9 +13,11 @@
     "prepack": "npm run build",
     "cleanup": "npm run --silent node:ts ./scripts/cleanup.ts",
     "build": "npm run cleanup && tsc && npm run node:ts ./scripts/build.ts",
-    "lint": "concurrently --raw \"biome check --write\" \"tsc --noEmit\" \"tsc --noEmit --project scripts/tests/tsconfig.json\"",
+    "lint": "concurrently --raw \"biome check --write\" \"tsc --noEmit\" \"tsc --noEmit --project scripts/tsconfig.json\"",
     "format": "biome format --write",
     "node:ts": "node --import=./scripts/esm/register.js",
+    "benchmark:ioredis": "npm run --silent node:ts ./scripts/benchmarks/ioredis/benchmark.ts",
+    "benchmark:redis": "npm run --silent node:ts ./scripts/benchmarks/redis/benchmark.ts",
     "test": "npm run test:commands && npm run test:client",
     "test:commands": "node --import=./scripts/esm/register.js --test ./scripts/tests/commands/*.test.ts",
     "test:client": "node --import=./scripts/esm/register.js --test --test-concurrency=1 ./scripts/tests/client/**/*.test.ts",
@@ -78,6 +80,8 @@
     "chalk": "^5.6.2",
     "concurrently": "^10.0.3",
     "esbuild": "^0.28.1",
+    "ioredis": "^5.11.1",
+    "redis": "^6.0.0",
     "typescript": "^6.0.3"
   }
 }
