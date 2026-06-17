@@ -50,35 +50,133 @@ Solidis는 SOLID 원칙, 제로 의존성, 엔터프라이즈급 성능을 고�
 
 <div id="benchmark">
 
-## 📊 벤치마크
+## 📊 Benchmarks
 
 <div align="center">
 
-### ⚡️ Solidis vs IoRedis ⚡️
-<sub>1000개 동시 명령 × 10회 반복, 요청당 1KB 랜덤 문자열 페이로드</sub>
+# ⚡ Solidis vs ioredis ⚡
 
-|                         벤치마크                                   |   Solidis    |   IoRedis    | **성능 향상** 🚀 |
-|:--------------------------------------------------------------------|:------------:|:------------:|:-------------------:|
-| **Hash**<br><sub>HSET + HGET + HGETALL</sub>                        | **248.82ms** |   446.03ms   | **79% 빠름** 🔥🔥|
-| **Set 작업**<br><sub>SADD + SISMEMBER + SREM</sub>            | **257.35ms** |   444.08ms   | **73% 빠름** 🔥🔥|
-| **Expire**<br><sub>SET + EXPIRE + TTL</sub>                         | **198.11ms** |   339.78ms   | **72% 빠름** 🔥🔥|
-| **Non-Transaction**<br><sub>SET with EXPIRE + GET</sub>             | **259.69ms** |   394.34ms   | **52% 빠름** 🔥  |
-| **List**<br><sub>LPUSH + RPUSH + LRANGE</sub>                       | **219.76ms** |   345.48ms   | **57% 빠름** 🔥  |
-| **Counter**<br><sub>INCR + DECR</sub>                               | **174.04ms** |   258.71ms   | **49% 빠름** 🔥  |
-| **List 작업**<br><sub>LPUSH + RPUSH + LPOP + RPOP + LLEN</sub>| **396.67ms** |   587.16ms   | **48% 빠름** 🔥  |
-| **Transaction + Non-Transaction**<br><sub>SET + GET</sub>           | **435.46ms** |   574.26ms   | **32% 빠름** ⚡️  |
-| **Multi-key**<br><sub>MSET + MGET</sub>                             | **393.87ms** |   437.45ms   | **11% 빠름** ⚡️  |
-| **Transaction**<br><sub>SET with EXPIRE + GET</sub>                 | **286.75ms** |   328.00ms   | **14% 빠름** ⚡️  |
-| **Set**<br><sub>SADD + SISMEMBER + SMEMBERS</sub>                   | **260.66ms** |   275.27ms   | **6% 빠름** ⚡️   |
-| **Hash 작업**<br><sub>HMSET + HMGET + HDEL</sub>              | **360.69ms** |   377.32ms   | **5% 빠름** ⚡️   |
-| **Info/Config**<br><sub>INFO + CONFIG GET</sub>                     |   371.48ms   | **353.02ms** | 5% 느림          |
+<small>Generated on 2026-06-17 14:36:24 · linux x64 · Node.js v22.22.3</small>
+### Up to **108% faster** than ioredis! 🚀
+
+---
+<br/>
+
+**15** / **15** benchmarks won · **77%** average speed improvement · **108%** peak speed improvement
+
+*100,000 iterations × 10000 concurrency · 1 KB payload · 10 repeats*
+
+| | Benchmark | Commands | solidis | ioredis | Difference | Performance |
+|---:|:---|:---:|:---:|:---:|:---:|:---|
+| 🥇 | **Set Mutation** | SADD + SISMEMBER + SREM | **1661ms** | 3460ms | **+108%** 🔥🔥 | `██████████` |
+| 🥈 | **List Mutation** | LPUSH + RPUSH + LPOP + RPOP + LLEN | **2525ms** | 4989ms | **+98%** 🔥🔥 | `█████████░` |
+| 🥉 | **List Range** | LPUSH + RPUSH + LRANGE | **1846ms** | 3620ms | **+96%** 🔥🔥 | `█████████░` |
+| 4. | **Multi-Key** | MSET + MGET | **1799ms** | 3375ms | **+88%** 🔥🔥 | `████████░░` |
+| 5. | **Hash Mutation** | HMSET + HMGET + HDEL | **1843ms** | 3450ms | **+87%** 🔥🔥 | `████████░░` |
+| 6. | **Sorted Set** | ZADD + ZRANGE + ZREM | **1814ms** | 3311ms | **+83%** 🔥🔥 | `████████░░` |
+| 7. | **Set** | SET | **745ms** | 1334ms | **+79%** 🔥🔥 | `███████░░░` |
+| 8. | **Set Read** | SADD + SISMEMBER + SMEMBERS | **1794ms** | 3176ms | **+77%** 🔥🔥 | `███████░░░` |
+| 9. | **Stream** | XADD + XRANGE + XLEN | **1848ms** | 3249ms | **+76%** 🔥🔥 | `███████░░░` |
+| 10. | **Expire** | SET + EXPIRE + TTL | **1506ms** | 2612ms | **+73%** 🔥🔥 | `███████░░░` |
+| 11. | **Non-Transaction** | SETPX + GET | **1288ms** | 2206ms | **+71%** 🔥🔥 | `███████░░░` |
+| 12. | **Pipeline Mixed** | SET + INCR + GET | **1548ms** | 2482ms | **+60%** 🔥🔥 | `██████░░░░` |
+| 13. | **Hash Round-Trip** | HSET + HGET + HGETALL | **1773ms** | 2740ms | **+55%** 🔥 | `█████░░░░░` |
+| 14. | **Counter** | INCR + DECR | **1014ms** | 1561ms | **+54%** 🔥 | `█████░░░░░` |
+| 15. | **Get Buffer** | GETBUFFER | **612ms** | 882ms | **+44%** 🔥 | `████░░░░░░` |
+
+### Non Strictly Comparable Benchmarks
+
+<sub>These benchmarks have library-specific behavior that prevents a strictly fair comparison.</sub>
+
+| | Benchmark | Commands | solidis | ioredis | Difference | Performance |
+|---:|:---|:---:|:---:|:---:|:---:|:---|
+| 16. | **Transaction** | SET + EXPIRE + GET | 1347ms | 5338ms | **+296%** 🔥🔥 | `██████████` |
+| 17. | **Transaction Mixed** | SET + GET | 1753ms | 6474ms | **+269%** 🔥🔥 | `██████████` |
+| 18. | **Pub/Sub** | PUBLISH + MESSAGE | 732ms | 2661ms | **+264%** 🔥🔥 | `██████████` |
+| 19. | **Info / Config** | INFO + CONFIGGET | 1109ms | 2027ms | **+83%** 🔥🔥 | `████████░░` |
+
+<sub>Ranked by performance gain of `solidis` over `ioredis` (baseline). Elapsed = median time across repeats.</sub>
 
 </div>
 
-<p align="center">
-  <b>IoRedis보다 최대 79% 빠릅니다! 🚀</b><br>
-  Solidis는 제로 의존성으로 놀라운 성능을 제공합니다
-</p>
+<br/>
+
+## 📊 Detailed Metrics
+
+<sub>All metrics per library: operations/s, commands/s, median elapsed time, and spread (coefficient of variation).</sub>
+
+<details>
+<summary>Click to expand detailed metrics table</summary>
+
+| Benchmark | Library | ops/s | cmds/s | Elapsed | Spread |
+|:---|:---|---:|---:|---:|---:|
+| **Set Mutation: SADD + SISMEMBER + SREM**<br/><sub>1 KB</sub> | **solidis** | 60.2K | 180.6K | 1661ms | ±7.1% |
+|  | ioredis | 28.9K | 86.7K | 3460ms | ±2.2% |
+| **List Mutation: LPUSH + RPUSH + LPOP + RPOP + LLEN**<br/><sub>1 KB</sub> | **solidis** | 39.6K | 198.1K | 2525ms | ±4.9% |
+|  | ioredis | 20.0K | 100.2K | 4989ms | ±2.5% |
+| **List Range: LPUSH + RPUSH + LRANGE**<br/><sub>1 KB</sub> | **solidis** | 54.2K | 162.5K | 1846ms | ±9.2% |
+|  | ioredis | 27.6K | 82.9K | 3620ms | ±0.6% |
+| **Multi-Key: MSET + MGET**<br/><sub>1 KB</sub> | **solidis** | 55.6K | 111.2K | 1799ms | ±4.4% |
+|  | ioredis | 29.6K | 59.3K | 3375ms | ±4.1% |
+| **Hash Mutation: HMSET + HMGET + HDEL**<br/><sub>1 KB</sub> | **solidis** | 54.3K | 162.8K | 1843ms | ±9.1% |
+|  | ioredis | 29.0K | 87.0K | 3450ms | ±2.4% |
+| **Sorted Set: ZADD + ZRANGE + ZREM**<br/><sub>1 KB</sub> | **solidis** | 55.1K | 165.4K | 1814ms | ±11.3% |
+|  | ioredis | 30.2K | 90.6K | 3311ms | ±1.4% |
+| **Set: SET**<br/><sub>1 KB</sub> | **solidis** | 134.2K | 134.2K | 745ms | ±9.3% |
+|  | ioredis | 75.0K | 75.0K | 1334ms | ±1.9% |
+| **Set Read: SADD + SISMEMBER + SMEMBERS**<br/><sub>1 KB</sub> | **solidis** | 55.7K | 167.2K | 1794ms | ±10.1% |
+|  | ioredis | 31.5K | 94.5K | 3176ms | ±2.6% |
+| **Stream: XADD + XRANGE + XLEN**<br/><sub>1 KB</sub> | **solidis** | 54.1K | 162.4K | 1848ms | ±4.8% |
+|  | ioredis | 30.8K | 92.3K | 3249ms | ±2.2% |
+| **Expire: SET + EXPIRE + TTL**<br/><sub>1 KB</sub> | **solidis** | 66.4K | 199.2K | 1506ms | ±9.6% |
+|  | ioredis | 38.3K | 114.9K | 2612ms | ±1.9% |
+| **Non-Transaction: SETPX + GET**<br/><sub>1 KB</sub> | **solidis** | 77.6K | 155.2K | 1288ms | ±9.3% |
+|  | ioredis | 45.3K | 90.7K | 2206ms | ±1.3% |
+| **Pipeline Mixed: SET + INCR + GET**<br/><sub>1 KB</sub> | **solidis** | 64.6K | 193.8K | 1548ms | ±5.4% |
+|  | ioredis | 40.3K | 120.9K | 2482ms | ±1.2% |
+| **Hash Round-Trip: HSET + HGET + HGETALL**<br/><sub>1 KB</sub> | **solidis** | 56.4K | 169.2K | 1773ms | ±5.2% |
+|  | ioredis | 36.5K | 109.5K | 2740ms | ±1.1% |
+| **Counter: INCR + DECR**<br/><sub>1 KB</sub> | **solidis** | 98.6K | 197.1K | 1014ms | ±2.0% |
+|  | ioredis | 64.1K | 128.1K | 1561ms | ±1.1% |
+| **Get Buffer: GETBUFFER**<br/><sub>1 KB</sub> | **solidis** | 163.5K | 163.5K | 612ms | ±5.3% |
+|  | ioredis | 113.4K | 113.4K | 882ms | ±2.3% |
+
+</details>
+
+---
+
+## ⚙️ Configuration
+
+<details>
+<summary>Click to expand benchmark configuration</summary>
+
+| Parameter | Value |
+|:----------|:------|
+| Mode | `autopipeline` |
+| Payload Sizes | 1 KB |
+| Iterations | 100,000 |
+| Warmup | 1,000 |
+| Clients | 1 |
+| Concurrency / Client | 10000 |
+| Total Concurrency | 10000 |
+| Repeats | 10 |
+| Cooldown | 2500ms |
+| Platform | linux x64 |
+| Node.js | v22.22.3 |
+| Date | 2026-06-17 14:36:24 |
+
+</details>
+
+---
+
+## 📖 Methodology
+
+- Each benchmark is run in an **isolated worker thread** to prevent GC and JIT cross-contamination
+- Libraries are **alternated** between repeats to reduce ordering bias
+- The Redis server is **flushed and settled** between each benchmark case
+- Payloads use a **deterministic pseudo-random pool** shared by both libraries
+- Elapsed time is the **median** across all repeat samples
+- Spread is the **coefficient of variation** (σ / median × 100%)
 
 </div>
 
