@@ -1,6 +1,11 @@
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
+import { deserializeConfig } from '../configuration.ts';
+import { generateMarkdownReport } from './index.ts';
+import { resolveLocale } from './locales/index.ts';
+import { loadSnapshot, mergeSnapshots } from './snapshot.ts';
+
 const MARKER = '<div id="benchmark">';
 const DIV_OPEN = /<div[\s>]/gi;
 const DIV_CLOSE = /<\/div>/gi;
@@ -40,12 +45,18 @@ function findClosingDiv(content: string, afterIndex: number): number {
 const processArguments = process.argv.slice(2);
 
 if (processArguments.length < 1) {
-  console.error('Usage: benchmark:replace:readme <benchmark-report.md>');
+  console.error(
+    'Usage: benchmark:replace:readme <snapshot.benchmark> [snapshot2.benchmark ...]',
+  );
   process.exit(1);
 }
 
-const reportPath = resolve(processArguments[0]);
-const report = await readFile(reportPath, 'utf-8');
+const snapshotPaths = processArguments;
+const snapshots = await Promise.all(
+  snapshotPaths.map((path) => loadSnapshot(path)),
+);
+const merged = mergeSnapshots(snapshots);
+const configuration = deserializeConfig(merged.configuration);
 
 const projectRoot = resolve('.');
 const entries = await readdir(projectRoot);
@@ -81,7 +92,15 @@ for (const readmeFile of readmeFiles) {
     continue;
   }
 
-  const section = `${MARKER}\n\n## 📊 Benchmarks\n\n${report.trimEnd()}\n\n</div>`;
+  const locale = resolveLocale(readmeFile);
+  const report = generateMarkdownReport(
+    merged.results,
+    merged.baselineLibrary,
+    configuration,
+    locale,
+  );
+
+  const section = `${MARKER}\n\n${locale.sectionTitle}\n\n${report.trimEnd()}\n\n</div>`;
 
   const updated =
     readme.slice(0, startIndex) +
@@ -90,7 +109,10 @@ for (const readmeFile of readmeFiles) {
 
   await writeFile(readmePath, updated, 'utf-8');
   updatedCount += 1;
-  console.log(`Updated ${readmeFile}`);
+
+  const langCode =
+    readmeFile.match(/\.([a-z]{2}(?:-[a-z]{2})?)\.md$/i)?.[1] ?? 'en';
+  console.log(`Updated ${readmeFile} (locale: ${langCode})`);
 }
 
 console.log(`Done: ${updatedCount} file(s) updated.`);

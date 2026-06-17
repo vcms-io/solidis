@@ -8,6 +8,7 @@ import { loadSnapshot, mergeSnapshots } from './snapshot.ts';
 const processArguments = process.argv.slice(2);
 const snapshotPaths: string[] = [];
 let outputPath = './benchmark.md';
+let snapshotOutputPath: string | undefined;
 
 for (let index = 0; index < processArguments.length; index += 1) {
   const argument = processArguments[index];
@@ -22,6 +23,16 @@ for (let index = 0; index < processArguments.length; index += 1) {
 
     outputPath = nextValue;
     index += 1;
+  } else if (argument === '--snapshot' || argument === '-s') {
+    const nextValue = processArguments[index + 1];
+
+    if (!nextValue) {
+      console.error('Missing value for --snapshot');
+      process.exit(1);
+    }
+
+    snapshotOutputPath = nextValue;
+    index += 1;
   } else {
     snapshotPaths.push(argument);
   }
@@ -29,7 +40,7 @@ for (let index = 0; index < processArguments.length; index += 1) {
 
 if (snapshotPaths.length === 0) {
   console.error(
-    'Usage: benchmark:merge <file1.benchmark> <file2.benchmark> ... [-o output.md]',
+    'Usage: benchmark:merge <file1.benchmark> <file2.benchmark> ... [-o output.md] [-s merged.benchmark]',
   );
   process.exit(1);
 }
@@ -49,6 +60,17 @@ const markdown = generateMarkdownReport(
 const resolvedOutputPath = resolve(outputPath);
 
 await writeFile(resolvedOutputPath, markdown, 'utf-8');
+
+if (snapshotOutputPath) {
+  const resolvedSnapshotPath = resolve(snapshotOutputPath);
+
+  await writeFile(
+    resolvedSnapshotPath,
+    JSON.stringify(merged, null, 2),
+    'utf-8',
+  );
+  console.log(`  Snapshot: ${resolvedSnapshotPath}`);
+}
 
 console.log(
   `Merged ${snapshotPaths.length} snapshot(s) from suite "${merged.suiteName}"`,

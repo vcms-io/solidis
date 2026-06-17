@@ -97,7 +97,7 @@ jobs:
           path: snapshots
 
       - name: Merge snapshots
-        run: npm run benchmark:merge -- snapshots/**/*.benchmark -o benchmark-report.md
+        run: npm run benchmark:merge -- snapshots/**/*.benchmark -o benchmark-report.md -s merged.benchmark
 
       - name: Check if PR should be created
         id: check
@@ -112,7 +112,7 @@ jobs:
 
       - name: Update README files
         if: steps.check.outputs.pr == 'true'
-        run: npm run benchmark:replace:readme -- benchmark-report.md
+        run: npm run benchmark:replace:readme -- merged.benchmark
 
       - name: Create pull request
         if: steps.check.outputs.pr == 'true'
@@ -128,5 +128,5 @@ jobs:
 
             - Ran **19** benchmark cases independently
             - Merged all results into a single report
-            - Updated the benchmark section in `README.md`
+            - Updated the benchmark section in all `README*.md` files (localized)
           labels: benchmark,automated
