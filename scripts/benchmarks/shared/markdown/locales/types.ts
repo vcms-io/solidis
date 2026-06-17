@@ -3,7 +3,7 @@ export interface BenchmarkLocale {
 
   reportTitle(baseline: string): string;
   generatedOnPrefix: string;
-  upToFaster(percent: number, baseline: string): string;
+  upToFaster(ratio: string, baseline: string): string;
 
   benchmarksWon(wins: number, total: number): string;
   averageSpeedImprovement(percent: number): string;
