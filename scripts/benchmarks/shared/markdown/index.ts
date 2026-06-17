@@ -134,6 +134,15 @@ function makeProgressBar(ratio: number | null, maximumRatio: number): string {
   return '█'.repeat(filled) + '░'.repeat(10 - filled);
 }
 
+function formatCommands(raw: string): string {
+  const inner = raw
+    .split('+')
+    .map((cmd) => `<kbd>${cmd}</kbd>`)
+    .join(' ');
+
+  return `<sup><sub>${inner}</sub></sup>`;
+}
+
 function formatOperationName(
   raw: string,
   displayNames: Record<string, string>,
@@ -145,14 +154,12 @@ function formatOperationName(
   const display = displayNames[raw] ?? raw;
 
   if (colonIndex === -1) {
-    return { display, commands: raw.toUpperCase() };
+    return { display, commands: formatCommands(raw.toUpperCase()) };
   }
-
-  const commands = raw.slice(colonIndex + 1);
 
   return {
     display,
-    commands: commands.replace(/\+/g, ' + '),
+    commands: formatCommands(raw.slice(colonIndex + 1)),
   };
 }
 
