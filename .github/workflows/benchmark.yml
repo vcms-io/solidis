@@ -104,10 +104,10 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" != "push" ]; then
             echo "pr=false" >> "$GITHUB_OUTPUT"
-          elif ! git diff --name-only HEAD~1 HEAD | grep -q '^sources/'; then
-            echo "pr=false" >> "$GITHUB_OUTPUT"
-          else
+          elif git diff --name-only HEAD~1 HEAD | grep -qE '^(sources/|\.github/workflows/benchmark\.yml)'; then
             echo "pr=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "pr=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Update README files
