@@ -5,10 +5,12 @@ on:
     branches: [main]
     paths:
       - 'sources/**'
+      - 'scripts/benchmarks/**'
       - '.github/workflows/benchmark.yml'
   pull_request:
     branches: [main]
     paths:
+      - 'scripts/benchmarks/**'
       - '.github/workflows/benchmark.yml'
 
 concurrency:
@@ -104,7 +106,7 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" != "push" ]; then
             echo "pr=false" >> "$GITHUB_OUTPUT"
-          elif git diff --name-only HEAD~1 HEAD | grep -qE '^(sources/|\.github/workflows/benchmark\.yml)'; then
+          elif git diff --name-only HEAD~1 HEAD | grep -qE '^(sources/|scripts/benchmarks/|\.github/workflows/benchmark\.yml)'; then
             echo "pr=true" >> "$GITHUB_OUTPUT"
           else
             echo "pr=false" >> "$GITHUB_OUTPUT"
