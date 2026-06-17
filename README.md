@@ -56,33 +56,33 @@ The library is designed for minimal bundle size with maximum type safety and per
 
 # ⚡ Solidis vs ioredis ⚡
 
-<small>Generated on 2026-06-17 15:08:14 · linux x64 · Node.js v22.22.3</small>
-### Up to **113% faster** than ioredis! 🚀
+<small>Generated on 2026-06-17 15:28:53 · linux x64 · Node.js v22.22.3</small>
+### Up to **2.1x faster** than ioredis! 🚀
 
 ---
 <br/>
 
-**15** / **15** benchmarks won · **75%** average speed improvement · **113%** peak speed improvement
+**15** / **15** benchmarks won · **76%** average speed improvement · **113%** peak speed improvement
 
 *100,000 iterations × 10,000 concurrency · 1 KB payload · 10 repeats*
 
 | | Benchmark | Commands | solidis | ioredis | Difference | Performance |
 |---:|:---|:---:|:---:|:---:|:---:|:---|
-| 🥇 | **Set Mutation** | SADD + SISMEMBER + SREM | **1634ms** | 3483ms | **+113%** 🔥🔥 | `██████████` |
-| 🥈 | **List Range** | LPUSH + RPUSH + LRANGE | **1796ms** | 3688ms | **+105%** 🔥🔥 | `█████████░` |
-| 🥉 | **List Mutation** | LPUSH + RPUSH + LPOP + RPOP + LLEN | **2601ms** | 4961ms | **+91%** 🔥🔥 | `████████░░` |
-| 4. | **Hash Mutation** | HMSET + HMGET + HDEL | **1826ms** | 3447ms | **+89%** 🔥🔥 | `████████░░` |
-| 5. | **Multi-Key** | MSET + MGET | **1719ms** | 3243ms | **+89%** 🔥🔥 | `████████░░` |
-| 6. | **Sorted Set** | ZADD + ZRANGE + ZREM | **1813ms** | 3247ms | **+79%** 🔥🔥 | `███████░░░` |
-| 7. | **Stream** | XADD + XRANGE + XLEN | **1849ms** | 3297ms | **+78%** 🔥🔥 | `███████░░░` |
-| 8. | **Set** | SET | **776ms** | 1373ms | **+77%** 🔥🔥 | `███████░░░` |
-| 9. | **Expire** | SET + EXPIRE + TTL | **1459ms** | 2539ms | **+74%** 🔥🔥 | `███████░░░` |
-| 10. | **Set Read** | SADD + SISMEMBER + SMEMBERS | **1480ms** | 2573ms | **+74%** 🔥🔥 | `███████░░░` |
-| 11. | **Pipeline Mixed** | SET + INCR + GET | **1566ms** | 2503ms | **+60%** 🔥 | `█████░░░░░` |
-| 12. | **Non-Transaction** | SETPX + GET | **1346ms** | 2065ms | **+53%** 🔥 | `█████░░░░░` |
-| 13. | **Hash Round-Trip** | HSET + HGET + HGETALL | **1837ms** | 2795ms | **+52%** 🔥 | `█████░░░░░` |
-| 14. | **Counter** | INCR + DECR | **904ms** | 1373ms | **+52%** 🔥 | `█████░░░░░` |
-| 15. | **Get Buffer** | GETBUFFER | **616ms** | 895ms | **+45%** 🔥 | `████░░░░░░` |
+| 🥇 | **Set Mutation** | SADD + SISMEMBER + SREM | **1586ms** | 3371ms | **2.1x** 🔥🔥 | `██████████` |
+| 🥈 | **List Range** | LPUSH + RPUSH + LRANGE | **1858ms** | 3687ms | **2.0x** 🔥🔥 | `█████████░` |
+| 🥉 | **Hash Mutation** | HMSET + HMGET + HDEL | **1780ms** | 3397ms | **1.9x** 🔥🔥 | `████████░░` |
+| 4. | **List Mutation** | LPUSH + RPUSH + LPOP + RPOP + LLEN | **2294ms** | 4375ms | **1.9x** 🔥🔥 | `████████░░` |
+| 5. | **Multi-Key** | MSET + MGET | **1725ms** | 3186ms | **1.8x** 🔥🔥 | `████████░░` |
+| 6. | **Set** | SET | **726ms** | 1304ms | **1.8x** 🔥🔥 | `███████░░░` |
+| 7. | **Sorted Set** | ZADD + ZRANGE + ZREM | **1811ms** | 3228ms | **1.8x** 🔥🔥 | `███████░░░` |
+| 8. | **Expire** | SET + EXPIRE + TTL | **1483ms** | 2642ms | **1.8x** 🔥🔥 | `███████░░░` |
+| 9. | **Stream** | XADD + XRANGE + XLEN | **1771ms** | 3125ms | **1.8x** 🔥🔥 | `███████░░░` |
+| 10. | **Set Read** | SADD + SISMEMBER + SMEMBERS | **1518ms** | 2646ms | **1.7x** 🔥🔥 | `███████░░░` |
+| 11. | **Non-Transaction** | SETPX + GET | **1294ms** | 2184ms | **1.7x** 🔥🔥 | `██████░░░░` |
+| 12. | **Pipeline Mixed** | SET + INCR + GET | **1775ms** | 2884ms | **1.6x** 🔥🔥 | `██████░░░░` |
+| 13. | **Hash Round-Trip** | HSET + HGET + HGETALL | **1749ms** | 2720ms | **1.6x** 🔥 | `█████░░░░░` |
+| 14. | **Counter** | INCR + DECR | **936ms** | 1432ms | **1.5x** 🔥 | `█████░░░░░` |
+| 15. | **Get Buffer** | GETBUFFER | **641ms** | 894ms | **1.4x** 🔥 | `████░░░░░░` |
 
 ### Non Strictly Comparable Benchmarks
 
@@ -90,10 +90,10 @@ The library is designed for minimal bundle size with maximum type safety and per
 
 | | Benchmark | Commands | solidis | ioredis | Difference | Performance |
 |---:|:---|:---:|:---:|:---:|:---:|:---|
-| 16. | **Transaction** | SET + EXPIRE + GET | 1307ms | 6187ms | **+373%** 🔥🔥 | `██████████` |
-| 17. | **Transaction Mixed** | SET + GET | 1690ms | 7368ms | **+336%** 🔥🔥 | `██████████` |
-| 18. | **Pub/Sub** | PUBLISH + MESSAGE | 797ms | 2698ms | **+238%** 🔥🔥 | `██████████` |
-| 19. | **Info / Config** | INFO + CONFIGGET | 1062ms | 1983ms | **+87%** 🔥🔥 | `████████░░` |
+| 16. | **Transaction** | SET + EXPIRE + GET | 1276ms | 5043ms | **4.0x** 🔥🔥 | `██████████` |
+| 17. | **Transaction Mixed** | SET + GET | 1660ms | 6084ms | **3.7x** 🔥🔥 | `██████████` |
+| 18. | **Pub/Sub** | PUBLISH + MESSAGE | 757ms | 2538ms | **3.4x** 🔥🔥 | `██████████` |
+| 19. | **Info / Config** | INFO + CONFIGGET | 1175ms | 2142ms | **1.8x** 🔥🔥 | `███████░░░` |
 
 <sub>Ranked by performance gain of `solidis` over `ioredis` (baseline). Elapsed = median time across repeats.</sub>
 
@@ -110,36 +110,36 @@ The library is designed for minimal bundle size with maximum type safety and per
 
 | Benchmark | Library | ops/s | cmds/s | Elapsed | Spread |
 |:---|:---|---:|---:|---:|---:|
-| **Set Mutation: SADD + SISMEMBER + SREM**<br/><sub>1 KB</sub> | **solidis** | 61.2K | 183.5K | 1634ms | ±6.5% |
-|  | ioredis | 28.7K | 86.1K | 3483ms | ±2.0% |
-| **List Range: LPUSH + RPUSH + LRANGE**<br/><sub>1 KB</sub> | **solidis** | 55.7K | 167.0K | 1796ms | ±5.1% |
-|  | ioredis | 27.1K | 81.3K | 3688ms | ±1.4% |
-| **List Mutation: LPUSH + RPUSH + LPOP + RPOP + LLEN**<br/><sub>1 KB</sub> | **solidis** | 38.4K | 192.2K | 2601ms | ±2.1% |
-|  | ioredis | 20.2K | 100.8K | 4961ms | ±1.2% |
-| **Hash Mutation: HMSET + HMGET + HDEL**<br/><sub>1 KB</sub> | **solidis** | 54.8K | 164.3K | 1826ms | ±13.3% |
-|  | ioredis | 29.0K | 87.0K | 3447ms | ±1.6% |
-| **Multi-Key: MSET + MGET**<br/><sub>1 KB</sub> | **solidis** | 58.2K | 116.3K | 1719ms | ±2.8% |
-|  | ioredis | 30.8K | 61.7K | 3243ms | ±3.5% |
-| **Sorted Set: ZADD + ZRANGE + ZREM**<br/><sub>1 KB</sub> | **solidis** | 55.2K | 165.5K | 1813ms | ±5.2% |
-|  | ioredis | 30.8K | 92.4K | 3247ms | ±0.9% |
-| **Stream: XADD + XRANGE + XLEN**<br/><sub>1 KB</sub> | **solidis** | 54.1K | 162.2K | 1849ms | ±10.4% |
-|  | ioredis | 30.3K | 91.0K | 3297ms | ±2.9% |
-| **Set: SET**<br/><sub>1 KB</sub> | **solidis** | 128.8K | 128.8K | 776ms | ±3.4% |
-|  | ioredis | 72.8K | 72.8K | 1373ms | ±1.4% |
-| **Expire: SET + EXPIRE + TTL**<br/><sub>1 KB</sub> | **solidis** | 68.5K | 205.6K | 1459ms | ±10.1% |
-|  | ioredis | 39.4K | 118.2K | 2539ms | ±1.5% |
-| **Set Read: SADD + SISMEMBER + SMEMBERS**<br/><sub>1 KB</sub> | **solidis** | 67.6K | 202.8K | 1480ms | ±3.1% |
-|  | ioredis | 38.9K | 116.6K | 2573ms | ±2.8% |
-| **Pipeline Mixed: SET + INCR + GET**<br/><sub>1 KB</sub> | **solidis** | 63.9K | 191.6K | 1566ms | ±3.6% |
-|  | ioredis | 40.0K | 119.9K | 2503ms | ±0.7% |
-| **Non-Transaction: SETPX + GET**<br/><sub>1 KB</sub> | **solidis** | 74.3K | 148.6K | 1346ms | ±6.0% |
-|  | ioredis | 48.4K | 96.8K | 2065ms | ±2.2% |
-| **Hash Round-Trip: HSET + HGET + HGETALL**<br/><sub>1 KB</sub> | **solidis** | 54.4K | 163.3K | 1837ms | ±6.3% |
-|  | ioredis | 35.8K | 107.3K | 2795ms | ±1.7% |
-| **Counter: INCR + DECR**<br/><sub>1 KB</sub> | **solidis** | 110.6K | 221.3K | 904ms | ±2.4% |
-|  | ioredis | 72.8K | 145.7K | 1373ms | ±1.3% |
-| **Get Buffer: GETBUFFER**<br/><sub>1 KB</sub> | **solidis** | 162.3K | 162.3K | 616ms | ±4.6% |
-|  | ioredis | 111.7K | 111.7K | 895ms | ±2.0% |
+| **Set Mutation: SADD + SISMEMBER + SREM**<br/><sub>1 KB</sub> | **solidis** | 63.1K | 189.2K | 1586ms | ±2.3% |
+|  | ioredis | 29.7K | 89.0K | 3371ms | ±2.6% |
+| **List Range: LPUSH + RPUSH + LRANGE**<br/><sub>1 KB</sub> | **solidis** | 53.8K | 161.4K | 1858ms | ±10.6% |
+|  | ioredis | 27.1K | 81.4K | 3687ms | ±0.9% |
+| **Hash Mutation: HMSET + HMGET + HDEL**<br/><sub>1 KB</sub> | **solidis** | 56.2K | 168.6K | 1780ms | ±5.7% |
+|  | ioredis | 29.4K | 88.3K | 3397ms | ±1.0% |
+| **List Mutation: LPUSH + RPUSH + LPOP + RPOP + LLEN**<br/><sub>1 KB</sub> | **solidis** | 43.6K | 218.0K | 2294ms | ±1.3% |
+|  | ioredis | 22.9K | 114.3K | 4375ms | ±1.5% |
+| **Multi-Key: MSET + MGET**<br/><sub>1 KB</sub> | **solidis** | 58.0K | 115.9K | 1725ms | ±7.9% |
+|  | ioredis | 31.4K | 62.8K | 3186ms | ±4.8% |
+| **Set: SET**<br/><sub>1 KB</sub> | **solidis** | 137.7K | 137.7K | 726ms | ±2.8% |
+|  | ioredis | 76.7K | 76.7K | 1304ms | ±4.7% |
+| **Sorted Set: ZADD + ZRANGE + ZREM**<br/><sub>1 KB</sub> | **solidis** | 55.2K | 165.7K | 1811ms | ±7.2% |
+|  | ioredis | 31.0K | 93.0K | 3228ms | ±0.7% |
+| **Expire: SET + EXPIRE + TTL**<br/><sub>1 KB</sub> | **solidis** | 67.4K | 202.3K | 1483ms | ±2.4% |
+|  | ioredis | 37.8K | 113.5K | 2642ms | ±2.4% |
+| **Stream: XADD + XRANGE + XLEN**<br/><sub>1 KB</sub> | **solidis** | 56.5K | 169.4K | 1771ms | ±6.6% |
+|  | ioredis | 32.0K | 96.0K | 3125ms | ±2.8% |
+| **Set Read: SADD + SISMEMBER + SMEMBERS**<br/><sub>1 KB</sub> | **solidis** | 65.9K | 197.7K | 1518ms | ±4.1% |
+|  | ioredis | 37.8K | 113.4K | 2646ms | ±1.6% |
+| **Non-Transaction: SETPX + GET**<br/><sub>1 KB</sub> | **solidis** | 77.3K | 154.5K | 1294ms | ±5.9% |
+|  | ioredis | 45.8K | 91.6K | 2184ms | ±1.4% |
+| **Pipeline Mixed: SET + INCR + GET**<br/><sub>1 KB</sub> | **solidis** | 56.3K | 169.0K | 1775ms | ±5.4% |
+|  | ioredis | 34.7K | 104.0K | 2884ms | ±4.6% |
+| **Hash Round-Trip: HSET + HGET + HGETALL**<br/><sub>1 KB</sub> | **solidis** | 57.2K | 171.5K | 1749ms | ±5.6% |
+|  | ioredis | 36.8K | 110.3K | 2720ms | ±1.2% |
+| **Counter: INCR + DECR**<br/><sub>1 KB</sub> | **solidis** | 106.9K | 213.7K | 936ms | ±2.8% |
+|  | ioredis | 69.8K | 139.6K | 1432ms | ±1.0% |
+| **Get Buffer: GETBUFFER**<br/><sub>1 KB</sub> | **solidis** | 155.9K | 155.9K | 641ms | ±2.4% |
+|  | ioredis | 111.8K | 111.8K | 894ms | ±3.5% |
 
 </details>
 
@@ -163,7 +163,7 @@ The library is designed for minimal bundle size with maximum type safety and per
 | Cooldown | 2500ms |
 | Platform | linux x64 |
 | Node.js | v22.22.3 |
-| Date | 2026-06-17 15:08:14 |
+| Date | 2026-06-17 15:28:53 |
 
 </details>
 
