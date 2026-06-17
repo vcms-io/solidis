@@ -82,14 +82,19 @@ export class SolidisConnection extends EventEmitter {
       this.#connectTimeout = null;
     }
 
-    if (this.#socket) {
-      this.#socket.end(() => {
-        this.#socket?.removeAllListeners();
-        this.#socket?.destroy();
-        this.#socket?.unref();
-        this.#socket = null;
-      });
+    const socket = this.#socket;
+
+    if (!socket) {
+      return;
     }
+
+    this.#socket = null;
+
+    socket.end(() => {
+      socket.removeAllListeners();
+      socket.destroy();
+      socket.unref();
+    });
   }
 
   public quit() {
@@ -100,6 +105,10 @@ export class SolidisConnection extends EventEmitter {
   }
 
   public reset() {
+    if (this.#connectLock) {
+      return;
+    }
+
     const socket = this.#socket;
 
     if (!socket) {
