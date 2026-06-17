@@ -2,8 +2,10 @@ import { writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import { formatLargeNumber, formatPayloadSize } from '../utils.ts';
+import { en } from './locales/index.ts';
 
 import type { BenchConfig, ComparedResult, LibraryName } from '../types.ts';
+import type { BenchmarkLocale } from './locales/types.ts';
 
 interface ResultGroup {
   operation: string;
@@ -134,34 +136,15 @@ function makeProgressBar(ratio: number | null, maximumRatio: number): string {
   return '█'.repeat(filled) + '░'.repeat(10 - filled);
 }
 
-const OPERATION_DISPLAY_NAMES: Record<string, string> = {
-  set: 'Set',
-  getBuffer: 'Get Buffer',
-  'hash:HSET+HGET+HGETALL': 'Hash Round-Trip',
-  'hash:HMSET+HMGET+HDEL': 'Hash Mutation',
-  'set:SADD+SISMEMBER+SMEMBERS': 'Set Read',
-  'set:SADD+SISMEMBER+SREM': 'Set Mutation',
-  'expire:SET+EXPIRE+TTL': 'Expire',
-  'nonTx:SETPX+GET': 'Non-Transaction',
-  'list:LPUSH+RPUSH+LRANGE': 'List Range',
-  'list:LPUSH+RPUSH+LPOP+RPOP+LLEN': 'List Mutation',
-  'counter:INCR+DECR': 'Counter',
-  'transaction:SET+EXPIRE+GET': 'Transaction',
-  'transactionMixed:SET+GET': 'Transaction Mixed',
-  'multiKey:MSET+MGET': 'Multi-Key',
-  'pipeline:SET+INCR+GET': 'Pipeline Mixed',
-  'stream:XADD+XRANGE+XLEN': 'Stream',
-  'zset:ZADD+ZRANGE+ZREM': 'Sorted Set',
-  'info:INFO+CONFIGGET': 'Info / Config',
-  'pubsub:PUBLISH+MESSAGE': 'Pub/Sub',
-};
-
-function formatOperationName(raw: string): {
+function formatOperationName(
+  raw: string,
+  displayNames: Record<string, string>,
+): {
   display: string;
   commands: string;
 } {
   const colonIndex = raw.indexOf(':');
-  const display = OPERATION_DISPLAY_NAMES[raw] ?? raw;
+  const display = displayNames[raw] ?? raw;
 
   if (colonIndex === -1) {
     return { display, commands: raw.toUpperCase() };
@@ -187,26 +170,37 @@ function formatDateTime(): string {
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
-function buildConfigurationTable(configuration: BenchConfig): string {
+function buildConfigurationTable(
+  configuration: BenchConfig,
+  locale: BenchmarkLocale,
+): string {
+  const labels = locale.configLabels;
+
   const rows = [
-    ['Mode', `\`${configuration.mode}\``],
-    ['Payload Sizes', configuration.sizes.map(formatPayloadSize).join(', ')],
-    ['Iterations', configuration.iterations.toLocaleString()],
-    ['Warmup', configuration.warmup.toLocaleString()],
-    ['Clients', `${configuration.clients}`],
-    ['Concurrency / Client', `${configuration.concurrency}`],
+    [labels.mode, `\`${configuration.mode}\``],
     [
-      'Total Concurrency',
+      labels.payloadSizes,
+      configuration.sizes.map(formatPayloadSize).join(', '),
+    ],
+    [labels.iterations, configuration.iterations.toLocaleString()],
+    [labels.warmup, configuration.warmup.toLocaleString()],
+    [labels.clients, `${configuration.clients}`],
+    [labels.concurrencyPerClient, `${configuration.concurrency}`],
+    [
+      labels.totalConcurrency,
       `${configuration.clients * configuration.concurrency}`,
     ],
-    ['Repeats', `${configuration.repeats}`],
-    ['Cooldown', `${configuration.cooldownMs}ms`],
-    ['Platform', `${process.platform} ${process.arch}`],
-    ['Node.js', process.version],
-    ['Date', formatDateTime()],
+    [labels.repeats, `${configuration.repeats}`],
+    [labels.cooldown, `${configuration.cooldownMs}ms`],
+    [labels.platform, `${process.platform} ${process.arch}`],
+    [labels.nodeJs, process.version],
+    [labels.date, formatDateTime()],
   ];
 
-  const lines: string[] = ['| Parameter | Value |', '|:----------|:------|'];
+  const lines: string[] = [
+    `| ${labels.parameter} | ${labels.value} |`,
+    '|:----------|:------|',
+  ];
 
   for (const [key, value] of rows) {
     lines.push(`| ${key} | ${value} |`);
@@ -291,15 +285,18 @@ function buildMainTable(
   baselineLibrary: LibraryName,
   solidisLibrary: LibraryName,
   maximumRatio: number,
+  locale: BenchmarkLocale,
 ): TableBuildResult {
   const comparableGroups = groups.filter((group) => group.comparable);
 
   if (comparableGroups.length === 0) {
-    return { table: '*No comparable results.*', lastRank: 0 };
+    return { table: locale.noComparableResults, lastRank: 0 };
   }
 
+  const h = locale.mainTableHeaders;
+
   const header = [
-    `| | Benchmark | Commands | ${solidisLibrary} | ${baselineLibrary} | Difference | Performance |`,
+    `| | ${h.benchmark} | ${h.commands} | ${solidisLibrary} | ${baselineLibrary} | ${h.difference} | ${h.performance} |`,
     '|---:|:---|:---:|:---:|:---:|:---:|:---|',
   ];
 
@@ -316,7 +313,10 @@ function buildMainTable(
       continue;
     }
 
-    const { display, commands } = formatOperationName(group.operation);
+    const { display, commands } = formatOperationName(
+      group.operation,
+      locale.operationDisplayNames,
+    );
 
     const solidisElapsed = formatElapsedMilliseconds(
       solidisResult.elapsedMs,
@@ -353,6 +353,7 @@ function buildNonComparableTable(
   solidisLibrary: LibraryName,
   startRank: number,
   maximumRatio: number,
+  locale: BenchmarkLocale,
 ): string {
   const nonComparableGroups = groups.filter((group) => !group.comparable);
 
@@ -360,8 +361,10 @@ function buildNonComparableTable(
     return '';
   }
 
+  const h = locale.mainTableHeaders;
+
   const header = [
-    `| | Benchmark | Commands | ${solidisLibrary} | ${baselineLibrary} | Difference | Performance |`,
+    `| | ${h.benchmark} | ${h.commands} | ${solidisLibrary} | ${baselineLibrary} | ${h.difference} | ${h.performance} |`,
     '|---:|:---|:---:|:---:|:---:|:---:|:---|',
   ];
 
@@ -378,7 +381,10 @@ function buildNonComparableTable(
       continue;
     }
 
-    const { display, commands } = formatOperationName(group.operation);
+    const { display, commands } = formatOperationName(
+      group.operation,
+      locale.operationDisplayNames,
+    );
 
     const solidisElapsed = formatElapsedMilliseconds(
       solidisResult.elapsedMs,
@@ -412,6 +418,7 @@ function buildNonComparableTable(
 function buildDetailedMetricsTable(
   groups: ResultGroup[],
   solidisLibrary: LibraryName,
+  locale: BenchmarkLocale,
 ): string {
   const comparableGroups = groups.filter((group) => group.comparable);
 
@@ -419,8 +426,10 @@ function buildDetailedMetricsTable(
     return '';
   }
 
+  const h = locale.detailedMetricsHeaders;
+
   const header = [
-    '| Benchmark | Library | ops/s | cmds/s | Elapsed | Spread |',
+    `| ${h.benchmark} | ${h.library} | ${h.opsPerSec} | ${h.cmdsPerSec} | ${h.elapsed} | ${h.spread} |`,
     '|:---|:---|---:|---:|---:|---:|',
   ];
 
@@ -437,7 +446,10 @@ function buildDetailedMetricsTable(
       return 0;
     });
 
-    const { display, commands } = formatOperationName(group.operation);
+    const { display, commands } = formatOperationName(
+      group.operation,
+      locale.operationDisplayNames,
+    );
     const label = commands ? `${display}: ${commands}` : display;
     let isFirstInGroup = true;
 
@@ -480,6 +492,7 @@ export function generateMarkdownReport(
   results: ComparedResult[],
   baselineLibrary: LibraryName,
   configuration: BenchConfig,
+  locale: BenchmarkLocale = en,
 ): string {
   const solidisLibrary = findSolidisLibrary(results);
   const sortedGroups = buildSortedResultGroups(results);
@@ -493,13 +506,11 @@ export function generateMarkdownReport(
   const summary = buildSummaryStats(results, solidisLibrary);
   const totalConcurrency = configuration.clients * configuration.concurrency;
   const payloadLabel = configuration.sizes.map(formatPayloadSize).join(', ');
-  const payloadSuffix = configuration.sizes.length > 1 ? 's' : '';
-  const repeatSuffix = configuration.repeats > 1 ? 's' : '';
 
   const summaryItems = [
-    `**${summary.winsCount}** / **${summary.totalComparable}** benchmarks won`,
-    `**${Math.round(summary.averageSpeedBoost)}%** average speed improvement`,
-    `**${Math.round(summary.maximumSpeedBoost)}%** peak speed improvement`,
+    locale.benchmarksWon(summary.winsCount, summary.totalComparable),
+    locale.averageSpeedImprovement(Math.round(summary.averageSpeedBoost)),
+    locale.peakSpeedImprovement(Math.round(summary.maximumSpeedBoost)),
   ];
 
   const mainTableResult = buildMainTable(
@@ -507,6 +518,7 @@ export function generateMarkdownReport(
     baselineLibrary,
     solidisLibrary,
     maximumRatio,
+    locale,
   );
 
   const nonComparableTable = buildNonComparableTable(
@@ -515,19 +527,20 @@ export function generateMarkdownReport(
     solidisLibrary,
     mainTableResult.lastRank,
     maximumRatio,
+    locale,
   );
 
   const lines: string[] = [
     '<div align="center">',
     '',
-    `# ⚡ Solidis vs ${baselineLibrary} ⚡`,
+    `# ${locale.reportTitle(baselineLibrary)}`,
     '',
-    `<small>Generated on ${formatDateTime()} · ${process.platform} ${process.arch} · Node.js ${process.version}</small>`,
+    `<small>${locale.generatedOnPrefix} ${formatDateTime()} · ${process.platform} ${process.arch} · Node.js ${process.version}</small>`,
   ];
 
   if (summary.maximumSpeedBoost > 0) {
     lines.push(
-      `### Up to **${Math.round(summary.maximumSpeedBoost)}% faster** than ${baselineLibrary}! 🚀`,
+      `### ${locale.upToFaster(Math.round(summary.maximumSpeedBoost), baselineLibrary)}`,
       '',
     );
   }
@@ -538,7 +551,13 @@ export function generateMarkdownReport(
     '',
     `${summaryItems.join(' · ')}`,
     '',
-    `*${configuration.iterations.toLocaleString()} iterations × ${totalConcurrency} concurrency · ${payloadLabel} payload${payloadSuffix} · ${configuration.repeats} repeat${repeatSuffix}*`,
+    locale.subtitle(
+      configuration.iterations,
+      totalConcurrency,
+      payloadLabel,
+      configuration.sizes.length,
+      configuration.repeats,
+    ),
     '',
     mainTableResult.table,
     '',
@@ -546,9 +565,9 @@ export function generateMarkdownReport(
 
   if (nonComparableTable) {
     lines.push(
-      '### Non Strictly Comparable Benchmarks',
+      locale.nonComparableTitle,
       '',
-      '<sub>These benchmarks have library-specific behavior that prevents a strictly fair comparison.</sub>',
+      `<sub>${locale.nonComparableDescription}</sub>`,
       '',
       nonComparableTable,
       '',
@@ -556,44 +575,39 @@ export function generateMarkdownReport(
   }
 
   lines.push(
-    `<sub>Ranked by performance gain of \`${solidisLibrary}\` over \`${baselineLibrary}\` (baseline). Elapsed = median time across repeats.</sub>`,
+    `<sub>${locale.rankingFootnote(solidisLibrary, baselineLibrary)}</sub>`,
     '',
     '</div>',
     '',
     '<br/>',
     '',
-    '## 📊 Detailed Metrics',
+    locale.detailedMetricsTitle,
     '',
-    '<sub>All metrics per library: operations/s, commands/s, median elapsed time, and spread (coefficient of variation).</sub>',
+    `<sub>${locale.detailedMetricsDescription}</sub>`,
     '',
     '<details>',
-    '<summary>Click to expand detailed metrics table</summary>',
+    `<summary>${locale.expandDetailedMetrics}</summary>`,
     '',
-    buildDetailedMetricsTable(sortedGroups, solidisLibrary),
+    buildDetailedMetricsTable(sortedGroups, solidisLibrary, locale),
     '',
     '</details>',
     '',
     '---',
     '',
-    '## ⚙️ Configuration',
+    locale.configurationTitle,
     '',
     '<details>',
-    '<summary>Click to expand benchmark configuration</summary>',
+    `<summary>${locale.expandConfiguration}</summary>`,
     '',
-    buildConfigurationTable(configuration),
+    buildConfigurationTable(configuration, locale),
     '',
     '</details>',
     '',
     '---',
     '',
-    '## 📖 Methodology',
+    locale.methodologyTitle,
     '',
-    '- Each benchmark is run in an **isolated worker thread** to prevent GC and JIT cross-contamination',
-    '- Libraries are **alternated** between repeats to reduce ordering bias',
-    '- The Redis server is **flushed and settled** between each benchmark case',
-    '- Payloads use a **deterministic pseudo-random pool** shared by both libraries',
-    '- Elapsed time is the **median** across all repeat samples',
-    '- Spread is the **coefficient of variation** (σ / median × 100%)',
+    ...locale.methodologyItems.map((item) => `- ${item}`),
     '',
   );
 
