@@ -477,7 +477,7 @@ export class SolidisRequester {
         return;
       }
 
-      this.#resolveRepliesInChunks(parsedReplies, maxReplyCount, emit);
+      await this.#resolveRepliesInChunks(parsedReplies, maxReplyCount, emit);
 
       if (shouldYield) {
         await new Promise<void>((resolve) => setImmediate(resolve));
@@ -520,7 +520,7 @@ export class SolidisRequester {
     }
   }
 
-  #resolveRepliesInChunks(
+  async #resolveRepliesInChunks(
     parsedReplies: SolidisData[],
     maxChunkSize: number,
     emit: SolidisClientEventHandlers['emit'],
@@ -538,13 +538,15 @@ export class SolidisRequester {
     }
 
     for (let index = 0; index < length; index += maxChunkSize) {
-      setImmediate(() => {
-        this.#resolveReplies(
-          parsedReplies,
-          emit,
-          index,
-          Math.min(index + maxChunkSize, length),
-        );
+      const start = index;
+      const end = Math.min(index + maxChunkSize, length);
+
+      await new Promise<void>((resolve) => {
+        setImmediate(() => {
+          this.#resolveReplies(parsedReplies, emit, start, end);
+
+          resolve();
+        });
       });
     }
   }
