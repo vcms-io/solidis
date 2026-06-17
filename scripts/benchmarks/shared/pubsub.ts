@@ -45,7 +45,10 @@ async function runPubSubMessages(
   );
 }
 
-function getPubSubPublishBatchSize(context: BenchContext, total: number): number {
+function getPubSubPublishBatchSize(
+  context: BenchContext,
+  total: number,
+): number {
   const concurrencyLimit = context.config.clients * context.config.concurrency;
   const payloadLimit = Math.floor(
     pubSubMaxInFlightPayloadBytes / Math.max(1, context.payloadBytes),

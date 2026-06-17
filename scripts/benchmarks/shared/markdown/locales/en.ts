@@ -9,8 +9,8 @@ export const en: BenchmarkLocale = {
 
   reportTitle: (baseline) => `⚡ Solidis vs ${baseline} ⚡`,
   generatedOnPrefix: 'Generated on',
-  upToFaster: (percent, baseline) =>
-    `Up to **${percent}% faster** than ${baseline}! 🚀`,
+  upToFaster: (ratio, baseline) =>
+    `Up to **${ratio} faster** than ${baseline}! 🚀`,
 
   benchmarksWon: (wins, total) => `**${wins}** / **${total}** benchmarks won`,
   averageSpeedImprovement: (percent) =>

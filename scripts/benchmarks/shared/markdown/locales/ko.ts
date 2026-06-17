@@ -5,8 +5,8 @@ export const ko: BenchmarkLocale = {
 
   reportTitle: (baseline) => `⚡ Solidis vs ${baseline} ⚡`,
   generatedOnPrefix: '측정일',
-  upToFaster: (percent, baseline) =>
-    `${baseline} 대비 최대 **${percent}% 빠릅니다**! 🚀`,
+  upToFaster: (ratio, baseline) =>
+    `${baseline} 대비 최대 **${ratio} 빠릅니다**! 🚀`,
 
   benchmarksWon: (wins, total) =>
     `**${total}**개 중 **${wins}**개 벤치마크 우위`,

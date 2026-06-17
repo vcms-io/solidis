@@ -74,18 +74,16 @@ function findSolidisLibrary(results: ComparedResult[]): LibraryName {
   return results[0]?.library ?? 'solidis';
 }
 
-function formatPercentChange(ratio: number | null): string {
+function formatRatio(ratio: number | null): string {
   if (ratio === null) {
     return '-';
   }
 
-  const percentChange = Math.round((ratio - 1) * 100);
-
-  if (percentChange > 0) {
-    return `+${percentChange}%`;
+  if (ratio >= 1) {
+    return `${ratio.toFixed(1)}x`;
   }
 
-  return `${percentChange}%`;
+  return `${ratio.toFixed(1)}x`;
 }
 
 function getPerformanceBadge(ratio: number | null): string {
@@ -327,7 +325,7 @@ function buildMainTable(
       false,
     );
 
-    const difference = formatPercentChange(solidisResult.ratioVsBaseline);
+    const difference = formatRatio(solidisResult.ratioVsBaseline);
     const badge = getPerformanceBadge(solidisResult.ratioVsBaseline);
     const bar = makeProgressBar(solidisResult.ratioVsBaseline, maximumRatio);
 
@@ -395,7 +393,7 @@ function buildNonComparableTable(
       false,
     );
 
-    const difference = formatPercentChange(solidisResult.ratioVsBaseline);
+    const difference = formatRatio(solidisResult.ratioVsBaseline);
     const badge = getPerformanceBadge(solidisResult.ratioVsBaseline);
     const bar = makeProgressBar(solidisResult.ratioVsBaseline, maximumRatio);
 
@@ -539,8 +537,10 @@ export function generateMarkdownReport(
   ];
 
   if (summary.maximumSpeedBoost > 0) {
+    const peakRatio = (summary.maximumSpeedBoost / 100 + 1).toFixed(1);
+
     lines.push(
-      `### ${locale.upToFaster(Math.round(summary.maximumSpeedBoost), baselineLibrary)}`,
+      `### ${locale.upToFaster(`${peakRatio}x`, baselineLibrary)}`,
       '',
     );
   }
