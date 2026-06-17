@@ -30,3 +30,7 @@ node_modules
 
 # Log
 *.log
+
+# Benchmark reports
+benchmark*.md
+*.benchmark

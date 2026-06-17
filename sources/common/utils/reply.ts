@@ -4,7 +4,7 @@ import {
   SolidisPubSubEventNameSet,
 } from '../../index.ts';
 
-import type { SolidisData, SolidisPipelineSubRequest } from '../../index.ts';
+import type { SolidisData } from '../../index.ts';
 
 export function findErrorInReplies(replies: SolidisData): false | RespError {
   if (replies instanceof RespError) {
@@ -54,14 +54,4 @@ export function checkReplyIsMessageEvent(reply: SolidisData[]): boolean {
   }
 
   return SolidisMessageEventNameSet.has(eventName.toString('latin1'));
-}
-
-export function extractSubReplies(
-  parsedReplies: SolidisData[],
-  subRequest: SolidisPipelineSubRequest,
-): SolidisData[] {
-  return parsedReplies.slice(
-    subRequest.cursor,
-    subRequest.cursor + subRequest.span,
-  );
 }

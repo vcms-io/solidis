@@ -1,0 +1,132 @@
+name: Benchmark
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'sources/**'
+      - '.github/workflows/benchmark.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/benchmark.yml'
+
+concurrency:
+  group: benchmark-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    name: ${{ matrix.case }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        case:
+          - set
+          - getBuffer
+          - 'hash:HSET+HGET+HGETALL'
+          - 'hash:HMSET+HMGET+HDEL'
+          - 'set:SADD+SISMEMBER+SMEMBERS'
+          - 'set:SADD+SISMEMBER+SREM'
+          - 'expire:SET+EXPIRE+TTL'
+          - 'nonTx:SETPX+GET'
+          - 'list:LPUSH+RPUSH+LRANGE'
+          - 'list:LPUSH+RPUSH+LPOP+RPOP+LLEN'
+          - 'counter:INCR+DECR'
+          - 'transaction:SET+EXPIRE+GET'
+          - 'transactionMixed:SET+GET'
+          - 'multiKey:MSET+MGET'
+          - 'pipeline:SET+INCR+GET'
+          - 'stream:XADD+XRANGE+XLEN'
+          - 'zset:ZADD+ZRANGE+ZREM'
+          - 'info:INFO+CONFIGGET'
+          - 'pubsub:PUBLISH+MESSAGE'
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Install Redis
+        run: |
+          curl -fsSL https://packages.redis.io/gpg | sudo gpg --dearmor -o /usr/share/keyrings/redis-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://packages.redis.io/deb $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/redis.list
+          sudo apt-get update
+          sudo apt-get install -y redis
+          redis-server --daemonize yes
+          redis-cli ping
+
+      - run: npm ci
+
+      - name: Run benchmark
+        run: npm run benchmark:ioredis:snapshot -- "${{ matrix.case }}"
+
+      - name: Upload snapshot
+        uses: actions/upload-artifact@v7
+        with:
+          name: benchmark-${{ strategy.job-index }}
+          path: '*.benchmark'
+          retention-days: 1
+
+  merge:
+    name: Merge & PR
+    needs: benchmark
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - run: npm ci
+
+      - name: Download all snapshots
+        uses: actions/download-artifact@v8
+        with:
+          pattern: benchmark-*
+          path: snapshots
+
+      - name: Merge snapshots
+        run: npm run benchmark:merge -- snapshots/**/*.benchmark -o benchmark-report.md
+
+      - name: Check if PR should be created
+        id: check
+        run: |
+          if [ "${{ github.event_name }}" != "push" ]; then
+            echo "pr=false" >> "$GITHUB_OUTPUT"
+          elif ! git diff --name-only HEAD~1 HEAD | grep -q '^sources/'; then
+            echo "pr=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "pr=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Update README files
+        if: steps.check.outputs.pr == 'true'
+        run: npm run benchmark:replace:readme -- benchmark-report.md
+
+      - name: Create pull request
+        if: steps.check.outputs.pr == 'true'
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'docs: update benchmark results'
+          branch: benchmark/update-results
+          delete-branch: true
+          title: 'docs: update benchmark results'
+          body: |
+            Automated benchmark update triggered by source changes on `main`.
+
+            - Ran **19** benchmark cases independently
+            - Merged all results into a single report
+            - Updated the benchmark section in `README.md`
+          labels: benchmark,automated

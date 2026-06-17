@@ -29,6 +29,7 @@ export const SolidisDefaultOptions: SolidisClientFrozenOptions = {
   maxCommandsPerPipeline: 300,
   maxEventListenersForClient: KB * 10,
   maxEventListenersForSocket: KB * 10,
+  maxProcessReplyBytesPerChunk: KB * 8192,
   maxProcessRepliesPerChunk: KB * 4,
   maxSocketWriteSizePerOnce: KB * 64,
   parser: {
@@ -46,6 +47,8 @@ export const SolidisDefaultOptions: SolidisClientFrozenOptions = {
 } as const;
 
 export const SolidisSymbolBytes = {
+  ASTERISK: 42,
+  DOLLAR: 36,
   CR: 13,
   LF: 10,
   ZERO: 48,
@@ -77,17 +80,7 @@ export const SolidisNumberTypes = {
 } as const;
 
 export const SolidisStringSymbols = {
-  ASTERISK: '*',
-  DOLLAR: '$',
   NL,
-  L0: `$0${NL}${NL}`,
-} as const;
-
-export const SolidisBufferSymbols = {
-  ASTERISK: Buffer.from(SolidisStringSymbols.ASTERISK),
-  DOLLAR: Buffer.from(SolidisStringSymbols.DOLLAR),
-  NL: Buffer.from(SolidisStringSymbols.NL),
-  L0: Buffer.from(SolidisStringSymbols.L0),
 } as const;
 
 export const SolidisPubSubEventNames = [
@@ -120,7 +113,3 @@ export const SolidisSubscribeCommandNameSet = new Set([
   'SUNSUBSCRIBE',
   'PUNSUBSCRIBE',
 ]);
-
-export const SolidisMessageEvent = SolidisPubSubEventNames[0];
-export const SolidisPMessageEvent = SolidisPubSubEventNames[1];
-export const SolidisSMessageEvent = SolidisPubSubEventNames[2];

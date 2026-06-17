@@ -48,6 +48,8 @@ The library is designed for minimal bundle size with maximum type safety and per
 - **Type-safe** - Extensive TypeScript definitions for all commands
 - **Dependency-free** - Absolutely zero runtime dependencies
 
+<div id="benchmark">
+
 ## 📊 Benchmarks
 
 <div align="center">
@@ -77,6 +79,8 @@ The library is designed for minimal bundle size with maximum type safety and per
   <b>Up to 79% faster than IoRedis! 🚀</b><br>
   Solidis delivers blazing-fast performance with ZERO dependencies
 </p>
+
+</div>
 
 ## ✨ Key Features
 

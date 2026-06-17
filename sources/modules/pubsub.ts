@@ -63,9 +63,17 @@ export class SolidisPubSub {
     return [
       reply[0]?.toString() ?? null,
       reply[1]?.toString() ?? null,
-      typeof reply[2] === 'number' ? reply[2] : (reply[2]?.toString() ?? null),
-      reply[3]?.toString() ?? null,
+      typeof reply[2] === 'number' ? reply[2] : this.#toMessage(reply[2]),
+      this.#toMessage(reply[3]),
     ];
+  }
+
+  #toMessage(reply: SolidisData | undefined) {
+    if (typeof reply === 'string' || Buffer.isBuffer(reply)) {
+      return reply;
+    }
+
+    return reply?.toString() ?? null;
   }
 
   #dispatchPubSubError(
@@ -90,7 +98,10 @@ export class SolidisPubSub {
     const channel = pubSubReply[1];
     const message = pubSubReply[2];
 
-    if (typeof channel !== 'string' || typeof message !== 'string') {
+    if (
+      typeof channel !== 'string' ||
+      !(typeof message === 'string' || Buffer.isBuffer(message))
+    ) {
       this.#dispatchPubSubError(`${event}:type`, pubSubReply, emit);
 
       return;
@@ -104,13 +115,13 @@ export class SolidisPubSub {
     emit: SolidisClientEventHandlers['emit'],
   ) {
     const pattern = pubSubReply[1];
-    const channel = pubSubReply[2];
+    const channel = pubSubReply[2]?.toString();
     const message = pubSubReply[3];
 
     if (
       typeof pattern !== 'string' ||
       typeof channel !== 'string' ||
-      typeof message !== 'string'
+      !(typeof message === 'string' || Buffer.isBuffer(message))
     ) {
       this.#dispatchPubSubError('pmessage:type', pubSubReply, emit);
 

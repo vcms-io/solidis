@@ -1,90 +1,78 @@
-import { SolidisBufferSymbols } from '../index.ts';
+import { SolidisSymbolBytes } from '../constants.ts';
 
 import type { StringOrBuffer } from '../../index.ts';
 
-const { NL, ASTERISK, DOLLAR, L0 } = SolidisBufferSymbols;
+const { ASTERISK, DOLLAR, CR, LF } = SolidisSymbolBytes;
 
-class BufferPool {
-  #buffers: (string | Buffer)[] = [];
-  #length = 0;
+const numberTextCache = Array.from({ length: 8192 }, (_, index) => `${index}`);
 
-  public push(...items: (string | Buffer)[]) {
-    for (let index = 0; index < items.length; index += 1) {
-      const item = items[index];
-
-      if (item instanceof Buffer) {
-        this.#length += item.length;
-
-        continue;
-      }
-
-      this.#length += Buffer.byteLength(item);
-    }
-
-    this.#buffers.push(...items);
-  }
-
-  public toBuffer(): Buffer {
-    const result = Buffer.allocUnsafe(this.#length);
-    let offset = 0;
-
-    for (let index = 0; index < this.#buffers.length; index += 1) {
-      const item = this.#buffers[index];
-
-      if (Buffer.isBuffer(item)) {
-        item.copy(result, offset);
-        offset += item.length;
-
-        continue;
-      }
-
-      result.write(item, offset);
-      offset += Buffer.byteLength(item);
-    }
-
-    this.#buffers = [];
-    this.#length = 0;
-
-    return result;
-  }
+function getNumberText(value: number) {
+  return numberTextCache[value] ?? `${value}`;
 }
 
-const sharedBufferPool = new BufferPool();
+function writeCRLF(buffer: Buffer, offset: number) {
+  buffer[offset] = CR;
+  buffer[offset + 1] = LF;
+
+  return offset + 2;
+}
+
+function writeAsciiNumber(buffer: Buffer, value: number, offset: number) {
+  return offset + buffer.write(getNumberText(value), offset, 'ascii');
+}
 
 export function commandsToBuffer(commands: StringOrBuffer[][]): Buffer {
+  let totalLength = 0;
+
   for (const commandArguments of commands) {
-    sharedBufferPool.push(ASTERISK, `${commandArguments.length}`, NL);
+    totalLength += 3 + getNumberText(commandArguments.length).length;
 
     for (const argument of commandArguments) {
-      if (argument instanceof Buffer) {
-        if (argument.length === 0) {
-          sharedBufferPool.push(L0);
+      const argumentLength = Buffer.isBuffer(argument)
+        ? argument.length
+        : Buffer.byteLength(argument);
 
-          continue;
-        }
-
-        sharedBufferPool.push(DOLLAR, `${argument.length}`, NL, argument, NL);
-
-        continue;
-      }
-
-      if (argument.length === 0) {
-        sharedBufferPool.push(L0);
-
-        continue;
-      }
-
-      sharedBufferPool.push(
-        DOLLAR,
-        `${Buffer.byteLength(argument)}`,
-        NL,
-        argument,
-        NL,
-      );
+      totalLength += 5 + getNumberText(argumentLength).length + argumentLength;
     }
   }
 
-  return sharedBufferPool.toBuffer();
+  const result = Buffer.allocUnsafe(totalLength);
+
+  let offset = 0;
+
+  for (const commandArguments of commands) {
+    result[offset] = ASTERISK;
+
+    offset = writeAsciiNumber(result, commandArguments.length, offset + 1);
+    offset = writeCRLF(result, offset);
+
+    for (const argument of commandArguments) {
+      const isBuffer = Buffer.isBuffer(argument);
+      const argumentLength = isBuffer
+        ? argument.length
+        : Buffer.byteLength(argument);
+
+      result[offset] = DOLLAR;
+
+      offset = writeAsciiNumber(result, argumentLength, offset + 1);
+      offset = writeCRLF(result, offset);
+
+      if (isBuffer) {
+        argument.copy(result, offset);
+      } else {
+        result.write(argument, offset, 'utf8');
+      }
+
+      offset += argumentLength;
+      offset = writeCRLF(result, offset);
+    }
+  }
+
+  if (offset !== totalLength) {
+    return result.subarray(0, offset);
+  }
+
+  return result;
 }
 
 export function extractNextChunkToWrite(
