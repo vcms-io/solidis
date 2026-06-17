@@ -71,6 +71,14 @@ export interface ComparedResult extends BenchResult {
   ratioVsBaseline: number | null;
 }
 
+export interface BenchmarkSnapshot {
+  suiteName: string;
+  baselineLibrary: LibraryName;
+  configuration: SerializedBenchConfig;
+  results: ComparedResult[];
+  createdAt: string;
+}
+
 export interface CaseRunResult {
   elapsedMs: number;
   verificationError?: string;

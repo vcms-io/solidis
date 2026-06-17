@@ -27,14 +27,29 @@ function readSizes(): number[] {
 }
 
 function readOperations(): Set<string> | undefined {
-  const rawValue = process.env.SOLIDIS_BENCH_OPERATIONS;
+  const sources: string[] = [];
 
-  if (!rawValue || rawValue.trim() === '') {
+  const environmentValue = process.env.SOLIDIS_BENCH_OPERATIONS;
+
+  if (environmentValue && environmentValue.trim().length > 0) {
+    sources.push(environmentValue);
+  }
+
+  const commandLineArguments = process.argv
+    .slice(2)
+    .filter((argument) => !argument.startsWith('-'));
+
+  for (const argument of commandLineArguments) {
+    sources.push(argument);
+  }
+
+  if (sources.length === 0) {
     return undefined;
   }
 
-  const values = rawValue
-    .split(',')
+  const values = sources
+    .join(',')
+    .split(/[,\s]+/)
     .map((operation) => operation.trim())
     .filter((operation) => operation.length > 0);
 
@@ -68,8 +83,8 @@ export function readConfig(): BenchConfig {
     warmup: Math.max(0, readNumber('SOLIDIS_BENCH_WARMUP', 1000)),
     clients: Math.max(1, readNumber('SOLIDIS_BENCH_CLIENTS', 1)),
     concurrency: Math.max(1, readNumber('SOLIDIS_BENCH_CONCURRENCY', 10000)),
-    repeats: Math.max(1, readNumber('SOLIDIS_BENCH_REPEATS', 1)),
-    cooldownMs: Math.max(0, readNumber('SOLIDIS_BENCH_COOLDOWN_MS', 1000)),
+    repeats: Math.max(1, readNumber('SOLIDIS_BENCH_REPEATS', 10)),
+    cooldownMs: Math.max(0, readNumber('SOLIDIS_BENCH_COOLDOWN_MS', 2500)),
     operations: readOperations(),
   };
 }

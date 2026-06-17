@@ -12,6 +12,11 @@ import {
   serializeConfig,
 } from './configuration.ts';
 import { createNamespace, settlePingSamples } from './constants.ts';
+import {
+  exportMarkdownReport,
+  shouldExportMarkdown,
+} from './markdown/index.ts';
+import { exportSnapshot, shouldExportSnapshot } from './markdown/snapshot.ts';
 import { makePayloadPool, makePayloadSeed } from './payload.ts';
 import {
   compare,
@@ -31,6 +36,7 @@ import {
   logSampleStart,
   logSeparator,
   logStep,
+  logSuccess,
   logWarn,
 } from './utils.ts';
 
@@ -396,6 +402,32 @@ export function createBenchmarkRunner(
     const compared = compare(results, suite.baselineLibrary);
 
     printResults(compared, suite.baselineLibrary);
+
+    if (shouldExportSnapshot()) {
+      const snapshotPath = await exportSnapshot(
+        suite.name,
+        suite.baselineLibrary,
+        config,
+        compared,
+      );
+
+      if (snapshotPath) {
+        logSuccess(`Benchmark snapshot exported → ${snapshotPath}`);
+      }
+    }
+
+    if (shouldExportMarkdown()) {
+      const exportedPath = await exportMarkdownReport(
+        compared,
+        suite.baselineLibrary,
+        config,
+      );
+
+      if (exportedPath) {
+        logSuccess(`Markdown report exported → ${exportedPath}`);
+      }
+    }
+
     logStep(
       'Suite complete',
       `total ${((performance.now() - runStartedAt) / 1000).toFixed(1)}s`,

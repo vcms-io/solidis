@@ -78,20 +78,20 @@ async function cleanupIORedisPrefix(
 function toIORedisCommandCall(
   command: Command,
 ): [string, ...CommandArgument[]] {
-  const [name, ...arguments_] = command;
+  const [name, ...commandArguments] = command;
 
   if (typeof name !== 'string') {
     throw new Error(`Redis command name must be a string: ${name}`);
   }
 
-  return [name.toUpperCase(), ...arguments_];
+  return [name.toUpperCase(), ...commandArguments];
 }
 
 function executeIORedisAutoPipelinedCommand(
   client: RedisClient,
   command: Command,
 ): Promise<unknown> {
-  const [name, ...arguments_] = toIORedisCommandCall(command);
+  const [name, ...commandArguments] = toIORedisCommandCall(command);
   const bufferMethodName = `${name.toLowerCase()}Buffer`;
   const bufferMethod = Reflect.get(client, bufferMethodName);
 
@@ -99,13 +99,13 @@ function executeIORedisAutoPipelinedCommand(
     const result: Promise<unknown> = Reflect.apply(
       bufferMethod,
       client,
-      arguments_,
+      commandArguments,
     );
 
     return result;
   }
 
-  return client.call(name, ...arguments_);
+  return client.call(name, ...commandArguments);
 }
 
 async function executeIORedisAutoPipelinedCommands(
@@ -126,9 +126,9 @@ async function executeIORedisBatchCommands(
   const pipeline = client.pipeline();
 
   for (const command of commands) {
-    const [name, ...arguments_] = toIORedisCommandCall(command);
+    const [name, ...commandArguments] = toIORedisCommandCall(command);
 
-    pipeline.callBuffer(name, ...arguments_);
+    pipeline.callBuffer(name, ...commandArguments);
   }
 
   const results = await pipeline.exec();

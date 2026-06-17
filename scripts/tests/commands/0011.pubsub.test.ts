@@ -298,8 +298,8 @@ describe('pubsub', () => {
     const pubsub = new SolidisPubSub();
     const events: unknown[] = [];
 
-    const emit = (event: string, ...arguments_: unknown[]) => {
-      events.push([event, ...arguments_]);
+    const emit = (event: string, ...parameters: unknown[]) => {
+      events.push([event, ...parameters]);
       return true;
     };
 
@@ -320,8 +320,8 @@ describe('pubsub', () => {
     const pubsub = new SolidisPubSub();
     const events: unknown[] = [];
 
-    const emit = (event: string, ...arguments_: unknown[]) => {
-      events.push([event, ...arguments_]);
+    const emit = (event: string, ...parameters: unknown[]) => {
+      events.push([event, ...parameters]);
       return true;
     };
 
@@ -438,9 +438,9 @@ describe('pubsub', () => {
     const pubsub = new SolidisPubSub();
     const errors: unknown[] = [];
 
-    const emit = (event: string, ...arguments_: unknown[]) => {
+    const emit = (event: string, ...parameters: unknown[]) => {
       if (event === 'error') {
-        errors.push(arguments_[0]);
+        errors.push(parameters[0]);
       }
       return true;
     };
@@ -458,9 +458,9 @@ describe('pubsub', () => {
     const pubsub = new SolidisPubSub();
     const errors: unknown[] = [];
 
-    const emit = (event: string, ...arguments_: unknown[]) => {
+    const emit = (event: string, ...parameters: unknown[]) => {
       if (event === 'error') {
-        errors.push(arguments_[0]);
+        errors.push(parameters[0]);
       }
       return true;
     };
@@ -481,9 +481,9 @@ describe('pubsub', () => {
     const pubsub = new SolidisPubSub();
     const errors: unknown[] = [];
 
-    const emit = (event: string, ...arguments_: unknown[]) => {
+    const emit = (event: string, ...parameters: unknown[]) => {
       if (event === 'error') {
-        errors.push(arguments_[0]);
+        errors.push(parameters[0]);
       }
       return true;
     };
@@ -504,9 +504,9 @@ describe('pubsub', () => {
     const pubsub = new SolidisPubSub();
     const errors: unknown[] = [];
 
-    const emit = (event: string, ...arguments_: unknown[]) => {
+    const emit = (event: string, ...parameters: unknown[]) => {
       if (event === 'error') {
-        errors.push(arguments_[0]);
+        errors.push(parameters[0]);
       }
       return true;
     };

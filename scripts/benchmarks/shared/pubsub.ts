@@ -15,10 +15,13 @@ interface PubSubCaseOptions {
   nonComparableReason?: string;
 }
 
+const pubSubMaxInFlightPayloadBytes = 4 * 1024 * 1024;
+
 async function runPubSubMessages(
   total: number,
   clients: number,
   concurrency: number,
+  payloadOffsetStart: number,
   publish: (clientIndex: number, payloadOffset: number) => Promise<unknown>,
 ): Promise<void> {
   if (total <= 0) {
@@ -36,10 +39,19 @@ async function runPubSubMessages(
         const payloadOffset = nextPayloadOffset;
         nextPayloadOffset += 1;
 
-        await publish(clientIndex, payloadOffset);
+        await publish(clientIndex, payloadOffsetStart + payloadOffset);
       }
     }),
   );
+}
+
+function getPubSubPublishBatchSize(context: BenchContext, total: number): number {
+  const concurrencyLimit = context.config.clients * context.config.concurrency;
+  const payloadLimit = Math.floor(
+    pubSubMaxInFlightPayloadBytes / Math.max(1, context.payloadBytes),
+  );
+
+  return Math.max(1, Math.min(total, concurrencyLimit, payloadLimit));
 }
 
 function getPubSubDeliveryTimeoutMs(
@@ -68,6 +80,38 @@ async function waitForCount(
     }
 
     await new Promise((resolve) => setImmediate(resolve));
+  }
+}
+
+async function publishAndWaitForDelivery(
+  context: BenchContext,
+  total: number,
+  payloadOffsetStart: number,
+  getReceived: () => number,
+  expectedStart: number,
+  publish: (clientIndex: number, payloadOffset: number) => Promise<unknown>,
+): Promise<void> {
+  const publishBatchSize = getPubSubPublishBatchSize(context, total);
+  let delivered = 0;
+
+  while (delivered < total) {
+    const batchTotal = Math.min(publishBatchSize, total - delivered);
+
+    await runPubSubMessages(
+      batchTotal,
+      context.config.clients,
+      context.config.concurrency,
+      payloadOffsetStart + delivered,
+      publish,
+    );
+
+    delivered += batchTotal;
+
+    await waitForCount(
+      getReceived,
+      expectedStart + delivered,
+      getPubSubDeliveryTimeoutMs(context, batchTotal),
+    );
   }
 }
 
@@ -100,32 +144,25 @@ export async function runPubSubBenchmark(
   try {
     await subscriber.subscribe(channel);
     received = 0;
-    await runPubSubMessages(
+    await publishAndWaitForDelivery(
+      context,
       context.config.warmup,
-      context.config.clients,
-      context.config.concurrency,
-      publish,
-    );
-    await waitForCount(
+      0,
       () => received,
-      context.config.warmup,
-      getPubSubDeliveryTimeoutMs(context, context.config.warmup),
+      0,
+      publish,
     );
     received = 0;
 
     const startedAt = performance.now();
 
-    await runPubSubMessages(
+    await publishAndWaitForDelivery(
+      context,
       context.config.iterations,
-      context.config.clients,
-      context.config.concurrency,
-      (publisherIndex, payloadOffset) =>
-        publish(publisherIndex, context.config.warmup + payloadOffset),
-    );
-    await waitForCount(
+      context.config.warmup,
       () => received,
-      context.config.iterations,
-      getPubSubDeliveryTimeoutMs(context, context.config.iterations),
+      0,
+      publish,
     );
 
     return { elapsedMs: performance.now() - startedAt };
