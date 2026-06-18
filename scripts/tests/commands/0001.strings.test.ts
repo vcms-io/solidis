@@ -149,12 +149,12 @@ describe('strings', () => {
 
     assert.strictEqual(await client.setex(secondsKey, 100, 'value'), 'OK');
     const secondsTtl = await client.ttl(secondsKey);
-    assert.ok(secondsTtl >= 1 && secondsTtl <= 100);
+    assert.ok(secondsTtl >= 99 && secondsTtl <= 100);
     assert.strictEqual(await client.get(secondsKey), 'value');
 
     assert.strictEqual(await client.psetex(millisKey, 100000, 'value'), 'OK');
     const millisPttl = await client.pttl(millisKey);
-    assert.ok(millisPttl >= 1 && millisPttl <= 100000);
+    assert.ok(millisPttl >= 99000 && millisPttl <= 100000);
     assert.strictEqual(await client.get(millisKey), 'value');
   });
 
@@ -185,14 +185,14 @@ describe('strings', () => {
       'value',
     );
     const getexSecondsTtl = await client.ttl(key);
-    assert.ok(getexSecondsTtl >= 1 && getexSecondsTtl <= 100);
+    assert.ok(getexSecondsTtl >= 99 && getexSecondsTtl <= 100);
 
     assert.strictEqual(
       await client.getex(key, { expireInMilliseconds: 50000 }),
       'value',
     );
     const getexMillisPttl = await client.pttl(key);
-    assert.ok(getexMillisPttl >= 1 && getexMillisPttl <= 50000);
+    assert.ok(getexMillisPttl >= 49000 && getexMillisPttl <= 50000);
 
     const futureSeconds = Math.floor(Date.now() / 1000) + 3600;
 
@@ -201,7 +201,7 @@ describe('strings', () => {
       'value',
     );
     const getexFutureSecondsTtl = await client.ttl(key);
-    assert.ok(getexFutureSecondsTtl >= 3590 && getexFutureSecondsTtl <= 3600);
+    assert.ok(getexFutureSecondsTtl >= 3599 && getexFutureSecondsTtl <= 3600);
 
     const futureMilliseconds = Date.now() + 7200000;
 
@@ -211,7 +211,7 @@ describe('strings', () => {
     );
     const getexFutureMillisPttl = await client.pttl(key);
     assert.ok(
-      getexFutureMillisPttl >= 7190000 && getexFutureMillisPttl <= 7200000,
+      getexFutureMillisPttl >= 7199000 && getexFutureMillisPttl <= 7200000,
     );
 
     assert.strictEqual(await client.getex(key, { persist: true }), 'value');
@@ -226,7 +226,7 @@ describe('strings', () => {
       'OK',
     );
     const setExOptionTtl = await client.ttl(key);
-    assert.ok(setExOptionTtl >= 1 && setExOptionTtl <= 100);
+    assert.ok(setExOptionTtl >= 99 && setExOptionTtl <= 100);
     assert.strictEqual(await client.get(key), 'value');
   });
 
@@ -285,7 +285,7 @@ describe('strings', () => {
 
     assert.strictEqual(await client.get(key), 'changed');
     const keepTtlValue = await client.ttl(key);
-    assert.ok(keepTtlValue >= 1 && keepTtlValue <= 100);
+    assert.ok(keepTtlValue >= 99 && keepTtlValue <= 100);
   });
 
   it('SET with expireInMilliseconds expires the key', async () => {

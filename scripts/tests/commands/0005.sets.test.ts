@@ -87,7 +87,6 @@ describe('sets', () => {
     }
     assert.strictEqual(sample.length, 2);
     for (const member of sample) {
-      assert.ok(typeof member === 'string');
       assert.ok(remaining.includes(member));
     }
     assert.notStrictEqual(sample[0], sample[1]);

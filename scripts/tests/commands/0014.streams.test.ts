@@ -10,16 +10,18 @@ import {
   detectServerCapabilities,
 } from '../utils/index.ts';
 
-import type { FeaturedClient } from '../utils/client.ts';
+import type { FeaturedClient, ServerCapabilities } from '../utils/client.ts';
 
 describe('streams', () => {
   let client: FeaturedClient;
+  let capabilities: ServerCapabilities;
   let atLeast7 = false;
   const keyspace = createKeyspace('streams');
 
   before(async () => {
     client = await createClient();
-    atLeast7 = (await detectServerCapabilities(client)).atLeast(7, 0);
+    capabilities = await detectServerCapabilities(client);
+    atLeast7 = capabilities.atLeast(7, 0);
   });
 
   after(async () => {
@@ -112,10 +114,16 @@ describe('streams', () => {
 
     assert.strictEqual(info.length, 2);
     assert.strictEqual(info.lastGeneratedId, '2-1');
-    assert.strictEqual(info.firstEntry?.id, '1-1');
-    assert.strictEqual(info.lastEntry?.id, '2-1');
-    assert.deepStrictEqual(info.firstEntry?.fields, { value: 'a' });
-    assert.deepStrictEqual(info.lastEntry?.fields, { value: 'b' });
+    if (info.firstEntry === undefined || info.firstEntry === null) {
+      assert.fail('expected non-null firstEntry');
+    }
+    assert.strictEqual(info.firstEntry.id, '1-1');
+    assert.deepStrictEqual(info.firstEntry.fields, { value: 'a' });
+    if (info.lastEntry === undefined || info.lastEntry === null) {
+      assert.fail('expected non-null lastEntry');
+    }
+    assert.strictEqual(info.lastEntry.id, '2-1');
+    assert.deepStrictEqual(info.lastEntry.fields, { value: 'b' });
     assert.strictEqual(info.groups, 0);
   });
 
@@ -147,7 +155,6 @@ describe('streams', () => {
 
     const remaining = await client.xpending(key, group, '-', '+', 10);
 
-    assert.ok(Array.isArray(remaining));
     assert.deepStrictEqual(remaining, []);
   });
 
@@ -161,7 +168,9 @@ describe('streams', () => {
 
     const entries = await client.xpending(key, group, '-', '+', 10);
 
-    assert.ok(Array.isArray(entries));
+    if (!Array.isArray(entries)) {
+      assert.fail('expected xpending entries array, not summary');
+    }
     assert.strictEqual(entries[0].id, '1-1');
   });
 
@@ -310,7 +319,6 @@ describe('streams', () => {
     }
     assert.strictEqual(info.length, 2);
     assert.strictEqual(info.entries.length, 2);
-    assert.ok(Array.isArray(info.groups));
     assert.strictEqual(info.groups.length, 1);
 
     const detail = info.groups[0];
@@ -398,7 +406,9 @@ describe('streams', () => {
 
     const entries = await client.xpending(key, group, '-', '+', 10, 'worker-a');
 
-    assert.ok(Array.isArray(entries));
+    if (!Array.isArray(entries)) {
+      assert.fail('expected xpending entries array, not summary');
+    }
     assert.strictEqual(entries.length, 1);
     assert.strictEqual(entries[0].id, '1-1');
   });
@@ -475,7 +485,11 @@ describe('streams', () => {
     const groups = await client.xinfoGroups(key);
 
     assert.strictEqual(groups[0].entriesRead, 1);
-    assert.strictEqual(groups[0].lag, 2);
+    if (capabilities.isValkey) {
+      assert.strictEqual(groups[0].lag, 1);
+    } else {
+      assert.strictEqual(groups[0].lag, 2);
+    }
   });
 
   it('sets stream id with ENTRIESADDED and MAXDELETEDID', async (context) => {
@@ -516,7 +530,9 @@ describe('streams', () => {
       0,
     );
 
-    assert.ok(Array.isArray(entries));
+    if (!Array.isArray(entries)) {
+      assert.fail('expected xpending entries array, not summary');
+    }
     assert.strictEqual(entries.length, 2);
     assert.deepStrictEqual(
       entries.map((entry) => entry.id),
@@ -546,7 +562,9 @@ describe('streams', () => {
 
     const pending = await client.xpending(key, group, '-', '+', 10);
 
-    assert.ok(Array.isArray(pending));
+    if (!Array.isArray(pending)) {
+      assert.fail('expected xpending entries array, not summary');
+    }
     assert.strictEqual(pending[0].consumer, 'worker-2');
     assert.strictEqual(pending[0].deliveryCount, 5);
   });
@@ -695,7 +713,9 @@ describe('streams', () => {
 
     const pending = await client.xpending(key, group, '-', '+', 10, 'w1');
 
-    assert.ok(Array.isArray(pending));
+    if (!Array.isArray(pending)) {
+      assert.fail('expected xpending entries array, not summary');
+    }
     assert.strictEqual(pending.length, 2);
     assert.deepStrictEqual(
       pending.map(({ id, consumer, deliveryCount }) => ({
@@ -709,10 +729,10 @@ describe('streams', () => {
       ],
     );
     assert.strictEqual(pending[0].deliveryTime, pending[1].deliveryTime);
-    assert.ok(pending[0].deliveryCount > 0);
-    assert.ok(pending[1].deliveryCount > 0);
-    assert.ok(pending[0].deliveryTime >= 0);
-    assert.ok(pending[1].deliveryTime >= 0);
+    assert.strictEqual(pending[0].deliveryCount, 1);
+    assert.strictEqual(pending[1].deliveryCount, 1);
+    assert.strictEqual(typeof pending[0].deliveryTime, 'number');
+    assert.strictEqual(typeof pending[1].deliveryTime, 'number');
   });
 
   it('returns XPENDING summary with consumer breakdown', async () => {

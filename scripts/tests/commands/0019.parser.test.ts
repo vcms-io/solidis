@@ -8,6 +8,7 @@ import {
   SolidisDefaultOptions,
   SolidisParser,
 } from '../../../sources/index.ts';
+import { RespPush } from '../../../sources/types/resp.ts';
 
 import type { SolidisData } from '../../../sources/index.ts';
 
@@ -32,7 +33,9 @@ describe('parser', () => {
   it('parses an error into a RespError', async () => {
     const [reply] = await parseOnce(bytes('-ERR something failed\r\n'));
 
-    assert.ok(reply instanceof RespError);
+    if (!(reply instanceof RespError)) {
+      assert.fail('expected a RespError for error reply');
+    }
     assert.strictEqual(reply.message, 'ERR something failed');
   });
 
@@ -131,7 +134,9 @@ describe('parser', () => {
   it('parses a RESP3 map into a Map', async () => {
     const [reply] = await parseOnce(bytes('%2\r\n+a\r\n:1\r\n+b\r\n:2\r\n'));
 
-    assert.ok(reply instanceof Map);
+    if (!(reply instanceof Map)) {
+      assert.fail('expected a Map for RESP3 map reply');
+    }
     assert.deepStrictEqual(
       [...reply],
       [
@@ -144,15 +149,21 @@ describe('parser', () => {
   it('parses a RESP3 set into a Set', async () => {
     const [reply] = await parseOnce(bytes('~3\r\n:1\r\n:2\r\n:3\r\n'));
 
-    assert.ok(reply instanceof Set);
+    if (!(reply instanceof Set)) {
+      assert.fail('expected a Set for RESP3 set reply');
+    }
     assert.deepStrictEqual([...reply].sort(), [1, 2, 3]);
   });
 
   it('parses a RESP3 push message', async () => {
     const [reply] = await parseOnce(bytes('>2\r\n+pubsub\r\n+hello\r\n'));
 
-    assert.ok(Array.isArray(reply));
-    assert.deepStrictEqual([...reply], ['pubsub', 'hello']);
+    if (!(reply instanceof RespPush)) {
+      assert.fail('expected a RespPush instance for RESP3 push reply');
+    }
+    assert.strictEqual(reply.length, 2);
+    assert.strictEqual(reply[0], 'pubsub');
+    assert.strictEqual(reply[1], 'hello');
   });
 
   it('ignores attributes and surfaces the following reply', async () => {

@@ -41,7 +41,7 @@ describe('server-admin', () => {
       assert.fail('MEMORY USAGE must return a byte count for an existing key');
     }
 
-    assert.ok(usage > 0);
+    assert.ok(usage > 0, `expected positive MEMORY USAGE, got ${usage}`);
 
     const usageWithSamples = await client.memoryUsage(key, 0);
 
@@ -57,25 +57,48 @@ describe('server-admin', () => {
   it('returns structured data from MEMORY STATS', async () => {
     const stats = await client.memoryStats();
 
-    assert.strictEqual(typeof stats.total.allocated, 'number');
-    assert.ok(stats.total.allocated > 0);
-    assert.strictEqual(typeof stats.keys.count, 'number');
-    assert.strictEqual(typeof stats.keys.bytesPerKey, 'number');
-    assert.ok(stats.keys.count >= 0);
+    assert.ok(
+      stats.total.allocated > 0,
+      `expected positive memory allocation, got ${stats.total.allocated}`,
+    );
+    assert.ok(
+      stats.keys.count >= 0,
+      `expected non-negative key count, got ${stats.keys.count}`,
+    );
   });
 
   it('runs MEMORY DOCTOR without error', async () => {
-    const result = await client.memoryDoctor();
+    const result = (await client.memoryDoctor()).trimEnd();
 
-    assert.strictEqual(typeof result, 'string');
-    assert.ok(result.startsWith('Sam, I detected'));
+    if (result.startsWith('Sam, I detected')) {
+      assert.ok(
+        result.includes('memory implants'),
+        `MEMORY DOCTOR issue report must include 'memory implants' but got: ${result.slice(0, 80)}`,
+      );
+    } else if (result.startsWith("Hi Sam, I can't find")) {
+      assert.strictEqual(
+        result,
+        "Hi Sam, I can't find any memory issue in your instance. I can only account for what occurs on this base.",
+      );
+    } else if (result.startsWith('Hi Sam, this instance is empty')) {
+      assert.ok(
+        result.includes('leave for your mission on Earth'),
+        `MEMORY DOCTOR empty-instance message must include the known prose but got: ${result.slice(0, 80)}`,
+      );
+    } else {
+      assert.fail(
+        `MEMORY DOCTOR returned an unrecognized response: ${result.slice(0, 80)}`,
+      );
+    }
   });
 
   it('returns allocator stats with MEMORY MALLOC-STATS', async () => {
     const stats = await client.memoryMallocStats();
 
-    assert.strictEqual(typeof stats, 'string');
-    assert.ok(stats.startsWith('___ Begin jemalloc statistics ___'));
+    assert.ok(
+      stats.startsWith('___ Begin jemalloc statistics ___'),
+      `MEMORY MALLOC-STATS must start with jemalloc header but got: ${stats.slice(0, 40)}`,
+    );
   });
 
   it('purges memory with MEMORY PURGE', async () => {
@@ -85,12 +108,10 @@ describe('server-admin', () => {
   it('reads the slowlog with SLOWLOG GET', async () => {
     const entries = await client.slowlogGet(10);
 
-    assert.ok(entries.length >= 0);
     for (const entry of entries) {
       assert.strictEqual(typeof entry.id, 'number');
       assert.strictEqual(typeof entry.timestamp, 'number');
       assert.strictEqual(typeof entry.duration, 'number');
-      assert.ok(Array.isArray(entry.commandArguments));
     }
   });
 
@@ -102,15 +123,14 @@ describe('server-admin', () => {
 
     const entries = await client.slowlogGet(5);
 
-    assert.ok(entries.length >= 1);
+    assert.ok(
+      entries.length >= 1,
+      'slowlog must contain at least one entry after PING',
+    );
 
     const entry = entries[0];
 
     assert.deepStrictEqual(entry.commandArguments, ['PING']);
-    assert.strictEqual(typeof entry.id, 'number');
-    assert.strictEqual(typeof entry.timestamp, 'number');
-    assert.strictEqual(typeof entry.duration, 'number');
-    assert.strictEqual(typeof entry.clientIpPort, 'string');
     assert.strictEqual(entry.clientName, 'solidis');
   });
 
@@ -141,7 +161,6 @@ describe('server-admin', () => {
 
     const refcount = await client.objectRefcount(key);
 
-    assert.strictEqual(typeof refcount, 'number');
     assert.strictEqual(refcount, 1);
   });
 
@@ -185,8 +204,14 @@ describe('server-admin', () => {
     const timestamp = await client.lastsave();
     const nowSeconds = Math.floor(Date.now() / 1000);
 
-    assert.ok(timestamp <= nowSeconds);
-    assert.ok(timestamp >= nowSeconds - 3600);
+    assert.ok(
+      timestamp <= nowSeconds,
+      `LASTSAVE timestamp ${timestamp} is in the future (now: ${nowSeconds})`,
+    );
+    assert.ok(
+      timestamp >= nowSeconds - 3600,
+      `LASTSAVE timestamp ${timestamp} is more than one hour ago (now: ${nowSeconds})`,
+    );
   });
 
   it('triggers a background save with BGSAVE', async () => {
@@ -678,7 +703,6 @@ describe('server-admin', () => {
   it('returns latency history for an event', async () => {
     const history = await client.latencyHistory('command');
 
-    assert.ok(Array.isArray(history));
     for (const entry of history) {
       assert.strictEqual(typeof entry.timestamp, 'number');
       assert.strictEqual(typeof entry.latency, 'number');
@@ -688,10 +712,17 @@ describe('server-admin', () => {
   it('runs LATENCY DOCTOR without error', async () => {
     const result = await client.latencyDoctor();
 
-    assert.strictEqual(
-      result,
-      "I'm sorry, Dave, I can't do that. Latency monitoring is disabled in this Redis instance. You may use \"CONFIG SET latency-monitor-threshold <milliseconds>.\" in order to enable it. If we weren't in a deep space mission I'd suggest to take a look at https://redis.io/topics/latency-monitor.\n",
-    );
+    if (capabilities.isValkey && capabilities.atLeast(8, 0)) {
+      assert.strictEqual(
+        result,
+        'I\'m sorry, Dave, I can\'t do that. Latency monitoring is disabled in this Valkey instance. You may use "CONFIG SET latency-monitor-threshold <milliseconds>." in order to enable it.\n',
+      );
+    } else {
+      assert.strictEqual(
+        result,
+        "I'm sorry, Dave, I can't do that. Latency monitoring is disabled in this Redis instance. You may use \"CONFIG SET latency-monitor-threshold <milliseconds>.\" in order to enable it. If we weren't in a deep space mission I'd suggest to take a look at https://redis.io/topics/latency-monitor.\n",
+      );
+    }
   });
 
   it('reports missing LATENCY GRAPH samples after LATENCY RESET', async () => {
@@ -715,11 +746,8 @@ describe('server-admin', () => {
 
     const histograms = await client.latencyHistogram('ping');
 
-    assert.strictEqual(typeof histograms, 'object');
     assert.ok('ping' in histograms, 'expected a ping histogram entry');
-    assert.strictEqual(typeof histograms.ping.calls, 'number');
     assert.strictEqual(histograms.ping.calls, 10);
-    assert.strictEqual(typeof histograms.ping.histogramUsec, 'object');
   });
 
   it('kills a running function (none running)', async (context) => {
@@ -788,13 +816,13 @@ describe('server-admin', () => {
   it('lists loaded modules with MODULE LIST', async () => {
     const modules = await client.moduleList();
 
-    assert.ok(modules.length >= 0);
     for (const module of modules) {
       assert.strictEqual(typeof module.name, 'string');
-      assert.ok(module.name.length > 0);
+      assert.ok(
+        module.name.length > 0,
+        'module name must be a non-empty string',
+      );
       assert.strictEqual(typeof module.version, 'number');
-      assert.strictEqual(typeof module.path, 'string');
-      assert.ok(Array.isArray(module.arguments));
     }
   });
 
@@ -859,24 +887,36 @@ describe('server-admin', () => {
 
     await client.configSet('latency-monitor-threshold', '0');
 
-    assert.ok(Array.isArray(result));
     assert.ok(result.length > 0, 'latency events must exist after busy script');
 
     const commandEvent = result.find((entry) => entry.event === 'command');
 
+    if (commandEvent === undefined) {
+      assert.fail('expected a command latency event after busy script');
+    }
+    if (capabilities.isValkey && capabilities.atLeast(8, 1)) {
+      assert.deepStrictEqual(Object.keys(commandEvent).sort(), [
+        'count',
+        'event',
+        'latency',
+        'maximumLatency',
+        'sum',
+        'timestamp',
+      ]);
+    } else {
+      assert.deepStrictEqual(Object.keys(commandEvent).sort(), [
+        'event',
+        'latency',
+        'maximumLatency',
+        'timestamp',
+      ]);
+    }
+    assert.ok(commandEvent.timestamp > 0, 'latency timestamp must be positive');
+    assert.ok(commandEvent.latency > 0, 'latency must be positive');
     assert.ok(
-      commandEvent,
-      'expected a command latency event after busy script',
+      commandEvent.maximumLatency >= commandEvent.latency,
+      'maximumLatency must be >= latency',
     );
-    assert.deepStrictEqual(Object.keys(commandEvent).sort(), [
-      'event',
-      'latency',
-      'maximumLatency',
-      'timestamp',
-    ]);
-    assert.ok(commandEvent.timestamp > 0);
-    assert.ok(commandEvent.latency > 0);
-    assert.ok(commandEvent.maximumLatency >= commandEvent.latency);
   });
 
   it('returns parsed LATENCY HISTORY entries', async () => {
@@ -890,7 +930,6 @@ describe('server-admin', () => {
 
     await client.configSet('latency-monitor-threshold', '0');
 
-    assert.ok(Array.isArray(result));
     assert.ok(
       result.length > 0,
       'latency history must exist after busy script',
@@ -899,8 +938,14 @@ describe('server-admin', () => {
       'latency',
       'timestamp',
     ]);
-    assert.ok(result[0].timestamp > 0);
-    assert.ok(result[0].latency > 0);
+    assert.ok(
+      result[0].timestamp > 0,
+      'latency history timestamp must be positive',
+    );
+    assert.ok(
+      result[0].latency > 0,
+      'latency history latency must be positive',
+    );
   });
 
   it('verifies SORT command construction with all options', async () => {

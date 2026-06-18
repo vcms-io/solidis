@@ -57,7 +57,7 @@ describe('scenarios', () => {
 
     const ttl = await client.ttl(key);
 
-    assert.ok(ttl >= 1 && ttl <= 60);
+    assert.ok(ttl >= 59 && ttl <= 60);
   });
 
   it('maintains a leaderboard with sorted sets', async () => {
@@ -76,9 +76,11 @@ describe('scenarios', () => {
       withScores: true,
     });
 
-    assert.deepStrictEqual(top[0], { member: 'alice', score: 300 });
-    assert.deepStrictEqual(top[1], { member: 'bob', score: 250 });
-    assert.deepStrictEqual(top[2], { member: 'carol', score: 175 });
+    assert.deepStrictEqual(top, [
+      { member: 'alice', score: 300 },
+      { member: 'bob', score: 250 },
+      { member: 'carol', score: 175 },
+    ]);
     assert.strictEqual(await client.zrevrank(board, 'alice'), 0);
     assert.strictEqual(await client.zrevrank(board, 'bob'), 1);
     assert.strictEqual(await client.zrevrank(board, 'carol'), 2);
@@ -137,7 +139,7 @@ describe('scenarios', () => {
 
     const sessionTtl = await client.ttl(session);
 
-    assert.ok(sessionTtl >= 1 && sessionTtl <= 30);
+    assert.ok(sessionTtl >= 29 && sessionTtl <= 30);
 
     await client.hdel(session, 'role');
 

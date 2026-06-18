@@ -174,7 +174,9 @@ describe('modules-json', () => {
 
     assert.deepStrictEqual(
       keys.map((entry) => {
-        assert.ok(Array.isArray(entry));
+        if (!Array.isArray(entry)) {
+          assert.fail('expected array for object key list');
+        }
         return [...entry].sort();
       }),
       [['a', 'b', 'c']],
@@ -306,8 +308,20 @@ describe('modules-json', () => {
 
     const memory = await client.jsonDebug('MEMORY', key);
 
-    assert.ok(typeof memory === 'number');
-    assert.ok(memory >= 50 && memory <= 500);
+    if (typeof memory !== 'number') {
+      assert.fail('expected numeric memory usage');
+    }
+    if (capabilities.isValkey) {
+      assert.ok(
+        memory >= 30 && memory <= 500,
+        `memory usage ${memory} outside expected Valkey range 30..500`,
+      );
+    } else {
+      assert.ok(
+        memory >= 50 && memory <= 500,
+        `memory usage ${memory} outside expected Redis range 50..500`,
+      );
+    }
   });
 
   it('aliases deletion with JSON.FORGET', async (context) => {
@@ -439,15 +453,24 @@ describe('modules-json', () => {
 
     const result = await client.jsonResp(key);
 
-    assert.ok(Array.isArray(result));
+    if (!Array.isArray(result)) {
+      assert.fail('expected array from JSON.RESP');
+    }
     if (capabilities.isValkey) {
       /**
        * Valkey JSON.RESP nests each object field as a [key, value] pair after
-       * the leading `{` sentinel.
+       * the leading `{` sentinel: `['{', ['num', 42]]`.
        */
-      assert.strictEqual(result.length, 3);
+      assert.strictEqual(result.length, 2);
       assert.strictEqual(result[0], '{');
-      assert.deepStrictEqual(result[1], ['num', 42]);
+      if (!Array.isArray(result[1])) {
+        assert.fail('expected nested [key, value] pair in Valkey JSON.RESP');
+      }
+      assert.deepStrictEqual(
+        Buffer.isBuffer(result[1][0]) ? result[1][0].toString() : result[1][0],
+        'num',
+      );
+      assert.strictEqual(result[1][1], 42);
     } else {
       /** Redis ReJSON RESP form: `['{', <key>, <value>]`. */
       assert.deepStrictEqual(result, ['{', Buffer.from('num'), 42]);
@@ -551,10 +574,34 @@ describe('modules-json', () => {
 
     const result = await client.jsonDebug('HELP');
 
-    assert.deepStrictEqual(result, [
-      'MEMORY <key> [path] - reports memory usage',
-      'HELP                - this message',
-    ]);
+    if (!Array.isArray(result)) {
+      assert.fail('expected array from JSON.DEBUG HELP');
+    }
+    assert.ok(
+      result.length >= 2,
+      `expected at least 2 help lines, got ${result.length}`,
+    );
+
+    if (capabilities.isValkey) {
+      assert.ok(
+        result.some(
+          (line: unknown) =>
+            typeof line === 'string' && line.includes('MEMORY'),
+        ),
+        'Valkey JSON.DEBUG HELP must include a MEMORY subcommand entry',
+      );
+      assert.ok(
+        result.some(
+          (line: unknown) => typeof line === 'string' && line.includes('HELP'),
+        ),
+        'Valkey JSON.DEBUG HELP must include a HELP subcommand entry',
+      );
+    } else {
+      assert.deepStrictEqual(result, [
+        'MEMORY <key> [path] - reports memory usage',
+        'HELP                - this message',
+      ]);
+    }
   });
 
   it('reports JSON.DEBUG MEMORY with a path', async (context) => {
@@ -569,8 +616,19 @@ describe('modules-json', () => {
 
     const result = await client.jsonDebug('MEMORY', key, '$.user');
 
-    /** JSONPath form returns one byte-size measurement per match. */
-    assert.deepStrictEqual(result, [128]);
+    if (!Array.isArray(result) || result.length !== 1) {
+      assert.fail(
+        `expected single-element array, got: ${JSON.stringify(result)}`,
+      );
+    }
+    if (typeof result[0] !== 'number' || result[0] <= 0) {
+      assert.fail(`expected positive memory size, got: ${result[0]}`);
+    }
+    if (capabilities.isValkey) {
+      assert.strictEqual(result[0], 40);
+    } else {
+      assert.strictEqual(result[0], 128);
+    }
   });
 
   it('returns root-level keys with JSON.OBJKEYS (no path)', async (context) => {

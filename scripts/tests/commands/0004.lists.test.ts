@@ -144,6 +144,7 @@ describe('lists', () => {
       'a',
     );
     assert.deepStrictEqual(await client.lrange(source, 0, -1), ['b', 'c']);
+    assert.deepStrictEqual(await client.lrange(destination, 0, -1), ['a']);
 
     assert.strictEqual(
       await client.lmove(source, destination, 'RIGHT', 'LEFT'),

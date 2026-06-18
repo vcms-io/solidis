@@ -366,7 +366,9 @@ describe('lifecycle-edge', () => {
 
     const error = await errorPromise;
 
-    assert.ok(error instanceof SolidisClientError);
+    if (!(error instanceof SolidisClientError)) {
+      assert.fail('expected SolidisClientError for connection refusal');
+    }
     assert.strictEqual(
       error.message,
       'SolidisConnectionError: Error: connect ECONNREFUSED 127.0.0.1:1',

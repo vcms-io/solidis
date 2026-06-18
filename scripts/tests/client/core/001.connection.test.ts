@@ -493,14 +493,21 @@ describe('connection', () => {
       let server: net.Server;
 
       const listen = (): Promise<number> =>
-        new Promise((resolve) => {
+        new Promise((resolve, reject) => {
           server = net.createServer((socket) => {
             acceptCount += 1;
             socket.on('error', () => {});
           });
 
           server.listen(0, '127.0.0.1', () => {
-            resolve((server.address() as net.AddressInfo).port);
+            const address = server.address();
+            if (address === null || typeof address === 'string') {
+              reject(
+                new Error('expected server to bind to an address with port'),
+              );
+              return;
+            }
+            resolve(address.port);
           });
         });
 

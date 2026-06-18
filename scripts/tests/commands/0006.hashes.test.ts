@@ -130,7 +130,6 @@ describe('hashes', () => {
     }
     assert.strictEqual(several.length, 2);
     for (const field of several) {
-      assert.ok(typeof field === 'string');
       assert.ok(['a', 'b', 'c'].includes(field));
     }
     assert.notStrictEqual(several[0], several[1]);
@@ -163,7 +162,7 @@ describe('hashes', () => {
     const key = keyspace.key('binary');
     const payload = Buffer.from([0x00, 0x01, 0xfe, 0xff]);
 
-    await client.hset(key, 'blob', payload);
+    assert.strictEqual(await client.hset(key, 'blob', payload), 1);
 
     const reply = await client.send([['HGET', key, 'blob']]);
     const value = reply[0][0];

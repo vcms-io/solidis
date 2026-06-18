@@ -11,20 +11,23 @@ import {
   closeClient,
   createClient,
   createKeyspace,
+  detectServerCapabilities,
   isCommandSupported,
   range,
 } from '../utils/index.ts';
 
-import type { FeaturedClient } from '../utils/index.ts';
+import type { FeaturedClient, ServerCapabilities } from '../utils/index.ts';
 
 describe('modules-bloom-cuckoo', () => {
   let client: FeaturedClient;
+  let capabilities: ServerCapabilities;
   let bloomAvailable = false;
   let cuckooAvailable = false;
   const keyspace = createKeyspace('probabilistic');
 
   before(async () => {
     client = await createClient();
+    capabilities = await detectServerCapabilities(client);
     bloomAvailable = await isCommandSupported(client, ['BF.ADD']);
     cuckooAvailable = await isCommandSupported(client, ['CF.ADD']);
   });
@@ -148,13 +151,15 @@ describe('modules-bloom-cuckoo', () => {
 
     const info = await client.bfInfo(key);
 
-    assert.deepStrictEqual(info, {
-      capacity: 500,
-      size: 792,
-      numberOfFilters: 1,
-      numberOfItemsInserted: 1,
-      expansionRate: 2,
-    });
+    assert.strictEqual(info.capacity, 500);
+    assert.strictEqual(info.numberOfFilters, 1);
+    assert.strictEqual(info.numberOfItemsInserted, 1);
+    assert.strictEqual(info.expansionRate, 2);
+    if (capabilities.isValkey) {
+      assert.strictEqual(info.size, 864);
+    } else {
+      assert.strictEqual(info.size, 792);
+    }
   });
 
   it('bulk inserts with BF.INSERT', async (context) => {
@@ -306,7 +311,10 @@ describe('modules-bloom-cuckoo', () => {
      * Chunk count depends on RedisBloom version and internal serialization
      * layout; membership after restore is the behavioral contract under test.
      */
-    assert.ok(chunks.length > 0);
+    assert.ok(
+      chunks.length > 0,
+      'BF.SCANDUMP must yield at least one non-empty chunk',
+    );
 
     for (const chunk of chunks) {
       assert.strictEqual(
@@ -356,7 +364,10 @@ describe('modules-bloom-cuckoo', () => {
      * Chunk count depends on RedisBloom version and internal serialization
      * layout; membership after restore is the behavioral contract under test.
      */
-    assert.ok(chunks.length > 0);
+    assert.ok(
+      chunks.length > 0,
+      'CF.SCANDUMP must yield at least one non-empty chunk',
+    );
 
     for (const chunk of chunks) {
       assert.strictEqual(
@@ -383,13 +394,17 @@ describe('modules-bloom-cuckoo', () => {
 
     assert.strictEqual(await client.bfReserve(key, 0.01, 500, 2), 'OK');
 
-    assert.deepStrictEqual(await client.bfInfo(key), {
-      capacity: 500,
-      size: 792,
-      numberOfFilters: 1,
-      numberOfItemsInserted: 0,
-      expansionRate: 2,
-    });
+    const reserveInfo = await client.bfInfo(key);
+
+    assert.strictEqual(reserveInfo.capacity, 500);
+    assert.strictEqual(reserveInfo.numberOfFilters, 1);
+    assert.strictEqual(reserveInfo.numberOfItemsInserted, 0);
+    assert.strictEqual(reserveInfo.expansionRate, 2);
+    if (capabilities.isValkey) {
+      assert.strictEqual(reserveInfo.size, 864);
+    } else {
+      assert.strictEqual(reserveInfo.size, 792);
+    }
 
     const keyNs = keyspace.key('bloom-nonscaling');
 
@@ -398,13 +413,17 @@ describe('modules-bloom-cuckoo', () => {
       'OK',
     );
 
-    assert.deepStrictEqual(await client.bfInfo(keyNs), {
-      capacity: 500,
-      size: 696,
-      numberOfFilters: 1,
-      numberOfItemsInserted: 0,
-      expansionRate: 0,
-    });
+    const nonscalingInfo = await client.bfInfo(keyNs);
+
+    assert.strictEqual(nonscalingInfo.capacity, 500);
+    assert.strictEqual(nonscalingInfo.numberOfFilters, 1);
+    assert.strictEqual(nonscalingInfo.numberOfItemsInserted, 0);
+    assert.strictEqual(nonscalingInfo.expansionRate, 0);
+    if (capabilities.isValkey) {
+      assert.strictEqual(nonscalingInfo.size, 864);
+    } else {
+      assert.strictEqual(nonscalingInfo.size, 696);
+    }
   });
 
   it('inserts with BF.INSERT using EXPANSION and NOCREATE options', async (context) => {

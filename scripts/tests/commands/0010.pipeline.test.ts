@@ -103,6 +103,8 @@ describe('pipeline', () => {
       ['GET', key],
     ]);
 
+    assert.strictEqual(unwrap(replies, 0), 'OK');
+
     const value = unwrap(replies, 1);
 
     assert.deepStrictEqual(value, payload);
@@ -125,9 +127,9 @@ describe('pipeline', () => {
       assert.fail('LPUSH on a string key must return an Error');
     }
 
-    assert.match(
+    assert.strictEqual(
       pipelineError.message,
-      /^WRONGTYPE Operation against a key holding the wrong kind of value$/,
+      'WRONGTYPE Operation against a key holding the wrong kind of value',
     );
     assert.deepStrictEqual(unwrap(replies, 2), Buffer.from('not-a-list'));
   });

@@ -60,8 +60,14 @@ describe('client-commands', () => {
     const info = await client.clientInfo();
     const fields = parseClientFields(info.split('\n')[0] ?? info);
 
-    assert.ok(Number.parseInt(fields.id ?? '', 10) > 0);
-    assert.ok(Number.parseInt(fields.fd ?? '', 10) >= 0);
+    assert.ok(
+      Number.parseInt(fields.id ?? '', 10) > 0,
+      `expected positive client id, got ${fields.id}`,
+    );
+    assert.ok(
+      Number.parseInt(fields.fd ?? '', 10) >= 0,
+      `expected non-negative file descriptor, got ${fields.fd}`,
+    );
     assert.strictEqual(fields.name, 'solidis');
   });
 
@@ -130,7 +136,10 @@ describe('client-commands', () => {
   it('reports total command count with COMMAND COUNT', async () => {
     const count = await client.commandCount();
 
-    assert.ok(count > 100);
+    assert.ok(
+      count > 100,
+      `expected more than 100 commands from COMMAND COUNT, got ${count}`,
+    );
     assert.strictEqual(await client.commandCount(), count);
   });
 
@@ -177,7 +186,6 @@ describe('client-commands', () => {
 
     const commands = await client.commandList({ module: 'ReJSON' });
 
-    assert.ok(Array.isArray(commands));
     assert.ok(commands.length > 0, 'expected RedisJSON commands');
     assert.ok(
       commands.every((name) => name.toLowerCase().startsWith('json.')),
@@ -243,9 +251,6 @@ describe('client-commands', () => {
 
     const docs = await client.commandDocs(['set']);
 
-    assert.ok(docs !== null && typeof docs === 'object');
-    assert.ok('set' in docs);
-
     const setDoc = docs.set;
 
     assert.strictEqual(
@@ -255,14 +260,18 @@ describe('client-commands', () => {
     assert.strictEqual(setDoc.since, '1.0.0');
     assert.strictEqual(setDoc.group, 'string');
     assert.strictEqual(setDoc.complexity, 'O(1)');
-    assert.ok(Array.isArray(setDoc.history));
+    if (!Array.isArray(setDoc.history)) {
+      assert.fail('expected history array in SET docs');
+    }
     assert.strictEqual(
-      setDoc.history?.[0],
+      setDoc.history[0],
       '2.6.12: Added the `EX`, `PX`, `NX` and `XX` options.',
     );
-    assert.ok(Array.isArray(setDoc.arguments));
-    assert.strictEqual(setDoc.arguments?.[0].name, 'key');
-    assert.strictEqual(setDoc.arguments?.[0].type, 'key');
+    if (!Array.isArray(setDoc.arguments)) {
+      assert.fail('expected arguments array in SET docs');
+    }
+    assert.strictEqual(setDoc.arguments[0].name, 'key');
+    assert.strictEqual(setDoc.arguments[0].type, 'key');
   });
 
   it('parses COMMAND DOCS for a deprecated command', async (context) => {
@@ -273,8 +282,9 @@ describe('client-commands', () => {
 
     const docs = await client.commandDocs(['substr']);
 
-    assert.ok(docs !== null && typeof docs === 'object');
-    assert.ok('substr' in docs);
+    if (!('substr' in docs)) {
+      assert.fail('expected substr in COMMAND DOCS output');
+    }
 
     const substrDoc = docs.substr;
 
@@ -284,9 +294,15 @@ describe('client-commands', () => {
     );
     assert.strictEqual(substrDoc.since, '1.0.0');
     assert.strictEqual(substrDoc.group, 'string');
-    assert.deepStrictEqual(substrDoc.docFlags, ['deprecated']);
-    assert.strictEqual(substrDoc.deprecatedSince, '2.0.0');
-    assert.strictEqual(substrDoc.replacedBy, '`GETRANGE`');
+    if (capabilities.isValkey && capabilities.atLeast(9, 0)) {
+      assert.strictEqual(substrDoc.docFlags, undefined);
+      assert.strictEqual(substrDoc.deprecatedSince, undefined);
+      assert.strictEqual(substrDoc.replacedBy, undefined);
+    } else {
+      assert.deepStrictEqual(substrDoc.docFlags, ['deprecated']);
+      assert.strictEqual(substrDoc.deprecatedSince, '2.0.0');
+      assert.strictEqual(substrDoc.replacedBy, '`GETRANGE`');
+    }
   });
 
   it('kills a client connection by id', async () => {

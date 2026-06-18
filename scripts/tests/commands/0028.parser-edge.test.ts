@@ -106,30 +106,30 @@ describe('parser-edge', () => {
       const result = await parseOnce(bytes(':12ab\r\n'));
 
       assert.strictEqual(result.length, 1, 'must parse exactly one value');
-      assert.strictEqual(
-        result[0] instanceof RespError ? result[0].message : result[0],
-        "Integer parse error: '12ab'",
-      );
+      if (!(result[0] instanceof RespError)) {
+        assert.fail('expected a RespError for malformed integer');
+      }
+      assert.strictEqual(result[0].message, "Integer parse error: '12ab'");
     });
 
     it('rejects a malformed integer containing a space character', async () => {
       const result = await parseOnce(bytes(':1 2\r\n'));
 
       assert.strictEqual(result.length, 1, 'must parse exactly one value');
-      assert.strictEqual(
-        result[0] instanceof RespError ? result[0].message : result[0],
-        "Integer parse error: '1 2'",
-      );
+      if (!(result[0] instanceof RespError)) {
+        assert.fail('expected a RespError for malformed integer');
+      }
+      assert.strictEqual(result[0].message, "Integer parse error: '1 2'");
     });
 
     it('rejects a float-in-integer frame instead of producing garbage', async () => {
       const result = await parseOnce(bytes(':3.14\r\n'));
 
       assert.strictEqual(result.length, 1, 'must parse exactly one value');
-      assert.strictEqual(
-        result[0] instanceof RespError ? result[0].message : result[0],
-        "Integer parse error: '3.14'",
-      );
+      if (!(result[0] instanceof RespError)) {
+        assert.fail('expected a RespError for malformed integer');
+      }
+      assert.strictEqual(result[0].message, "Integer parse error: '3.14'");
     });
 
     it('rejects an array length containing non-digit characters', async () => {
@@ -151,19 +151,19 @@ describe('parser-edge', () => {
     it('turns an unparseable double into a RespError', async () => {
       const [reply] = await parseOnce(bytes(',not-a-number\r\n'));
 
-      assert.strictEqual(
-        reply instanceof RespError ? reply.message : reply,
-        "Double parse error: 'not-a-number'",
-      );
+      if (!(reply instanceof RespError)) {
+        assert.fail('expected a RespError for unparseable double');
+      }
+      assert.strictEqual(reply.message, "Double parse error: 'not-a-number'");
     });
 
     it('turns an unparseable big number into a RespError', async () => {
       const [reply] = await parseOnce(bytes('(12notdigits\r\n'));
 
-      assert.strictEqual(
-        reply instanceof RespError ? reply.message : reply,
-        "BigNumber parse error: '12notdigits'",
-      );
+      if (!(reply instanceof RespError)) {
+        assert.fail('expected a RespError for unparseable big number');
+      }
+      assert.strictEqual(reply.message, "BigNumber parse error: '12notdigits'");
     });
 
     it('parses a blob error into a RespError carrying its text', async () => {

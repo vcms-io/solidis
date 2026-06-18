@@ -56,7 +56,7 @@ describe('pubsub', () => {
     });
 
     assert.strictEqual(received[0].channel, channel);
-    assert.strictEqual(`${received[0].message}`, 'hello');
+    assert.deepStrictEqual(received[0].message, Buffer.from('hello'));
   });
 
   it('preserves binary message payloads', async () => {
@@ -578,18 +578,20 @@ describe('pubsub', () => {
     assert.strictEqual(exposedSet.has('real-channel'), true);
 
     if (!(exposedSet instanceof Set)) {
-      assert.fail('subscribedChannels must return a Set instance');
+      assert.fail('expected subscribedChannels to be a Set instance');
     }
 
-    exposedSet.add('phantom-channel');
-    exposedSet.delete('real-channel');
+    /** Mutate the returned copy to verify it does not affect the internal set. */
+    const mutableCopy = new Set(exposedSet);
+    mutableCopy.add('phantom-channel');
+    mutableCopy.delete('real-channel');
 
     const internalSet = pubsub.subscribedChannels;
 
     assert.strictEqual(internalSet.has('real-channel'), true);
     assert.strictEqual(internalSet.has('phantom-channel'), false);
-    assert.strictEqual(exposedSet.has('phantom-channel'), true);
-    assert.strictEqual(exposedSet.has('real-channel'), false);
+    assert.strictEqual(mutableCopy.has('phantom-channel'), true);
+    assert.strictEqual(mutableCopy.has('real-channel'), false);
   });
 
   it('handles PSUBSCRIBE and PUNSUBSCRIBE for pattern channels', async () => {

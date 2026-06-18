@@ -18,6 +18,9 @@ import type { FeaturedClient } from '../utils/index.ts';
 describe('acl', () => {
   let client: FeaturedClient;
   let atLeast7 = false;
+  let atLeast72 = false;
+  let atLeast8 = false;
+  let isValkey = false;
   const trackedUsers: string[] = [];
 
   const createTestUser = () => {
@@ -28,7 +31,11 @@ describe('acl', () => {
 
   before(async () => {
     client = await createClient();
-    atLeast7 = (await detectServerCapabilities(client)).atLeast(7, 0);
+    const capabilities = await detectServerCapabilities(client);
+    atLeast7 = capabilities.atLeast(7, 0);
+    atLeast72 = capabilities.atLeast(7, 2);
+    atLeast8 = capabilities.atLeast(8, 0);
+    isValkey = capabilities.isValkey;
   });
 
   after(async () => {
@@ -115,16 +122,29 @@ describe('acl', () => {
       assert.fail('ACL GETUSER must return user info for an active user');
     }
 
-    assert.deepStrictEqual(info, {
-      flags: ['on', 'sanitize-payload'],
-      passwords: [
-        '9b8769a4a742959a2d0298c36fb70623f2dfacda8436237df08d8dfd5b37374c',
-      ],
-      commands: '+@all',
-      keys: '~*',
-      channels: '',
-      selectors: [],
-    });
+    if (atLeast7) {
+      assert.deepStrictEqual(info, {
+        flags: ['on', 'sanitize-payload'],
+        passwords: [
+          '9b8769a4a742959a2d0298c36fb70623f2dfacda8436237df08d8dfd5b37374c',
+        ],
+        commands: '+@all',
+        keys: '~*',
+        channels: '',
+        selectors: [],
+      });
+    } else {
+      assert.deepStrictEqual(info, {
+        flags: ['on', 'allkeys', 'allchannels', 'allcommands'],
+        passwords: [
+          '9b8769a4a742959a2d0298c36fb70623f2dfacda8436237df08d8dfd5b37374c',
+        ],
+        commands: '+@all',
+        keys: '*',
+        channels: '*',
+        selectors: [],
+      });
+    }
 
     assert.strictEqual(await client.aclDeluser(user), 1);
 
@@ -187,11 +207,20 @@ describe('acl', () => {
      * The write must be rejected by the command ACL, otherwise the rest of the
      * assertions about the audit log would be meaningless.
      */
-    assert.ok(denied instanceof Error);
-    assert.strictEqual(
-      denied.message,
-      `[SET forbidden:key val] Invalid reply: RespError: NOPERM User ${user} has no permissions to run the 'set' command`,
-    );
+    if (!(denied instanceof Error)) {
+      assert.fail('expected the SET command to be rejected by the ACL');
+    }
+    if (atLeast72) {
+      assert.strictEqual(
+        denied.message,
+        `[SET forbidden:key val] Invalid reply: RespError: NOPERM User ${user} has no permissions to run the 'set' command`,
+      );
+    } else {
+      assert.strictEqual(
+        denied.message,
+        "[SET forbidden:key val] Invalid reply: RespError: NOPERM this user has no permissions to run the 'set' command or its subcommand",
+      );
+    }
 
     const log = await client.aclLog();
 
@@ -246,8 +275,7 @@ describe('acl', () => {
   it('resets the ACL log', async () => {
     const log = await client.aclLog('RESET');
 
-    assert.ok(Array.isArray(log));
-    assert.strictEqual(log.length, 0);
+    assert.deepStrictEqual(log, []);
   });
 
   it('persists ACL rules with ACL SAVE', async () => {
@@ -259,10 +287,17 @@ describe('acl', () => {
     const result = await client.aclSave().catch((error: Error) => error);
 
     if (result instanceof Error) {
-      assert.strictEqual(
-        result.message,
-        '[ACL SAVE] Invalid reply: RespError: ERR This Redis instance is not configured to use an ACL file. You may want to specify users via the ACL SETUSER command and then issue a CONFIG REWRITE (assuming you have a Redis configuration file set) in order to store users in the Redis configuration.',
-      );
+      if (isValkey && atLeast8) {
+        assert.strictEqual(
+          result.message,
+          '[ACL SAVE] Invalid reply: RespError: ERR This instance is not configured to use an ACL file. You may want to specify users via the ACL SETUSER command and then issue a CONFIG REWRITE (assuming you have a configuration file set) in order to store users in the configuration.',
+        );
+      } else {
+        assert.strictEqual(
+          result.message,
+          '[ACL SAVE] Invalid reply: RespError: ERR This Redis instance is not configured to use an ACL file. You may want to specify users via the ACL SETUSER command and then issue a CONFIG REWRITE (assuming you have a Redis configuration file set) in order to store users in the Redis configuration.',
+        );
+      }
       return;
     }
 

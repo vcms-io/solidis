@@ -16,6 +16,7 @@ import {
   createClient,
   createKeyspace,
   delay,
+  detectServerCapabilities,
   MockRedisServer,
   mockClientOptions,
   randomBuffer,
@@ -23,7 +24,7 @@ import {
   waitFor,
 } from '../../utils/index.ts';
 
-import type { FeaturedClient } from '../../utils/index.ts';
+import type { FeaturedClient, ServerCapabilities } from '../../utils/index.ts';
 
 const buildLargeEchoCommands = (count: number, payloadSize: number) =>
   Array.from({ length: count }, () => ['ECHO', 'x'.repeat(payloadSize)]);
@@ -61,9 +62,11 @@ describe('fragility', () => {
 
   describe('hostile payloads keep the client healthy', () => {
     let client: FeaturedClient;
+    let capabilities: ServerCapabilities;
 
     before(async () => {
       client = await createClient({ commandTimeout: 300 });
+      capabilities = await detectServerCapabilities(client);
     });
 
     after(async () => {
@@ -119,11 +122,20 @@ describe('fragility', () => {
         [Buffer.from([0x01, 0x02, 0x03]), 'arg'],
       ]);
 
-      assert.ok(reply instanceof RespError);
-      assert.strictEqual(
-        reply.message,
-        "ERR unknown command '\x01\x02\x03', with args beginning with: 'arg' ",
-      );
+      if (!(reply instanceof RespError)) {
+        assert.fail('expected RespError for unknown binary command');
+      }
+      if (capabilities.atLeast(7, 0)) {
+        assert.strictEqual(
+          reply.message,
+          "ERR unknown command '\x01\x02\x03', with args beginning with: 'arg' ",
+        );
+      } else {
+        assert.strictEqual(
+          reply.message,
+          'ERR unknown command `\x01\x02\x03`, with args beginning with: `arg`, ',
+        );
+      }
 
       await assertStillHealthy('bogus-name');
     });
@@ -131,7 +143,9 @@ describe('fragility', () => {
     it('isolates a wrong-arity command as an inline error', async () => {
       const [[reply]] = await client.send([['GET']]);
 
-      assert.ok(reply instanceof RespError);
+      if (!(reply instanceof RespError)) {
+        assert.fail('expected RespError for wrong-arity GET');
+      }
       assert.strictEqual(
         reply.message,
         "ERR wrong number of arguments for 'get' command",
@@ -153,22 +167,35 @@ describe('fragility', () => {
       ]);
 
       assert.strictEqual(replies[0][0], 'OK');
-      assert.ok(replies[1][0] instanceof RespError);
+      if (!(replies[1][0] instanceof RespError)) {
+        assert.fail('expected RespError for INCR on string value');
+      }
       assert.strictEqual(
         replies[1][0].message,
         'ERR value is not an integer or out of range',
       );
-      assert.ok(replies[2][0] instanceof RespError);
+      if (!(replies[2][0] instanceof RespError)) {
+        assert.fail('expected RespError for LPUSH on string key');
+      }
       assert.strictEqual(
         replies[2][0].message,
         'WRONGTYPE Operation against a key holding the wrong kind of value',
       );
       assert.strictEqual(`${replies[3][0]}`, 'value');
-      assert.ok(replies[4][0] instanceof RespError);
-      assert.strictEqual(
-        replies[4][0].message,
-        "ERR unknown command 'NOTACOMMAND', with args beginning with: ",
-      );
+      if (!(replies[4][0] instanceof RespError)) {
+        assert.fail('expected RespError for unknown command');
+      }
+      if (capabilities.atLeast(7, 0)) {
+        assert.strictEqual(
+          replies[4][0].message,
+          "ERR unknown command 'NOTACOMMAND', with args beginning with: ",
+        );
+      } else {
+        assert.strictEqual(
+          replies[4][0].message,
+          'ERR unknown command `NOTACOMMAND`, with args beginning with: ',
+        );
+      }
       assert.strictEqual(replies[5][0], 6);
 
       assert.strictEqual(await client.get(key), 'value!');
@@ -209,22 +236,40 @@ describe('fragility', () => {
             assert.strictEqual(reply, index);
             break;
           case 2:
-            assert.ok(reply instanceof RespError);
-            assert.strictEqual(
-              reply.message,
-              `ERR unknown command 'NOTACOMMAND', with args beginning with: '${index}' `,
-            );
+            if (!(reply instanceof RespError)) {
+              assert.fail(`expected RespError at command index ${index}`);
+            }
+            if (capabilities.atLeast(7, 0)) {
+              assert.strictEqual(
+                reply.message,
+                `ERR unknown command 'NOTACOMMAND', with args beginning with: '${index}' `,
+              );
+            } else {
+              assert.strictEqual(
+                reply.message,
+                `ERR unknown command \`NOTACOMMAND\`, with args beginning with: \`${index}\`, `,
+              );
+            }
             break;
           case 3: {
-            assert.ok(reply instanceof RespError);
-            assert.strictEqual(
-              reply.message.slice(0, 'ERR unknown command '.length),
-              'ERR unknown command ',
+            if (!(reply instanceof RespError)) {
+              assert.fail(`expected RespError at command index ${index}`);
+            }
+            assert.ok(
+              reply.message.startsWith('ERR unknown command '),
+              `expected ERR unknown command prefix at index ${index}, got: ${reply.message}`,
             );
-            assert.strictEqual(
-              reply.message.slice(-", with args beginning with: 'x' ".length),
-              ", with args beginning with: 'x' ",
-            );
+            if (capabilities.atLeast(7, 0)) {
+              assert.ok(
+                reply.message.endsWith(", with args beginning with: 'x' "),
+                `expected single-quote args suffix at index ${index}, got: ${reply.message}`,
+              );
+            } else {
+              assert.ok(
+                reply.message.endsWith(', with args beginning with: `x`, '),
+                `expected backtick args suffix at index ${index}, got: ${reply.message}`,
+              );
+            }
             break;
           }
           default:
@@ -889,7 +934,9 @@ describe('fragility', () => {
 
       const error = await client.connect().catch((caught: Error) => caught);
 
-      assert.ok(error instanceof SolidisClientError);
+      if (!(error instanceof SolidisClientError)) {
+        assert.fail('expected SolidisClientError for failed ready check');
+      }
       assert.strictEqual(error.message, 'Ready check failed');
 
       assert.strictEqual(
@@ -922,7 +969,9 @@ describe('fragility', () => {
         caught = error;
       }
 
-      assert.ok(caught instanceof SolidisCommandError);
+      if (!(caught instanceof SolidisCommandError)) {
+        assert.fail('expected SolidisCommandError for ACL LOG parse failure');
+      }
       assert.strictEqual(
         caught.message,
         '[ACL LOG] Unexpected reply: not-an-array',

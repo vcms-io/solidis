@@ -270,7 +270,11 @@ describe('sorted-sets', () => {
     }
     assert.strictEqual(several.length, 2);
     for (const member of several) {
-      assert.ok(typeof member === 'string');
+      if (typeof member !== 'string') {
+        assert.fail(
+          'expected string members from zrandmember without WITHSCORES',
+        );
+      }
       assert.ok(['a', 'b', 'c'].includes(member));
     }
     assert.notStrictEqual(several[0], several[1]);
@@ -338,15 +342,12 @@ describe('sorted-sets', () => {
     ]);
 
     assert.deepStrictEqual(await client.zdiff([first, second]), ['a']);
-    assert.deepStrictEqual([...(await client.zinter([first, second]))].sort(), [
-      'b',
-      'c',
-    ]);
-    assert.deepStrictEqual([...(await client.zunion([first, second]))].sort(), [
+    assert.deepStrictEqual(await client.zinter([first, second]), ['b', 'c']);
+    assert.deepStrictEqual(await client.zunion([first, second]), [
       'a',
+      'd',
       'b',
       'c',
-      'd',
     ]);
 
     assert.deepStrictEqual(await client.zdiff([first, second], true), [

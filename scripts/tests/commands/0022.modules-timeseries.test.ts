@@ -240,10 +240,14 @@ describe('modules-timeseries', () => {
     assert.strictEqual(info.totalSamples, 1);
     assert.strictEqual(info.firstTimestamp, 1000);
     assert.strictEqual(info.lastTimestamp, 1000);
-    assert.ok(Array.isArray(info.labels));
+    if (!Array.isArray(info.labels)) {
+      assert.fail('expected labels to be an array');
+    }
     assert.deepStrictEqual(
       info.labels.map((pair: unknown) => {
-        assert.ok(Array.isArray(pair) && pair.length === 2);
+        if (!Array.isArray(pair) || pair.length !== 2) {
+          assert.fail('expected label entry to be a [key, value] pair');
+        }
         return [String(pair[0]), String(pair[1])];
       }),
       [['env', 'test']],
@@ -267,10 +271,14 @@ describe('modules-timeseries', () => {
 
     const altered = await client.tsInfo(key);
 
-    assert.ok(Array.isArray(altered.labels));
+    if (!Array.isArray(altered.labels)) {
+      assert.fail('expected labels to be an array');
+    }
     assert.deepStrictEqual(
       altered.labels.map((pair: unknown) => {
-        assert.ok(Array.isArray(pair) && pair.length === 2);
+        if (!Array.isArray(pair) || pair.length !== 2) {
+          assert.fail('expected label entry to be a [key, value] pair');
+        }
         return [String(pair[0]), String(pair[1])];
       }),
       [['env', 'prod']],
@@ -299,7 +307,9 @@ describe('modules-timeseries', () => {
     const sourceInfo = await client.tsInfo(sourceKey);
     const destinationInfo = await client.tsInfo(destinationKey);
 
-    assert.ok(Array.isArray(sourceInfo.rules));
+    if (!Array.isArray(sourceInfo.rules)) {
+      assert.fail('expected rules to be an array');
+    }
     assert.strictEqual(sourceInfo.rules.length, 1);
     assert.strictEqual(String(sourceInfo.rules[0][0]), destinationKey);
     assert.strictEqual(sourceInfo.rules[0][1], 60000);
@@ -459,7 +469,9 @@ describe('modules-timeseries', () => {
 
     const sourceInfo = await client.tsInfo(source);
 
-    assert.ok(Array.isArray(sourceInfo.rules));
+    if (!Array.isArray(sourceInfo.rules)) {
+      assert.fail('expected rules to be an array');
+    }
     assert.strictEqual(sourceInfo.rules.length, 1);
     assert.strictEqual(String(sourceInfo.rules[0][0]), destination);
     assert.strictEqual(sourceInfo.rules[0][1], 60000);

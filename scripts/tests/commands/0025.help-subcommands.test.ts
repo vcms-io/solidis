@@ -30,29 +30,41 @@ describe('help-subcommands', () => {
   it('returns help for ACL', async () => {
     const help = await client.aclHelp();
 
-    assert.ok(help.length > 0);
-    assert.ok(help.some((line) => line.toUpperCase().includes('CAT')));
+    assert.ok(help.length > 0, 'ACL HELP must return at least one line');
+    assert.ok(
+      help.some((line) => line.toUpperCase().includes('CAT')),
+      'ACL HELP must mention the CAT subcommand',
+    );
   });
 
   it('returns help for CLIENT', async () => {
     const help = await client.clientHelp();
 
-    assert.ok(help.length > 0);
-    assert.ok(help.some((line) => line.toUpperCase().includes('SETNAME')));
+    assert.ok(help.length > 0, 'CLIENT HELP must return at least one line');
+    assert.ok(
+      help.some((line) => line.toUpperCase().includes('SETNAME')),
+      'CLIENT HELP must mention the SETNAME subcommand',
+    );
   });
 
   it('returns help for COMMAND', async () => {
     const help = await client.commandHelp();
 
-    assert.ok(help.length > 0);
-    assert.ok(help.some((line) => line.toUpperCase().includes('COUNT')));
+    assert.ok(help.length > 0, 'COMMAND HELP must return at least one line');
+    assert.ok(
+      help.some((line) => line.toUpperCase().includes('COUNT')),
+      'COMMAND HELP must mention the COUNT subcommand',
+    );
   });
 
   it('returns help for CONFIG', async () => {
     const help = await client.configHelp();
 
-    assert.ok(help.length > 0);
-    assert.ok(help.some((line) => line.toUpperCase().includes('GET')));
+    assert.ok(help.length > 0, 'CONFIG HELP must return at least one line');
+    assert.ok(
+      help.some((line) => line.toUpperCase().includes('GET')),
+      'CONFIG HELP must mention the GET subcommand',
+    );
   });
 
   it('returns help for FUNCTION', async (context) => {
@@ -63,70 +75,100 @@ describe('help-subcommands', () => {
 
     const help = await client.functionHelp();
 
-    assert.ok(help.length > 0);
-    assert.ok(help.some((line) => line.toUpperCase().includes('LOAD')));
+    assert.ok(help.length > 0, 'FUNCTION HELP must return at least one line');
+    assert.ok(
+      help.some((line) => line.toUpperCase().includes('LOAD')),
+      'FUNCTION HELP must mention the LOAD subcommand',
+    );
   });
 
   it('returns help for LATENCY', async () => {
     const help = await client.latencyHelp();
 
-    assert.ok(help.length > 0);
-    assert.ok(help.some((line) => line.toUpperCase().includes('LATEST')));
+    assert.ok(help.length > 0, 'LATENCY HELP must return at least one line');
+    assert.ok(
+      help.some((line) => line.toUpperCase().includes('LATEST')),
+      'LATENCY HELP must mention the LATEST subcommand',
+    );
   });
 
   it('returns help for MEMORY', async () => {
     const help = await client.memoryHelp();
 
-    assert.ok(help.length > 0);
-    assert.ok(help.some((line) => line.toUpperCase().includes('USAGE')));
+    assert.ok(help.length > 0, 'MEMORY HELP must return at least one line');
+    assert.ok(
+      help.some((line) => line.toUpperCase().includes('USAGE')),
+      'MEMORY HELP must mention the USAGE subcommand',
+    );
   });
 
   it('returns help for MODULE', async () => {
     const help = await client.moduleHelp();
 
-    assert.ok(help.length > 0);
-    assert.ok(help.some((line) => line.toUpperCase().includes('LIST')));
+    assert.ok(help.length > 0, 'MODULE HELP must return at least one line');
+    assert.ok(
+      help.some((line) => line.toUpperCase().includes('LIST')),
+      'MODULE HELP must mention the LIST subcommand',
+    );
   });
 
   it('returns help for OBJECT', async () => {
     const help = await client.objectHelp();
 
-    assert.ok(help.length > 0);
-    assert.ok(help.some((line) => line.toUpperCase().includes('ENCODING')));
+    assert.ok(help.length > 0, 'OBJECT HELP must return at least one line');
+    assert.ok(
+      help.some((line) => line.toUpperCase().includes('ENCODING')),
+      'OBJECT HELP must mention the ENCODING subcommand',
+    );
   });
 
   it('returns help for PUBSUB', async () => {
     const help = await client.pubsubHelp();
 
-    assert.ok(help.length > 0);
-    assert.ok(help.some((line) => line.toUpperCase().includes('CHANNELS')));
+    assert.ok(help.length > 0, 'PUBSUB HELP must return at least one line');
+    assert.ok(
+      help.some((line) => line.toUpperCase().includes('CHANNELS')),
+      'PUBSUB HELP must mention the CHANNELS subcommand',
+    );
   });
 
   it('returns help for SCRIPT', async () => {
     const help = await client.scriptHelp();
 
-    assert.ok(help.length > 0);
-    assert.ok(help.some((line) => line.toUpperCase().includes('LOAD')));
+    assert.ok(help.length > 0, 'SCRIPT HELP must return at least one line');
+    assert.ok(
+      help.some((line) => line.toUpperCase().includes('LOAD')),
+      'SCRIPT HELP must mention the LOAD subcommand',
+    );
   });
 
   it('returns help for SLOWLOG', async () => {
     const help = await client.slowlogHelp();
 
-    assert.ok(help.length > 0);
-    assert.ok(help.some((line) => line.toUpperCase().includes('GET')));
+    assert.ok(help.length > 0, 'SLOWLOG HELP must return at least one line');
+    assert.ok(
+      help.some((line) => line.toUpperCase().includes('GET')),
+      'SLOWLOG HELP must mention the GET subcommand',
+    );
   });
 
   it('returns help for XGROUP', async () => {
     const help = await client.xgroupHelp();
 
-    assert.ok(help.length > 0);
-    assert.ok(help.some((line) => line.toUpperCase().includes('CREATE')));
+    assert.ok(help.length > 0, 'XGROUP HELP must return at least one line');
+    assert.ok(
+      help.some((line) => line.toUpperCase().includes('CREATE')),
+      'XGROUP HELP must mention the CREATE subcommand',
+    );
   });
 
   it('returns help for XINFO', async () => {
     const help = await client.xinfoHelp();
 
-    assert.ok(help.length > 0);
-    assert.ok(help.some((line) => line.toUpperCase().includes('STREAM')));
+    assert.ok(help.length > 0, 'XINFO HELP must return at least one line');
+    assert.ok(
+      help.some((line) => line.toUpperCase().includes('STREAM')),
+      'XINFO HELP must mention the STREAM subcommand',
+    );
   });
 });

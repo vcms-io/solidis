@@ -29,16 +29,19 @@ import {
   closeClient,
   createClient,
   createKeyspace,
+  detectServerCapabilities,
 } from '../../utils/index.ts';
 
-import type { FeaturedClient } from '../../utils/index.ts';
+import type { FeaturedClient, ServerCapabilities } from '../../utils/index.ts';
 
 describe('errors', () => {
   let client: FeaturedClient;
+  let capabilities: ServerCapabilities;
   const keyspace = createKeyspace('errors');
 
   before(async () => {
     client = await createClient();
+    capabilities = await detectServerCapabilities(client);
   });
 
   after(async () => {
@@ -58,7 +61,9 @@ describe('errors', () => {
       caught = error;
     }
 
-    assert.ok(caught instanceof SolidisCommandError);
+    if (!(caught instanceof SolidisCommandError)) {
+      assert.fail('expected SolidisCommandError for wrong-type operation');
+    }
     assert.strictEqual(
       caught.message,
       `[LPUSH ${key} x] Invalid reply: RespError: WRONGTYPE Operation against a key holding the wrong kind of value`,
@@ -82,7 +87,9 @@ describe('errors', () => {
   it('surfaces raw error replies as RespError values', async () => {
     const replies = await client.send([['SUBSCRIBE']]);
 
-    assert.ok(replies[0][0] instanceof RespError);
+    if (!(replies[0][0] instanceof RespError)) {
+      assert.fail('expected RespError for SUBSCRIBE without arguments');
+    }
     assert.strictEqual(
       replies[0][0].message,
       "ERR wrong number of arguments for 'subscribe' command",
@@ -99,7 +106,9 @@ describe('errors', () => {
     ]);
 
     assert.strictEqual(replies[0][0], 'OK');
-    assert.ok(replies[1][0] instanceof RespError);
+    if (!(replies[1][0] instanceof RespError)) {
+      assert.fail('expected RespError for INCR on non-integer value');
+    }
     assert.strictEqual(
       replies[1][0].message,
       'ERR value is not an integer or out of range',
@@ -111,11 +120,20 @@ describe('errors', () => {
     const replies = await client.send([['NOTACOMMAND', 'arg']]);
     const reply = replies[0][0];
 
-    assert.ok(reply instanceof RespError);
-    assert.strictEqual(
-      reply.message,
-      "ERR unknown command 'NOTACOMMAND', with args beginning with: 'arg' ",
-    );
+    if (!(reply instanceof RespError)) {
+      assert.fail('expected RespError for unknown command NOTACOMMAND');
+    }
+    if (capabilities.atLeast(7, 0)) {
+      assert.strictEqual(
+        reply.message,
+        "ERR unknown command 'NOTACOMMAND', with args beginning with: 'arg' ",
+      );
+    } else {
+      assert.strictEqual(
+        reply.message,
+        'ERR unknown command `NOTACOMMAND`, with args beginning with: `arg`, ',
+      );
+    }
   });
 
   it('times out a blocking command past commandTimeout', async () => {
@@ -154,7 +172,9 @@ describe('errors', () => {
       caught = error;
     }
 
-    assert.ok(caught instanceof SolidisClientError);
+    if (!(caught instanceof SolidisClientError)) {
+      assert.fail('expected SolidisClientError for connection refusal');
+    }
     assert.strictEqual(
       caught.message,
       'SolidisConnectionError: Error: connect ECONNREFUSED 127.0.0.1:1',

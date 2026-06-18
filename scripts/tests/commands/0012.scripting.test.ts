@@ -12,16 +12,18 @@ import {
   detectServerCapabilities,
 } from '../utils/index.ts';
 
-import type { FeaturedClient } from '../utils/index.ts';
+import type { FeaturedClient, ServerCapabilities } from '../utils/index.ts';
 
 describe('scripting', () => {
   let client: FeaturedClient;
+  let capabilities: ServerCapabilities;
   let atLeast7 = false;
   const keyspace = createKeyspace('scripting');
 
   before(async () => {
     client = await createClient();
-    atLeast7 = (await detectServerCapabilities(client)).atLeast(7, 0);
+    capabilities = await detectServerCapabilities(client);
+    atLeast7 = capabilities.atLeast(7, 0);
   });
 
   after(async () => {
@@ -41,14 +43,11 @@ describe('scripting', () => {
       ['first', 'second'],
     );
 
-    if (!Array.isArray(result)) {
-      assert.fail('expected eval to return an array');
-    }
-
-    assert.deepStrictEqual(
-      result.map((item) => `${item}`),
-      [key, 'first', 'second'],
-    );
+    assert.deepStrictEqual(result, [
+      Buffer.from(key),
+      Buffer.from('first'),
+      Buffer.from('second'),
+    ]);
   });
 
   it('mutates state through redis.call', async () => {
@@ -91,10 +90,14 @@ describe('scripting', () => {
     const result = await client.evalsha('0'.repeat(40), [], []);
 
     assert.ok(result instanceof RespError);
-    assert.strictEqual(
-      result.message,
-      'NOSCRIPT No matching script. Please use EVAL.',
-    );
+    if (capabilities.isValkey && capabilities.atLeast(8, 0)) {
+      assert.strictEqual(result.message, 'NOSCRIPT No matching script.');
+    } else {
+      assert.strictEqual(
+        result.message,
+        'NOSCRIPT No matching script. Please use EVAL.',
+      );
+    }
   });
 
   it('reads with EVAL_RO', async (context) => {
@@ -114,7 +117,7 @@ describe('scripting', () => {
       [],
     );
 
-    assert.strictEqual(`${result}`, 'value');
+    assert.deepStrictEqual(result, Buffer.from('value'));
   });
 
   it('reads with EVALSHA_RO', async (context) => {
@@ -131,7 +134,7 @@ describe('scripting', () => {
     const sha1 = await client.scriptLoad(script);
     const result = await client.evalshaRo(sha1, [key], []);
 
-    assert.strictEqual(`${result}`, 'frozen');
+    assert.deepStrictEqual(result, Buffer.from('frozen'));
   });
 
   it('flushes the script cache with SCRIPT FLUSH', async () => {

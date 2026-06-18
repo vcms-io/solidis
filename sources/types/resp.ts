@@ -202,6 +202,8 @@ export interface RespLatencyHistory {
 export interface RespLatencyLatest extends RespLatencyHistory {
   event: string;
   maximumLatency: number;
+  sum?: number;
+  count?: number;
 }
 export interface RespLCSMatch {
   a: [number, number];

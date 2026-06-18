@@ -62,6 +62,7 @@ describe('debug-requester', () => {
           typeof entry.timestamp === 'number' &&
             Number.isFinite(entry.timestamp) &&
             entry.timestamp > 0,
+          `expected positive finite timestamp, got ${entry.timestamp}`,
         );
       }
     });

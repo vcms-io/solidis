@@ -153,9 +153,9 @@ describe('stress-correlation', () => {
       } catch (error) {
         errors += 1;
         if (sample.length < 5) {
-          sample.push(
-            `THROW#${index}: ${(error as Error).message.slice(0, 60)}`,
-          );
+          const message =
+            error instanceof Error ? error.message : String(error);
+          sample.push(`THROW#${index}: ${message.slice(0, 60)}`);
         }
       }
     });

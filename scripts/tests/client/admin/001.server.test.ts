@@ -11,16 +11,19 @@ import {
   closeClient,
   createClient,
   createKeyspace,
+  detectServerCapabilities,
 } from '../../utils/index.ts';
 
-import type { FeaturedClient } from '../../utils/index.ts';
+import type { FeaturedClient, ServerCapabilities } from '../../utils/index.ts';
 
 describe('server', () => {
   let client: FeaturedClient;
+  let capabilities: ServerCapabilities;
   const keyspace = createKeyspace('server');
 
   before(async () => {
     client = await createClient();
+    capabilities = await detectServerCapabilities(client);
   });
 
   after(async () => {
@@ -41,18 +44,26 @@ describe('server', () => {
     const [seconds, microseconds] = await client.time();
     const afterSeconds = Math.floor(Date.now() / 1000);
 
-    assert.ok(seconds >= beforeSeconds && seconds <= afterSeconds);
-    assert.ok(microseconds >= 0 && microseconds < 1_000_000);
+    assert.ok(
+      seconds >= beforeSeconds && seconds <= afterSeconds,
+      `TIME seconds ${seconds} outside local clock range ${beforeSeconds}..${afterSeconds}`,
+    );
+    assert.ok(
+      microseconds >= 0 && microseconds < 1_000_000,
+      `TIME microseconds ${microseconds} outside valid range 0..999999`,
+    );
   });
 
   it('parses INFO into a record', async () => {
     const info = await client.info('server');
 
-    assert.strictEqual(info.redis_mode ?? info.server_name, 'standalone');
-    assert.match(
-      info.redis_version ?? info.valkey_version ?? '',
-      /^\d+\.\d+\.\d+$/,
-    );
+    if (capabilities.isValkey) {
+      assert.strictEqual(info.server_name, 'valkey');
+      assert.match(info.valkey_version ?? '', /^\d+\.\d+\.\d+$/);
+    } else {
+      assert.strictEqual(info.redis_mode, 'standalone');
+      assert.match(info.redis_version ?? '', /^\d+\.\d+\.\d+$/);
+    }
   });
 
   it('reads and writes runtime configuration', async () => {
@@ -94,7 +105,10 @@ describe('server', () => {
     try {
       const clientIdentifier = await dedicated.clientId();
 
-      assert.ok(Number.isInteger(clientIdentifier) && clientIdentifier > 0);
+      assert.ok(
+        Number.isInteger(clientIdentifier) && clientIdentifier > 0,
+        `expected positive integer CLIENT ID, got ${clientIdentifier}`,
+      );
       assert.strictEqual(await dedicated.clientSetname('solidis-test'), 'OK');
       assert.strictEqual(await dedicated.clientGetname(), 'solidis-test');
     } finally {
@@ -135,17 +149,54 @@ describe('server', () => {
 
   it('renders LOLWUT', async () => {
     const output = await client.lolwut();
+    const trimmed = output.trimEnd();
 
-    assert.ok(output.startsWith('Redis ver.'));
+    if (capabilities.isValkey) {
+      const version = (await client.info('server')).valkey_version ?? '';
+      const brand = capabilities.atLeast(9, 0) ? 'Valkey' : 'Redis';
+      const versionFooter = `${brand} ver. ${version}`;
+
+      assert.ok(
+        trimmed.endsWith(versionFooter),
+        `Valkey ${capabilities.major} LOLWUT must end with '${versionFooter}' but got: ...${trimmed.slice(-80)}`,
+      );
+    } else {
+      const version = (await client.info('server')).redis_version ?? '';
+      const versionFooter = `Redis ver. ${version}`;
+
+      if (capabilities.atLeast(7, 0) && capabilities.major === 7) {
+        assert.strictEqual(
+          trimmed,
+          versionFooter,
+          `Redis 7 LOLWUT must be exactly '${versionFooter}'`,
+        );
+      } else {
+        assert.ok(
+          trimmed.endsWith(versionFooter),
+          `LOLWUT must end with '${versionFooter}' but got: ...${trimmed.slice(-80)}`,
+        );
+        assert.notStrictEqual(
+          trimmed,
+          versionFooter,
+          'LOLWUT with art must include content before the version footer',
+        );
+      }
+    }
   });
 
   it('reports a structured replication role', async () => {
+    const infoReplication = await client.info('replication');
+    const expectedOffset = Number.parseInt(
+      infoReplication.master_repl_offset,
+      10,
+    );
+
     const role = await client.role();
 
     assert.strictEqual(role.role, 'master');
 
     if (role.role === 'master') {
-      assert.strictEqual(role.replicationOffset, 0);
+      assert.strictEqual(role.replicationOffset, expectedOffset);
       assert.deepStrictEqual(role.slaves, []);
     }
   });
