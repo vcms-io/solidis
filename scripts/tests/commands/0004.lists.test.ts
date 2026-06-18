@@ -40,6 +40,7 @@ describe('lists', () => {
     assert.strictEqual(await client.lpop(key), 'a');
     assert.strictEqual(await client.rpop(key), 'c');
     assert.strictEqual(await client.llen(key), 1);
+    assert.deepStrictEqual(await client.lrange(key, 0, -1), ['b']);
   });
 
   it('only pushes onto existing lists with *PUSHX', async () => {

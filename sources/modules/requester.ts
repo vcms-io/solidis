@@ -11,6 +11,7 @@ import {
   SolidisProtocols,
   SolidisRequesterError,
   SolidisSubscribeCommandNameSet,
+  sanitizeCommandsBufferForDebug,
   wrapWithParserError,
   wrapWithSolidisRequesterError,
 } from '../index.ts';
@@ -114,7 +115,7 @@ export class SolidisRequester {
 
       this.#debug?.(
         'debug',
-        `Solidis requester serialized command: ${commandsBuffer.toString()}`,
+        `Solidis requester serialized command: ${sanitizeCommandsBufferForDebug(commandsBuffer, pipelineChunk.pipelinedCommands)}`,
       );
 
       const pipelineRequest: SolidisPipelineRequest = {
@@ -156,7 +157,7 @@ export class SolidisRequester {
 
       this.#debug?.(
         'debug',
-        `Solidis requester will write pipeline: ${request.commandsBuffer}`,
+        `Solidis requester will write pipeline: ${request.commandsBuffer.length} bytes`,
       );
 
       try {

@@ -42,7 +42,7 @@ describe('pipeline', () => {
     assert.strictEqual(unwrap(replies, 0), 'OK');
     assert.strictEqual(unwrap(replies, 1), 1);
     assert.strictEqual(unwrap(replies, 2), 6);
-    assert.strictEqual(`${unwrap(replies, 3)}`, 'value!');
+    assert.deepStrictEqual(unwrap(replies, 3), Buffer.from('value!'));
   });
 
   it('processes a batch larger than maxCommandsPerPipeline', async () => {
@@ -66,8 +66,11 @@ describe('pipeline', () => {
       range(total).map((index) => ['GET', keyspace.key('bulk', index)]),
     );
 
-    assert.strictEqual(`${unwrap(readback, 0)}`, '0');
-    assert.strictEqual(`${unwrap(readback, total - 1)}`, `${total - 1}`);
+    assert.deepStrictEqual(unwrap(readback, 0), Buffer.from('0'));
+    assert.deepStrictEqual(
+      unwrap(readback, total - 1),
+      Buffer.from(`${total - 1}`),
+    );
   });
 
   it('mixes reads and writes in a single round trip', async () => {
@@ -83,14 +86,12 @@ describe('pipeline', () => {
 
     assert.strictEqual(unwrap(replies, 1), 3);
     assert.strictEqual(unwrap(replies, 2), 3);
-    const rangeResult = unwrap(replies, 3);
-
-    assert.ok(Array.isArray(rangeResult));
-    assert.deepStrictEqual(
-      rangeResult.map((item) => `${item}`),
-      ['a', 'b', 'c'],
-    );
-    assert.strictEqual(`${unwrap(replies, 4)}`, 'a');
+    assert.deepStrictEqual(unwrap(replies, 3), [
+      Buffer.from('a'),
+      Buffer.from('b'),
+      Buffer.from('c'),
+    ]);
+    assert.deepStrictEqual(unwrap(replies, 4), Buffer.from('a'));
   });
 
   it('round-trips binary payloads through a pipeline', async () => {
@@ -118,22 +119,27 @@ describe('pipeline', () => {
     ]);
 
     assert.strictEqual(unwrap(replies, 0), 'OK');
-    assert.ok(unwrap(replies, 1) instanceof Error);
+
+    const pipelineError = unwrap(replies, 1);
+
+    if (!(pipelineError instanceof Error)) {
+      assert.fail('LPUSH on a string key must return an Error');
+    }
+
+    assert.match(pipelineError.message, /WRONGTYPE/i);
     assert.strictEqual(`${unwrap(replies, 2)}`, 'not-a-list');
   });
 
   it('throws guard error when pipeline called on invalid context', async () => {
     const { guard } = await import('../../../sources/command/utils/command.ts');
 
-    assert.throws(
-      () => guard(null, ['TEST']),
-      (error: Error) => error.message.includes('not a valid solidis client'),
-    );
+    assert.throws(() => guard(null, ['TEST']), {
+      message: '[TEST] This is not a valid solidis client',
+    });
 
-    assert.throws(
-      () => guard({}, ['TEST']),
-      (error: Error) => error.message.includes('Send method'),
-    );
+    assert.throws(() => guard({}, ['TEST']), {
+      message: '[TEST] Send method is not implemented',
+    });
   });
 
   it('queues command when pipeQueue is present (transaction context)', async () => {

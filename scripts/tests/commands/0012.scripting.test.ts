@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
+import { RespError, SolidisCommandError } from '../../../sources/index.ts';
 import {
   closeClient,
   createClient,
@@ -39,8 +40,8 @@ describe('scripting', () => {
       ['first', 'second'],
     );
 
+    assert.notStrictEqual(result, null);
     assert.ok(Array.isArray(result));
-
     assert.deepStrictEqual(
       result.map((item) => `${item}`),
       [key, 'first', 'second'],
@@ -85,8 +86,11 @@ describe('scripting', () => {
      */
     const result = await client.evalsha('0'.repeat(40), [], []);
 
-    assert.ok(result instanceof Error);
-    assert.match(`${result.message}`, /NOSCRIPT/i);
+    assert.ok(result instanceof RespError);
+    assert.match(
+      result.message,
+      /^NOSCRIPT No matching script\. Please use EVAL\./,
+    );
   });
 
   it('reads with EVAL_RO', async (context) => {
@@ -135,21 +139,26 @@ describe('scripting', () => {
   });
 
   it('flushes with SCRIPT FLUSH SYNC', async () => {
-    await client.scriptLoad('return 1');
+    const sha1 = await client.scriptLoad('return 1');
 
     assert.strictEqual(await client.scriptFlush({ sync: true }), 'OK');
+    assert.deepStrictEqual(await client.scriptExists([sha1]), [0]);
   });
 
   it('flushes with SCRIPT FLUSH ASYNC', async () => {
-    await client.scriptLoad('return 1');
+    const sha1 = await client.scriptLoad('return 1');
 
     assert.strictEqual(await client.scriptFlush({ async: true }), 'OK');
+    assert.deepStrictEqual(await client.scriptExists([sha1]), [0]);
   });
 
   it('kills a running script with SCRIPT KILL (error when none running)', async () => {
-    const result = await client.scriptKill().catch((error: Error) => error);
+    const result = await client.scriptKill().catch((error: unknown) => error);
 
-    assert.ok(result instanceof Error);
-    assert.match(result.message, /NOTBUSY/i);
+    assert.ok(result instanceof SolidisCommandError);
+    assert.strictEqual(
+      result.message,
+      '[SCRIPT KILL] Invalid reply: RespError: NOTBUSY No scripts in execution right now.',
+    );
   });
 });

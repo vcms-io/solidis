@@ -183,8 +183,9 @@ describe('client-commands', () => {
 
     const result = await client.commandGetkeysandflags('SET', ['mykey', 'val']);
 
-    assert.ok(Array.isArray(result));
-    assert.ok(result.length > 0);
+    assert.strictEqual(result.length, 1);
+    assert.strictEqual(result[0].key, 'mykey');
+    assert.ok(result[0].flags.length > 0);
   });
 
   it('retrieves command documentation with COMMAND DOCS', async (context) => {
@@ -197,6 +198,10 @@ describe('client-commands', () => {
 
     assert.ok(docs !== null && typeof docs === 'object');
     assert.ok('get' in docs);
+    assert.strictEqual(typeof docs.get.summary, 'string');
+    assert.strictEqual(typeof docs.get.since, 'string');
+    assert.strictEqual(typeof docs.get.group, 'string');
+    assert.strictEqual(typeof docs.get.complexity, 'string');
   });
 
   it('parses COMMAND DOCS with history and arguments', async (context) => {
@@ -245,8 +250,7 @@ describe('client-commands', () => {
     const substrDoc = docs.substr;
 
     if (substrDoc.docFlags) {
-      assert.ok(Array.isArray(substrDoc.docFlags));
-      assert.ok(substrDoc.docFlags.includes('deprecated'));
+      assert.deepStrictEqual(substrDoc.docFlags, ['deprecated']);
     }
 
     if (substrDoc.deprecatedSince) {
@@ -307,7 +311,12 @@ describe('client-commands', () => {
       const settlement = await pending;
 
       assert.strictEqual(settlement.rejected, true);
-      assert.ok(settlement.error instanceof Error);
+
+      if (!(settlement.error instanceof Error)) {
+        assert.fail('settlement.error must be an Error instance');
+      }
+
+      assert.match(settlement.error.message, /UNBLOCKED|unblocked/i);
     } finally {
       await closeClient(blocked);
     }
@@ -411,9 +420,9 @@ describe('client-commands', () => {
 
     const info = await client.clientTrackinginfo();
 
-    assert.ok(Array.isArray(info.flags));
-    assert.strictEqual(typeof info.redirect, 'number');
-    assert.ok(Array.isArray(info.prefixes));
+    assert.deepStrictEqual(info.flags, ['off']);
+    assert.strictEqual(info.redirect, -1);
+    assert.deepStrictEqual(info.prefixes, []);
   });
 
   it('switches client reply mode', async () => {
@@ -441,7 +450,7 @@ describe('client-commands', () => {
 
     const channels = await client.pubsubShardchannels('nonexistent:*');
 
-    assert.ok(Array.isArray(channels));
+    assert.deepStrictEqual(channels, []);
   });
 
   it('constructs AUTH with single password argument', async () => {

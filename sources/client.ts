@@ -57,6 +57,14 @@ export class SolidisClient extends EventEmitter {
       ...Object.fromEntries(
         Object.entries(options).filter(([_, value]) => value !== undefined),
       ),
+      authentication: {
+        ...SolidisDefaultOptions.authentication,
+        ...options.authentication,
+      },
+      autoRecovery: {
+        ...SolidisDefaultOptions.autoRecovery,
+        ...options.autoRecovery,
+      },
       parser: {
         ...SolidisDefaultOptions.parser,
         ...options.parser,
@@ -117,8 +125,6 @@ export class SolidisClient extends EventEmitter {
       const username = this.#options.authentication.username || url.username;
       const password = this.#options.authentication.password || url.password;
 
-      const useTLS = this.#options.useTLS || url.protocol === 'rediss:';
-
       this.#options = {
         ...this.#options,
         host,
@@ -127,7 +133,7 @@ export class SolidisClient extends EventEmitter {
           username,
           password,
         },
-        useTLS,
+        tls: this.#options.tls ?? (url.protocol === 'rediss:' ? {} : undefined),
       };
     }
 
@@ -139,7 +145,7 @@ export class SolidisClient extends EventEmitter {
 
   public get uri() {
     const { username, password } = this.#options.authentication;
-    const prefix = this.#options.useTLS ? 'rediss' : 'redis';
+    const prefix = this.#options.tls ? 'rediss' : 'redis';
 
     if (username && password) {
       return `${prefix}://${username}:***@${this.#options.host}:${this.#options.port}`;

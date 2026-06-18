@@ -8,7 +8,11 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { after, before, describe, it } from 'node:test';
 
-import { RespError, SolidisRequesterError } from '../../../../sources/index.ts';
+import {
+  RespError,
+  SolidisClientError,
+  SolidisRequesterError,
+} from '../../../../sources/index.ts';
 import {
   closeClient,
   createClient,
@@ -77,7 +81,6 @@ describe('debug-requester', () => {
 
       const logs = memory.getLogs();
 
-      assert.ok(logs[0].timestamp);
       assert.strictEqual(typeof logs[0].timestamp, 'number');
     });
 
@@ -127,8 +130,7 @@ describe('debug-requester', () => {
         );
       });
 
-      assert.ok(result.includes('[Solidis info] hello'));
-      assert.ok(result.includes('"key":"val"'));
+      assert.strictEqual(result, '[Solidis info] hello {"key":"val"}\r\n');
     });
 
     it('transforms debug log without data field', async () => {
@@ -148,8 +150,7 @@ describe('debug-requester', () => {
         );
       });
 
-      assert.ok(result.includes('[Solidis error] fail'));
-      assert.ok(!result.includes('{'));
+      assert.strictEqual(result, '[Solidis error] fail\r\n');
     });
   });
 
@@ -175,7 +176,11 @@ describe('debug-requester', () => {
       const memory = new SolidisDebugMemory(10);
       const handle = generateDebugHandle(memory);
 
-      assert.ok(typeof handle === 'function');
+      if (handle === undefined) {
+        assert.fail(
+          'generateDebugHandle must return a function when memory is provided',
+        );
+      }
 
       handle('info', 'test message', { extra: true });
 
@@ -254,7 +259,12 @@ describe('debug-requester', () => {
 
       faultyClient.quit();
 
-      await assert.rejects(() => faultyClient.get(key));
+      await assert.rejects(
+        () => faultyClient.get(key),
+        (error: Error) =>
+          error instanceof SolidisClientError &&
+          /not connected|closed/i.test(error.message),
+      );
     });
 
     it('handles empty command array gracefully', async () => {
@@ -390,8 +400,12 @@ describe('debug-requester', () => {
 
       const results = await largeClient.send(commands);
 
-      assert.strictEqual(results.length, 20);
-      assert.ok(results.every((reply) => `${reply[0]}` === 'base'));
+      const expectedValue = Buffer.from('base');
+
+      assert.deepStrictEqual(
+        results,
+        Array.from({ length: 20 }, () => [expectedValue]),
+      );
 
       await closeClient(largeClient);
     });
@@ -464,14 +478,10 @@ describe('debug-requester', () => {
         .then(() => null)
         .catch((error: Error) => error);
 
-      assert.ok(
-        sendError instanceof Error,
-        'send must reject when recoveryFromFault interrupts chunked writes',
-      );
       assert.strictEqual(
-        sendError.message,
+        sendError?.message,
         'mid-write fault',
-        'the rejection must carry the exact error passed to recoveryFromFault, ' +
+        'send must reject with the exact error passed to recoveryFromFault, ' +
           'because #rejectAllRequests propagates it without wrapping',
       );
     });
@@ -517,11 +527,17 @@ describe('debug-requester', () => {
       const settlement = await pendingSettled;
 
       assert.strictEqual(settlement.rejected, true);
-      assert.ok(
-        settlement.error instanceof Error,
-        'CLIENT KILL must surface an error from the fault recovery path, got: ' +
-          (settlement.error as Error)?.constructor?.name,
-      );
+      if (!(settlement.error instanceof SolidisClientError)) {
+        const constructorName =
+          settlement.error instanceof Error
+            ? settlement.error.constructor.name
+            : String(settlement.error);
+
+        assert.fail(
+          'CLIENT KILL must surface a SolidisClientError from the fault recovery path, got: ' +
+            constructorName,
+        );
+      }
 
       await waitFor(
         async () => {
@@ -539,6 +555,91 @@ describe('debug-requester', () => {
 
       await closeClient(faultClient);
       await closeClient(killerClient);
+    });
+  });
+
+  describe('sanitizeCommandsBufferForDebug', () => {
+    it('returns the original buffer for commands without credentials', async () => {
+      const { commandsToBuffer, sanitizeCommandsBufferForDebug } = await import(
+        '../../../../sources/index.ts'
+      );
+
+      const commands = [
+        ['SET', 'key', 'value'],
+        ['GET', 'key'],
+      ];
+
+      const buffer = commandsToBuffer(commands);
+      const result = sanitizeCommandsBufferForDebug(buffer, commands);
+
+      assert.strictEqual(result, buffer.toString());
+    });
+
+    it('masks all arguments of an AUTH command', async () => {
+      const { commandsToBuffer, sanitizeCommandsBufferForDebug } = await import(
+        '../../../../sources/index.ts'
+      );
+
+      const commands = [['AUTH', 'myuser', 'supersecret']];
+      const buffer = commandsToBuffer(commands);
+      const result = sanitizeCommandsBufferForDebug(buffer, commands);
+
+      assert.ok(result.includes('AUTH'));
+      assert.ok(!result.includes('myuser'));
+      assert.ok(!result.includes('supersecret'));
+      assert.ok(result.includes('***'));
+    });
+
+    it('masks all arguments of a HELLO command', async () => {
+      const { commandsToBuffer, sanitizeCommandsBufferForDebug } = await import(
+        '../../../../sources/index.ts'
+      );
+
+      const commands = [['HELLO', '3', 'AUTH', 'admin', 'password123']];
+      const buffer = commandsToBuffer(commands);
+      const result = sanitizeCommandsBufferForDebug(buffer, commands);
+
+      assert.ok(result.includes('HELLO'));
+      assert.ok(!result.includes('admin'));
+      assert.ok(!result.includes('password123'));
+    });
+
+    it('only masks credential commands in a mixed pipeline', async () => {
+      const { commandsToBuffer, sanitizeCommandsBufferForDebug } = await import(
+        '../../../../sources/index.ts'
+      );
+
+      const commands = [
+        ['SET', 'visible-key', 'visible-value'],
+        ['AUTH', 'secret-user', 'secret-pass'],
+        ['GET', 'another-key'],
+      ];
+
+      const buffer = commandsToBuffer(commands);
+      const result = sanitizeCommandsBufferForDebug(buffer, commands);
+
+      assert.ok(result.includes('SET'));
+      assert.ok(result.includes('visible-key'));
+      assert.ok(result.includes('visible-value'));
+      assert.ok(result.includes('GET'));
+      assert.ok(result.includes('another-key'));
+      assert.ok(result.includes('AUTH'));
+      assert.ok(!result.includes('secret-user'));
+      assert.ok(!result.includes('secret-pass'));
+    });
+
+    it('handles case-insensitive command names', async () => {
+      const { commandsToBuffer, sanitizeCommandsBufferForDebug } = await import(
+        '../../../../sources/index.ts'
+      );
+
+      const commands = [['auth', 'user', 'pass']];
+      const buffer = commandsToBuffer(commands);
+      const result = sanitizeCommandsBufferForDebug(buffer, commands);
+
+      assert.ok(result.includes('auth'));
+      assert.ok(!result.includes('user'));
+      assert.ok(!result.includes('pass'));
     });
   });
 });

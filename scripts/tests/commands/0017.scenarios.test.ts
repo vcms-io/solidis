@@ -69,7 +69,6 @@ describe('scenarios', () => {
       withScores: true,
     });
 
-    assert.ok(Array.isArray(top));
     assert.deepStrictEqual(top[0], { member: 'alice', score: 300 });
     assert.deepStrictEqual(top[1], { member: 'bob', score: 250 });
     assert.strictEqual(await client.zrevrank(board, 'alice'), 0);

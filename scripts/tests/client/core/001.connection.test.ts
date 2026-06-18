@@ -151,7 +151,10 @@ describe('connection', () => {
 
     const pongs = await Promise.all(clients.map((client) => client.ping()));
 
-    assert.ok(pongs.every((value) => value === 'PONG'));
+    assert.deepStrictEqual(
+      pongs,
+      Array.from({ length: 16 }, () => 'PONG'),
+    );
   });
 
   it('applies clientName via HELLO when using RESP3', async () => {
@@ -375,8 +378,14 @@ describe('connection', () => {
     await debugClient.ping();
 
     assert.ok(
-      debugEntries.length > 0,
-      'Expected debug entries after ping with debug enabled',
+      debugEntries.some(
+        (entry) =>
+          typeof entry === 'object' &&
+          entry !== null &&
+          'message' in entry &&
+          String(entry.message).includes('PING'),
+      ),
+      'Expected a PING command debug entry after ping with debug enabled',
     );
 
     await closeClient(debugClient);
@@ -529,9 +538,10 @@ describe('connection', () => {
       clearTimeout(reopenTimer);
 
       assert.strictEqual(connection.isConnected, true);
-      assert.ok(acceptCount >= 1, 'server must accept at least one retry');
-      assert.ok(
-        cleanupCalls >= 2,
+      assert.strictEqual(acceptCount, 1);
+      assert.strictEqual(
+        cleanupCalls,
+        3,
         'failed attempts must invoke cleanup before the successful retry',
       );
 

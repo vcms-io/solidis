@@ -8,7 +8,9 @@ import {
   RespError,
   SolidisClientError,
   SolidisCommandError,
+  SolidisConnectionError,
   SolidisParserError,
+  SolidisRequesterError,
 } from '../../../../sources/index.ts';
 import {
   closeClient,
@@ -93,8 +95,7 @@ describe('fragility', () => {
 
       const echoed = await client.getBuffer(key);
 
-      assert.ok(Buffer.isBuffer(echoed));
-      assert.ok(echoed.equals(payload));
+      assert.deepStrictEqual(echoed, payload);
 
       await assertStillHealthy('binary');
     });
@@ -107,9 +108,7 @@ describe('fragility', () => {
 
       const echoed = await client.getBuffer(key);
 
-      assert.ok(Buffer.isBuffer(echoed));
-      assert.strictEqual(echoed.length, payload.length);
-      assert.ok(echoed.equals(payload));
+      assert.deepStrictEqual(echoed, payload);
 
       await assertStillHealthy('large');
     });
@@ -120,6 +119,7 @@ describe('fragility', () => {
       ]);
 
       assert.ok(reply instanceof RespError);
+      assert.match(`${reply.message}`, /unknown|wrong|invalid/i);
 
       await assertStillHealthy('bogus-name');
     });
@@ -147,9 +147,12 @@ describe('fragility', () => {
 
       assert.strictEqual(replies[0][0], 'OK');
       assert.ok(replies[1][0] instanceof RespError);
+      assert.match(`${replies[1][0].message}`, /not an integer|WRONGTYPE/i);
       assert.ok(replies[2][0] instanceof RespError);
+      assert.match(`${replies[2][0].message}`, /WRONGTYPE/i);
       assert.strictEqual(`${replies[3][0]}`, 'value');
       assert.ok(replies[4][0] instanceof RespError);
+      assert.match(`${replies[4][0].message}`, /unknown|wrong|invalid/i);
       assert.strictEqual(replies[5][0], 6);
 
       assert.strictEqual(await client.get(key), 'value!');
@@ -304,9 +307,7 @@ describe('fragility', () => {
 
       const [[reply]] = await client.send([['GET', 'large-key']]);
 
-      assert.ok(Buffer.isBuffer(reply));
-      assert.strictEqual(reply.length, payloadSize);
-      assert.strictEqual(reply.toString(), payload);
+      assert.deepStrictEqual(reply, Buffer.from(payload, 'latin1'));
     });
 
     it('shifts the parser buffer after many small replies accumulate readOffset', async () => {
@@ -332,8 +333,10 @@ describe('fragility', () => {
 
       const replies = await client.send(range(20).map(() => ['PING'] as const));
 
-      assert.strictEqual(replies.length, 20);
-      assert.ok(replies.every((reply) => reply[0] === 'OK'));
+      assert.deepStrictEqual(
+        replies,
+        Array.from({ length: 20 }, () => ['OK']),
+      );
     });
 
     it('reassembles a RESP3 null reply split across two socket chunks', async () => {
@@ -371,7 +374,12 @@ describe('fragility', () => {
 
       await client.connect();
 
-      await assert.rejects(() => client.get(keyspace.key('vanish')));
+      await assert.rejects(
+        () => client.get(keyspace.key('vanish')),
+        (error: Error) =>
+          error instanceof SolidisClientError &&
+          /closed|connection/i.test(error.message),
+      );
     });
 
     it('triggers fault recovery for inflight commands on a corrupt frame', async () => {
@@ -632,7 +640,12 @@ describe('fragility', () => {
           /not connected|closed/i.test(error.message),
       );
 
-      await assert.rejects(() => client.ping());
+      await assert.rejects(
+        () => client.ping(),
+        (error: Error) =>
+          error instanceof SolidisClientError &&
+          /not connected|closed/i.test(error.message),
+      );
     });
 
     it('rejects when connecting to a port with no listener', async () => {
@@ -649,7 +662,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.connect(),
-        (error: Error) => error instanceof SolidisClientError,
+        (error: Error) =>
+          error instanceof SolidisClientError &&
+          /connection failed|ECONNREFUSED/i.test(error.message),
       );
 
       client.quit();
@@ -803,7 +818,8 @@ describe('fragility', () => {
 
       const error = await client.connect().catch((caught: Error) => caught);
 
-      assert.ok(error instanceof Error);
+      assert.ok(error instanceof SolidisClientError);
+      assert.match(error.message, /Ready check failed/i);
 
       assert.strictEqual(
         readyFired,
@@ -970,7 +986,8 @@ describe('fragility', () => {
       const result = await connectPromise;
 
       assert.ok(
-        result instanceof Error,
+        result instanceof SolidisConnectionError ||
+          result instanceof SolidisClientError,
         'connect() must reject when quit is called during retry',
       );
     });
@@ -1204,8 +1221,10 @@ describe('fragility', () => {
 
       const result = await pending;
 
-      assert.ok(
-        result instanceof Error,
+      assert.ok(result instanceof Error);
+      assert.strictEqual(
+        result.message,
+        'first fault',
         'pending command should be rejected after fault recovery',
       );
       assert.strictEqual(
@@ -1977,8 +1996,11 @@ describe('fragility', () => {
       assert.strictEqual(results.length, 1);
       assert.strictEqual(results[0].member, 'Palermo');
       assert.strictEqual(results[0].hash, 3479099956230698);
-      assert.ok(typeof results[0].distance === 'number');
-      assert.ok(results[0].position !== undefined);
+      assert.strictEqual(results[0].distance, 190.44);
+      assert.deepStrictEqual(results[0].position, {
+        longitude: 13.361389,
+        latitude: 38.115556,
+      });
     });
   });
 
@@ -2005,7 +2027,6 @@ describe('fragility', () => {
 
       assert.strictEqual(result.role, 'master');
       assert.strictEqual(result.replicationOffset, 100);
-      assert.ok('slaves' in result && Array.isArray(result.slaves));
       assert.strictEqual(result.slaves.length, 1);
       assert.strictEqual(result.slaves[0].ip, '127.0.0.1');
       assert.strictEqual(result.slaves[0].port, 6380);
@@ -2033,7 +2054,6 @@ describe('fragility', () => {
       const result = await client.role();
 
       assert.strictEqual(result.role, 'slave');
-      assert.ok('masterHost' in result);
       assert.strictEqual(result.masterHost, '127.0.0.1');
       assert.strictEqual(result.masterPort, 6379);
       assert.strictEqual(result.replicationState, 'connected');
@@ -2825,7 +2845,7 @@ describe('fragility', () => {
       assert.strictEqual(result[0].id, 1);
       assert.strictEqual(result[0].timestamp, 1718700000);
       assert.strictEqual(result[0].duration, 5000);
-      assert.ok(Array.isArray(result[0].commandArguments));
+      assert.deepStrictEqual(result[0].commandArguments, ['PING', '']);
       assert.strictEqual(result[0].clientIpPort, '127.0.0.1');
       assert.strictEqual(result[0].clientName, 'myapp');
     });
@@ -2855,7 +2875,7 @@ describe('fragility', () => {
         .send(buildLargeEchoCommands(50, 200))
         .catch((error: Error) => error);
 
-      assert.ok(result instanceof Error);
+      assert.ok(result instanceof SolidisRequesterError);
       assert.match(result.message, /timed out/i);
     });
 
@@ -2890,7 +2910,8 @@ describe('fragility', () => {
 
       const result = await pending;
 
-      assert.ok(result instanceof Error);
+      assert.ok(result instanceof SolidisClientError);
+      assert.match(result.message, /closed|connection/i);
     });
   });
 
@@ -2951,7 +2972,7 @@ describe('fragility', () => {
       const result = await pending;
 
       assert.ok(result instanceof Error);
-      assert.ok(result.message.includes('forced recovery'));
+      assert.strictEqual(result.message, 'forced recovery');
     });
 
     it('rejects pipeline when socket becomes null during flush', async () => {
@@ -2980,7 +3001,8 @@ describe('fragility', () => {
         .send([['WILL-FAIL']])
         .catch((error: Error) => error);
 
-      assert.ok(result instanceof Error);
+      assert.ok(result instanceof SolidisRequesterError);
+      assert.match(result.message, /not connected/i);
     });
 
     it('consumes remaining replies for a timed-out pipeline without desync', async () => {
@@ -3103,7 +3125,8 @@ describe('fragility', () => {
         .send(buildLargeEchoCommands(100, 500))
         .catch((error: Error) => error);
 
-      assert.ok(result instanceof Error);
+      assert.ok(result instanceof SolidisRequesterError);
+      assert.match(result.message, /timed out/i);
     });
 
     it('rejects when socket emits error during chunked write', async () => {
@@ -3135,7 +3158,7 @@ describe('fragility', () => {
         .send(buildLargeEchoCommands(50, 200))
         .catch((error: Error) => error);
 
-      assert.ok(result instanceof Error);
+      assert.ok(result instanceof SolidisRequesterError);
     });
 
     it('receives late replies for a timed-out pipeline and keeps sync', async () => {

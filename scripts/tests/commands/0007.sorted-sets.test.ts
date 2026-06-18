@@ -259,8 +259,14 @@ describe('sorted-sets', () => {
 
     const several = await client.zrandmember(key, 2);
 
+    assert.notStrictEqual(several, null);
     assert.ok(Array.isArray(several));
+    assert.ok(
+      several.every((member): member is string => typeof member === 'string'),
+    );
     assert.strictEqual(several.length, 2);
+    assert.ok(several.every((member) => ['a', 'b', 'c'].includes(member)));
+    assert.strictEqual(new Set(several).size, 2);
 
     const withScores = await client.zrandmember(key, 3, true);
 
@@ -386,36 +392,44 @@ describe('sorted-sets', () => {
       [1, 'c'],
     ]);
 
+    const diffKey = keyspace.key('algebra-store', 'diff');
+    const interKey = keyspace.key('algebra-store', 'inter');
+    const unionKey = keyspace.key('algebra-store', 'union');
+    const weightedKey = keyspace.key('algebra-store', 'weighted');
+
+    assert.strictEqual(await client.zdiffstore(diffKey, [first, second]), 1);
+    assert.deepStrictEqual(await client.zrange(diffKey, '0', '-1'), ['a']);
+
+    assert.strictEqual(await client.zinterstore(interKey, [first, second]), 2);
+    assert.deepStrictEqual(await client.zrange(interKey, '0', '-1'), [
+      'b',
+      'c',
+    ]);
+
     assert.strictEqual(
-      await client.zdiffstore(keyspace.key('algebra-store', 'diff'), [
-        first,
-        second,
-      ]),
-      1,
-    );
-    assert.strictEqual(
-      await client.zinterstore(keyspace.key('algebra-store', 'inter'), [
-        first,
-        second,
-      ]),
-      2,
-    );
-    assert.strictEqual(
-      await client.zunionstore(
-        keyspace.key('algebra-store', 'union'),
-        [first, second],
-        { aggregate: 'MAX' },
-      ),
+      await client.zunionstore(unionKey, [first, second], {
+        aggregate: 'MAX',
+      }),
       3,
     );
+    assert.deepStrictEqual(await client.zrange(unionKey, '0', '-1'), [
+      'a',
+      'b',
+      'c',
+    ]);
+
     assert.strictEqual(
-      await client.zunionstore(
-        keyspace.key('algebra-store', 'weighted'),
-        [first, second],
-        { weights: [2, 1], aggregate: 'SUM' },
-      ),
+      await client.zunionstore(weightedKey, [first, second], {
+        weights: [2, 1],
+        aggregate: 'SUM',
+      }),
       3,
     );
+    assert.deepStrictEqual(await client.zrange(weightedKey, '0', '-1'), [
+      'a',
+      'b',
+      'c',
+    ]);
   });
 
   it('stores a range by lex with ZRANGESTORE BYLEX', async () => {
@@ -435,6 +449,10 @@ describe('sorted-sets', () => {
     );
 
     assert.strictEqual(count, 2);
+    assert.deepStrictEqual(await client.zrange(destination, '0', '-1'), [
+      'alpha',
+      'beta',
+    ]);
   });
 
   it('iterates a large sorted set with ZSCAN', async () => {
@@ -522,9 +540,7 @@ describe('sorted-sets', () => {
 
     const scores = await client.zmscore(key, ['a', 'missing', 'b']);
 
-    assert.strictEqual(scores[0], 1);
-    assert.strictEqual(scores[1], null);
-    assert.strictEqual(scores[2], 2);
+    assert.deepStrictEqual(scores, [1, null, 2]);
   });
 
   it('returns null from ZMPOP on empty keys', async (context) => {
@@ -552,13 +568,14 @@ describe('sorted-sets', () => {
 
     const result = await client.zmpop([key], 'MIN', 2);
 
-    assert.ok(result !== null);
-    assert.strictEqual(result.key, key);
     /** MIN pops the two lowest-scored members in ascending order. */
-    assert.deepStrictEqual(result.elements, [
-      { member: 'a', score: 1 },
-      { member: 'b', score: 2 },
-    ]);
+    assert.deepStrictEqual(result, {
+      key,
+      elements: [
+        { member: 'a', score: 1 },
+        { member: 'b', score: 2 },
+      ],
+    });
   });
 
   it('pops with ZPOPMIN count argument', async () => {
@@ -569,7 +586,6 @@ describe('sorted-sets', () => {
 
     const result = await client.zpopmin(key, 2);
 
-    assert.ok(result !== null);
     assert.deepStrictEqual(result, [
       { member: 'x', score: 1 },
       { member: 'y', score: 2 },

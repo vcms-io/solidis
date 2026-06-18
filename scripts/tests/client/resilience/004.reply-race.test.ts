@@ -91,9 +91,9 @@ describe('reply-race', () => {
 
     assert.strictEqual(primaryReplies.length, commandCount);
 
-    assert.ok(
-      primaryReplies.every((reply) => reply.length === 1 && reply[0] === 'a'),
-      'every reply in the primary pipeline must be the value sent by its own command',
+    assert.deepStrictEqual(
+      primaryReplies,
+      Array.from({ length: commandCount }, () => ['a']),
     );
 
     assert.deepStrictEqual(secondaryReplies, [['b']]);
@@ -153,9 +153,9 @@ describe('reply-race', () => {
 
     assert.strictEqual(primaryReplies.length, commandCount);
 
-    assert.ok(
-      primaryReplies.every((reply) => reply.length === 1 && reply[0] === 'x'),
-      'every reply in the primary pipeline must be the value sent by its own command',
+    assert.deepStrictEqual(
+      primaryReplies,
+      Array.from({ length: commandCount }, () => ['x']),
     );
 
     assert.deepStrictEqual(secondaryReplies, [['y']]);

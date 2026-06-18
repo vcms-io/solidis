@@ -62,9 +62,7 @@ describe('modules-bloom-cuckoo', () => {
 
     const exists = await client.bfMexists(key, ['a', 'b', 'absent']);
 
-    assert.strictEqual(exists[0], 1);
-    assert.strictEqual(exists[1], 1);
-    assert.strictEqual(exists[2], 0);
+    assert.deepStrictEqual(exists, [1, 1, 0]);
   });
 
   it('reserves a Bloom filter with a target error rate', async (context) => {
@@ -97,9 +95,9 @@ describe('modules-bloom-cuckoo', () => {
 
     const checks = await client.bfMexists(key, items);
 
-    assert.strictEqual(
-      checks.every((value) => value === 1),
-      true,
+    assert.deepStrictEqual(
+      checks,
+      Array.from({ length: 2000 }, () => 1),
     );
   });
 
@@ -113,7 +111,7 @@ describe('modules-bloom-cuckoo', () => {
 
     assert.strictEqual(await client.cfAdd(key, 'x'), true);
     assert.strictEqual(await client.cfExists(key, 'x'), true);
-    assert.ok((await client.cfCount(key, 'x')) >= 1);
+    assert.strictEqual(await client.cfCount(key, 'x'), 1);
     assert.strictEqual(await client.cfDel(key, 'x'), true);
     assert.strictEqual(await client.cfExists(key, 'x'), false);
   });
@@ -146,10 +144,8 @@ describe('modules-bloom-cuckoo', () => {
 
     const info = await client.bfInfo(key);
 
-    assert.strictEqual(typeof info.capacity, 'number');
-    assert.ok(info.capacity >= 500);
+    assert.strictEqual(info.capacity, 500);
     assert.strictEqual(info.numberOfItemsInserted, 1);
-    assert.strictEqual(typeof info.size, 'number');
   });
 
   it('bulk inserts with BF.INSERT', async (context) => {
@@ -194,8 +190,7 @@ describe('modules-bloom-cuckoo', () => {
 
     const info = await client.cfInfo(key);
 
-    assert.strictEqual(typeof info.size, 'number');
-    assert.ok(info.numberOfItemsInserted >= 1);
+    assert.strictEqual(info.numberOfItemsInserted, 1);
   });
 
   it('bulk inserts into a cuckoo filter with CF.INSERT', async (context) => {
@@ -208,11 +203,7 @@ describe('modules-bloom-cuckoo', () => {
 
     const results = await client.cfInsert(key, ['a', 'b', 'c']);
 
-    assert.strictEqual(results.length, 3);
-    assert.strictEqual(
-      results.every((value) => value === true),
-      true,
-    );
+    assert.deepStrictEqual(results, [true, true, true]);
   });
 
   it('checks multiple items with CF.MEXISTS', async (context) => {
@@ -413,9 +404,15 @@ describe('modules-bloom-cuckoo', () => {
       { capacity: 1000 },
     );
 
-    assert.ok(command.includes('CAPACITY'));
-    assert.ok(command.includes('1000'));
-    assert.ok(command.includes('ITEMS'));
+    assert.deepStrictEqual(command, [
+      'CF.INSERT',
+      'key',
+      'CAPACITY',
+      '1000',
+      'ITEMS',
+      'a',
+      'b',
+    ]);
   });
 
   it('builds CF.INSERT with NOCREATE option (ignores capacity)', async () => {
@@ -428,7 +425,12 @@ describe('modules-bloom-cuckoo', () => {
       nocreate: true,
     });
 
-    assert.ok(!command.includes('CAPACITY'));
-    assert.ok(command.includes('NOCREATE'));
+    assert.deepStrictEqual(command, [
+      'CF.INSERT',
+      'key',
+      'NOCREATE',
+      'ITEMS',
+      'a',
+    ]);
   });
 });

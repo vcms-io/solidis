@@ -83,17 +83,17 @@ describe('function', () => {
 
     const list = await client.functionList();
 
-    assert.ok(Array.isArray(list));
-
     const library = list.find((item) => item.libraryName === 'solidistest');
 
-    assert.notStrictEqual(library, undefined);
-
-    assert.strictEqual(library?.engine, 'LUA');
-    assert.ok(library?.functions.length >= 2);
-    assert.ok(
-      library?.functions.some((entry) => entry.name === 'solidistest_echo'),
-    );
+    assert.deepStrictEqual(library, {
+      libraryName: 'solidistest',
+      engine: 'LUA',
+      functions: [
+        { name: 'solidistest_echo', description: null, flags: [] },
+        { name: 'solidistest_get', description: null, flags: ['no-writes'] },
+        { name: 'solidistest_set', description: null, flags: [] },
+      ],
+    });
   });
 
   it('filters FUNCTION LIST by library name pattern', async (context) => {
@@ -168,15 +168,10 @@ describe('function', () => {
     const stats = await client.functionStats();
 
     assert.strictEqual(stats.runningScript, null);
-    assert.ok(Array.isArray(stats.engines));
-    assert.ok(stats.engines.length > 0);
-
-    const luaEngine = stats.engines.find((engine) => engine.name === 'LUA');
-
-    assert.notStrictEqual(luaEngine, undefined);
-
-    assert.ok((luaEngine?.libraries ?? -1) >= 1);
-    assert.ok((luaEngine?.functions ?? -1) >= 2);
+    assert.deepStrictEqual(
+      stats.engines.find((engine) => engine.name === 'LUA'),
+      { name: 'LUA', libraries: 1, functions: 3 },
+    );
   });
 
   it('dumps and restores function state', async (context) => {
@@ -189,7 +184,6 @@ describe('function', () => {
 
     const dump = await client.functionDump();
 
-    assert.strictEqual(typeof dump, 'string');
     assert.ok(dump.length > 0);
 
     await client.functionFlush();
@@ -278,17 +272,14 @@ describe('function', () => {
       return;
     }
 
+    await client.functionLoad(libraryCode, true);
+
     const stats = await client.functionStats();
 
-    assert.ok(stats !== null && typeof stats === 'object');
     assert.strictEqual(stats.runningScript, null);
-    assert.ok(Array.isArray(stats.engines));
-    assert.ok(stats.engines.length >= 1);
-
-    const engine = stats.engines[0];
-
-    assert.strictEqual(typeof engine.name, 'string');
-    assert.strictEqual(typeof engine.libraries, 'number');
-    assert.strictEqual(typeof engine.functions, 'number');
+    assert.deepStrictEqual(
+      stats.engines.find((engine) => engine.name === 'LUA'),
+      { name: 'LUA', libraries: 1, functions: 3 },
+    );
   });
 });

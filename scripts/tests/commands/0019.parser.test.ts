@@ -5,7 +5,6 @@ import { describe, it } from 'node:test';
 
 import {
   RespError,
-  RespPush,
   SolidisDefaultOptions,
   SolidisParser,
 } from '../../../sources/index.ts';
@@ -46,7 +45,7 @@ describe('parser', () => {
   it('parses a bulk string into a Buffer', async () => {
     const [reply] = await parseOnce(bytes('$5\r\nhello\r\n'));
 
-    assert.ok(Buffer.isBuffer(reply));
+    assert.ok(reply !== null);
     assert.strictEqual(reply.toString(), 'hello');
   });
 
@@ -56,8 +55,7 @@ describe('parser', () => {
 
     const [reply] = await parseOnce(frame);
 
-    assert.ok(Buffer.isBuffer(reply));
-    assert.strictEqual(reply.equals(payload), true);
+    assert.deepStrictEqual(reply, payload);
   });
 
   it('parses every byte value inside a bulk payload', async () => {
@@ -72,8 +70,7 @@ describe('parser', () => {
 
     const [reply] = await parseOnce(frame);
 
-    assert.ok(Buffer.isBuffer(reply));
-    assert.strictEqual(reply.equals(payload), true);
+    assert.deepStrictEqual(reply, payload);
   });
 
   it('parses null and empty bulk strings', async () => {
@@ -81,6 +78,7 @@ describe('parser', () => {
 
     const [empty] = await parseOnce(bytes('$0\r\n\r\n'));
 
+    assert.ok(empty !== null);
     assert.ok(Buffer.isBuffer(empty));
     assert.strictEqual(empty.length, 0);
   });
@@ -94,12 +92,7 @@ describe('parser', () => {
       bytes('*2\r\n*2\r\n:1\r\n:2\r\n$3\r\nfoo\r\n'),
     );
 
-    assert.ok(Array.isArray(nested));
-
-    assert.deepStrictEqual(nested[0], [1, 2]);
-    assert.ok(Buffer.isBuffer(nested[1]));
-
-    assert.strictEqual(nested[1].toString(), 'foo');
+    assert.deepStrictEqual(nested, [[1, 2], bytes('foo')]);
   });
 
   it('parses null and empty arrays', async () => {
@@ -143,22 +136,27 @@ describe('parser', () => {
     const [reply] = await parseOnce(bytes('%2\r\n+a\r\n:1\r\n+b\r\n:2\r\n'));
 
     assert.ok(reply instanceof Map);
-    assert.strictEqual(reply.get('a'), 1);
-    assert.strictEqual(reply.get('b'), 2);
+    assert.deepStrictEqual(
+      [...reply],
+      [
+        ['a', 1],
+        ['b', 2],
+      ],
+    );
   });
 
   it('parses a RESP3 set into a Set', async () => {
     const [reply] = await parseOnce(bytes('~3\r\n:1\r\n:2\r\n:3\r\n'));
 
     assert.ok(reply instanceof Set);
-    assert.strictEqual(reply.size, 3);
+    assert.deepStrictEqual([...reply].sort(), [1, 2, 3]);
   });
 
   it('parses a RESP3 push message', async () => {
     const [reply] = await parseOnce(bytes('>2\r\n+pubsub\r\n+hello\r\n'));
 
-    assert.ok(reply instanceof RespPush);
-    assert.strictEqual(reply.length, 2);
+    assert.ok(Array.isArray(reply));
+    assert.deepStrictEqual([...reply], ['pubsub', 'hello']);
   });
 
   it('ignores attributes and surfaces the following reply', async () => {
@@ -184,7 +182,7 @@ describe('parser', () => {
 
     const [reply] = await parser.queueParse(bytes('lo\r\n'));
 
-    assert.ok(Buffer.isBuffer(reply));
+    assert.ok(reply !== null);
     assert.strictEqual(reply.toString(), 'hello');
   });
 
@@ -199,12 +197,7 @@ describe('parser', () => {
     }
 
     assert.strictEqual(collected.length, 1);
-    assert.ok(Array.isArray(collected[0]));
-
-    assert.ok(Buffer.isBuffer(collected[0][0]));
-
-    assert.strictEqual(collected[0][0].toString(), 'foo');
-    assert.strictEqual(collected[0][1], 42);
+    assert.deepStrictEqual(collected[0], [bytes('foo'), 42]);
   });
 
   it('grows its internal buffer for a multi-megabyte bulk', async () => {
@@ -218,9 +211,10 @@ describe('parser', () => {
 
     const [reply] = await parseOnce(frame);
 
+    assert.ok(reply !== null);
     assert.ok(Buffer.isBuffer(reply));
     assert.strictEqual(reply.length, size);
-    assert.strictEqual(reply.equals(payload), true);
+    assert.deepStrictEqual(reply, payload);
   });
 
   it('parses a deeply nested array without overflowing', async () => {

@@ -49,17 +49,14 @@ describe('server', () => {
   it('parses INFO into a record', async () => {
     const info = await client.info('server');
 
-    assert.strictEqual(
-      typeof (info.redis_version ?? info.valkey_version),
-      'string',
-    );
-    assert.notStrictEqual(info.redis_mode ?? info.server_name, undefined);
+    assert.match(info.redis_version ?? info.valkey_version ?? '', /^\d+\.\d+/);
+    assert.strictEqual(typeof (info.redis_mode ?? info.server_name), 'string');
   });
 
   it('reads and writes runtime configuration', async () => {
     const original = await client.configGet('maxmemory-policy');
 
-    assert.strictEqual(typeof original['maxmemory-policy'], 'string');
+    assert.ok((original['maxmemory-policy'] ?? '').length > 0);
 
     assert.strictEqual(
       await client.configSet('maxmemory-policy', 'allkeys-lru'),
@@ -125,13 +122,12 @@ describe('server', () => {
     assert.strictEqual(role.role, 'master');
 
     if (role.role === 'master') {
-      assert.strictEqual(typeof role.replicationOffset, 'number');
-      assert.strictEqual(Array.isArray(role.slaves), true);
+      assert.deepStrictEqual(role.slaves, []);
     }
   });
 
   it('returns immediately from WAIT with zero replicas', async () => {
-    assert.ok((await client.wait(0, 100)) >= 0);
+    assert.strictEqual(await client.wait(0, 100), 0);
   });
 
   it('constructs REPLCONF with subcommand and arguments', async () => {
@@ -268,6 +264,6 @@ describe('server', () => {
 
     assert.strictEqual(result.name, 'get');
     assert.strictEqual(result.summary, 'Get the value of a key');
-    assert.ok('arguments' in result);
+    assert.deepStrictEqual(result.arguments, { key: 'string' });
   });
 });

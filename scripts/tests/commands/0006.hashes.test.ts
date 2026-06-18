@@ -90,6 +90,7 @@ describe('hashes', () => {
 
     assert.strictEqual(await client.hdel(key, 'a', 'b'), 2);
     assert.strictEqual(await client.hlen(key), 1);
+    assert.deepStrictEqual(await client.hgetall(key), { c: '3' });
   });
 
   it('increments integer and float fields', async () => {
@@ -123,18 +124,15 @@ describe('hashes', () => {
 
     const several = await client.hrandfield(key, 2);
 
+    assert.notStrictEqual(several, null);
     assert.ok(Array.isArray(several));
     assert.strictEqual(several.length, 2);
+    assert.ok(several.every((field) => ['a', 'b', 'c'].includes(field)));
+    assert.strictEqual(new Set(several).size, 2);
 
     const withValues = await client.hrandfield(key, 3, true);
 
-    assert.ok(
-      typeof withValues === 'object' &&
-        withValues !== null &&
-        !Array.isArray(withValues),
-    );
-    assert.strictEqual(Object.keys(withValues).length, 3);
-    assert.strictEqual(withValues.a, '1');
+    assert.deepStrictEqual(withValues, { a: '1', b: '2', c: '3' });
   });
 
   it('iterates a large hash with HSCAN', async () => {
@@ -153,8 +151,7 @@ describe('hashes', () => {
       Object.assign(collected, batch);
     }
 
-    assert.strictEqual(Object.keys(collected).length, 400);
-    assert.strictEqual(collected['field-200'], '200');
+    assert.deepStrictEqual(collected, mapping);
   });
 
   it('preserves binary values in hash fields', async () => {
@@ -166,9 +163,7 @@ describe('hashes', () => {
     const reply = await client.send([['HGET', key, 'blob']]);
     const value = reply[0][0];
 
-    assert.ok(Buffer.isBuffer(value));
-
-    assert.ok(value.equals(payload));
+    assert.deepStrictEqual(value, payload);
   });
 
   it('HEXPIRE sets and HTTL reads per-field TTLs', async (context) => {
@@ -295,8 +290,7 @@ describe('hashes', () => {
 
     const result = await client.hexpireat(key, nearFuture, ['field'], 'GT');
 
-    assert.ok(Array.isArray(result));
-    assert.strictEqual(result[0], 0);
+    assert.deepStrictEqual(result, [0]);
   });
 
   it('applies HEXPIREAT with LT mode', async (context) => {
@@ -314,8 +308,7 @@ describe('hashes', () => {
 
     const result = await client.hexpireat(key, nearFuture, ['field'], 'LT');
 
-    assert.ok(Array.isArray(result));
-    assert.strictEqual(result[0], 1);
+    assert.deepStrictEqual(result, [1]);
   });
 
   it('applies HPEXPIRE with GT mode', async (context) => {
@@ -331,8 +324,7 @@ describe('hashes', () => {
 
     const result = await client.hpexpire(key, 60000, ['field'], 'GT');
 
-    assert.ok(Array.isArray(result));
-    assert.strictEqual(result[0], 0);
+    assert.deepStrictEqual(result, [0]);
   });
 
   it('applies HPEXPIRE with LT mode', async (context) => {
@@ -348,8 +340,7 @@ describe('hashes', () => {
 
     const result = await client.hpexpire(key, 60000, ['field'], 'LT');
 
-    assert.ok(Array.isArray(result));
-    assert.strictEqual(result[0], 1);
+    assert.deepStrictEqual(result, [1]);
   });
 
   it('applies HPEXPIREAT with GT mode', async (context) => {
@@ -367,8 +358,7 @@ describe('hashes', () => {
 
     const result = await client.hpexpireat(key, nearFuture, ['field'], 'GT');
 
-    assert.ok(Array.isArray(result));
-    assert.strictEqual(result[0], 0);
+    assert.deepStrictEqual(result, [0]);
   });
 
   it('applies HPEXPIREAT with LT mode', async (context) => {
@@ -386,7 +376,6 @@ describe('hashes', () => {
 
     const result = await client.hpexpireat(key, nearFuture, ['field'], 'LT');
 
-    assert.ok(Array.isArray(result));
-    assert.strictEqual(result[0], 1);
+    assert.deepStrictEqual(result, [1]);
   });
 });

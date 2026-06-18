@@ -79,11 +79,13 @@ export interface SolidisClientOptions {
   maxReadyCheckRetries?: number;
   rejectOnPartialPipelineError?: boolean;
   socketWriteTimeout?: number;
-  useTLS?: boolean;
+  tls?: tls.ConnectionOptions;
 }
 
 export type SolidisClientFrozenOptions = Readonly<
-  DeepRequired<SolidisClientOptions>
+  DeepRequired<Omit<SolidisClientOptions, 'tls'>> & {
+    tls?: tls.ConnectionOptions;
+  }
 >;
 
 export type SolidisConnectionOptions = SolidisClientFrozenOptions & {

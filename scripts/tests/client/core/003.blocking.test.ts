@@ -101,14 +101,7 @@ describe('blocking', () => {
 
     const result = await client.blmpop(0, [key], 'LEFT', 2);
 
-    assert.notStrictEqual(result, null);
-
-    if (result === null) {
-      return;
-    }
-
-    assert.strictEqual(result.key, key);
-    assert.deepStrictEqual(result.elements, ['a', 'b']);
+    assert.deepStrictEqual(result, { key, elements: ['a', 'b'] });
   });
 
   it('returns null from BLMPOP on timeout', async (context) => {
@@ -161,15 +154,7 @@ describe('blocking', () => {
 
     const result = await client.bzpopmin([key], 0);
 
-    assert.notStrictEqual(result, null);
-
-    if (result === null) {
-      return;
-    }
-
-    assert.strictEqual(result[0], key);
-    assert.strictEqual(result[1], 'low');
-    assert.strictEqual(result[2], '1');
+    assert.deepStrictEqual(result, [key, 'low', '1']);
   });
 
   it('pops the maximum scored member with BZPOPMAX', async () => {
@@ -181,15 +166,7 @@ describe('blocking', () => {
 
     const result = await client.bzpopmax([key], 0);
 
-    assert.notStrictEqual(result, null);
-
-    if (result === null) {
-      return;
-    }
-
-    assert.strictEqual(result[0], key);
-    assert.strictEqual(result[1], 'high');
-    assert.strictEqual(result[2], '10');
+    assert.deepStrictEqual(result, [key, 'high', '10']);
   });
 
   it('pops from sorted sets with BZMPOP', async (context) => {
@@ -206,16 +183,13 @@ describe('blocking', () => {
 
     const result = await client.bzmpop(0, [key], 'MIN', 2);
 
-    assert.notStrictEqual(result, null);
-
-    if (result === null) {
-      return;
-    }
-
-    assert.strictEqual(result.key, key);
-    assert.strictEqual(result.elements.length, 2);
-    assert.strictEqual(result.elements[0].member, 'a');
-    assert.strictEqual(result.elements[0].score, 1);
+    assert.deepStrictEqual(result, {
+      key,
+      elements: [
+        { member: 'a', score: 1 },
+        { member: 'b', score: 2 },
+      ],
+    });
   });
 
   it('returns null from BZMPOP on timeout', async (context) => {

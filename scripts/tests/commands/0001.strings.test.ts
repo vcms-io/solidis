@@ -94,7 +94,9 @@ describe('strings', () => {
 
     await client.set(key, 'abc');
 
-    await assert.rejects(() => client.incr(key));
+    await assert.rejects(() => client.incr(key), {
+      message: /not an integer/i,
+    });
   });
 
   it('handles MSET and MGET together', async () => {
@@ -290,9 +292,7 @@ describe('strings', () => {
 
     const value = await client.getBuffer(key);
 
-    assert.ok(Buffer.isBuffer(value));
-
-    assert.ok(value.equals(payload));
+    assert.deepStrictEqual(value, payload);
   });
 
   it('builds SET with EXAT option', async () => {
@@ -304,7 +304,13 @@ describe('strings', () => {
       expireAtSeconds: 9999999999,
     });
 
-    assert.ok(command.includes('EXAT'));
+    assert.deepStrictEqual(command, [
+      'SET',
+      'key',
+      'val',
+      'EXAT',
+      '9999999999',
+    ]);
   });
 
   it('builds SET with PXAT option', async () => {
@@ -316,7 +322,13 @@ describe('strings', () => {
       expireAtMilliseconds: 9999999999999,
     });
 
-    assert.ok(command.includes('PXAT'));
+    assert.deepStrictEqual(command, [
+      'SET',
+      'key',
+      'val',
+      'PXAT',
+      '9999999999999',
+    ]);
   });
 
   it('builds SET with KEEPTTL and GET options', async () => {
@@ -329,7 +341,6 @@ describe('strings', () => {
       returnOldValue: true,
     });
 
-    assert.ok(command.includes('KEEPTTL'));
-    assert.ok(command.includes('GET'));
+    assert.deepStrictEqual(command, ['SET', 'key', 'val', 'KEEPTTL', 'GET']);
   });
 });

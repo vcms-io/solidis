@@ -146,10 +146,16 @@ describe('sort-lcs', () => {
     });
 
     assert.ok(
-      typeof result === 'object' && result !== null && 'length' in result,
+      result !== null &&
+        typeof result === 'object' &&
+        'matches' in result &&
+        'length' in result,
     );
-
     assert.strictEqual(result.length, 6);
-    assert.ok(result.matches.length > 0);
+    assert.strictEqual(result.matches.length, 2);
+    assert.deepStrictEqual(result.matches, [
+      { a: [4, 7], b: [5, 8], length: 4 },
+      { a: [2, 3], b: [0, 1], length: 2 },
+    ]);
   });
 });

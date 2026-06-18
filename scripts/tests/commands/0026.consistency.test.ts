@@ -200,7 +200,7 @@ describe('consistency', () => {
             const [[reply]] = await target.send([['LPUSH', key, 'x']]);
 
             assert.ok(reply instanceof RespError);
-            assert.match(`${reply.message}`, /WRONGTYPE/i);
+            assert.match(`${reply.message}`, /^WRONGTYPE/);
           },
         };
       }
@@ -312,9 +312,7 @@ describe('consistency', () => {
 
       const popped = await blocked;
 
-      assert.ok(popped !== null);
-      assert.strictEqual(popped[0], blockKey);
-      assert.strictEqual(popped[1], 'released');
+      assert.deepStrictEqual(popped, [blockKey, 'released']);
     } finally {
       await closeClient(blockingClient);
       await closeClient(pusher);

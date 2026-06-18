@@ -74,7 +74,6 @@ describe('acl', () => {
   it('generates a random password with ACL GENPASS', async () => {
     const password = await client.aclGenpass();
 
-    assert.strictEqual(typeof password, 'string');
     assert.match(password, /^[0-9a-f]+$/);
     assert.strictEqual(password.length, 64);
   });
@@ -82,7 +81,6 @@ describe('acl', () => {
   it('generates a password with custom bit length', async () => {
     const password = await client.aclGenpass(128);
 
-    assert.strictEqual(typeof password, 'string');
     assert.match(password, /^[0-9a-f]+$/);
     assert.strictEqual(password.length, 32);
   });
@@ -112,8 +110,13 @@ describe('acl', () => {
 
     const info = await client.aclGetuser(user);
 
-    assert.notStrictEqual(info, null);
-    assert.ok(info?.flags.includes('on'));
+    if (info === null) {
+      assert.fail('ACL GETUSER must return user info for an active user');
+    }
+
+    assert.ok(info.flags.includes('on'));
+    assert.strictEqual(info.commands, '+@all');
+    assert.strictEqual(info.keys, '~*');
 
     assert.strictEqual(await client.aclDeluser(user), 1);
 
@@ -144,7 +147,7 @@ describe('acl', () => {
 
     const deniedResult = await client.aclDryrun(user, 'SET', ['key', 'val']);
 
-    assert.notStrictEqual(deniedResult, 'OK');
+    assert.match(deniedResult, /NOPERM|no permissions/i);
   });
 
   it('retrieves the ACL log with parsed entries', async () => {
@@ -185,14 +188,14 @@ describe('acl', () => {
 
     const entry = log.find((candidate) => candidate.username === user);
 
-    assert.ok(entry, `expected an ACL log entry for user ${user}`);
-    assert.strictEqual(typeof entry.count, 'number');
-    assert.ok(entry.count >= 1);
+    assert.notStrictEqual(entry, undefined);
+    if (entry === undefined) {
+      assert.fail(`expected an ACL log entry for user ${user}`);
+    }
+
+    assert.strictEqual(entry.count, 1);
     /** Redis reports the first violation; for `-set ~allowed:*` that is the command rule. */
-    assert.ok(
-      ['command', 'key', 'channel', 'auth'].includes(entry.reason),
-      `unexpected ACL log reason: ${entry.reason}`,
-    );
+    assert.strictEqual(entry.reason, 'command');
     assert.strictEqual(typeof entry.context, 'string');
     assert.strictEqual(typeof entry.ageSeconds, 'number');
     assert.strictEqual(typeof entry.clientInfo, 'string');

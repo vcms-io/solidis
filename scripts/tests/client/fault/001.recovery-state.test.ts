@@ -115,20 +115,19 @@ describe('recovery-state', () => {
         { timeout: 3000, description: 'subscription restored' },
       );
 
-      await waitFor(
-        async () => {
-          await publisher.publish(channel, 'after');
-
-          return received.includes('after');
-        },
-        {
-          timeout: 3000,
-          interval: 100,
-          description: 'post-reconnect delivery',
-        },
+      assert.strictEqual(
+        await publisher.publish(channel, 'after'),
+        1,
+        'PUBLISH must reach exactly 1 subscriber after subscription restoration',
       );
 
-      assert.ok(received.includes('after'));
+      await waitFor(() => received.includes('after'), {
+        timeout: 3000,
+        interval: 50,
+        description: 'post-reconnect delivery',
+      });
+
+      assert.deepStrictEqual(received, ['before', 'after']);
     } finally {
       await closeClient(publisher);
       await closeClient(subscriber);

@@ -85,22 +85,21 @@ describe('server-admin', () => {
   });
 
   it('parses slowlog entries with structured fields', async () => {
+    await client.slowlogReset();
     await client.configSet('slowlog-log-slower-than', '0');
     await client.ping();
     await client.configSet('slowlog-log-slower-than', '10000');
 
     const entries = await client.slowlogGet(5);
 
-    assert.ok(entries.length > 0);
+    assert.ok(entries.length >= 1);
 
     const entry = entries[0];
 
-    assert.strictEqual(typeof entry.id, 'number');
-    assert.strictEqual(typeof entry.timestamp, 'number');
-    assert.strictEqual(typeof entry.duration, 'number');
-    assert.ok(Array.isArray(entry.commandArguments));
-    assert.strictEqual(typeof entry.clientIpPort, 'string');
-    assert.strictEqual(typeof entry.clientName, 'string');
+    assert.deepStrictEqual(
+      entry.commandArguments.map((argument) => argument.toUpperCase()),
+      ['PING'],
+    );
   });
 
   it('reports slowlog length with SLOWLOG LEN', async () => {
@@ -127,7 +126,7 @@ describe('server-admin', () => {
     const refcount = await client.objectRefcount(key);
 
     assert.strictEqual(typeof refcount, 'number');
-    assert.ok(refcount !== null && refcount >= 1);
+    assert.strictEqual(refcount, 1);
   });
 
   it('reports idle time with OBJECT IDLETIME', async () => {
@@ -148,15 +147,19 @@ describe('server-admin', () => {
   });
 
   it('returns an array from LATENCY LATEST', async () => {
+    await client.latencyReset();
+
     const latest = await client.latencyLatest();
 
-    assert.ok(Array.isArray(latest));
+    assert.deepStrictEqual(latest, []);
   });
 
   it('resets latency history with LATENCY RESET', async () => {
+    await client.latencyReset();
+
     const result = await client.latencyReset();
 
-    assert.strictEqual(typeof result, 'number');
+    assert.strictEqual(result, 0);
   });
 
   it('resets statistics with CONFIG RESETSTAT', async () => {
@@ -218,8 +221,10 @@ describe('server-admin', () => {
 
     const result = await client.waitaof(0, 0, 100);
 
-    assert.strictEqual(typeof result.localFsynced, 'number');
-    assert.strictEqual(typeof result.replicasAcknowledged, 'number');
+    assert.deepStrictEqual(result, {
+      localFsynced: 0,
+      replicasAcknowledged: 0,
+    });
   });
 
   it('atomically sets and returns old value with GETSET', async () => {
@@ -405,23 +410,34 @@ describe('server-admin', () => {
 
     const dump = 'fakebinarydump';
 
-    const base = createCommand(dump);
+    const dumpBuffer = Buffer.from(dump, 'latin1');
 
-    assert.strictEqual(base[0], 'FUNCTION');
-    assert.strictEqual(base[1], 'RESTORE');
-    assert.strictEqual(base.length, 3);
+    assert.deepStrictEqual(createCommand(dump), [
+      'FUNCTION',
+      'RESTORE',
+      dumpBuffer,
+    ]);
 
-    const withReplace = createCommand(dump, { replace: true });
+    assert.deepStrictEqual(createCommand(dump, { replace: true }), [
+      'FUNCTION',
+      'RESTORE',
+      dumpBuffer,
+      'REPLACE',
+    ]);
 
-    assert.strictEqual(withReplace[3], 'REPLACE');
+    assert.deepStrictEqual(createCommand(dump, { flush: true }), [
+      'FUNCTION',
+      'RESTORE',
+      dumpBuffer,
+      'FLUSH',
+    ]);
 
-    const withFlush = createCommand(dump, { flush: true });
-
-    assert.strictEqual(withFlush[3], 'FLUSH');
-
-    const withAppend = createCommand(dump, { append: true });
-
-    assert.strictEqual(withAppend[3], 'APPEND');
+    assert.deepStrictEqual(createCommand(dump, { append: true }), [
+      'FUNCTION',
+      'RESTORE',
+      dumpBuffer,
+      'APPEND',
+    ]);
   });
 
   it('verifies MIGRATE command construction with all options', async () => {
@@ -574,11 +590,13 @@ describe('server-admin', () => {
   });
 
   it('performs a synchronous save with SAVE', async () => {
-    const result = await client.save().catch((error: Error) => error.message);
+    const result = await client.save().catch((error: Error) => error);
 
-    assert.ok(
-      typeof result === 'string' && /ok|already|progress/i.test(result),
-    );
+    if (result instanceof Error) {
+      assert.match(result.message, /already|progress/i);
+    } else {
+      assert.strictEqual(result, 'OK');
+    }
   });
 
   it('reports object access frequency with OBJECT FREQ', async () => {
@@ -662,7 +680,7 @@ describe('server-admin', () => {
     assert.strictEqual(typeof histograms, 'object');
     assert.ok('ping' in histograms, 'expected a ping histogram entry');
     assert.strictEqual(typeof histograms.ping.calls, 'number');
-    assert.ok(histograms.ping.calls >= 10);
+    assert.strictEqual(histograms.ping.calls, 10);
     assert.strictEqual(typeof histograms.ping.histogramUsec, 'object');
   });
 
@@ -704,9 +722,11 @@ describe('server-admin', () => {
       '../../../../sources/command/replicaof.ts'
     );
 
-    assert.strictEqual(createCommand('127.0.0.1', 6379)[0], 'REPLICAOF');
-    assert.strictEqual(createCommand('127.0.0.1', 6379)[1], '127.0.0.1');
-    assert.strictEqual(createCommand('127.0.0.1', 6379)[2], '6379');
+    assert.deepStrictEqual(createCommand('127.0.0.1', 6379), [
+      'REPLICAOF',
+      '127.0.0.1',
+      '6379',
+    ]);
   });
 
   it('verifies SYNC command construction', async () => {
@@ -729,6 +749,11 @@ describe('server-admin', () => {
     const modules = await client.moduleList();
 
     assert.ok(Array.isArray(modules));
+    for (const module of modules) {
+      assert.strictEqual(typeof module.name, 'string');
+      assert.ok(module.name.length > 0);
+      assert.strictEqual(typeof module.version, 'number');
+    }
   });
 
   it('verifies MODULE LOAD command construction', async () => {
@@ -760,11 +785,11 @@ describe('server-admin', () => {
       '../../../../sources/command/module.loadex.ts'
     );
 
-    const command = createCommand('/path/to/module.so');
-
-    assert.strictEqual(command[0], 'MODULE');
-    assert.strictEqual(command[1], 'LOADEX');
-    assert.strictEqual(command[2], '/path/to/module.so');
+    assert.deepStrictEqual(createCommand('/path/to/module.so'), [
+      'MODULE',
+      'LOADEX',
+      '/path/to/module.so',
+    ]);
   });
 
   it('resets latency events by name', async () => {
@@ -787,10 +812,10 @@ describe('server-admin', () => {
 
     assert.ok(Array.isArray(result));
     assert.ok(result.length > 0, 'latency events must exist after busy script');
-    assert.strictEqual(typeof result[0].event, 'string');
-    assert.strictEqual(typeof result[0].timestamp, 'number');
-    assert.strictEqual(typeof result[0].latency, 'number');
-    assert.strictEqual(typeof result[0].maximumLatency, 'number');
+    assert.strictEqual(result[0].event, 'command');
+    assert.ok(result[0].timestamp > 0);
+    assert.ok(result[0].latency > 0);
+    assert.ok(result[0].maximumLatency >= result[0].latency);
   });
 
   it('returns parsed LATENCY HISTORY entries', async () => {
@@ -809,8 +834,8 @@ describe('server-admin', () => {
       result.length > 0,
       'latency history must exist after busy script',
     );
-    assert.strictEqual(typeof result[0].timestamp, 'number');
-    assert.strictEqual(typeof result[0].latency, 'number');
+    assert.ok(result[0].timestamp > 0);
+    assert.ok(result[0].latency > 0);
   });
 
   it('verifies SORT command construction with all options', async () => {
@@ -892,43 +917,69 @@ describe('server-admin', () => {
       '../../../../sources/command/restore.ts'
     );
 
-    const base = createCommand('key', 0, 'dump');
+    const dumpBuffer = Buffer.from('dump', 'latin1');
 
-    assert.strictEqual(base[0], 'RESTORE');
-    assert.strictEqual(base[1], 'key');
-    assert.strictEqual(base[2], '0');
-    assert.ok(base[3] instanceof Buffer);
-    assert.strictEqual(base.length, 4);
+    assert.deepStrictEqual(createCommand('key', 0, 'dump'), [
+      'RESTORE',
+      'key',
+      '0',
+      dumpBuffer,
+    ]);
 
-    const withReplace = createCommand('key', 0, 'dump', { replace: true });
+    assert.deepStrictEqual(createCommand('key', 0, 'dump', { replace: true }), [
+      'RESTORE',
+      'key',
+      '0',
+      dumpBuffer,
+      'REPLACE',
+    ]);
 
-    assert.strictEqual(withReplace[4], 'REPLACE');
+    assert.deepStrictEqual(createCommand('key', 0, 'dump', { absttl: true }), [
+      'RESTORE',
+      'key',
+      '0',
+      dumpBuffer,
+      'ABSTTL',
+    ]);
 
-    const withAbsttl = createCommand('key', 0, 'dump', { absttl: true });
+    assert.deepStrictEqual(createCommand('key', 0, 'dump', { idletime: 100 }), [
+      'RESTORE',
+      'key',
+      '0',
+      dumpBuffer,
+      'IDLETIME',
+      '100',
+    ]);
 
-    assert.strictEqual(withAbsttl[4], 'ABSTTL');
+    assert.deepStrictEqual(createCommand('key', 0, 'dump', { freq: 42 }), [
+      'RESTORE',
+      'key',
+      '0',
+      dumpBuffer,
+      'FREQ',
+      '42',
+    ]);
 
-    const withIdletime = createCommand('key', 0, 'dump', { idletime: 100 });
-
-    assert.ok(withIdletime.includes('IDLETIME'));
-    assert.ok(withIdletime.includes('100'));
-
-    const withFreq = createCommand('key', 0, 'dump', { freq: 42 });
-
-    assert.ok(withFreq.includes('FREQ'));
-    assert.ok(withFreq.includes('42'));
-
-    const withAll = createCommand('key', 0, 'dump', {
-      replace: true,
-      absttl: true,
-      idletime: 50,
-      freq: 10,
-    });
-
-    assert.ok(withAll.includes('REPLACE'));
-    assert.ok(withAll.includes('ABSTTL'));
-    assert.ok(withAll.includes('IDLETIME'));
-    assert.ok(withAll.includes('FREQ'));
+    assert.deepStrictEqual(
+      createCommand('key', 0, 'dump', {
+        replace: true,
+        absttl: true,
+        idletime: 50,
+        freq: 10,
+      }),
+      [
+        'RESTORE',
+        'key',
+        '0',
+        dumpBuffer,
+        'REPLACE',
+        'ABSTTL',
+        'IDLETIME',
+        '50',
+        'FREQ',
+        '10',
+      ],
+    );
   });
 
   it('verifies GETEX command construction with all TTL modes', async () => {

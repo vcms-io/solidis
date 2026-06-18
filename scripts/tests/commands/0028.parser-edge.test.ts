@@ -70,22 +70,19 @@ describe('parser-edge', () => {
     it('skips a null-keyed entry but still parses the map', async () => {
       const [reply] = await parseOnce(bytes('%1\r\n$-1\r\n+value\r\n'));
 
-      assert.ok(reply instanceof Map);
-      assert.strictEqual(reply.size, 0);
+      assert.deepStrictEqual(reply, new Map());
     });
 
     it('coerces an integer key to a string', async () => {
       const [reply] = await parseOnce(bytes('%1\r\n:7\r\n+seven\r\n'));
 
-      assert.ok(reply instanceof Map);
-      assert.strictEqual(reply.get('7'), 'seven');
+      assert.deepStrictEqual(reply, new Map([['7', 'seven']]));
     });
 
     it('preserves a zero integer as a map key', async () => {
       const [reply] = await parseOnce(bytes('%1\r\n:0\r\n+zero\r\n'));
 
-      assert.ok(reply instanceof Map);
-      assert.strictEqual(reply.get('0'), 'zero');
+      assert.deepStrictEqual(reply, new Map([['0', 'zero']]));
     });
   });
 
@@ -113,7 +110,7 @@ describe('parser-edge', () => {
         result[0] instanceof RespError,
         'non-digit bytes in an integer frame must produce a parse error',
       );
-      assert.match(String(result[0].message), /Integer parse error/i);
+      assert.strictEqual(result[0].message, "Integer parse error: '12ab'");
     });
 
     it('rejects a malformed integer containing a space character', async () => {
@@ -124,7 +121,7 @@ describe('parser-edge', () => {
         result[0] instanceof RespError,
         'a space character in an integer frame must produce a parse error',
       );
-      assert.match(String(result[0].message), /Integer parse error/i);
+      assert.strictEqual(result[0].message, "Integer parse error: '1 2'");
     });
 
     it('rejects a float-in-integer frame instead of producing garbage', async () => {
@@ -135,7 +132,7 @@ describe('parser-edge', () => {
         result[0] instanceof RespError,
         'a dot in an integer frame must produce a parse error',
       );
-      assert.match(String(result[0].message), /Integer parse error/i);
+      assert.strictEqual(result[0].message, "Integer parse error: '3.14'");
     });
 
     it('rejects an array length containing non-digit characters', async () => {
@@ -158,14 +155,14 @@ describe('parser-edge', () => {
       const [reply] = await parseOnce(bytes(',not-a-number\r\n'));
 
       assert.ok(reply instanceof RespError);
-      assert.match(reply.message, /Double parse error/i);
+      assert.strictEqual(reply.message, "Double parse error: 'not-a-number'");
     });
 
     it('turns an unparseable big number into a RespError', async () => {
       const [reply] = await parseOnce(bytes('(12notdigits\r\n'));
 
       assert.ok(reply instanceof RespError);
-      assert.match(reply.message, /BigNumber parse error/i);
+      assert.strictEqual(reply.message, "BigNumber parse error: '12notdigits'");
     });
 
     it('parses a blob error into a RespError carrying its text', async () => {
@@ -173,7 +170,10 @@ describe('parser-edge', () => {
         bytes('!21\r\nSYNTAX invalid syntax\r\n'),
       );
 
-      assert.ok(reply instanceof RespError);
+      if (!(reply instanceof RespError)) {
+        assert.fail('expected a RespError for blob error frame');
+      }
+
       assert.strictEqual(reply.message, 'SYNTAX invalid syntax');
     });
   });
@@ -231,12 +231,13 @@ describe('parser-edge', () => {
       }
 
       assert.strictEqual(collected.length, 1);
-      assert.ok(collected[0] instanceof Map);
-
-      if (collected[0] instanceof Map) {
-        assert.strictEqual(collected[0].get('a'), 1);
-        assert.strictEqual(collected[0].get('b'), 2);
-      }
+      assert.deepStrictEqual(
+        collected[0],
+        new Map([
+          ['a', 1],
+          ['b', 2],
+        ]),
+      );
     });
   });
 
@@ -270,7 +271,7 @@ describe('parser-edge', () => {
 
       assert.strictEqual(result.length, 1);
       assert.ok(Buffer.isBuffer(result[0]));
-      assert.strictEqual((result[0] as Buffer).toString(), payload);
+      assert.strictEqual(result[0].toString(), payload);
     });
 
     it('shifts the internal buffer when readOffset exceeds the threshold', async () => {
@@ -292,8 +293,10 @@ describe('parser-edge', () => {
         bytes(`K\r\n${'+OK\r\n'.repeat(19)}`),
       );
 
-      assert.strictEqual(result.length, 20);
-      assert.ok(result.every((reply) => reply === 'OK'));
+      assert.deepStrictEqual(
+        result,
+        Array.from({ length: 20 }, () => 'OK'),
+      );
     });
 
     it('handles consecutive large payloads that force repeated buffer growth', async () => {
@@ -313,7 +316,7 @@ describe('parser-edge', () => {
 
         assert.strictEqual(result.length, 1);
         assert.ok(Buffer.isBuffer(result[0]));
-        assert.strictEqual((result[0] as Buffer).toString(), payload);
+        assert.strictEqual(result[0].toString(), payload);
       }
     });
   });
@@ -352,6 +355,57 @@ describe('parser-edge', () => {
         '#checkCRLF detects that offset+1 after the underscore prefix ' +
           'is 0x58 ("X") instead of CR, and throws a SolidisParserError',
       );
+    });
+  });
+
+  describe('integer BigInt auto-promotion', () => {
+    it('promotes a 16-digit integer exceeding MAX_SAFE_INTEGER to BigInt', async () => {
+      const [reply] = await parseOnce(bytes(':9007199254740993\r\n'));
+
+      assert.strictEqual(typeof reply, 'bigint');
+      assert.strictEqual(reply, 9007199254740993n);
+    });
+
+    it('keeps a 15-digit integer within safe range as a number', async () => {
+      const [reply] = await parseOnce(bytes(':999999999999999\r\n'));
+
+      assert.strictEqual(typeof reply, 'number');
+      assert.strictEqual(reply, 999999999999999);
+    });
+
+    it('promotes a negative integer beyond safe range to BigInt', async () => {
+      const [reply] = await parseOnce(bytes(':-9007199254740993\r\n'));
+
+      assert.strictEqual(typeof reply, 'bigint');
+      assert.strictEqual(reply, -9007199254740993n);
+    });
+
+    it('keeps Number.MAX_SAFE_INTEGER as a number', async () => {
+      const [reply] = await parseOnce(bytes(':9007199254740991\r\n'));
+
+      assert.strictEqual(typeof reply, 'number');
+      assert.strictEqual(reply, Number.MAX_SAFE_INTEGER);
+    });
+
+    it('promotes a 20-digit integer to BigInt', async () => {
+      const [reply] = await parseOnce(bytes(':92233720368547758070\r\n'));
+
+      assert.strictEqual(typeof reply, 'bigint');
+      assert.strictEqual(reply, 92233720368547758070n);
+    });
+
+    it('handles BigInt integer split across chunks', async () => {
+      const parser = createParser();
+
+      assert.deepStrictEqual(
+        await parser.queueParse(bytes(':900719925474')),
+        [],
+      );
+
+      const [reply] = await parser.queueParse(bytes('0993\r\n'));
+
+      assert.strictEqual(typeof reply, 'bigint');
+      assert.strictEqual(reply, 9007199254740993n);
     });
   });
 });

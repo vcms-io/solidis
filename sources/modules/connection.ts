@@ -195,12 +195,11 @@ export class SolidisConnection extends EventEmitter {
         this.emit('connect');
       };
 
-      const { host, port, useTLS } = this.#options;
+      const { host, port } = this.#options;
 
       const socket = this.#createSocket({
         host,
         port,
-        useTLS,
         onConnect,
       });
 
@@ -239,16 +238,14 @@ export class SolidisConnection extends EventEmitter {
   #createSocket({
     host,
     port,
-    useTLS,
     onConnect,
   }: {
     host: string;
     port: number;
-    useTLS: boolean;
     onConnect: () => void;
   }): SolidisSocket {
-    if (useTLS) {
-      return tls.connect({ host, port }, onConnect);
+    if (this.#options.tls) {
+      return tls.connect({ ...this.#options.tls, host, port }, onConnect);
     }
 
     return net.connect({ host, port }, onConnect);

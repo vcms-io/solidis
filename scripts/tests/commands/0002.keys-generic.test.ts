@@ -171,15 +171,13 @@ describe('keys-generic', () => {
 
     const found = await client.keys(`${matchKeyspace.namespace}:*`);
 
-    assert.strictEqual(found.length, 2);
-    assert.ok(found.includes(alpha));
-    assert.ok(found.includes(beta));
+    assert.deepStrictEqual([...found].sort(), [alpha, beta].sort());
   });
 
   it('returns a key from RANDOMKEY and a size from DBSIZE', async () => {
     await client.set(keyspace.key('randomkey'), 'value');
 
-    assert.notStrictEqual(await client.randomkey(), undefined);
+    assert.strictEqual(typeof (await client.randomkey()), 'string');
     assert.ok((await client.dbsize()) > 0);
   });
 
@@ -190,7 +188,7 @@ describe('keys-generic', () => {
 
     const encoding = await client.objectEncoding(integerKey);
 
-    assert.ok(typeof encoding === 'string' && encoding.length > 0);
+    assert.strictEqual(encoding, 'int');
   });
 
   it('applies and inspects EXPIRE / TTL', async () => {
@@ -321,6 +319,7 @@ describe('keys-generic', () => {
 
     const serialized = await client.dump(source);
 
+    assert.strictEqual(typeof serialized, 'string');
     assert.ok(serialized !== null);
 
     await client.set(destination, 'existing');
@@ -340,6 +339,7 @@ describe('keys-generic', () => {
 
     const serialized = await client.dump(source);
 
+    assert.strictEqual(typeof serialized, 'string');
     assert.ok(serialized !== null);
 
     const futureMs = Date.now() + 60000;
@@ -363,6 +363,7 @@ describe('keys-generic', () => {
 
     const serialized = await client.dump(source);
 
+    assert.strictEqual(typeof serialized, 'string');
     assert.ok(serialized !== null);
 
     assert.strictEqual(

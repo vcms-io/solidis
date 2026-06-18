@@ -45,7 +45,6 @@ export const SolidisDefaultOptions: SolidisClientFrozenOptions = {
   maxReadyCheckRetries: 100,
   rejectOnPartialPipelineError: false,
   socketWriteTimeout: 1000,
-  useTLS: false,
 } as const;
 
 export const SolidisSymbolBytes = {
@@ -115,3 +114,5 @@ export const SolidisSubscribeCommandNameSet = new Set([
   'SUNSUBSCRIBE',
   'PUNSUBSCRIBE',
 ]);
+
+export const SolidisCredentialCommandNameSet = new Set(['AUTH', 'HELLO']);

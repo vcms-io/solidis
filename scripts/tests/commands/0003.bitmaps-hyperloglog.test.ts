@@ -126,10 +126,9 @@ describe('bitmaps-hyperloglog', () => {
 
     const { createCommand } = await import('../../../sources/command/bitop.ts');
 
-    assert.throws(
-      () => createCommand('NOT', 'dest', ['a', 'b']),
-      (error: Error) => error.message.includes('exactly one source key'),
-    );
+    assert.throws(() => createCommand('NOT', 'dest', ['a', 'b']), {
+      message: 'BITOP NOT accepts exactly one source key',
+    });
   });
 
   it('manipulates packed integers with BITFIELD', async () => {

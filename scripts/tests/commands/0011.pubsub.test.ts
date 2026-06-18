@@ -83,7 +83,6 @@ describe('pubsub', () => {
       description: 'binary message delivered',
     });
 
-    assert.ok(Buffer.isBuffer(received[0]));
     assert.deepStrictEqual(received[0], payload);
   });
 
@@ -169,8 +168,11 @@ describe('pubsub', () => {
 
     await waitFor(() => events.length >= 2);
 
-    assert.strictEqual(events[1].type, 'unsubscribe');
-    assert.strictEqual(events[1].channel, channel);
+    assert.deepStrictEqual(events[1], {
+      type: 'unsubscribe',
+      channel,
+      count: 0,
+    });
   });
 
   it('does not deliver after unsubscribe', async () => {
@@ -361,14 +363,14 @@ describe('pubsub', () => {
       emit,
     );
 
-    assert.ok(pubsub.subscribedChannels.has('news'));
+    assert.strictEqual(pubsub.subscribedChannels.has('news'), true);
 
     pubsub.dispatchPubSubEvent(
       [Buffer.from('unsubscribe'), Buffer.from('news'), 0],
       emit,
     );
 
-    assert.ok(!pubsub.subscribedChannels.has('news'));
+    assert.strictEqual(pubsub.subscribedChannels.has('news'), false);
   });
 
   it('tracks ssubscribe/sunsubscribe state in SolidisPubSub', async () => {
@@ -384,14 +386,14 @@ describe('pubsub', () => {
       emit,
     );
 
-    assert.ok(pubsub.subscribedShardChannels.has('shard-ch'));
+    assert.strictEqual(pubsub.subscribedShardChannels.has('shard-ch'), true);
 
     pubsub.dispatchPubSubEvent(
       [Buffer.from('sunsubscribe'), Buffer.from('shard-ch'), 0],
       emit,
     );
 
-    assert.ok(!pubsub.subscribedShardChannels.has('shard-ch'));
+    assert.strictEqual(pubsub.subscribedShardChannels.has('shard-ch'), false);
   });
 
   it('tracks psubscribe/punsubscribe state in SolidisPubSub', async () => {
@@ -407,14 +409,14 @@ describe('pubsub', () => {
       emit,
     );
 
-    assert.ok(pubsub.subscribedPatterns.has('user:*'));
+    assert.strictEqual(pubsub.subscribedPatterns.has('user:*'), true);
 
     pubsub.dispatchPubSubEvent(
       [Buffer.from('punsubscribe'), Buffer.from('user:*'), 0],
       emit,
     );
 
-    assert.ok(!pubsub.subscribedPatterns.has('user:*'));
+    assert.strictEqual(pubsub.subscribedPatterns.has('user:*'), false);
   });
 
   it('reports hasActiveSubscriptions correctly in SolidisPubSub', async () => {
@@ -452,6 +454,12 @@ describe('pubsub', () => {
     pubsub.dispatchPubSubEvent([Buffer.from('message'), null, null], emit);
 
     assert.strictEqual(errors.length, 1);
+
+    if (!(errors[0] instanceof Error)) {
+      assert.fail('expected an Error instance for message:type');
+    }
+
+    assert.strictEqual(errors[0].message, 'message:type');
   });
 
   it('emits error on unknown subscription event in SolidisPubSub', async () => {
@@ -475,6 +483,12 @@ describe('pubsub', () => {
     );
 
     assert.strictEqual(errors.length, 1);
+
+    if (!(errors[0] instanceof Error)) {
+      assert.fail('expected an Error instance for unknownevent:event');
+    }
+
+    assert.strictEqual(errors[0].message, 'unknownevent:event');
   });
 
   it('emits error on malformed subscription (non-number count)', async () => {
@@ -498,6 +512,12 @@ describe('pubsub', () => {
     );
 
     assert.strictEqual(errors.length, 1);
+
+    if (!(errors[0] instanceof Error)) {
+      assert.fail('expected an Error instance for subscribe:type');
+    }
+
+    assert.strictEqual(errors[0].message, 'subscribe:type');
   });
 
   it('emits error on pmessage with invalid types', async () => {
@@ -521,6 +541,12 @@ describe('pubsub', () => {
     );
 
     assert.strictEqual(errors.length, 1);
+
+    if (!(errors[0] instanceof Error)) {
+      assert.fail('expected an Error instance for pmessage:type');
+    }
+
+    assert.strictEqual(errors[0].message, 'pmessage:type');
   });
 
   it('does not allow external mutation of subscribedChannels to corrupt state', async () => {
@@ -538,7 +564,7 @@ describe('pubsub', () => {
 
     const exposedSet = pubsub.subscribedChannels;
 
-    assert.ok(exposedSet.has('real-channel'));
+    assert.strictEqual(exposedSet.has('real-channel'), true);
 
     if (exposedSet instanceof Set) {
       exposedSet.add('phantom-channel');
@@ -572,7 +598,7 @@ describe('pubsub', () => {
 
     await waitFor(() => messages.length > 0, { timeout: 1000 });
 
-    assert.ok(messages.includes('pattern-msg'));
+    assert.deepStrictEqual(messages, ['pattern-msg']);
 
     await subscriber.punsubscribe(keyspace.key('pattern:*'));
   });

@@ -48,7 +48,7 @@ describe('lifecycle-edge', () => {
   it('drives the TLS socket constructor (handshake fails against a plain server)', async () => {
     const client = new SolidisFeaturedClient(
       buildClientOptions({
-        useTLS: true,
+        tls: {},
         lazyConnect: true,
         connectionTimeout: 500,
         maxConnectionRetries: 0,
@@ -198,7 +198,14 @@ describe('lifecycle-edge', () => {
       description: 'debug entries emitted',
     });
 
-    assert.ok(entries.length > 0);
+    const messages = entries.map((entry) =>
+      typeof entry === 'object' && entry !== null && 'message' in entry
+        ? String(entry.message)
+        : '',
+    );
+
+    assert.ok(messages.some((message) => message.includes('SET')));
+    assert.ok(messages.some((message) => message.includes('PING')));
   });
 
   it('emits the "reconnected" event after a successful reconnection', async () => {
@@ -340,6 +347,7 @@ describe('lifecycle-edge', () => {
       error instanceof SolidisClientError ||
         error instanceof SolidisConnectionError,
     );
+    assert.match(error.message, /ECONNREFUSED|connection timeout/i);
   });
 
   it('skips standalone AUTH when HELLO carries credentials (RESP3 single-HELLO auth)', async () => {
@@ -392,7 +400,11 @@ describe('lifecycle-edge', () => {
 
     await client.connect();
 
-    assert.ok(helloReceived, 'HELLO must have been sent with credentials');
+    assert.strictEqual(
+      helloReceived,
+      true,
+      'HELLO must have been sent with credentials',
+    );
 
     assert.strictEqual(
       authReceived,

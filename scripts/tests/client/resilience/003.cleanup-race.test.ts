@@ -72,8 +72,9 @@ describe('cleanup-race', () => {
       description: 'reconnect after abrupt mock disconnect',
     });
 
-    assert.ok(
+    assert.strictEqual(
       reconnected,
+      true,
       'client must emit a second ready event after reconnection',
     );
   });

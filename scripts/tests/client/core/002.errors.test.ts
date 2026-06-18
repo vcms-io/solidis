@@ -60,7 +60,10 @@ describe('errors', () => {
 
     assert.ok(caught instanceof SolidisCommandError);
     assert.ok(caught instanceof SolidisError);
-    assert.match(`${caught.message}`, /WRONGTYPE/i);
+    assert.match(
+      `${caught.message}`,
+      /^\[LPUSH .*\] Invalid reply: RespError: WRONGTYPE/,
+    );
   });
 
   it('rejects INCR against a non-integer string', async () => {
@@ -75,6 +78,10 @@ describe('errors', () => {
     const replies = await client.send([['SUBSCRIBE']]);
 
     assert.ok(replies[0][0] instanceof RespError);
+    assert.strictEqual(
+      replies[0][0].message,
+      "ERR wrong number of arguments for 'subscribe' command",
+    );
   });
 
   it('isolates errors per command within a pipeline', async () => {
@@ -88,6 +95,10 @@ describe('errors', () => {
 
     assert.strictEqual(replies[0][0], 'OK');
     assert.ok(replies[1][0] instanceof RespError);
+    assert.strictEqual(
+      replies[1][0].message,
+      'ERR value is not an integer or out of range',
+    );
     assert.strictEqual(`${replies[2][0]}`, 'value');
   });
 
@@ -96,7 +107,7 @@ describe('errors', () => {
     const reply = replies[0][0];
 
     assert.ok(reply instanceof RespError);
-    assert.match(`${reply.message}`, /unknown command/i);
+    assert.match(`${reply.message}`, /^ERR unknown command/);
   });
 
   it('times out a blocking command past commandTimeout', async () => {
@@ -136,6 +147,7 @@ describe('errors', () => {
     }
 
     assert.ok(caught instanceof SolidisClientError);
+    assert.match(`${caught.message}`, /ECONNREFUSED/i);
 
     failing.quit();
   });
@@ -146,11 +158,8 @@ describe('errors', () => {
 
     const chain = unwrapSolidisError(wrapped);
 
-    assert.ok(chain.length >= 2);
-    assert.strictEqual(
-      chain.some((error) => error.message === 'root cause'),
-      true,
-    );
+    assert.strictEqual(chain.length, 2);
+    assert.strictEqual(chain[1].message, 'root cause');
   });
 
   it('does not produce duplicate entries when unwrapping nested errors', () => {
@@ -222,7 +231,12 @@ describe('errors', () => {
     const clientError = new SolidisClientError('existing');
 
     assert.strictEqual(wrapWithSolidisClientError(clientError), clientError);
-    assert.ok(wrapWithSolidisClientError('raw') instanceof SolidisClientError);
+
+    const wrappedClientError = wrapWithSolidisClientError('raw');
+
+    assert.ok(wrappedClientError instanceof SolidisClientError);
+    assert.strictEqual(wrappedClientError.message, 'raw');
+    assert.strictEqual(wrappedClientError.name, 'SolidisClientError');
 
     const connectionError = new SolidisConnectionError('existing');
 
@@ -230,14 +244,22 @@ describe('errors', () => {
       wrapWithSolidisConnectionError(connectionError),
       connectionError,
     );
-    assert.ok(
-      wrapWithSolidisConnectionError('raw') instanceof SolidisConnectionError,
-    );
+
+    const wrappedConnectionError = wrapWithSolidisConnectionError('raw');
+
+    assert.ok(wrappedConnectionError instanceof SolidisConnectionError);
+    assert.strictEqual(wrappedConnectionError.message, 'raw');
+    assert.strictEqual(wrappedConnectionError.name, 'SolidisConnectionError');
 
     const parserError = new SolidisParserError('existing');
 
     assert.strictEqual(wrapWithParserError(parserError), parserError);
-    assert.ok(wrapWithParserError('raw') instanceof SolidisParserError);
+
+    const wrappedParserError = wrapWithParserError('raw');
+
+    assert.ok(wrappedParserError instanceof SolidisParserError);
+    assert.strictEqual(wrappedParserError.message, 'raw');
+    assert.strictEqual(wrappedParserError.name, 'SolidisParserError');
 
     const requesterError = new SolidisRequesterError('existing');
 
@@ -245,9 +267,12 @@ describe('errors', () => {
       wrapWithSolidisRequesterError(requesterError),
       requesterError,
     );
-    assert.ok(
-      wrapWithSolidisRequesterError('raw') instanceof SolidisRequesterError,
-    );
+
+    const wrappedRequesterError = wrapWithSolidisRequesterError('raw');
+
+    assert.ok(wrappedRequesterError instanceof SolidisRequesterError);
+    assert.strictEqual(wrappedRequesterError.message, 'raw');
+    assert.strictEqual(wrappedRequesterError.name, 'SolidisRequesterError');
   });
 
   it('unwraps non-Error value gracefully', () => {

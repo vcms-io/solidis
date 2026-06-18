@@ -287,6 +287,19 @@ export class SolidisParser {
         return null;
       }
 
+      if (parsed.digitCount > 15 && !Number.isSafeInteger(parsed.data)) {
+        const numString = this.#buffer.toString(
+          'ascii',
+          this.#readOffset + 1,
+          this.#readOffset + parsed.length - 2,
+        );
+
+        return {
+          data: BigInt(numString),
+          length: parsed.length,
+        };
+      }
+
       return {
         data: parsed.data,
         length: parsed.length,
@@ -597,6 +610,7 @@ export class SolidisParser {
 
     let signIndicator = 1;
     let number = 0;
+    let digitCount = 0;
 
     let position = startPosition;
 
@@ -618,6 +632,7 @@ export class SolidisParser {
         return {
           data: signIndicator * number,
           length: position - this.#readOffset + 1,
+          digitCount,
         };
       }
 
@@ -631,6 +646,7 @@ export class SolidisParser {
       }
 
       number = number * 10 + (character - SolidisSymbolBytes.ZERO);
+      digitCount += 1;
     }
 
     return null;
