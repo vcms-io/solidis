@@ -79,6 +79,13 @@ describe('parser-edge', () => {
       assert.ok(reply instanceof Map);
       assert.strictEqual(reply.get('7'), 'seven');
     });
+
+    it('preserves a zero integer as a map key', async () => {
+      const [reply] = await parseOnce(bytes('%1\r\n:0\r\n+zero\r\n'));
+
+      assert.ok(reply instanceof Map);
+      assert.strictEqual(reply.get('0'), 'zero');
+    });
   });
 
   describe('attributes', () => {
@@ -138,6 +145,27 @@ describe('parser-edge', () => {
 
     it('parses a double of exactly zero', async () => {
       assert.deepStrictEqual(await parseOnce(bytes(',0\r\n')), [0]);
+    });
+  });
+
+  describe('bulk string length enforcement', () => {
+    it('rejects a bulk string whose declared length exceeds the configured maximum', async () => {
+      const parser = new SolidisParser({
+        ...SolidisDefaultOptions,
+        parser: {
+          buffer: {
+            initial: 256,
+            shiftThreshold: 128,
+          },
+          maxBulkStringLength: 1024,
+        },
+      });
+
+      const oversized = Buffer.from('$2048\r\n');
+
+      await assert.rejects(parser.queueParse(oversized), (error: Error) =>
+        error.message.includes('length'),
+      );
     });
   });
 

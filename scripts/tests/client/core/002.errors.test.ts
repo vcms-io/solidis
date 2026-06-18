@@ -151,6 +151,20 @@ describe('errors', () => {
     );
   });
 
+  it('does not produce duplicate entries when unwrapping nested errors', () => {
+    const root = new Error('root cause');
+    const wrapped = new SolidisClientError('outer failure', root);
+
+    const chain = unwrapSolidisError(wrapped);
+    const unique = new Set(chain);
+
+    assert.strictEqual(
+      chain.length,
+      unique.size,
+      `expected ${unique.size} unique errors but got ${chain.length} (duplicates present)`,
+    );
+  });
+
   it('annotates command errors with the command name', async () => {
     const key = keyspace.key('annotated');
 
@@ -238,5 +252,21 @@ describe('errors', () => {
     const result = unwrapSolidisError('not an error');
 
     assert.deepStrictEqual(result, []);
+  });
+
+  it('rejects odd-length arrays in processPairedArray', async () => {
+    const { processPairedArray } = await import(
+      '../../../../sources/command/utils/reply.ts'
+    );
+
+    assert.throws(() => processPairedArray(['key1', 'val1', 'key2'], () => {}));
+  });
+
+  it('does not throw a raw TypeError when escapeReply receives an empty array', async () => {
+    const { escapeReply } = await import(
+      '../../../../sources/command/utils/reply.ts'
+    );
+
+    assert.doesNotThrow(() => escapeReply([]));
   });
 });

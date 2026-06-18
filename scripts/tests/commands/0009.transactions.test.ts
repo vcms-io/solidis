@@ -194,4 +194,15 @@ describe('transactions', () => {
       (error: Error) => error.message.includes('Extend'),
     );
   });
+
+  it('propagates command-building errors from the transaction proxy to exec', async () => {
+    const transaction = client.multi();
+
+    transaction.set(keyspace.key('propagate'), 'value');
+    transaction.xread(['stream-a', 'stream-b'], ['0-0']);
+
+    await assert.rejects(transaction.exec(), (error: Error) =>
+      error.message.includes('same length'),
+    );
+  });
 });

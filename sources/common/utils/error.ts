@@ -118,10 +118,6 @@ export function unwrapSolidisError(error: unknown): Error[] {
   if (error instanceof SolidisError) {
     const originalError = error.getOriginalError();
 
-    if (originalError instanceof Error) {
-      errors.push(originalError);
-    }
-
     errors.push(...unwrapSolidisError(originalError));
   }
 

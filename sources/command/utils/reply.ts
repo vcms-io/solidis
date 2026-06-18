@@ -26,7 +26,7 @@ export function newCommandError(message: string, prefix?: CommandName) {
 }
 
 export function escapeReply(reply: SolidisData[][]): SolidisData {
-  return reply[0][0];
+  return reply[0]?.[0];
 }
 
 export function tryReplyOK(reply: unknown, commandName?: CommandName): RespOK {
@@ -171,6 +171,13 @@ export function processPairedArray(
   }
 
   const targetArray = Array.isArray(array) ? array : Array.from(array).flat();
+
+  if (targetArray.length % 2 !== 0) {
+    throw newCommandError(
+      `${InvalidReplyPrefix}: expected even-length array, got ${targetArray.length}`,
+      commandName,
+    );
+  }
 
   for (let index = 0; index < targetArray.length; index += 2) {
     const key = targetArray[index];

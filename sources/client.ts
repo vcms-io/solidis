@@ -56,6 +56,14 @@ export class SolidisClient extends EventEmitter {
       ...Object.fromEntries(
         Object.entries(options).filter(([_, value]) => value !== undefined),
       ),
+      parser: {
+        ...SolidisDefaultOptions.parser,
+        ...options.parser,
+        buffer: {
+          ...SolidisDefaultOptions.parser.buffer,
+          ...options.parser?.buffer,
+        },
+      },
     };
 
     this.#setupDebug();
@@ -133,7 +141,7 @@ export class SolidisClient extends EventEmitter {
     const prefix = this.#options.useTLS ? 'rediss' : 'redis';
 
     if (username && password) {
-      return `${prefix}://${username}:${password}@${this.#options.host}:${this.#options.port}`;
+      return `${prefix}://${username}:***@${this.#options.host}:${this.#options.port}`;
     }
 
     return `${prefix}://${this.#options.host}:${this.#options.port}`;
@@ -396,6 +404,8 @@ export class SolidisClient extends EventEmitter {
       await this.#readyCheck();
     } catch (error) {
       this.#debug?.('error', 'Ready check failed with error', error);
+
+      throw new SolidisClientError('Ready check failed', error);
     }
   }
 
@@ -433,6 +443,18 @@ export class SolidisClient extends EventEmitter {
         parameters: Array.from(pubSub.subscribedPatterns),
       }),
     ]);
+
+    if (!subscribe) {
+      pubSub.subscribedChannels.clear();
+    }
+
+    if (!ssubscribe) {
+      pubSub.subscribedShardChannels.clear();
+    }
+
+    if (!psubscribe) {
+      pubSub.subscribedPatterns.clear();
+    }
   }
 
   async #recoveryStep<

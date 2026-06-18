@@ -1,7 +1,7 @@
-import { SolidisCommandError } from '../index.ts';
 import {
   executeCommand,
   InvalidReplyPrefix,
+  newCommandError,
   processPairedArray,
   tryReplyToNumber,
   tryReplyToString,
@@ -74,10 +74,7 @@ export async function aclLog<T>(
     }
 
     if (!Array.isArray(reply)) {
-      throw new SolidisCommandError(
-        `${UnexpectedReplyPrefix}: ${reply}`,
-        command,
-      );
+      throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
     }
 
     return reply.map((entry) => {
@@ -100,10 +97,7 @@ export async function aclLog<T>(
           const logKey = key.toLowerCase();
 
           if (!checkAclLogKey(logKey)) {
-            throw new SolidisCommandError(
-              `${InvalidReplyPrefix}: ${logKey}`,
-              command,
-            );
+            throw newCommandError(`${InvalidReplyPrefix}: ${logKey}`, command);
           }
 
           const resultKey = logKeyToResultKeyMap[logKey];

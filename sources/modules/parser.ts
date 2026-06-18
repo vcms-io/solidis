@@ -24,6 +24,7 @@ export class SolidisParser {
   #bufferIsExternal = false;
   #initialBufferSize: number;
   #shiftThreshold: number;
+  #maxBulkStringLength: number;
 
   #readOffset = 0;
   #writeOffset = 0;
@@ -32,12 +33,14 @@ export class SolidisParser {
     const {
       parser: {
         buffer: { initial, shiftThreshold },
+        maxBulkStringLength,
       },
     } = options;
 
     this.#buffer = Buffer.allocUnsafe(initial);
     this.#initialBufferSize = initial;
     this.#shiftThreshold = shiftThreshold;
+    this.#maxBulkStringLength = maxBulkStringLength;
   }
 
   public async queueParse(...buffers: Buffer[]): Promise<SolidisData[]> {
@@ -491,7 +494,7 @@ export class SolidisParser {
         return null;
       }
 
-      if (key.data) {
+      if (key.data !== null) {
         map.set(key.data.toString(), value.data);
       }
     }
@@ -642,6 +645,12 @@ export class SolidisParser {
         data: null,
         length: 1 + lengthLength,
       };
+    }
+
+    if (lengthData > this.#maxBulkStringLength) {
+      throw new SolidisParserError(
+        `${type} length ${lengthData} exceeds maximum allowed ${this.#maxBulkStringLength}`,
+      );
     }
 
     const startPosition = this.#readOffset + 1 + lengthLength;

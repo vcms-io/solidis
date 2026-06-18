@@ -153,4 +153,20 @@ describe('lifecycle-edge', () => {
 
     assert.ok(entries.length > 0);
   });
+
+  it('does not expose credentials in the uri getter', () => {
+    const client = track(
+      new SolidisFeaturedClient(
+        buildClientOptions({
+          authentication: { username: 'admin', password: 's3cret-token' },
+          lazyConnect: true,
+        }),
+      ),
+    );
+
+    assert.ok(
+      !client.uri.includes('s3cret-token'),
+      'uri must not contain plaintext password',
+    );
+  });
 });

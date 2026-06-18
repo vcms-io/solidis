@@ -6,7 +6,7 @@ const MB = 1048576 as const;
 const NL = '\r\n' as const;
 
 export const SolidisDefaultOptions: SolidisClientFrozenOptions = {
-  authentication: {},
+  authentication: { username: '', password: '' },
   autoReconnect: true,
   autoRecovery: {
     database: true,
@@ -37,6 +37,7 @@ export const SolidisDefaultOptions: SolidisClientFrozenOptions = {
       initial: MB * 4,
       shiftThreshold: MB * 2,
     },
+    maxBulkStringLength: MB * 512,
   },
   port: 6379,
   protocol: 'RESP2',

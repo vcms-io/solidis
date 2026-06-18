@@ -30,6 +30,12 @@ export const SolidisProtocols = {
 } as const;
 export type SolidisProtocols = keyof typeof SolidisProtocols;
 
+type DeepRequired<T> = {
+  [P in keyof T]-?: NonNullable<T[P]> extends object
+    ? DeepRequired<NonNullable<T[P]>>
+    : NonNullable<T[P]>;
+};
+
 export interface SolidisClientOptions {
   authentication?: {
     username?: string;
@@ -61,10 +67,11 @@ export interface SolidisClientOptions {
   maxProcessRepliesPerChunk?: number;
   maxSocketWriteSizePerOnce?: number;
   parser?: {
-    buffer: {
-      initial: number;
-      shiftThreshold: number;
+    buffer?: {
+      initial?: number;
+      shiftThreshold?: number;
     };
+    maxBulkStringLength?: number;
   };
   port?: number;
   protocol?: SolidisProtocols;
@@ -75,7 +82,7 @@ export interface SolidisClientOptions {
 }
 
 export type SolidisClientFrozenOptions = Readonly<
-  Required<SolidisClientOptions>
+  DeepRequired<SolidisClientOptions>
 >;
 
 export type SolidisConnectionOptions = SolidisClientFrozenOptions & {

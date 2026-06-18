@@ -157,6 +157,7 @@ describe('acl', () => {
 
     const restricted = await createClient({
       authentication: { username: user, password: 'pass' },
+      enableReadyCheck: false,
     });
 
     let denied: unknown;

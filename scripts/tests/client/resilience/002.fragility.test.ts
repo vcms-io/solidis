@@ -7,6 +7,7 @@ import { SolidisFeaturedClient } from '../../../../sources/client/featured.ts';
 import {
   RespError,
   SolidisClientError,
+  SolidisCommandError,
   SolidisParserError,
 } from '../../../../sources/index.ts';
 import {
@@ -204,7 +205,7 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.ping(),
-        (error: Error) => /timed out/i.test(error.message),
+        (error: Error) => error instanceof SolidisParserError,
       );
 
       await waitFor(() => parserErrors.length > 0, {
@@ -286,6 +287,52 @@ describe('fragility', () => {
       await client.connect();
 
       await assert.rejects(() => client.get(keyspace.key('vanish')));
+    });
+
+    it('triggers fault recovery for inflight commands on a corrupt frame', async () => {
+      const server = await startMockServer();
+
+      let commandIndex = 0;
+
+      server.onData((socket) => {
+        commandIndex += 1;
+
+        if (commandIndex === 1) {
+          socket.write('+OK\r\n');
+
+          return;
+        }
+
+        socket.write(Buffer.from([0x01, 0x0d, 0x0a]));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            commandTimeout: 5000,
+            autoReconnect: false,
+          }),
+        ),
+      );
+
+      await client.connect();
+      await client.send([['PING']]);
+
+      const startTime = Date.now();
+
+      await assert.rejects(
+        client.send([['PING']]),
+        (error: Error) =>
+          error.message.toLowerCase().includes('parser') ||
+          error.message.toLowerCase().includes('prefix'),
+      );
+
+      const elapsed = Date.now() - startTime;
+
+      assert.ok(
+        elapsed < 2000,
+        `expected immediate rejection but took ${elapsed}ms`,
+      );
     });
   });
 
@@ -407,6 +454,67 @@ describe('fragility', () => {
       await closeClient(killer);
       await closeClient(client);
     });
+
+    it('does not misinterpret replies as pubsub events after recovery with disabled auto-recovery', async () => {
+      const server = await startMockServer();
+
+      let phase = 'initial';
+
+      server.onData((socket, data) => {
+        const text = data.toString();
+
+        if (phase === 'initial' && text.includes('SUBSCRIBE')) {
+          socket.write('*3\r\n$9\r\nsubscribe\r\n$9\r\nchannel-a\r\n:1\r\n');
+
+          return;
+        }
+
+        if (phase === 'reconnected') {
+          socket.write(
+            '*3\r\n$7\r\nmessage\r\n$9\r\nchannel-a\r\n$5\r\nhello\r\n',
+          );
+
+          return;
+        }
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            autoReconnect: true,
+            autoRecovery: {
+              database: false,
+              subscribe: false,
+              ssubscribe: false,
+              psubscribe: false,
+            },
+            commandTimeout: 1000,
+            maxConnectionRetries: 3,
+            connectionRetryDelay: 50,
+            connectionTimeout: 1000,
+          }),
+        ),
+      );
+
+      await client.connect();
+      await client.subscribe('channel-a');
+
+      const reconnectedReady = new Promise<void>((resolve) => {
+        client.once('ready', resolve);
+      });
+
+      phase = 'reconnected';
+      server.destroySockets();
+
+      await reconnectedReady;
+
+      const result = await client.send([['GET', 'test-key']]);
+
+      assert.ok(
+        Array.isArray(result) && result.length === 1,
+        'command reply must not be consumed as a pubsub event',
+      );
+    });
   });
 
   describe('permanently broken clients reject deterministically', () => {
@@ -445,6 +553,149 @@ describe('fragility', () => {
       );
 
       client.quit();
+    });
+  });
+
+  describe('reply chain resilience', () => {
+    it('does not stall reply processing when a listener throws during pubsub dispatch', async () => {
+      const server = await startMockServer();
+      let requestCount = 0;
+
+      server.onData((socket) => {
+        requestCount += 1;
+
+        if (requestCount === 1) {
+          socket.write(
+            Buffer.from(
+              '*3\r\n$9\r\nsubscribe\r\n$2\r\nch\r\n:1\r\n' +
+                '*3\r\n$7\r\nmessage\r\n$2\r\nch\r\n$4\r\nboom\r\n',
+              'latin1',
+            ),
+          );
+        } else if (requestCount === 2) {
+          socket.write(Buffer.from('$5\r\nhello\r\n', 'latin1'));
+        }
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, { commandTimeout: 500 }),
+        ),
+      );
+
+      await client.connect();
+
+      const stash: unknown[] = [];
+      const trap = (reason: unknown) => stash.push(reason);
+
+      process.on('unhandledRejection', trap);
+
+      client.on('message', () => {
+        throw new Error('listener crash');
+      });
+
+      await client.send([['SUBSCRIBE', 'ch']]);
+
+      await delay(50);
+
+      const reply = await client.send([['GET', 'key']]);
+
+      process.off('unhandledRejection', trap);
+
+      assert.strictEqual(`${reply[0][0]}`, 'hello');
+    });
+  });
+
+  describe('ready check', () => {
+    it('does not emit ready when the ready check encounters an error', async () => {
+      const server = await startMockServer();
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            enableReadyCheck: true,
+            commandTimeout: 300,
+          }),
+        ),
+      );
+
+      let readyFired = false;
+
+      client.on('ready', () => {
+        readyFired = true;
+      });
+
+      try {
+        await client.connect();
+      } catch {}
+
+      assert.strictEqual(
+        readyFired,
+        false,
+        'ready must not fire when the ready check fails',
+      );
+    });
+  });
+
+  describe('error construction', () => {
+    it('does not pass command arrays as originalError in acl.log error path', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('+not-an-array\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      let caught: unknown;
+
+      try {
+        await client.aclLog();
+      } catch (error) {
+        caught = error;
+      }
+
+      assert.ok(caught instanceof SolidisCommandError);
+
+      const original = caught.getOriginalError();
+
+      assert.ok(
+        original === undefined || original instanceof Error,
+        `originalError must be undefined or Error, got ${typeof original}`,
+      );
+    });
+  });
+
+  describe('orphan reply detection', () => {
+    it('emits an error when receiving a reply with no pending request', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('+OK\r\n+ORPHAN\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      const errors: Error[] = [];
+
+      client.on('error', (error) => errors.push(error));
+
+      await client.send([['PING']]);
+
+      await delay(100);
+
+      assert.ok(
+        errors.length > 0,
+        'orphan reply must trigger an error or warning event',
+      );
     });
   });
 });

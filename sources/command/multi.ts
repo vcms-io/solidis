@@ -28,6 +28,7 @@ function clearPipeline(commands: StringOrBuffer[][]) {
 
 export function multi<T extends object>(this: T): SolidisTransactionClient<T> {
   const pipeQueue: StringOrBuffer[][] = [];
+  const commandPromises: Promise<unknown>[] = [];
 
   guard(this);
 
@@ -38,6 +39,20 @@ export function multi<T extends object>(this: T): SolidisTransactionClient<T> {
       switch (property) {
         case 'exec': {
           return async () => {
+            const results = await Promise.allSettled(commandPromises);
+            const rejected = results.find(
+              (result) => result.status === 'rejected',
+            );
+
+            if (rejected && rejected.status === 'rejected') {
+              clearPipeline(pipeQueue);
+              commandPromises.length = 0;
+
+              throw rejected.reason;
+            }
+
+            commandPromises.length = 0;
+
             if (pipeQueue.length < 1) {
               return [];
             }
@@ -61,6 +76,7 @@ export function multi<T extends object>(this: T): SolidisTransactionClient<T> {
             }
 
             clearPipeline(pipeQueue);
+            commandPromises.length = 0;
           };
         }
 
@@ -72,7 +88,10 @@ export function multi<T extends object>(this: T): SolidisTransactionClient<T> {
               try {
                 client.pipeQueue = pipeQueue;
 
-                method(...parameters).catch(() => {});
+                const promise = method(...parameters);
+
+                commandPromises.push(promise);
+                promise.catch(() => {});
               } finally {
                 client.pipeQueue = undefined;
               }

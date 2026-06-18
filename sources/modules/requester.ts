@@ -454,7 +454,11 @@ export class SolidisRequester {
 
   #scheduleReplies(emit: SolidisClientEventHandlers['emit']) {
     this.#replyLock = this.#replyLock.then(async () => {
-      await this.#processReplies(emit);
+      try {
+        await this.#processReplies(emit);
+      } catch (error: unknown) {
+        emit('error', wrapWithSolidisRequesterError(error));
+      }
     });
   }
 
@@ -473,6 +477,8 @@ export class SolidisRequester {
         parsedReplies = await this.#parser.queueParse(...replyBuffers);
       } catch (parserError: unknown) {
         emit('error', wrapWithParserError(parserError));
+
+        this.recoveryFromFault(wrapWithParserError(parserError));
 
         return;
       }
@@ -565,6 +571,13 @@ export class SolidisRequester {
       }
 
       if (this.#inflightQueue.length < 1) {
+        emit(
+          'error',
+          wrapWithSolidisRequesterError(
+            'Received reply with no pending request',
+          ),
+        );
+
         continue;
       }
 
@@ -721,7 +734,6 @@ export class SolidisRequester {
 
     for (const request of requests) {
       this.#setRequestTimeout(request, 'clear');
-      this.#rejectSubRequests(request, error);
 
       request.reject(error);
     }
