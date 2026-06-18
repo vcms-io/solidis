@@ -54,6 +54,7 @@ describe('resp3-shapes', () => {
     const config = await client.configGet('maxmemory');
 
     assert.strictEqual(typeof config.maxmemory, 'string');
+    assert.notStrictEqual(config.maxmemory, '');
   });
 
   it('reads RESP3 doubles from ZSCORE and ZINCRBY', async () => {
@@ -151,13 +152,19 @@ describe('resp3-shapes', () => {
     const positions = await client.geopos(key, ['Palermo', 'absent']);
 
     assert.strictEqual(positions.length, 2);
-    assertCloseTo(positions[0]?.longitude ?? 0, 13.361389, 3);
-    assertCloseTo(positions[0]?.latitude ?? 0, 38.115556, 3);
+    if (positions[0] === null) {
+      assert.fail('expected Palermo coordinates from GEOPOS');
+    }
+    assertCloseTo(positions[0].longitude, 13.361389, 3);
+    assertCloseTo(positions[0].latitude, 38.115556, 3);
     assert.strictEqual(positions[1], null);
 
     const distance = await client.geodist(key, 'Palermo', 'Catania', 'KM');
 
-    assertCloseTo(distance ?? 0, 166.2742, 1);
+    if (distance === null) {
+      assert.fail('expected GEODIST between Palermo and Catania');
+    }
+    assertCloseTo(distance, 166.2742, 1);
   });
 
   it('reads RESP3 stream introspection maps from XINFO', async () => {
@@ -169,6 +176,7 @@ describe('resp3-shapes', () => {
     const info = await client.xinfoStream(key);
 
     assert.strictEqual(info.length, 1);
+    assert.strictEqual(info.lastGeneratedId, '1-1');
     assert.strictEqual(info.groups, 1);
 
     const groups = await client.xinfoGroups(key);
@@ -279,7 +287,9 @@ describe('resp3-shapes', () => {
 
     const result = await client.zrandmember(key, 2);
 
-    assert.ok(Array.isArray(result));
+    if (result === null || !Array.isArray(result)) {
+      assert.fail('expected two random members from ZRANDMEMBER');
+    }
     assert.strictEqual(result.length, 2);
     assert.deepStrictEqual([...result].sort(), ['a', 'b']);
   });
@@ -390,17 +400,21 @@ describe('resp3-shapes', () => {
       withmatchlen: true,
     });
 
-    assert.strictEqual(typeof result, 'object');
-
-    if (typeof result === 'object') {
-      assert.strictEqual(result.length, 6);
-      assert.ok(result.matches.length > 0);
-      assert.deepStrictEqual(result.matches[0], {
-        a: [4, 7],
-        b: [5, 8],
-        length: 4,
-      });
+    if (
+      result === null ||
+      typeof result === 'string' ||
+      typeof result === 'number' ||
+      !('matches' in result)
+    ) {
+      assert.fail('expected LCS IDX match ranges');
     }
+
+    assert.strictEqual(result.length, 6);
+    assert.strictEqual(result.matches.length, 2);
+    assert.deepStrictEqual(result.matches, [
+      { a: [4, 7], b: [5, 8], length: 4 },
+      { a: [2, 3], b: [0, 1], length: 2 },
+    ]);
   });
 
   it('reads RESP3 numeric distance and coordinates from GEOSEARCH', async () => {
@@ -422,9 +436,15 @@ describe('resp3-shapes', () => {
     const [entry] = results;
 
     assert.strictEqual(entry.member, 'Palermo');
-    assertCloseTo(entry.distance ?? 0, 190.4424, 1);
-    assertCloseTo(entry.position?.longitude ?? 0, 13.361389, 3);
-    assertCloseTo(entry.position?.latitude ?? 0, 38.115556, 3);
+    if (entry.distance === undefined) {
+      assert.fail('expected GEOSEARCH distance for Palermo');
+    }
+    assertCloseTo(entry.distance, 190.4424, 1);
+    if (entry.position === undefined) {
+      assert.fail('expected GEOSEARCH coordinates for Palermo');
+    }
+    assertCloseTo(entry.position.longitude, 13.361389, 3);
+    assertCloseTo(entry.position.latitude, 38.115556, 3);
   });
 
   it('reads a RESP3 map from FUNCTION STATS', async (context) => {
@@ -449,9 +469,10 @@ describe('resp3-shapes', () => {
 
     const docs = await client.commandDocs(['SET']);
 
-    assert.strictEqual(typeof docs.set.summary, 'string');
-    assert.ok(docs.set.summary !== undefined);
-    assert.ok(docs.set.summary.length > 0);
+    assert.strictEqual(
+      docs.set.summary,
+      "Sets the string value of a key, ignoring its type. The key is created if it doesn't exist.",
+    );
     assert.strictEqual(docs.set.since, '1.0.0');
     assert.strictEqual(docs.set.group, 'string');
     assert.strictEqual(docs.set.complexity, 'O(1)');
@@ -469,40 +490,41 @@ describe('resp3-shapes', () => {
   });
 
   it('reads a RESP3 nested reply from SLOWLOG GET', async () => {
-    await client.slowlogReset();
-    await client.configSet('slowlog-log-slower-than', '0');
+    const marker = `slowlog-${uniqueSuffix()}`;
 
-    await client.ping();
+    await client.send([
+      ['EVAL', 'for index = 1, 5000000 do end return ARGV[1]', '0', marker],
+    ]);
 
-    await client.configSet('slowlog-log-slower-than', '10000');
-
-    const entries = await client.slowlogGet(100);
-
-    assert.ok(entries.length >= 1);
-
-    const pingEntry = entries.find(
-      (entry) => entry.commandArguments[0]?.toUpperCase() === 'PING',
+    const entries = await client.slowlogGet(128);
+    const slowEntry = entries.find(
+      (entry) =>
+        entry.commandArguments[0] === 'EVAL' &&
+        entry.commandArguments.includes(marker),
     );
 
-    assert.ok(pingEntry, 'expected a PING entry in the slowlog');
-    assert.strictEqual(typeof pingEntry.id, 'number');
-    assert.strictEqual(typeof pingEntry.timestamp, 'number');
-    assert.strictEqual(typeof pingEntry.duration, 'number');
-    assert.ok(
-      pingEntry.commandArguments.every(
-        (argument) => typeof argument === 'string',
-      ),
-    );
-    assert.strictEqual(pingEntry.commandArguments[0]?.toUpperCase(), 'PING');
-    assert.strictEqual(typeof pingEntry.clientIpPort, 'string');
-    assert.strictEqual(typeof pingEntry.clientName, 'string');
+    if (slowEntry === undefined) {
+      assert.fail(`expected slowlog entry for EVAL marker ${marker}`);
+    }
+    assert.deepStrictEqual(slowEntry.commandArguments, [
+      'EVAL',
+      'for index = 1, 5000000 do end return ARGV[1]',
+      '0',
+      marker,
+    ]);
+    assert.strictEqual(slowEntry.clientName, 'solidis');
+    assert.ok(slowEntry.id > 0);
+    assert.ok(slowEntry.timestamp > 0);
+    assert.ok(slowEntry.duration >= 0);
+    assert.ok(slowEntry.clientIpPort.length > 0);
   });
 
   it('reads a RESP3 map from ACL GETUSER', async () => {
     const info = await client.aclGetuser('default');
 
-    assert.notStrictEqual(info, null);
-    assert.ok(info);
+    if (info === null) {
+      assert.fail('expected default ACL user info');
+    }
     assert.deepStrictEqual(info.flags, ['on', 'nopass', 'sanitize-payload']);
     assert.deepStrictEqual(info.passwords, []);
     assert.strictEqual(info.commands, '+@all');
@@ -534,22 +556,25 @@ describe('resp3-shapes', () => {
     }
 
     assert.ok(denied instanceof Error);
-    assert.match(`${denied}`, /NOPERM|no permissions/i);
+    assert.match(
+      denied.message,
+      /NOPERM User .+ has no permissions to run the 'set' command/,
+    );
 
     const entries = await client.aclLog(5);
 
-    assert.ok(entries.length >= 1);
+    const entry = entries.find((candidate) => candidate.username === user);
 
-    const entry =
-      entries.find((candidate) => candidate.username === user) ?? entries[0];
-
-    assert.strictEqual(typeof entry.count, 'number');
-    assert.ok(['command', 'key', 'channel', 'auth'].includes(entry.reason));
-    assert.strictEqual(typeof entry.context, 'string');
-    assert.strictEqual(typeof entry.object, 'string');
-    assert.strictEqual(typeof entry.username, 'string');
-    assert.strictEqual(typeof entry.ageSeconds, 'number');
-    assert.strictEqual(typeof entry.clientInfo, 'string');
+    if (entry === undefined) {
+      assert.fail(`expected an ACL log entry for user ${user}`);
+    }
+    assert.strictEqual(entry.count, 1);
+    assert.strictEqual(entry.reason, 'command');
+    assert.strictEqual(entry.context, 'toplevel');
+    assert.strictEqual(entry.object, 'set');
+    assert.strictEqual(entry.username, user);
+    assert.ok(entry.ageSeconds >= 0);
+    assert.ok(entry.clientInfo.includes('cmd=set'));
 
     await client.aclDeluser(user).catch(() => {});
   });
@@ -561,6 +586,9 @@ describe('resp3-shapes', () => {
     }
 
     const list = await client.functionList();
+
+    /** A fresh server may expose zero loaded libraries; validate shape when present. */
+    assert.ok(Array.isArray(list));
 
     for (const item of list) {
       assert.strictEqual(typeof item.libraryName, 'string');
@@ -585,6 +613,12 @@ describe('resp3-shapes', () => {
 
     assert.ok('entries' in info);
     assert.strictEqual(info.length, 1);
+    assert.strictEqual(info.lastGeneratedId, '1-1');
+    assert.strictEqual(info.radixTreeKeys, 1);
+    assert.strictEqual(info.radixTreeNodes, 2);
+    assert.strictEqual(info.maxDeletedEntryId, '0-0');
+    assert.strictEqual(info.entriesAdded, 1);
+    assert.strictEqual(info.recordedFirstEntryId, '1-1');
     assert.strictEqual(info.entries.length, 1);
     assert.deepStrictEqual(info.entries, [
       { id: '1-1', fields: { field: 'value' } },
@@ -594,12 +628,26 @@ describe('resp3-shapes', () => {
 
     const group = info.groups[0];
 
-    assert.ok(Array.isArray(group.consumers));
     assert.strictEqual(group.name, 'grp');
+    assert.strictEqual(group.lastDeliveredId, '1-1');
+    assert.strictEqual(group.entriesRead, 1);
+    assert.strictEqual(group.lag, 0);
     assert.strictEqual(group.pelCount, 1);
+    assert.strictEqual(group.pending.length, 1);
+    assert.strictEqual(group.pending[0].id, '1-1');
+    assert.strictEqual(group.pending[0].consumer, 'consumer-a');
+    assert.strictEqual(group.pending[0].deliveryCount, 1);
+    assert.ok(group.pending[0].deliveryTime > 0);
+    assert.ok(Array.isArray(group.consumers));
     assert.strictEqual(group.consumers.length, 1);
     assert.strictEqual(group.consumers[0].name, 'consumer-a');
     assert.strictEqual(group.consumers[0].pelCount, 1);
+    assert.ok(group.consumers[0].seenTime > 0);
+    assert.ok(group.consumers[0].activeTime > 0);
+    assert.strictEqual(group.consumers[0].pending.length, 1);
+    assert.strictEqual(group.consumers[0].pending[0].id, '1-1');
+    assert.strictEqual(group.consumers[0].pending[0].deliveryCount, 1);
+    assert.ok(group.consumers[0].pending[0].deliveryTime > 0);
   });
 
   it('reads a RESP3 summary reply from XPENDING', async () => {
@@ -628,17 +676,20 @@ describe('resp3-shapes', () => {
 
     const entries = await client.xpending(key, 'grp', '-', '+', 10);
 
-    assert.ok(Array.isArray(entries));
+    if (!Array.isArray(entries)) {
+      assert.fail('expected XPENDING range entries');
+    }
     assert.strictEqual(entries.length, 1);
     assert.strictEqual(entries[0].id, '1-1');
     assert.strictEqual(entries[0].consumer, 'consumer-a');
     assert.strictEqual(entries[0].deliveryCount, 1);
-    assert.strictEqual(typeof entries[0].deliveryTime, 'number');
+    assert.ok(entries[0].deliveryTime >= 0);
   });
 
   it('reads a RESP3 reply from MODULE LIST', async () => {
     const modules = await client.moduleList();
 
+    /** Module inventory depends on server build; assert shape, not exact count. */
     assert.ok(modules.length >= 1);
 
     for (const mod of modules) {
@@ -667,16 +718,17 @@ describe('resp3-shapes', () => {
     const hashes = await client.geohash(key, ['Palermo', 'absent']);
 
     assert.strictEqual(hashes.length, 2);
-    assert.strictEqual(typeof hashes[0], 'string');
+    assert.strictEqual(hashes[0], 'sqc8b49rny0');
     assert.strictEqual(hashes[1], null);
   });
 
   it('reads a RESP3 reply from TIME', async () => {
+    const beforeSeconds = Math.floor(Date.now() / 1000);
     const [seconds, microseconds] = await client.time();
+    const afterSeconds = Math.floor(Date.now() / 1000);
 
-    assert.strictEqual(typeof seconds, 'number');
-    assert.strictEqual(typeof microseconds, 'number');
-    assert.ok(seconds > 0);
+    assert.ok(seconds >= beforeSeconds - 1 && seconds <= afterSeconds + 1);
+    assert.ok(microseconds >= 0 && microseconds < 1_000_000);
   });
 
   it('reads a RESP3 reply from XREVRANGE', async () => {
@@ -719,21 +771,23 @@ describe('resp3-shapes', () => {
     const claimed = await client.xclaim(key, 'grp', 'new-consumer', 0, ['1-1']);
 
     assert.strictEqual(claimed.length, 1);
-    assert.ok(typeof claimed[0] === 'object' && claimed[0] !== null);
-    assert.strictEqual(claimed[0].id, '1-1');
-    assert.deepStrictEqual(claimed[0].fields, { f: 'v' });
+    const claimedEntry = claimed[0];
+    if (typeof claimedEntry === 'string') {
+      assert.fail('expected claimed stream entry, not id string');
+    }
+    assert.strictEqual(claimedEntry.id, '1-1');
+    assert.deepStrictEqual(claimedEntry.fields, { f: 'v' });
   });
 
   it('reads a RESP3 reply from ROLE', async () => {
     const result = await client.role();
 
-    assert.strictEqual(typeof result.role, 'string');
-    assert.ok(result.role === 'master' || result.role === 'slave');
-
-    if (result.role === 'master') {
-      assert.strictEqual(typeof result.replicationOffset, 'number');
-      assert.ok(Array.isArray(result.slaves));
+    assert.strictEqual(result.role, 'master');
+    if (result.role !== 'master') {
+      assert.fail('expected master role in test environment');
     }
+    assert.strictEqual(result.replicationOffset, 0);
+    assert.deepStrictEqual(result.slaves, []);
   });
 
   it('reads a RESP3 reply from BLMPOP', async (context) => {
@@ -809,14 +863,13 @@ describe('resp3-shapes', () => {
 
     const commandEntry = entries.find((entry) => entry.event === 'command');
 
-    assert.notStrictEqual(commandEntry, undefined);
-    assert.strictEqual(commandEntry?.event, 'command');
-    assert.strictEqual(typeof commandEntry?.timestamp, 'number');
-    assert.ok(commandEntry?.timestamp > 0);
-    assert.strictEqual(typeof commandEntry?.latency, 'number');
-    assert.ok(commandEntry?.latency > 0);
-    assert.strictEqual(typeof commandEntry?.maximumLatency, 'number');
-    assert.ok(commandEntry?.maximumLatency > 0);
+    if (commandEntry === undefined) {
+      assert.fail('expected command latency entry after busy script');
+    }
+    assert.strictEqual(commandEntry.event, 'command');
+    assert.ok(commandEntry.timestamp > 0);
+    assert.ok(commandEntry.latency > 0);
+    assert.ok(commandEntry.maximumLatency >= commandEntry.latency);
   });
 
   it('reads RESP3 parsed entries from LATENCY HISTORY with real data', async () => {
@@ -834,9 +887,7 @@ describe('resp3-shapes', () => {
       history.length >= 1,
       'latency history must exist after busy script',
     );
-    assert.strictEqual(typeof history[0].timestamp, 'number');
     assert.ok(history[0].timestamp > 0);
-    assert.strictEqual(typeof history[0].latency, 'number');
     assert.ok(history[0].latency > 0);
   });
 
@@ -846,6 +897,9 @@ describe('resp3-shapes', () => {
       return;
     }
 
+    const beforeHistogram = await client.latencyHistogram('ping');
+    const callsBefore = beforeHistogram.ping.calls;
+
     for (let index = 0; index < 10; index += 1) {
       await client.ping();
     }
@@ -853,20 +907,11 @@ describe('resp3-shapes', () => {
     const histograms = await client.latencyHistogram('ping');
 
     assert.ok('ping' in histograms);
-    assert.ok(histograms.ping.calls >= 10);
-    assert.strictEqual(typeof histograms.ping.histogramUsec, 'object');
+    assert.ok(histograms.ping.calls >= callsBefore + 10);
+    assert.ok(Object.keys(histograms.ping.histogramUsec).length >= 1);
 
-    const buckets = Object.keys(histograms.ping.histogramUsec);
-
-    assert.ok(buckets.length >= 1);
-
-    for (const bucket of buckets) {
-      assert.strictEqual(typeof Number(bucket), 'number');
-      assert.ok(!Number.isNaN(Number(bucket)));
-      assert.strictEqual(
-        typeof histograms.ping.histogramUsec[Number(bucket)],
-        'number',
-      );
+    for (const bucket of Object.keys(histograms.ping.histogramUsec)) {
+      assert.strictEqual(Number.isNaN(Number(bucket)), false);
       assert.ok(histograms.ping.histogramUsec[Number(bucket)] >= 1);
     }
   });
@@ -1160,7 +1205,9 @@ describe('resp3-shapes', () => {
 
     const library = list.find((lib) => lib.libraryName === libraryName);
 
-    assert.ok(library !== undefined);
+    if (library === undefined) {
+      assert.fail(`expected loaded function library ${libraryName}`);
+    }
     assert.strictEqual(library.engine, 'LUA');
     assert.strictEqual(library.code, code);
     assert.deepStrictEqual(library.functions, [
@@ -1229,8 +1276,9 @@ describe('resp3-shapes', () => {
 
       const info = await client.aclGetuser(testUser);
 
-      assert.notStrictEqual(info, null);
-      assert.ok(info);
+      if (info === null) {
+        assert.fail(`expected ACL user info for ${testUser}`);
+      }
       assert.deepStrictEqual(info.flags, ['on', 'sanitize-payload']);
       assert.strictEqual(info.commands, '-@all +get +set');
       assert.strictEqual(info.keys, '~key:*');

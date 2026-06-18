@@ -34,6 +34,7 @@ describe('streams', () => {
 
     assert.match(firstId, /^\d+-\d+$/);
     assert.match(secondId, /^\d+-\d+$/);
+    assert.ok(firstId < secondId);
     assert.strictEqual(await client.xlen(key), 2);
   });
 
@@ -58,6 +59,9 @@ describe('streams', () => {
       reverse.map((entry) => entry.id),
       ['3-1', '2-1', '1-1'],
     );
+    assert.deepStrictEqual(reverse[0].fields, { value: 'c' });
+    assert.deepStrictEqual(reverse[1].fields, { value: 'b' });
+    assert.deepStrictEqual(reverse[2].fields, { value: 'a' });
   });
 
   it('reads new entries with XREAD', async () => {
@@ -68,10 +72,13 @@ describe('streams', () => {
 
     const result = await client.xread([key], ['0']);
 
-    assert.ok(result !== null);
+    if (result === null) {
+      assert.fail('expected non-null xread result');
+    }
     assert.strictEqual(result.length, 1);
     assert.strictEqual(result[0].stream, key);
     assert.strictEqual(result[0].entries.length, 2);
+    assert.deepStrictEqual(result[0].entries[0].fields, { value: 'first' });
     assert.deepStrictEqual(result[0].entries[1].fields, { value: 'second' });
 
     const empty = await client.xread([key], ['$']);
@@ -106,6 +113,10 @@ describe('streams', () => {
     assert.strictEqual(info.length, 2);
     assert.strictEqual(info.lastGeneratedId, '2-1');
     assert.strictEqual(info.firstEntry?.id, '1-1');
+    assert.strictEqual(info.lastEntry?.id, '2-1');
+    assert.deepStrictEqual(info.firstEntry?.fields, { value: 'a' });
+    assert.deepStrictEqual(info.lastEntry?.fields, { value: 'b' });
+    assert.strictEqual(info.groups, 0);
   });
 
   it('drives a consumer group end to end', async () => {
@@ -120,22 +131,23 @@ describe('streams', () => {
 
     const delivered = await client.xreadgroup(group, consumer, [key], ['>']);
 
-    assert.ok(delivered !== null);
+    if (delivered === null) {
+      assert.fail('expected non-null xreadgroup result');
+    }
     assert.strictEqual(delivered[0].entries.length, 2);
 
     const pendingBefore = await client.xpending(key, group);
 
-    assert.ok(
-      pendingBefore !== null &&
-        typeof pendingBefore === 'object' &&
-        !Array.isArray(pendingBefore),
-    );
+    if (Array.isArray(pendingBefore)) {
+      assert.fail('expected xpending summary, not entries array');
+    }
     assert.strictEqual(pendingBefore.pending, 2);
 
     assert.strictEqual(await client.xack(key, group, ['1-1', '2-1']), 2);
 
     const remaining = await client.xpending(key, group, '-', '+', 10);
 
+    assert.ok(Array.isArray(remaining));
     assert.deepStrictEqual(remaining, []);
   });
 
@@ -168,7 +180,9 @@ describe('streams', () => {
 
     const entry = claimed[0];
 
-    assert.ok(typeof entry === 'object' && 'id' in entry);
+    if (typeof entry === 'string') {
+      assert.fail('expected stream entry object, not id string');
+    }
     assert.strictEqual(entry.id, '1-1');
     assert.deepStrictEqual(entry.fields, { task: 'a' });
   });
@@ -228,7 +242,9 @@ describe('streams', () => {
 
     const delivered = await client.xreadgroup(group, 'worker', [key], ['>']);
 
-    assert.ok(delivered !== null);
+    if (delivered === null) {
+      assert.fail('expected non-null xreadgroup result');
+    }
     assert.strictEqual(delivered[0].entries.length, 1);
     assert.strictEqual(delivered[0].entries[0].id, '2-1');
   });
@@ -272,7 +288,10 @@ describe('streams', () => {
 
     const id = await client.xadd(key, '*', { value: 'b' });
 
-    assert.ok(id > '10-0');
+    const [milliseconds, sequence] = id.split('-');
+
+    assert.ok(Number(milliseconds) > 10);
+    assert.strictEqual(sequence, '0');
   });
 
   it('introspects full stream detail with XINFO STREAM FULL', async () => {
@@ -286,7 +305,9 @@ describe('streams', () => {
 
     const info = await client.xinfoStream(key, true);
 
-    assert.ok('entries' in info);
+    if (!('entries' in info)) {
+      assert.fail('expected full stream info with entries property');
+    }
     assert.strictEqual(info.length, 2);
     assert.strictEqual(info.entries.length, 2);
     assert.ok(Array.isArray(info.groups));
@@ -294,7 +315,6 @@ describe('streams', () => {
 
     const detail = info.groups[0];
 
-    assert.ok(Array.isArray(detail.consumers));
     assert.strictEqual(detail.name, group);
     assert.strictEqual(detail.consumers.length, 1);
     assert.strictEqual(detail.consumers[0].name, 'consumer-1');
@@ -309,9 +329,10 @@ describe('streams', () => {
 
     const info = await client.xinfoStream(key, true, 2);
 
-    assert.ok('entries' in info);
-    assert.ok(Array.isArray(info.entries));
-    assert.ok(info.entries.length <= 2);
+    if (!('entries' in info)) {
+      assert.fail('expected full stream info with entries property');
+    }
+    assert.strictEqual(info.entries.length, 2);
   });
 
   it('reads multiple streams with XREAD COUNT option', async () => {
@@ -324,7 +345,9 @@ describe('streams', () => {
 
     const result = await client.xread([keyA, keyB], ['0', '0'], 10);
 
-    assert.ok(result !== null);
+    if (result === null) {
+      assert.fail('expected non-null xread result');
+    }
     assert.strictEqual(result.length, 2);
     assert.strictEqual(result[0].entries.length, 2);
     assert.strictEqual(result[1].entries.length, 1);
@@ -349,17 +372,17 @@ describe('streams', () => {
       true,
     );
 
-    assert.ok(result !== null);
+    if (result === null) {
+      assert.fail('expected non-null xreadgroup result');
+    }
     assert.strictEqual(result.length, 1);
     assert.strictEqual(result[0].entries.length, 2);
 
     const pending = await client.xpending(key, group);
 
-    assert.ok(
-      pending !== null &&
-        typeof pending === 'object' &&
-        !Array.isArray(pending),
-    );
+    if (Array.isArray(pending)) {
+      assert.fail('expected xpending summary, not entries array');
+    }
     assert.strictEqual(pending.pending, 0);
   });
 
@@ -377,6 +400,7 @@ describe('streams', () => {
 
     assert.ok(Array.isArray(entries));
     assert.strictEqual(entries.length, 1);
+    assert.strictEqual(entries[0].id, '1-1');
   });
 
   it('claims entries with XCLAIM IDLE and FORCE options', async () => {
@@ -396,8 +420,11 @@ describe('streams', () => {
 
     const entry = claimed[0];
 
-    assert.ok(typeof entry === 'object' && 'id' in entry);
+    if (typeof entry === 'string') {
+      assert.fail('expected stream entry object, not id string');
+    }
     assert.strictEqual(entry.id, '1-1');
+    assert.deepStrictEqual(entry.fields, { task: 'a' });
   });
 
   it('auto-claims entries with COUNT option', async () => {
@@ -412,8 +439,10 @@ describe('streams', () => {
 
     const result = await client.xautoclaim(key, group, 'worker-2', 0, '0-0', 2);
 
-    assert.ok(result.nextId);
-    assert.ok(result.entries.length <= 2);
+    assert.strictEqual(result.nextId, '3-1');
+    assert.strictEqual(result.entries.length, 2);
+    assert.strictEqual(result.entries[0].id, '1-1');
+    assert.strictEqual(result.entries[1].id, '2-1');
   });
 
   it('creates a group with MKSTREAM on non-existing key', async () => {
@@ -442,6 +471,11 @@ describe('streams', () => {
       await client.xgroupCreate(key, 'grp', '0', false, 1),
       'OK',
     );
+
+    const groups = await client.xinfoGroups(key);
+
+    assert.strictEqual(groups[0].entriesRead, 1);
+    assert.strictEqual(groups[0].lag, 2);
   });
 
   it('sets stream id with ENTRIESADDED and MAXDELETEDID', async (context) => {
@@ -455,6 +489,12 @@ describe('streams', () => {
     await client.xadd(key, '1-1', { val: 'a' });
 
     assert.strictEqual(await client.xsetid(key, '5-0', 10, '3-0'), 'OK');
+
+    const info = await client.xinfoStream(key);
+
+    assert.strictEqual(info.lastGeneratedId, '5-0');
+    assert.strictEqual(info.maxDeletedEntryId, '3-0');
+    assert.strictEqual(info.entriesAdded, 10);
   });
 
   it('reads pending entries with IDLE filter', async () => {
@@ -498,6 +538,17 @@ describe('streams', () => {
     });
 
     assert.strictEqual(claimed.length, 1);
+    if (typeof claimed[0] === 'string') {
+      assert.fail('expected stream entry object, not id string');
+    }
+    assert.strictEqual(claimed[0].id, '1-1');
+    assert.deepStrictEqual(claimed[0].fields, { task: 'a' });
+
+    const pending = await client.xpending(key, group, '-', '+', 10);
+
+    assert.ok(Array.isArray(pending));
+    assert.strictEqual(pending[0].consumer, 'worker-2');
+    assert.strictEqual(pending[0].deliveryCount, 5);
   });
 
   it('reads from group with BLOCK timeout', async () => {
@@ -516,7 +567,9 @@ describe('streams', () => {
       10,
     );
 
-    assert.ok(Array.isArray(result));
+    if (result === null) {
+      assert.fail('expected non-null xreadgroup result');
+    }
     assert.strictEqual(result.length, 1);
     assert.deepStrictEqual(result[0].entries, [
       { id: '1-1', fields: { val: 'a' } },
@@ -534,17 +587,15 @@ describe('streams', () => {
   });
 
   it('throws on mismatched XREAD keys/ids', async () => {
-    await assert.rejects(
-      () => client.xread(['a', 'b'], ['0']),
-      (error: Error) => error.message.includes('same length'),
-    );
+    await assert.rejects(() => client.xread(['a', 'b'], ['0']), {
+      message: '[XREAD] Keys and IDs must have the same length',
+    });
   });
 
   it('throws on mismatched XREADGROUP keys/ids', async () => {
-    await assert.rejects(
-      () => client.xreadgroup('g', 'c', ['a', 'b'], ['0']),
-      (error: Error) => error.message.includes('same length'),
-    );
+    await assert.rejects(() => client.xreadgroup('g', 'c', ['a', 'b'], ['0']), {
+      message: '[XREADGROUP] Keys and IDs must have the same length',
+    });
   });
 
   it('returns null from XREADGROUP BLOCK on consumed stream', async () => {
@@ -581,6 +632,19 @@ describe('streams', () => {
     await client.xgroupCreate(key, group, '0');
 
     assert.strictEqual(await client.xgroupSetid(key, group, '1-1', 1), 'OK');
+
+    const groups = await client.xinfoGroups(key);
+
+    assert.strictEqual(groups[0].lastDeliveredId, '1-1');
+    assert.strictEqual(groups[0].entriesRead, 1);
+
+    const delivered = await client.xreadgroup(group, 'worker', [key], ['>']);
+
+    if (delivered === null) {
+      assert.fail('expected non-null xreadgroup result');
+    }
+    assert.strictEqual(delivered[0].entries.length, 1);
+    assert.strictEqual(delivered[0].entries[0].id, '2-1');
   });
 
   it('claims entry ids with XCLAIM JUSTID', async () => {
@@ -645,6 +709,10 @@ describe('streams', () => {
       ],
     );
     assert.strictEqual(pending[0].deliveryTime, pending[1].deliveryTime);
+    assert.ok(pending[0].deliveryCount > 0);
+    assert.ok(pending[1].deliveryCount > 0);
+    assert.ok(pending[0].deliveryTime >= 0);
+    assert.ok(pending[1].deliveryTime >= 0);
   });
 
   it('returns XPENDING summary with consumer breakdown', async () => {
@@ -658,11 +726,9 @@ describe('streams', () => {
 
     const summary = await client.xpending(key, group);
 
-    assert.ok(
-      summary !== null &&
-        typeof summary === 'object' &&
-        !Array.isArray(summary),
-    );
+    if (Array.isArray(summary)) {
+      assert.fail('expected xpending summary, not entries array');
+    }
     assert.strictEqual(summary.pending, 2);
     assert.strictEqual(summary.minId, firstId);
     assert.strictEqual(summary.maxId, secondId);

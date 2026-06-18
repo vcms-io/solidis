@@ -124,7 +124,11 @@ describe('modules-timeseries', () => {
 
     const latest = await client.tsGet(key);
 
-    assert.strictEqual(latest?.[1], 8);
+    if (latest === null) {
+      assert.fail('TS.GET must return the latest sample after TS.INCRBY');
+    }
+
+    assert.deepStrictEqual(latest, [secondTimestamp, 8]);
   });
 
   it('decrements a counter series with TS.DECRBY', async (context) => {
@@ -142,7 +146,11 @@ describe('modules-timeseries', () => {
 
     const latest = await client.tsGet(key);
 
-    assert.strictEqual(latest?.[1], 7);
+    if (latest === null) {
+      assert.fail('TS.GET must return the latest sample after TS.DECRBY');
+    }
+
+    assert.strictEqual(latest[1], 7);
   });
 
   it('deletes samples in a range with TS.DEL', async (context) => {
@@ -232,6 +240,14 @@ describe('modules-timeseries', () => {
     assert.strictEqual(info.totalSamples, 1);
     assert.strictEqual(info.firstTimestamp, 1000);
     assert.strictEqual(info.lastTimestamp, 1000);
+    assert.ok(Array.isArray(info.labels));
+    assert.deepStrictEqual(
+      info.labels.map((pair: unknown) => {
+        assert.ok(Array.isArray(pair) && pair.length === 2);
+        return [String(pair[0]), String(pair[1])];
+      }),
+      [['env', 'test']],
+    );
   });
 
   it('alters series metadata with TS.ALTER', async (context) => {
@@ -247,6 +263,17 @@ describe('modules-timeseries', () => {
     assert.strictEqual(
       await client.tsAlter(key, { labels: { env: 'prod' } }),
       'OK',
+    );
+
+    const altered = await client.tsInfo(key);
+
+    assert.ok(Array.isArray(altered.labels));
+    assert.deepStrictEqual(
+      altered.labels.map((pair: unknown) => {
+        assert.ok(Array.isArray(pair) && pair.length === 2);
+        return [String(pair[0]), String(pair[1])];
+      }),
+      [['env', 'prod']],
     );
   });
 
@@ -269,10 +296,25 @@ describe('modules-timeseries', () => {
       'OK',
     );
 
+    const sourceInfo = await client.tsInfo(sourceKey);
+    const destinationInfo = await client.tsInfo(destinationKey);
+
+    assert.ok(Array.isArray(sourceInfo.rules));
+    assert.strictEqual(sourceInfo.rules.length, 1);
+    assert.strictEqual(String(sourceInfo.rules[0][0]), destinationKey);
+    assert.strictEqual(sourceInfo.rules[0][1], 60000);
+    assert.strictEqual(sourceInfo.rules[0][2], 'AVG');
+    assert.strictEqual(sourceInfo.rules[0][3], 0);
+    assert.strictEqual(String(destinationInfo.sourceKey), sourceKey);
+    assert.deepStrictEqual(destinationInfo.rules, []);
+
     assert.strictEqual(
       await client.tsDeleterule(sourceKey, destinationKey),
       'OK',
     );
+
+    assert.deepStrictEqual((await client.tsInfo(sourceKey)).rules, []);
+    assert.strictEqual((await client.tsInfo(destinationKey)).sourceKey, null);
   });
 
   it('queries multiple series with TS.MGET', async (context) => {
@@ -389,10 +431,11 @@ describe('modules-timeseries', () => {
       return;
     }
 
-    await assert.rejects(
-      () => client.tsGet(keyspace.key('ts-get-missing')),
-      (error: Error) => error.message.includes('does not exist'),
-    );
+    const missingKey = keyspace.key('ts-get-missing');
+
+    await assert.rejects(() => client.tsGet(missingKey), {
+      message: `[TS.GET ${missingKey}] Unexpected reply: RespError: ERR TSDB: the key does not exist`,
+    });
   });
 
   it('creates a rule with alignTimestamp', async (context) => {
@@ -413,6 +456,15 @@ describe('modules-timeseries', () => {
       }),
       'OK',
     );
+
+    const sourceInfo = await client.tsInfo(source);
+
+    assert.ok(Array.isArray(sourceInfo.rules));
+    assert.strictEqual(sourceInfo.rules.length, 1);
+    assert.strictEqual(String(sourceInfo.rules[0][0]), destination);
+    assert.strictEqual(sourceInfo.rules[0][1], 60000);
+    assert.strictEqual(sourceInfo.rules[0][2], 'AVG');
+    assert.strictEqual(sourceInfo.rules[0][3], 0);
   });
 
   it('queries TS.MGET with LATEST option', async (context) => {

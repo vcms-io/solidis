@@ -200,7 +200,10 @@ describe('consistency', () => {
             const [[reply]] = await target.send([['LPUSH', key, 'x']]);
 
             assert.ok(reply instanceof RespError);
-            assert.match(`${reply.message}`, /^WRONGTYPE/);
+            assert.strictEqual(
+              reply.message,
+              'WRONGTYPE Operation against a key holding the wrong kind of value',
+            );
           },
         };
       }

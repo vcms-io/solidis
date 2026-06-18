@@ -83,6 +83,9 @@ describe('stress-recovery', () => {
 
     await waitUntilReady(client);
 
+    // Stress test limitation: only keys that both resolved and match the expected
+    // round:index value are counted. Partial writes with stale values are not
+    // verified individually because the volume makes full auditing impractical.
     let persisted = 0;
     const batchSize = 100;
 
@@ -90,8 +93,14 @@ describe('stress-recovery', () => {
       const batch = keys.slice(index, index + batchSize);
       const values = await client.mget(...batch);
 
-      for (const value of values) {
-        if (value !== null) {
+      for (let batchIndex = 0; batchIndex < values.length; batchIndex += 1) {
+        const value = values[batchIndex];
+        const keyIndex = index + batchIndex;
+        const round = Math.floor(keyIndex / perRound);
+        const position = keyIndex % perRound;
+        const expectedValue = `${round}:${position}`;
+
+        if (value === expectedValue) {
           persisted += 1;
         }
       }
@@ -215,6 +224,9 @@ describe('stress-recovery', () => {
     const outcome = await settled;
 
     console.log(`[stress-recovery] giant-pipeline kill outcome=${outcome}`);
+
+    // Stress test limitation: partial pipeline write state on the server is not
+    // verified here; only full rejection of the in-flight batch is required.
 
     assert.strictEqual(
       outcome,

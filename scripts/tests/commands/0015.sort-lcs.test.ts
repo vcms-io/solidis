@@ -145,12 +145,9 @@ describe('sort-lcs', () => {
       withmatchlen: true,
     });
 
-    assert.ok(
-      result !== null &&
-        typeof result === 'object' &&
-        'matches' in result &&
-        'length' in result,
-    );
+    if (typeof result === 'string' || typeof result === 'number') {
+      assert.fail('expected LCS match result with idx, not simple reply');
+    }
     assert.strictEqual(result.length, 6);
     assert.strictEqual(result.matches.length, 2);
     assert.deepStrictEqual(result.matches, [

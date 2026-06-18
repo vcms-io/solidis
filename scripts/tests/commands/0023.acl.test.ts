@@ -58,17 +58,18 @@ describe('acl', () => {
   it('lists ACL categories with ACL CAT', async () => {
     const categories = await client.aclCat();
 
-    assert.ok(Array.isArray(categories));
-    assert.ok(categories.length > 0);
     assert.ok(categories.includes('read'));
     assert.ok(categories.includes('write'));
+    assert.ok(categories.includes('string'));
+    assert.ok(categories.includes('connection'));
   });
 
   it('lists commands in a category with ACL CAT <category>', async () => {
     const commands = await client.aclCat('string');
 
-    assert.ok(Array.isArray(commands));
-    assert.ok(commands.length > 0);
+    assert.ok(commands.includes('get'));
+    assert.ok(commands.includes('set'));
+    assert.ok(commands.includes('append'));
   });
 
   it('generates a random password with ACL GENPASS', async () => {
@@ -88,16 +89,16 @@ describe('acl', () => {
   it('lists all users with ACL USERS', async () => {
     const users = await client.aclUsers();
 
-    assert.ok(Array.isArray(users));
     assert.ok(users.includes('default'));
   });
 
   it('lists all ACL rules with ACL LIST', async () => {
     const list = await client.aclList();
 
-    assert.ok(Array.isArray(list));
-    assert.ok(list.length > 0);
-    assert.ok(list.some((entry) => entry.includes('default')));
+    assert.ok(
+      list.some((entry) => entry.startsWith('user default on')),
+      'ACL LIST must include the default user entry',
+    );
   });
 
   it('creates, inspects, and deletes a user', async () => {
@@ -114,9 +115,16 @@ describe('acl', () => {
       assert.fail('ACL GETUSER must return user info for an active user');
     }
 
-    assert.ok(info.flags.includes('on'));
-    assert.strictEqual(info.commands, '+@all');
-    assert.strictEqual(info.keys, '~*');
+    assert.deepStrictEqual(info, {
+      flags: ['on', 'sanitize-payload'],
+      passwords: [
+        '9b8769a4a742959a2d0298c36fb70623f2dfacda8436237df08d8dfd5b37374c',
+      ],
+      commands: '+@all',
+      keys: '~*',
+      channels: '',
+      selectors: [],
+    });
 
     assert.strictEqual(await client.aclDeluser(user), 1);
 
@@ -147,13 +155,17 @@ describe('acl', () => {
 
     const deniedResult = await client.aclDryrun(user, 'SET', ['key', 'val']);
 
-    assert.match(deniedResult, /NOPERM|no permissions/i);
+    assert.strictEqual(
+      deniedResult,
+      `User ${user} has no permissions to run the 'set' command`,
+    );
   });
 
   it('retrieves the ACL log with parsed entries', async () => {
     const user = createTestUser();
 
-    await client.aclSetuser(user, 'on', '>pass', '~allowed:*', '+get', '-set');
+    await client.aclLog('RESET');
+    await client.aclSetuser(user, 'on', '>pass', '~allowed:*', '+@all', '-set');
 
     const restricted = await createClient({
       authentication: { username: user, password: 'pass' },
@@ -172,40 +184,63 @@ describe('acl', () => {
     }
 
     /**
-     * The write must be rejected by the key ACL, otherwise the rest of the
+     * The write must be rejected by the command ACL, otherwise the rest of the
      * assertions about the audit log would be meaningless.
      */
     assert.ok(denied instanceof Error);
-    assert.match(`${denied}`, /NOPERM|no permissions/i);
+    assert.strictEqual(
+      denied.message,
+      `[SET forbidden:key val] Invalid reply: RespError: NOPERM User ${user} has no permissions to run the 'set' command`,
+    );
 
     const log = await client.aclLog();
 
-    assert.ok(Array.isArray(log));
-    assert.ok(
-      log.length > 0,
-      'ACL LOG must record the denied write from the restricted user',
+    assert.strictEqual(log.length, 1);
+
+    const entry = log[0];
+
+    assert.deepStrictEqual(
+      {
+        count: entry.count,
+        reason: entry.reason,
+        context: entry.context,
+        object: entry.object,
+        username: entry.username,
+      },
+      {
+        count: 1,
+        reason: 'command',
+        context: 'toplevel',
+        object: 'set',
+        username: user,
+      },
     );
-
-    const entry = log.find((candidate) => candidate.username === user);
-
-    assert.notStrictEqual(entry, undefined);
-    if (entry === undefined) {
-      assert.fail(`expected an ACL log entry for user ${user}`);
-    }
-
-    assert.strictEqual(entry.count, 1);
-    /** Redis reports the first violation; for `-set ~allowed:*` that is the command rule. */
-    assert.strictEqual(entry.reason, 'command');
-    assert.strictEqual(typeof entry.context, 'string');
-    assert.strictEqual(typeof entry.ageSeconds, 'number');
-    assert.strictEqual(typeof entry.clientInfo, 'string');
   });
 
   it('retrieves the ACL log with a count limit', async () => {
+    await client.aclLog('RESET');
+
+    const user = createTestUser();
+
+    await client.aclSetuser(user, 'on', '>pass', '~allowed:*', '+@all', '-set');
+
+    const restricted = await createClient({
+      authentication: { username: user, password: 'pass' },
+      enableReadyCheck: false,
+    });
+
+    try {
+      await restricted.set('forbidden:key', 'val');
+    } catch {
+      /* expected NOPERM */
+    } finally {
+      await closeClient(restricted);
+    }
+
     const log = await client.aclLog(5);
 
-    assert.ok(Array.isArray(log));
-    assert.ok(log.length <= 5);
+    assert.strictEqual(log.length, 1);
+    assert.strictEqual(log[0].username, user);
   });
 
   it('resets the ACL log', async () => {
@@ -224,7 +259,10 @@ describe('acl', () => {
     const result = await client.aclSave().catch((error: Error) => error);
 
     if (result instanceof Error) {
-      assert.match(`${result}`, /ACL file|aclfile|not configured/i);
+      assert.strictEqual(
+        result.message,
+        '[ACL SAVE] Invalid reply: RespError: ERR This Redis instance is not configured to use an ACL file. You may want to specify users via the ACL SETUSER command and then issue a CONFIG REWRITE (assuming you have a Redis configuration file set) in order to store users in the Redis configuration.',
+      );
       return;
     }
 

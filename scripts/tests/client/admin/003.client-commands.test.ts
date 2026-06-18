@@ -16,6 +16,32 @@ import {
 
 import type { FeaturedClient, ServerCapabilities } from '../../utils/index.ts';
 
+/** Parses a CLIENT INFO / CLIENT LIST line into key/value fields. */
+function parseClientFields(line: string): Record<string, string> {
+  const fields: Record<string, string> = {};
+
+  for (const token of line.trim().split(/\s+/)) {
+    const separatorIndex = token.indexOf('=');
+
+    if (separatorIndex === -1) {
+      continue;
+    }
+
+    fields[token.slice(0, separatorIndex)] = token.slice(separatorIndex + 1);
+  }
+
+  return fields;
+}
+
+/** Parses CLIENT LIST output into one record per connected client. */
+function parseClientList(list: string): Record<string, string>[] {
+  return list
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .map(parseClientFields);
+}
+
 describe('client-commands', () => {
   let client: FeaturedClient;
   let capabilities: ServerCapabilities;
@@ -32,24 +58,29 @@ describe('client-commands', () => {
 
   it('returns connection info with CLIENT INFO', async () => {
     const info = await client.clientInfo();
+    const fields = parseClientFields(info.split('\n')[0] ?? info);
 
-    assert.strictEqual(typeof info, 'string');
-    assert.ok(info.includes('id='));
-    assert.ok(info.includes('fd='));
+    assert.ok(Number.parseInt(fields.id ?? '', 10) > 0);
+    assert.ok(Number.parseInt(fields.fd ?? '', 10) >= 0);
+    assert.strictEqual(fields.name, 'solidis');
   });
 
   it('lists connected clients with CLIENT LIST', async () => {
     const list = await client.clientList();
+    const clients = parseClientList(list);
 
-    assert.strictEqual(typeof list, 'string');
-    assert.ok(list.includes('id='));
+    assert.ok(clients.length > 0);
+    assert.ok(
+      clients.every((entry) => Number.parseInt(entry.id ?? '', 10) > 0),
+    );
   });
 
   it('filters CLIENT LIST by type', async () => {
     const list = await client.clientList({ type: 'NORMAL' });
+    const clients = parseClientList(list);
 
-    assert.strictEqual(typeof list, 'string');
-    assert.ok(list.length > 0);
+    assert.ok(clients.length > 0);
+    assert.ok(clients.every((entry) => entry.flags?.includes('N') === true));
   });
 
   it('sets client library info with CLIENT SETINFO', async (context) => {
@@ -93,14 +124,14 @@ describe('client-commands', () => {
   it('returns redirect target with CLIENT GETREDIR', async () => {
     const redirect = await client.clientGetredir();
 
-    assert.strictEqual(typeof redirect, 'number');
+    assert.strictEqual(redirect, -1);
   });
 
   it('reports total command count with COMMAND COUNT', async () => {
     const count = await client.commandCount();
 
-    assert.strictEqual(typeof count, 'number');
     assert.ok(count > 100);
+    assert.strictEqual(await client.commandCount(), count);
   });
 
   it('lists commands with COMMAND LIST', async (context) => {
@@ -111,10 +142,11 @@ describe('client-commands', () => {
 
     const commands = await client.commandList();
 
-    assert.ok(Array.isArray(commands));
     assert.ok(commands.length > 100);
     assert.ok(commands.includes('get'));
     assert.ok(commands.includes('set'));
+    assert.ok(commands.includes('ping'));
+    assert.ok(commands.includes('del'));
   });
 
   it('filters COMMAND LIST by pattern', async (context) => {
@@ -125,9 +157,11 @@ describe('client-commands', () => {
 
     const commands = await client.commandList({ pattern: 'z*' });
 
-    assert.ok(Array.isArray(commands));
     assert.ok(commands.length > 0);
-    assert.ok(commands.every((command) => command.startsWith('z')));
+    assert.deepStrictEqual(
+      commands,
+      commands.filter((command) => command.startsWith('z')),
+    );
   });
 
   it('filters COMMAND LIST by module', async (context) => {
@@ -159,8 +193,9 @@ describe('client-commands', () => {
 
     const commands = await client.commandList({ aclcat: 'string' });
 
-    assert.ok(Array.isArray(commands));
     assert.ok(commands.length > 0);
+    assert.ok(commands.includes('get'));
+    assert.ok(commands.includes('set'));
   });
 
   it('extracts keys from a command with COMMAND GETKEYS', async () => {
@@ -183,9 +218,7 @@ describe('client-commands', () => {
 
     const result = await client.commandGetkeysandflags('SET', ['mykey', 'val']);
 
-    assert.strictEqual(result.length, 1);
-    assert.strictEqual(result[0].key, 'mykey');
-    assert.ok(result[0].flags.length > 0);
+    assert.deepStrictEqual(result, [{ key: 'mykey', flags: ['OW', 'update'] }]);
   });
 
   it('retrieves command documentation with COMMAND DOCS', async (context) => {
@@ -196,12 +229,10 @@ describe('client-commands', () => {
 
     const docs = await client.commandDocs(['get']);
 
-    assert.ok(docs !== null && typeof docs === 'object');
-    assert.ok('get' in docs);
-    assert.strictEqual(typeof docs.get.summary, 'string');
-    assert.strictEqual(typeof docs.get.since, 'string');
-    assert.strictEqual(typeof docs.get.group, 'string');
-    assert.strictEqual(typeof docs.get.complexity, 'string');
+    assert.strictEqual(docs.get.summary, 'Returns the string value of a key.');
+    assert.strictEqual(docs.get.since, '1.0.0');
+    assert.strictEqual(docs.get.group, 'string');
+    assert.strictEqual(docs.get.complexity, 'O(1)');
   });
 
   it('parses COMMAND DOCS with history and arguments', async (context) => {
@@ -217,23 +248,21 @@ describe('client-commands', () => {
 
     const setDoc = docs.set;
 
-    assert.strictEqual(typeof setDoc.summary, 'string');
-    assert.strictEqual(typeof setDoc.since, 'string');
-    assert.strictEqual(typeof setDoc.group, 'string');
-    assert.strictEqual(typeof setDoc.complexity, 'string');
-
-    if (setDoc.history) {
-      assert.ok(Array.isArray(setDoc.history));
-      assert.ok(setDoc.history.length > 0);
-      assert.ok(setDoc.history[0].includes(':'));
-    }
-
-    if (setDoc.arguments) {
-      assert.ok(Array.isArray(setDoc.arguments));
-      assert.ok(setDoc.arguments.length > 0);
-      assert.strictEqual(typeof setDoc.arguments[0].name, 'string');
-      assert.strictEqual(typeof setDoc.arguments[0].type, 'string');
-    }
+    assert.strictEqual(
+      setDoc.summary,
+      "Sets the string value of a key, ignoring its type. The key is created if it doesn't exist.",
+    );
+    assert.strictEqual(setDoc.since, '1.0.0');
+    assert.strictEqual(setDoc.group, 'string');
+    assert.strictEqual(setDoc.complexity, 'O(1)');
+    assert.ok(Array.isArray(setDoc.history));
+    assert.strictEqual(
+      setDoc.history?.[0],
+      '2.6.12: Added the `EX`, `PX`, `NX` and `XX` options.',
+    );
+    assert.ok(Array.isArray(setDoc.arguments));
+    assert.strictEqual(setDoc.arguments?.[0].name, 'key');
+    assert.strictEqual(setDoc.arguments?.[0].type, 'key');
   });
 
   it('parses COMMAND DOCS for a deprecated command', async (context) => {
@@ -249,17 +278,15 @@ describe('client-commands', () => {
 
     const substrDoc = docs.substr;
 
-    if (substrDoc.docFlags) {
-      assert.deepStrictEqual(substrDoc.docFlags, ['deprecated']);
-    }
-
-    if (substrDoc.deprecatedSince) {
-      assert.strictEqual(typeof substrDoc.deprecatedSince, 'string');
-    }
-
-    if (substrDoc.replacedBy) {
-      assert.strictEqual(typeof substrDoc.replacedBy, 'string');
-    }
+    assert.strictEqual(
+      substrDoc.summary,
+      'Returns a substring from a string value.',
+    );
+    assert.strictEqual(substrDoc.since, '1.0.0');
+    assert.strictEqual(substrDoc.group, 'string');
+    assert.deepStrictEqual(substrDoc.docFlags, ['deprecated']);
+    assert.strictEqual(substrDoc.deprecatedSince, '2.0.0');
+    assert.strictEqual(substrDoc.replacedBy, '`GETRANGE`');
   });
 
   it('kills a client connection by id', async () => {
@@ -316,7 +343,10 @@ describe('client-commands', () => {
         assert.fail('settlement.error must be an Error instance');
       }
 
-      assert.match(settlement.error.message, /UNBLOCKED|unblocked/i);
+      assert.strictEqual(
+        settlement.error.message,
+        `[BLPOP ${blockKey} 0] Unexpected reply: RespError: UNBLOCKED client unblocked via CLIENT UNBLOCK`,
+      );
     } finally {
       await closeClient(blocked);
     }
@@ -325,7 +355,9 @@ describe('client-commands', () => {
   it('toggles client caching mode', async () => {
     await assert.rejects(
       () => client.clientCaching('YES'),
-      (error: Error) => /tracking mode|OPTIN|OPTOUT/i.test(error.message),
+      (error: Error) =>
+        error.message ===
+        '[CLIENT CACHING YES] Invalid reply: RespError: ERR CLIENT CACHING can be called only when the client is in tracking mode with OPTIN or OPTOUT mode enabled',
     );
   });
 
@@ -345,7 +377,17 @@ describe('client-commands', () => {
       });
 
       assert.strictEqual(result, 'OK');
+      assert.deepStrictEqual(await dedicated.clientTrackinginfo(), {
+        flags: ['on', 'bcast', 'noloop'],
+        redirect: 0,
+        prefixes: ['solidis:'],
+      });
       assert.strictEqual(await dedicated.clientTracking('OFF'), 'OK');
+      assert.deepStrictEqual(await dedicated.clientTrackinginfo(), {
+        flags: ['off'],
+        redirect: -1,
+        prefixes: [],
+      });
     } finally {
       await closeClient(dedicated);
     }
@@ -364,6 +406,11 @@ describe('client-commands', () => {
         await dedicated.clientTracking('ON', { optin: true }),
         'OK',
       );
+      assert.deepStrictEqual(await dedicated.clientTrackinginfo(), {
+        flags: ['on', 'optin'],
+        redirect: 0,
+        prefixes: [],
+      });
       assert.strictEqual(await dedicated.clientTracking('OFF'), 'OK');
     } finally {
       await closeClient(dedicated);
@@ -383,6 +430,11 @@ describe('client-commands', () => {
         await dedicated.clientTracking('ON', { optout: true }),
         'OK',
       );
+      assert.deepStrictEqual(await dedicated.clientTrackinginfo(), {
+        flags: ['on', 'optout'],
+        redirect: 0,
+        prefixes: [],
+      });
       assert.strictEqual(await dedicated.clientTracking('OFF'), 'OK');
     } finally {
       await closeClient(dedicated);
@@ -405,6 +457,11 @@ describe('client-commands', () => {
         await trackingClient.clientTracking('ON', { redirect: targetId }),
         'OK',
       );
+      assert.deepStrictEqual(await trackingClient.clientTrackinginfo(), {
+        flags: ['on'],
+        redirect: targetId,
+        prefixes: [],
+      });
       assert.strictEqual(await trackingClient.clientTracking('OFF'), 'OK');
     } finally {
       await closeClient(redirectTarget);
@@ -429,17 +486,26 @@ describe('client-commands', () => {
     assert.strictEqual(await client.clientReply('ON'), 'OK');
   });
 
+  it('constructs CLIENT REPLY OFF without sending', async () => {
+    const { createCommand } = await import(
+      '../../../../sources/command/client.reply.ts'
+    );
+
+    assert.deepStrictEqual(createCommand('OFF'), ['CLIENT', 'REPLY', 'OFF']);
+  });
+
   it('filters CLIENT LIST by ID', async () => {
     const myId = await client.clientId();
     const list = await client.clientList({ identifiers: [myId] });
+    const clients = parseClientList(list);
 
-    assert.strictEqual(typeof list, 'string');
-    assert.ok(list.includes(`id=${myId}`));
+    assert.strictEqual(clients.length, 1);
+    assert.strictEqual(Number.parseInt(clients[0].id ?? '', 10), myId);
   });
 
   it('pauses clients with WRITE mode', async () => {
     assert.strictEqual(await client.clientPause(50, { mode: 'WRITE' }), 'OK');
-    await client.clientUnpause();
+    assert.strictEqual(await client.clientUnpause(), 'OK');
   });
 
   it('lists shard channels with pattern', async (context) => {

@@ -17,6 +17,7 @@ import {
   closeClient,
   createClient,
   MockRedisServer,
+  resolveConnectionTarget,
   waitFor,
 } from '../../utils/index.ts';
 
@@ -99,8 +100,9 @@ describe('connection', () => {
 
   it('exposes a normalised connection uri', async () => {
     const client = track(await createClient());
+    const target = resolveConnectionTarget();
 
-    assert.match(client.uri, /^redis:\/\//);
+    assert.strictEqual(client.uri, `redis://${target.host}:${target.port}`);
   });
 
   it('rejects commands after quit with a client error', async () => {
@@ -122,7 +124,8 @@ describe('connection', () => {
     await assert.rejects(
       () => client.connect(),
       (error: Error) =>
-        error instanceof SolidisClientError && /closed/i.test(error.message),
+        error instanceof SolidisClientError &&
+        error.message === 'Cannot connect after the client was closed.',
     );
   });
 
@@ -225,7 +228,8 @@ describe('connection', () => {
       () => client.connect(),
       (error: Error) =>
         error instanceof SolidisClientError &&
-        /connection failed|retries|ECONNREFUSED|timeout/i.test(error.message),
+        error.message ===
+          'SolidisConnectionError: Error: connect ECONNREFUSED 127.0.0.1:1',
     );
   });
 
@@ -246,7 +250,8 @@ describe('connection', () => {
       () => client.connect(),
       (error: Error) =>
         error instanceof SolidisClientError &&
-        /connection failed|ECONNREFUSED|refused|timeout/i.test(error.message),
+        error.message ===
+          'SolidisConnectionError: Error: connect ECONNREFUSED 127.0.0.1:1',
     );
   });
 
@@ -258,9 +263,7 @@ describe('connection', () => {
         }),
       (error: Error) =>
         error instanceof SolidisClientError &&
-        /Authentication failed|WRONGPASS|invalid (username|password)/i.test(
-          error.message,
-        ),
+        error.message === 'Authentication failed',
     );
   });
 
@@ -300,8 +303,8 @@ describe('connection', () => {
       () => unreachableClient.connect(),
       (error: Error) =>
         error instanceof SolidisClientError &&
-        (error.message.includes('timeout') ||
-          error.message.includes('ECONNREFUSED')),
+        error.message ===
+          'SolidisConnectionError: Error: connect ECONNREFUSED 127.0.0.1:1',
     );
 
     unreachableClient.quit();
@@ -320,7 +323,8 @@ describe('connection', () => {
     await assert.rejects(
       () => quitClient.connect(),
       (error: Error) =>
-        error instanceof SolidisClientError && /closed/i.test(error.message),
+        error instanceof SolidisClientError &&
+        error.message === 'Cannot connect after the client was closed.',
     );
   });
 
@@ -375,16 +379,19 @@ describe('connection', () => {
       debugEntries.push(entry);
     });
 
-    await debugClient.ping();
+    assert.strictEqual(await debugClient.ping(), 'PONG');
+
+    const pingDebugEntry = debugEntries.find(
+      (entry) =>
+        typeof entry === 'object' &&
+        entry !== null &&
+        'message' in entry &&
+        entry.message ===
+          'Solidis requester serialized command: *1\r\n$4\r\nPING\r\n',
+    );
 
     assert.ok(
-      debugEntries.some(
-        (entry) =>
-          typeof entry === 'object' &&
-          entry !== null &&
-          'message' in entry &&
-          String(entry.message).includes('PING'),
-      ),
+      pingDebugEntry,
       'Expected a PING command debug entry after ping with debug enabled',
     );
 
@@ -408,7 +415,7 @@ describe('connection', () => {
       () => badClient.ping(),
       (error: Error) =>
         error instanceof SolidisClientError &&
-        /Not connected/i.test(error.message),
+        error.message === 'Not connected with redis server.',
     );
 
     badClient.quit();
@@ -581,21 +588,14 @@ describe('connection', () => {
         () =>
           debugMemory
             .getLogs()
-            .some((log) => log.message.includes('failed to reset reconnect')),
+            .some(
+              (log) =>
+                log.message === 'Solidis connection failed to reset reconnect.',
+            ),
         {
           timeout: 3000,
           description: 'reset reconnect failure must be logged via debug',
         },
-      );
-
-      assert.ok(
-        debugMemory
-          .getLogs()
-          .some(
-            (log) =>
-              log.message === 'Solidis connection failed to reset reconnect.',
-          ),
-        'reset() must log the background reconnect failure via debug',
       );
 
       connection.quit();
@@ -630,25 +630,16 @@ describe('connection', () => {
         () =>
           debugMemory
             .getLogs()
-            .some((log) =>
-              log.message.includes('failed to background reconnect'),
+            .some(
+              (log) =>
+                log.message ===
+                'Solidis connection failed to background reconnect.',
             ),
         {
           timeout: 5000,
           description:
             'close handler must log the background reconnect failure via debug',
         },
-      );
-
-      assert.ok(
-        debugMemory
-          .getLogs()
-          .some(
-            (log) =>
-              log.message ===
-              'Solidis connection failed to background reconnect.',
-          ),
-        'socket close handler must log the background reconnect failure via debug',
       );
 
       connection.quit();

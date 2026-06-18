@@ -73,9 +73,13 @@ describe('sorted-sets', () => {
     ]);
 
     assert.strictEqual(await client.zrank(key, 'a'), 0);
+    assert.strictEqual(await client.zrank(key, 'b'), 1);
     assert.strictEqual(await client.zrank(key, 'c'), 2);
     assert.strictEqual(await client.zrank(key, 'absent'), null);
     assert.strictEqual(await client.zrevrank(key, 'a'), 2);
+    assert.strictEqual(await client.zrevrank(key, 'b'), 1);
+    assert.strictEqual(await client.zrevrank(key, 'c'), 0);
+    assert.strictEqual(await client.zrevrank(key, 'absent'), null);
   });
 
   it('queries by index range with and without scores', async () => {
@@ -254,24 +258,39 @@ describe('sorted-sets', () => {
 
     const single = await client.zrandmember(key);
 
-    assert.ok(typeof single === 'string');
+    if (single === null || typeof single !== 'string') {
+      assert.fail('expected non-null string from zrandmember');
+    }
     assert.ok(['a', 'b', 'c'].includes(single));
 
     const several = await client.zrandmember(key, 2);
 
-    assert.notStrictEqual(several, null);
-    assert.ok(Array.isArray(several));
-    assert.ok(
-      several.every((member): member is string => typeof member === 'string'),
-    );
+    if (several === null || !Array.isArray(several)) {
+      assert.fail('expected non-null array from zrandmember');
+    }
     assert.strictEqual(several.length, 2);
-    assert.ok(several.every((member) => ['a', 'b', 'c'].includes(member)));
-    assert.strictEqual(new Set(several).size, 2);
+    for (const member of several) {
+      assert.ok(typeof member === 'string');
+      assert.ok(['a', 'b', 'c'].includes(member));
+    }
+    assert.notStrictEqual(several[0], several[1]);
 
     const withScores = await client.zrandmember(key, 3, true);
 
-    assert.ok(Array.isArray(withScores));
-    assert.strictEqual(withScores.length, 3);
+    if (withScores === null || !Array.isArray(withScores)) {
+      assert.fail('expected non-null array from zrandmember with scores');
+    }
+    const sortedScores = [...withScores].sort((entryA, entryB) => {
+      if (typeof entryA === 'string' || typeof entryB === 'string') {
+        assert.fail('expected scored entries, not strings');
+      }
+      return entryA.member.localeCompare(entryB.member);
+    });
+    assert.deepStrictEqual(sortedScores, [
+      { member: 'a', score: 1 },
+      { member: 'b', score: 2 },
+      { member: 'c', score: 3 },
+    ]);
   });
 
   it('removes members and ranges', async () => {
@@ -399,12 +418,15 @@ describe('sorted-sets', () => {
 
     assert.strictEqual(await client.zdiffstore(diffKey, [first, second]), 1);
     assert.deepStrictEqual(await client.zrange(diffKey, '0', '-1'), ['a']);
+    assert.strictEqual(await client.zscore(diffKey, 'a'), 1);
 
     assert.strictEqual(await client.zinterstore(interKey, [first, second]), 2);
     assert.deepStrictEqual(await client.zrange(interKey, '0', '-1'), [
       'b',
       'c',
     ]);
+    assert.strictEqual(await client.zscore(interKey, 'b'), 3);
+    assert.strictEqual(await client.zscore(interKey, 'c'), 4);
 
     assert.strictEqual(
       await client.zunionstore(unionKey, [first, second], {
@@ -417,6 +439,9 @@ describe('sorted-sets', () => {
       'b',
       'c',
     ]);
+    assert.strictEqual(await client.zscore(unionKey, 'a'), 1);
+    assert.strictEqual(await client.zscore(unionKey, 'b'), 2);
+    assert.strictEqual(await client.zscore(unionKey, 'c'), 3);
 
     assert.strictEqual(
       await client.zunionstore(weightedKey, [first, second], {
@@ -430,6 +455,9 @@ describe('sorted-sets', () => {
       'b',
       'c',
     ]);
+    assert.strictEqual(await client.zscore(weightedKey, 'a'), 2);
+    assert.strictEqual(await client.zscore(weightedKey, 'b'), 5);
+    assert.strictEqual(await client.zscore(weightedKey, 'c'), 7);
   });
 
   it('stores a range by lex with ZRANGESTORE BYLEX', async () => {
@@ -470,8 +498,13 @@ describe('sorted-sets', () => {
       }
     }
 
-    assert.strictEqual(seen.size, 400);
-    assert.strictEqual(seen.get('member-123'), 123);
+    const expectedScanMap = new Map<string, number>();
+
+    for (let index = 0; index < 400; index += 1) {
+      expectedScanMap.set(`member-${index}`, index);
+    }
+
+    assert.deepStrictEqual(seen, expectedScanMap);
   });
 
   it('returns members in reverse order with ZREVRANGE', async () => {

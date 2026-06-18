@@ -50,8 +50,20 @@ describe('debug-requester', () => {
       const logs = memory.getLogs();
 
       assert.strictEqual(logs.length, 3);
+      assert.strictEqual(logs[0].type, 'debug');
       assert.strictEqual(logs[0].message, 'two');
+      assert.strictEqual(logs[1].type, 'debug');
+      assert.strictEqual(logs[1].message, 'three');
+      assert.strictEqual(logs[2].type, 'debug');
       assert.strictEqual(logs[2].message, 'four');
+
+      for (const entry of logs) {
+        assert.ok(
+          typeof entry.timestamp === 'number' &&
+            Number.isFinite(entry.timestamp) &&
+            entry.timestamp > 0,
+        );
+      }
     });
 
     it('clears logs', async () => {
@@ -63,7 +75,16 @@ describe('debug-requester', () => {
 
       memory.write({ type: 'info', message: 'data' });
 
-      assert.strictEqual(memory.getLogs().length, 1);
+      const logsBeforeClear = memory.getLogs();
+
+      assert.strictEqual(logsBeforeClear.length, 1);
+      assert.strictEqual(logsBeforeClear[0].type, 'info');
+      assert.strictEqual(logsBeforeClear[0].message, 'data');
+      assert.ok(
+        typeof logsBeforeClear[0].timestamp === 'number' &&
+          Number.isFinite(logsBeforeClear[0].timestamp) &&
+          logsBeforeClear[0].timestamp > 0,
+      );
 
       memory.clearLogs();
 
@@ -81,7 +102,14 @@ describe('debug-requester', () => {
 
       const logs = memory.getLogs();
 
-      assert.strictEqual(typeof logs[0].timestamp, 'number');
+      assert.strictEqual(logs.length, 1);
+      assert.strictEqual(logs[0].type, 'warn');
+      assert.strictEqual(logs[0].message, 'no timestamp');
+      assert.ok(
+        typeof logs[0].timestamp === 'number' &&
+          Number.isFinite(logs[0].timestamp) &&
+          logs[0].timestamp > 0,
+      );
     });
 
     it('emits pushed event on write', async () => {
@@ -101,15 +129,24 @@ describe('debug-requester', () => {
 
       await new Promise<void>((resolve) => setImmediate(resolve));
 
-      assert.notStrictEqual(emittedEntry, null);
-      assert.strictEqual((emittedEntry as { type: string }).type, 'debug');
-      assert.strictEqual(
-        (emittedEntry as { message: string }).message,
-        'event test',
-      );
-      assert.strictEqual(
-        typeof (emittedEntry as { timestamp: number }).timestamp,
-        'number',
+      if (typeof emittedEntry !== 'object' || emittedEntry === null) {
+        assert.fail('write must emit a debug log entry object');
+      }
+
+      if (
+        !('type' in emittedEntry) ||
+        !('message' in emittedEntry) ||
+        !('timestamp' in emittedEntry)
+      ) {
+        assert.fail('emitted entry must include type, message, and timestamp');
+      }
+
+      assert.strictEqual(emittedEntry.type, 'debug');
+      assert.strictEqual(emittedEntry.message, 'event test');
+      assert.ok(
+        typeof emittedEntry.timestamp === 'number' &&
+          Number.isFinite(emittedEntry.timestamp) &&
+          emittedEntry.timestamp > 0,
       );
     });
 
@@ -189,7 +226,14 @@ describe('debug-requester', () => {
       const logs = memory.getLogs();
 
       assert.strictEqual(logs.length, 1);
+      assert.strictEqual(logs[0].type, 'info');
       assert.strictEqual(logs[0].message, 'test message');
+      assert.ok(
+        typeof logs[0].timestamp === 'number' &&
+          Number.isFinite(logs[0].timestamp) &&
+          logs[0].timestamp > 0,
+      );
+      assert.deepStrictEqual(logs[0].data, { extra: true });
     });
   });
 
@@ -211,7 +255,13 @@ describe('debug-requester', () => {
         const logs = memory.getLogs();
 
         assert.strictEqual(logs.length, 1);
+        assert.strictEqual(logs[0].type, 'info');
         assert.strictEqual(logs[0].message, 'env-activated debug');
+        assert.ok(
+          typeof logs[0].timestamp === 'number' &&
+            Number.isFinite(logs[0].timestamp) &&
+            logs[0].timestamp > 0,
+        );
       } finally {
         if (originalDebug === undefined) {
           delete process.env.DEBUG;
@@ -237,7 +287,10 @@ describe('debug-requester', () => {
       const reply = await client.debug('SLEEP', '0');
 
       if (reply instanceof RespError) {
-        assert.match(`${reply.message}`, /DEBUG|not allowed|unknown/i);
+        assert.strictEqual(
+          reply.message,
+          'ERR DEBUG command not allowed. If the enable-debug-command option is set to "local", you can run it from a local connection, otherwise you need to set this option in the configuration file, and then restart the server.',
+        );
         return;
       }
 
@@ -255,7 +308,7 @@ describe('debug-requester', () => {
 
       const key = keyspace.key('requester-fault');
 
-      await faultyClient.set(key, 'value');
+      assert.strictEqual(await faultyClient.set(key, 'value'), 'OK');
 
       faultyClient.quit();
 
@@ -263,7 +316,7 @@ describe('debug-requester', () => {
         () => faultyClient.get(key),
         (error: Error) =>
           error instanceof SolidisClientError &&
-          /not connected|closed/i.test(error.message),
+          error.message === 'Not connected with redis server.',
       );
     });
 
@@ -354,7 +407,7 @@ describe('debug-requester', () => {
           timeoutClient.send([['BLPOP', keyspace.key('never-exists'), '0']]),
         (error: Error) =>
           error instanceof SolidisRequesterError &&
-          /timed? ?out/i.test(error.message),
+          error.message === 'Solidis command(s) timed out after 50 ms.',
       );
 
       await closeClient(timeoutClient);
@@ -375,7 +428,7 @@ describe('debug-requester', () => {
         () => strictClient.incr(key),
         (error: Error) =>
           error instanceof RespError &&
-          /not an integer|out of range/i.test(error.message),
+          error.message === 'ERR value is not an integer or out of range',
       );
 
       await closeClient(strictClient);
@@ -539,6 +592,11 @@ describe('debug-requester', () => {
         );
       }
 
+      assert.strictEqual(
+        settlement.error.message,
+        'SolidisConnectionError: Solidis connection closed.',
+      );
+
       await waitFor(
         async () => {
           try {
@@ -584,10 +642,10 @@ describe('debug-requester', () => {
       const buffer = commandsToBuffer(commands);
       const result = sanitizeCommandsBufferForDebug(buffer, commands);
 
-      assert.ok(result.includes('AUTH'));
-      assert.ok(!result.includes('myuser'));
-      assert.ok(!result.includes('supersecret'));
-      assert.ok(result.includes('***'));
+      assert.strictEqual(
+        result,
+        '*3\r\n$4\r\nAUTH\r\n$3\r\n***\r\n$3\r\n***\r\n',
+      );
     });
 
     it('masks all arguments of a HELLO command', async () => {
@@ -599,9 +657,10 @@ describe('debug-requester', () => {
       const buffer = commandsToBuffer(commands);
       const result = sanitizeCommandsBufferForDebug(buffer, commands);
 
-      assert.ok(result.includes('HELLO'));
-      assert.ok(!result.includes('admin'));
-      assert.ok(!result.includes('password123'));
+      assert.strictEqual(
+        result,
+        '*5\r\n$5\r\nHELLO\r\n$3\r\n***\r\n$3\r\n***\r\n$3\r\n***\r\n$3\r\n***\r\n',
+      );
     });
 
     it('only masks credential commands in a mixed pipeline', async () => {
@@ -618,14 +677,10 @@ describe('debug-requester', () => {
       const buffer = commandsToBuffer(commands);
       const result = sanitizeCommandsBufferForDebug(buffer, commands);
 
-      assert.ok(result.includes('SET'));
-      assert.ok(result.includes('visible-key'));
-      assert.ok(result.includes('visible-value'));
-      assert.ok(result.includes('GET'));
-      assert.ok(result.includes('another-key'));
-      assert.ok(result.includes('AUTH'));
-      assert.ok(!result.includes('secret-user'));
-      assert.ok(!result.includes('secret-pass'));
+      assert.strictEqual(
+        result,
+        '*3\r\n$3\r\nSET\r\n$11\r\nvisible-key\r\n$13\r\nvisible-value\r\n*3\r\n$4\r\nAUTH\r\n$3\r\n***\r\n$3\r\n***\r\n*2\r\n$3\r\nGET\r\n$11\r\nanother-key\r\n',
+      );
     });
 
     it('handles case-insensitive command names', async () => {
@@ -637,9 +692,10 @@ describe('debug-requester', () => {
       const buffer = commandsToBuffer(commands);
       const result = sanitizeCommandsBufferForDebug(buffer, commands);
 
-      assert.ok(result.includes('auth'));
-      assert.ok(!result.includes('user'));
-      assert.ok(!result.includes('pass'));
+      assert.strictEqual(
+        result,
+        '*3\r\n$4\r\nauth\r\n$3\r\n***\r\n$3\r\n***\r\n',
+      );
     });
   });
 });

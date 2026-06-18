@@ -119,10 +119,14 @@ describe('bitmaps-hyperloglog', () => {
     const length = await client.bitop('AND', destination, [first, second]);
 
     assert.strictEqual(length, 3);
+    const andResult = await client.getBuffer(destination);
+    assert.deepStrictEqual(andResult, Buffer.from([0x61, 0x62, 0x60]));
 
     const notDestination = keyspace.key('bitop', 'not');
 
     assert.strictEqual(await client.bitop('NOT', notDestination, [first]), 3);
+    const notResult = await client.getBuffer(notDestination);
+    assert.deepStrictEqual(notResult, Buffer.from([0x9e, 0x9d, 0x9c]));
 
     const { createCommand } = await import('../../../sources/command/bitop.ts');
 
@@ -175,7 +179,7 @@ describe('bitmaps-hyperloglog', () => {
     const key = keyspace.key('pf');
 
     assert.strictEqual(await client.pfadd(key, ['a', 'b', 'c', 'd']), 1);
-    await client.pfadd(key, ['a', 'b']);
+    assert.strictEqual(await client.pfadd(key, ['a', 'b']), 0);
 
     assert.strictEqual(await client.pfcount([key]), 4);
   });

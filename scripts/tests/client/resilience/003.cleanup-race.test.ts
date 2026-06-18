@@ -105,6 +105,11 @@ describe('cleanup-race', () => {
         description: 'reconnect after CLIENT KILL',
       });
 
+      assert.strictEqual(
+        reconnected,
+        true,
+        'client must emit a second ready event after reconnection',
+      );
       assert.strictEqual(await client.ping(), 'PONG');
     } finally {
       await closeClient(killer);

@@ -66,10 +66,9 @@ describe('pipeline', () => {
       range(total).map((index) => ['GET', keyspace.key('bulk', index)]),
     );
 
-    assert.deepStrictEqual(unwrap(readback, 0), Buffer.from('0'));
     assert.deepStrictEqual(
-      unwrap(readback, total - 1),
-      Buffer.from(`${total - 1}`),
+      readback.map((reply) => reply[0]),
+      range(total).map((index) => Buffer.from(`${index}`)),
     );
   });
 
@@ -84,6 +83,7 @@ describe('pipeline', () => {
       ['LPOP', key],
     ]);
 
+    assert.strictEqual(unwrap(replies, 0), 0);
     assert.strictEqual(unwrap(replies, 1), 3);
     assert.strictEqual(unwrap(replies, 2), 3);
     assert.deepStrictEqual(unwrap(replies, 3), [
@@ -105,8 +105,7 @@ describe('pipeline', () => {
 
     const value = unwrap(replies, 1);
 
-    assert.ok(Buffer.isBuffer(value));
-    assert.strictEqual(value.equals(payload), true);
+    assert.deepStrictEqual(value, payload);
   });
 
   it('isolates a command error without rejecting the whole batch by default', async () => {
@@ -126,8 +125,11 @@ describe('pipeline', () => {
       assert.fail('LPUSH on a string key must return an Error');
     }
 
-    assert.match(pipelineError.message, /WRONGTYPE/i);
-    assert.strictEqual(`${unwrap(replies, 2)}`, 'not-a-list');
+    assert.match(
+      pipelineError.message,
+      /^WRONGTYPE Operation against a key holding the wrong kind of value$/,
+    );
+    assert.deepStrictEqual(unwrap(replies, 2), Buffer.from('not-a-list'));
   });
 
   it('throws guard error when pipeline called on invalid context', async () => {

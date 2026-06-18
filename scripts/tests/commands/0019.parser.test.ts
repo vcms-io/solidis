@@ -45,8 +45,7 @@ describe('parser', () => {
   it('parses a bulk string into a Buffer', async () => {
     const [reply] = await parseOnce(bytes('$5\r\nhello\r\n'));
 
-    assert.ok(reply !== null);
-    assert.strictEqual(reply.toString(), 'hello');
+    assert.deepStrictEqual(reply, bytes('hello'));
   });
 
   it('keeps CRLF inside a bulk payload (binary safe)', async () => {
@@ -78,9 +77,7 @@ describe('parser', () => {
 
     const [empty] = await parseOnce(bytes('$0\r\n\r\n'));
 
-    assert.ok(empty !== null);
-    assert.ok(Buffer.isBuffer(empty));
-    assert.strictEqual(empty.length, 0);
+    assert.deepStrictEqual(empty, Buffer.alloc(0));
   });
 
   it('parses flat and nested arrays', async () => {
@@ -122,7 +119,6 @@ describe('parser', () => {
       bytes('(3492890328409238509324850943850943825024385\r\n'),
     );
 
-    assert.strictEqual(typeof reply, 'bigint');
     assert.strictEqual(reply, 3492890328409238509324850943850943825024385n);
   });
 
@@ -182,8 +178,7 @@ describe('parser', () => {
 
     const [reply] = await parser.queueParse(bytes('lo\r\n'));
 
-    assert.ok(reply !== null);
-    assert.strictEqual(reply.toString(), 'hello');
+    assert.deepStrictEqual(reply, bytes('hello'));
   });
 
   it('reassembles a frame delivered one byte at a time', async () => {
@@ -211,9 +206,6 @@ describe('parser', () => {
 
     const [reply] = await parseOnce(frame);
 
-    assert.ok(reply !== null);
-    assert.ok(Buffer.isBuffer(reply));
-    assert.strictEqual(reply.length, size);
     assert.deepStrictEqual(reply, payload);
   });
 
@@ -240,22 +232,27 @@ describe('parser', () => {
   });
 
   it('rejects an unknown type prefix', async () => {
-    await assert.rejects(parseOnce(bytes('@bogus\r\n')), /Unknown prefix/i);
+    await assert.rejects(parseOnce(bytes('@bogus\r\n')), {
+      message: "Unknown prefix '@' in Solidis response",
+    });
   });
 
   it('rejects an integer with a missing LF', async () => {
-    await assert.rejects(parseOnce(bytes(':12\r3\r\n')), /CRLF/i);
+    await assert.rejects(parseOnce(bytes(':12\r3\r\n')), {
+      message: 'Integer parse error: missing CRLF',
+    });
   });
 
   it('rejects a simple string with a bare CR', async () => {
-    await assert.rejects(parseOnce(bytes('+OK\rX\r\n')), /CRLF/i);
+    await assert.rejects(parseOnce(bytes('+OK\rX\r\n')), {
+      message: 'SimpleString parse error: missing CRLF',
+    });
   });
 
   it('discards a valid reply when a later frame is corrupt', async () => {
-    await assert.rejects(
-      parseOnce(bytes('+good\r\n@evil\r\n')),
-      /Unknown prefix/i,
-    );
+    await assert.rejects(parseOnce(bytes('+good\r\n@evil\r\n')), {
+      message: "Unknown prefix '@' in Solidis response",
+    });
   });
 
   it('waits for more data on an incomplete frame', async () => {

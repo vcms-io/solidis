@@ -43,7 +43,7 @@ describe('scan', () => {
       }
     }
 
-    assert.strictEqual(seen.size, 200);
+    assert.deepStrictEqual([...seen].sort(), Object.keys(mapping).sort());
   });
 
   it('filters by value type', async () => {

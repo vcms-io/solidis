@@ -165,7 +165,7 @@ describe('transactions', () => {
          * Success yields the per-command reply list; a WATCH abort yields a
          * single null entry, in which case we retry the read-modify-write.
          */
-        if (results.length > 0 && results[0] !== null) {
+        if (results.length === 1 && results[0] === 'OK') {
           return;
         }
 
@@ -195,14 +195,17 @@ describe('transactions', () => {
   });
 
   it('propagates command-building errors from the transaction proxy to exec', async () => {
+    const key = keyspace.key('propagate');
     const transaction = client.multi();
 
-    transaction.set(keyspace.key('propagate'), 'value');
+    transaction.set(key, 'value');
     transaction.xread(['stream-a', 'stream-b'], ['0-0']);
 
     await assert.rejects(transaction.exec(), {
       message: '[XREAD] Keys and IDs must have the same length',
     });
+
+    assert.strictEqual(await client.get(key), null);
   });
 
   it('handles discard on an empty pipeline gracefully', async () => {

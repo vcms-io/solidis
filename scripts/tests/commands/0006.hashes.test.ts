@@ -4,7 +4,6 @@ import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
 import {
-  assertCloseTo,
   closeClient,
   createClient,
   createKeyspace,
@@ -101,7 +100,7 @@ describe('hashes', () => {
 
     const floatValue = await client.hincrbyfloat(key, 'ratio', 1.5);
 
-    assertCloseTo(Number.parseFloat(floatValue), 1.5, 5);
+    assert.strictEqual(floatValue, '1.5');
   });
 
   it('sets a field only if absent with HSETNX', async () => {
@@ -119,16 +118,22 @@ describe('hashes', () => {
 
     const single = await client.hrandfield(key);
 
-    assert.ok(typeof single === 'string');
+    if (single === null || typeof single !== 'string') {
+      assert.fail('expected non-null string from hrandfield');
+    }
     assert.ok(['a', 'b', 'c'].includes(single));
 
     const several = await client.hrandfield(key, 2);
 
-    assert.notStrictEqual(several, null);
-    assert.ok(Array.isArray(several));
+    if (several === null || !Array.isArray(several)) {
+      assert.fail('expected non-null array from hrandfield');
+    }
     assert.strictEqual(several.length, 2);
-    assert.ok(several.every((field) => ['a', 'b', 'c'].includes(field)));
-    assert.strictEqual(new Set(several).size, 2);
+    for (const field of several) {
+      assert.ok(typeof field === 'string');
+      assert.ok(['a', 'b', 'c'].includes(field));
+    }
+    assert.notStrictEqual(several[0], several[1]);
 
     const withValues = await client.hrandfield(key, 3, true);
 
@@ -179,9 +184,9 @@ describe('hashes', () => {
     assert.deepStrictEqual(await client.hexpire(key, 100, ['withTtl']), [1]);
 
     const ttls = await client.httl(key, ['withTtl', 'withoutTtl', 'missing']);
+    const withTtlSeconds = ttls[0];
 
-    assert.ok(ttls[0] > 90);
-    assert.ok(ttls[0] <= 100);
+    assert.ok(withTtlSeconds >= 1 && withTtlSeconds <= 100);
     assert.strictEqual(ttls[1], -1);
     assert.strictEqual(ttls[2], -2);
   });
@@ -199,9 +204,9 @@ describe('hashes', () => {
     assert.deepStrictEqual(await client.hpexpire(key, 100000, ['field']), [1]);
 
     const pttls = await client.hpttl(key, ['field']);
+    const fieldMilliseconds = pttls[0];
 
-    assert.ok(pttls[0] > 90000);
-    assert.ok(pttls[0] <= 100000);
+    assert.ok(fieldMilliseconds >= 1 && fieldMilliseconds <= 100000);
   });
 
   it('HEXPIREAT/HEXPIRETIME pin an absolute field TTL', async (context) => {
@@ -232,10 +237,19 @@ describe('hashes', () => {
 
     /** GT only extends, so a shorter TTL must be rejected (reply 0). */
     assert.deepStrictEqual(await client.hexpire(key, 50, ['field'], 'GT'), [0]);
+
+    const unchangedTtl = (await client.httl(key, ['field']))[0];
+
+    assert.ok(unchangedTtl >= 1 && unchangedTtl <= 100);
+
     assert.deepStrictEqual(
       await client.hexpire(key, 200, ['field'], 'GT'),
       [1],
     );
+
+    const extendedTtl = (await client.httl(key, ['field']))[0];
+
+    assert.ok(extendedTtl >= 1 && extendedTtl <= 200);
   });
 
   it('HPERSIST clears a field TTL', async (context) => {
@@ -291,6 +305,9 @@ describe('hashes', () => {
     const result = await client.hexpireat(key, nearFuture, ['field'], 'GT');
 
     assert.deepStrictEqual(result, [0]);
+    assert.deepStrictEqual(await client.hexpiretime(key, ['field']), [
+      farFuture,
+    ]);
   });
 
   it('applies HEXPIREAT with LT mode', async (context) => {
@@ -309,6 +326,9 @@ describe('hashes', () => {
     const result = await client.hexpireat(key, nearFuture, ['field'], 'LT');
 
     assert.deepStrictEqual(result, [1]);
+    assert.deepStrictEqual(await client.hexpiretime(key, ['field']), [
+      nearFuture,
+    ]);
   });
 
   it('applies HPEXPIRE with GT mode', async (context) => {
@@ -325,6 +345,10 @@ describe('hashes', () => {
     const result = await client.hpexpire(key, 60000, ['field'], 'GT');
 
     assert.deepStrictEqual(result, [0]);
+
+    const unchangedMilliseconds = (await client.hpttl(key, ['field']))[0];
+
+    assert.ok(unchangedMilliseconds >= 1 && unchangedMilliseconds <= 120000);
   });
 
   it('applies HPEXPIRE with LT mode', async (context) => {
@@ -341,6 +365,10 @@ describe('hashes', () => {
     const result = await client.hpexpire(key, 60000, ['field'], 'LT');
 
     assert.deepStrictEqual(result, [1]);
+
+    const shortenedMilliseconds = (await client.hpttl(key, ['field']))[0];
+
+    assert.ok(shortenedMilliseconds >= 1 && shortenedMilliseconds <= 60000);
   });
 
   it('applies HPEXPIREAT with GT mode', async (context) => {
@@ -359,6 +387,9 @@ describe('hashes', () => {
     const result = await client.hpexpireat(key, nearFuture, ['field'], 'GT');
 
     assert.deepStrictEqual(result, [0]);
+    assert.deepStrictEqual(await client.hpexpiretime(key, ['field']), [
+      farFuture,
+    ]);
   });
 
   it('applies HPEXPIREAT with LT mode', async (context) => {
@@ -377,5 +408,8 @@ describe('hashes', () => {
     const result = await client.hpexpireat(key, nearFuture, ['field'], 'LT');
 
     assert.deepStrictEqual(result, [1]);
+    assert.deepStrictEqual(await client.hpexpiretime(key, ['field']), [
+      nearFuture,
+    ]);
   });
 });

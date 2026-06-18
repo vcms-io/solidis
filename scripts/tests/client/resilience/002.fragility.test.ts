@@ -8,7 +8,6 @@ import {
   RespError,
   SolidisClientError,
   SolidisCommandError,
-  SolidisConnectionError,
   SolidisParserError,
   SolidisRequesterError,
 } from '../../../../sources/index.ts';
@@ -81,7 +80,9 @@ describe('fragility', () => {
     it('recovers from an empty command frame via timeout', async () => {
       await assert.rejects(
         () => client.send([[]]),
-        (error: Error) => /timed out/i.test(error.message),
+        (error: Error) =>
+          error instanceof SolidisRequesterError &&
+          error.message === 'Solidis command(s) timed out after 300 ms.',
       );
 
       await assertStillHealthy('empty-frame');
@@ -119,7 +120,10 @@ describe('fragility', () => {
       ]);
 
       assert.ok(reply instanceof RespError);
-      assert.match(`${reply.message}`, /unknown|wrong|invalid/i);
+      assert.strictEqual(
+        reply.message,
+        "ERR unknown command '\x01\x02\x03', with args beginning with: 'arg' ",
+      );
 
       await assertStillHealthy('bogus-name');
     });
@@ -128,7 +132,10 @@ describe('fragility', () => {
       const [[reply]] = await client.send([['GET']]);
 
       assert.ok(reply instanceof RespError);
-      assert.match(`${reply.message}`, /wrong number of arguments/i);
+      assert.strictEqual(
+        reply.message,
+        "ERR wrong number of arguments for 'get' command",
+      );
 
       await assertStillHealthy('wrong-arity');
     });
@@ -147,12 +154,21 @@ describe('fragility', () => {
 
       assert.strictEqual(replies[0][0], 'OK');
       assert.ok(replies[1][0] instanceof RespError);
-      assert.match(`${replies[1][0].message}`, /not an integer|WRONGTYPE/i);
+      assert.strictEqual(
+        replies[1][0].message,
+        'ERR value is not an integer or out of range',
+      );
       assert.ok(replies[2][0] instanceof RespError);
-      assert.match(`${replies[2][0].message}`, /WRONGTYPE/i);
+      assert.strictEqual(
+        replies[2][0].message,
+        'WRONGTYPE Operation against a key holding the wrong kind of value',
+      );
       assert.strictEqual(`${replies[3][0]}`, 'value');
       assert.ok(replies[4][0] instanceof RespError);
-      assert.match(`${replies[4][0].message}`, /unknown|wrong|invalid/i);
+      assert.strictEqual(
+        replies[4][0].message,
+        "ERR unknown command 'NOTACOMMAND', with args beginning with: ",
+      );
       assert.strictEqual(replies[5][0], 6);
 
       assert.strictEqual(await client.get(key), 'value!');
@@ -181,7 +197,40 @@ describe('fragility', () => {
       const replies = await client.send(commands);
 
       assert.strictEqual(replies.length, commands.length);
-      assert.ok(replies.every((reply) => reply.length === 1));
+
+      for (let index = 0; index < replies.length; index += 1) {
+        const reply = replies[index][0];
+
+        switch (index % 5) {
+          case 0:
+            assert.strictEqual(reply, 'OK');
+            break;
+          case 1:
+            assert.strictEqual(reply, index);
+            break;
+          case 2:
+            assert.ok(reply instanceof RespError);
+            assert.strictEqual(
+              reply.message,
+              `ERR unknown command 'NOTACOMMAND', with args beginning with: '${index}' `,
+            );
+            break;
+          case 3: {
+            assert.ok(reply instanceof RespError);
+            assert.strictEqual(
+              reply.message.slice(0, 'ERR unknown command '.length),
+              'ERR unknown command ',
+            );
+            assert.strictEqual(
+              reply.message.slice(-", with args beginning with: 'x' ".length),
+              ", with args beginning with: 'x' ",
+            );
+            break;
+          }
+          default:
+            assert.strictEqual(`${reply}`, `${index - 3}`);
+        }
+      }
 
       await assertStillHealthy('chaos');
     });
@@ -211,7 +260,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.ping(),
-        (error: Error) => error instanceof SolidisParserError,
+        (error: Error) =>
+          error instanceof SolidisParserError &&
+          error.message === "Unknown prefix '@' in Solidis response",
       );
 
       await waitFor(() => parserErrors.length > 0, {
@@ -219,7 +270,10 @@ describe('fragility', () => {
         description: 'parser error surfaced',
       });
 
-      assert.ok(parserErrors[0] instanceof SolidisParserError);
+      assert.strictEqual(
+        parserErrors[0].message,
+        "Unknown prefix '@' in Solidis response",
+      );
     });
 
     it('discards unsolicited replies without desynchronising correlation', async () => {
@@ -378,7 +432,8 @@ describe('fragility', () => {
         () => client.get(keyspace.key('vanish')),
         (error: Error) =>
           error instanceof SolidisClientError &&
-          /closed|connection/i.test(error.message),
+          error.message ===
+            'SolidisConnectionError: Solidis connection closed.',
       );
     });
 
@@ -416,12 +471,13 @@ describe('fragility', () => {
       await assert.rejects(
         client.send([['PING']]),
         (error: Error) =>
-          error.message.toLowerCase().includes('parser') ||
-          error.message.toLowerCase().includes('prefix'),
+          error instanceof SolidisParserError &&
+          error.message === "Unknown prefix '\x01' in Solidis response",
       );
 
       const elapsed = Date.now() - startTime;
 
+      assert.ok(elapsed >= 0);
       assert.ok(
         elapsed < 2000,
         `expected immediate rejection but took ${elapsed}ms`,
@@ -450,8 +506,8 @@ describe('fragility', () => {
 
       const blocked = client
         .blpop([blockKey], 0)
-        .then(() => false)
-        .catch(() => true);
+        .then(() => ({ rejected: false as const, error: undefined }))
+        .catch((error: unknown) => ({ rejected: true as const, error }));
 
       await waitFor(
         async () => {
@@ -466,7 +522,18 @@ describe('fragility', () => {
       );
       await killer.clientKill(clientId);
 
-      assert.strictEqual(await blocked, true);
+      const blockOutcome = await blocked;
+
+      assert.strictEqual(blockOutcome.rejected, true);
+
+      if (!(blockOutcome.error instanceof SolidisClientError)) {
+        assert.fail('forced disconnect must reject with SolidisClientError');
+      }
+
+      assert.strictEqual(
+        blockOutcome.error.message,
+        'SolidisConnectionError: Solidis connection closed.',
+      );
 
       await waitFor(
         async () => {
@@ -637,14 +704,14 @@ describe('fragility', () => {
         () => client.get(keyspace.key('quit')),
         (error: Error) =>
           error instanceof SolidisClientError &&
-          /not connected|closed/i.test(error.message),
+          error.message === 'Not connected with redis server.',
       );
 
       await assert.rejects(
         () => client.ping(),
         (error: Error) =>
           error instanceof SolidisClientError &&
-          /not connected|closed/i.test(error.message),
+          error.message === 'Not connected with redis server.',
       );
     });
 
@@ -664,7 +731,9 @@ describe('fragility', () => {
         () => client.connect(),
         (error: Error) =>
           error instanceof SolidisClientError &&
-          /connection failed|ECONNREFUSED/i.test(error.message),
+          error.message.startsWith(
+            'SolidisConnectionError: Error: connect ECONNREFUSED 127.0.0.1:',
+          ),
       );
 
       client.quit();
@@ -792,10 +861,12 @@ describe('fragility', () => {
       assert.ok(
         typeof connectOutcome === 'object' &&
           connectOutcome !== null &&
-          connectOutcome.status === 'rejected',
+          connectOutcome.status === 'rejected' &&
+          connectOutcome.error instanceof SolidisClientError,
         'connect() must reject once maxReadyCheckRetries is exhausted ' +
           'while the server keeps reporting loading:1',
       );
+      assert.strictEqual(connectOutcome.error.message, 'Ready check failed');
     });
 
     it('does not emit ready when the ready check encounters an error', async () => {
@@ -819,7 +890,7 @@ describe('fragility', () => {
       const error = await client.connect().catch((caught: Error) => caught);
 
       assert.ok(error instanceof SolidisClientError);
-      assert.match(error.message, /Ready check failed/i);
+      assert.strictEqual(error.message, 'Ready check failed');
 
       assert.strictEqual(
         readyFired,
@@ -852,6 +923,10 @@ describe('fragility', () => {
       }
 
       assert.ok(caught instanceof SolidisCommandError);
+      assert.strictEqual(
+        caught.message,
+        '[ACL LOG] Unexpected reply: not-an-array',
+      );
 
       assert.strictEqual(caught.getOriginalError(), undefined);
     });
@@ -896,19 +971,31 @@ describe('fragility', () => {
       const [resultA, resultB] = await Promise.all([commandA, commandB]);
 
       assert.ok(
-        resultA && typeof resultA === 'object' && 'rejected' in resultA,
+        typeof resultA === 'object' &&
+          resultA !== null &&
+          'rejected' in resultA &&
+          resultA.rejected === true,
         'Command A must be rejected by its own timeout',
       );
+      assert.ok(resultA.error instanceof SolidisRequesterError);
+      assert.strictEqual(
+        resultA.error.message,
+        'Solidis command(s) timed out after 200 ms.',
+      );
 
       assert.ok(
-        resultB && typeof resultB === 'object' && 'rejected' in resultB,
+        typeof resultB === 'object' &&
+          resultB !== null &&
+          'rejected' in resultB &&
+          resultB.rejected === true,
         'Command B must also be rejected',
       );
-
-      assert.ok(
-        'elapsed' in resultB,
-        'rejected result must include elapsed time',
+      assert.ok(resultB.error instanceof SolidisRequesterError);
+      assert.strictEqual(
+        resultB.error.message,
+        'Solidis command(s) timed out after 200 ms.',
       );
+
       assert.ok(
         resultB.elapsed >= commandTimeout + staggerDelay - 30,
         'Command B was rejected at ' +
@@ -917,6 +1004,10 @@ describe('fragility', () => {
           `at ~${commandTimeout}ms triggered recoveryFromFault which ` +
           'cascade-rejects ALL pending pipelines, cutting short ' +
           "Command B's legitimate timeout window",
+      );
+      assert.ok(
+        resultB.elapsed <= commandTimeout + staggerDelay + 500,
+        `Command B timeout took unexpectedly long: ${resultB.elapsed}ms`,
       );
     });
   });
@@ -985,9 +1076,11 @@ describe('fragility', () => {
 
       const result = await connectPromise;
 
+      assert.ok(result instanceof SolidisClientError);
       assert.ok(
-        result instanceof SolidisConnectionError ||
-          result instanceof SolidisClientError,
+        result.message.startsWith(
+          'SolidisConnectionError: Error: connect ECONNREFUSED 127.0.0.1:',
+        ),
         'connect() must reject when quit is called during retry',
       );
     });
@@ -1034,14 +1127,19 @@ describe('fragility', () => {
       await assert.rejects(
         () => client.send([['PING']]),
         (error: Error) =>
-          error instanceof SolidisParserError ||
-          error instanceof SolidisClientError,
+          error instanceof SolidisParserError &&
+          error.message === "Unknown prefix '\xff' in Solidis response",
       );
 
       await waitFor(() => parserErrors.length > 0, {
         timeout: 500,
         description: 'parser error surfaced from corrupt bytes in onData',
       });
+
+      assert.strictEqual(
+        parserErrors[0].message,
+        "Unknown prefix '\xff' in Solidis response",
+      );
     });
   });
 
@@ -1166,8 +1264,9 @@ describe('fragility', () => {
 
       await client.connect();
 
-      assert.ok(
+      assert.strictEqual(
         selectReceived,
+        true,
         'SELECT 15 must have been sent as a recovery step',
       );
 
@@ -1285,9 +1384,9 @@ describe('fragility', () => {
         { description: 'UNSUBSCRIBE frame to arrive at mock server' },
       );
 
-      assert.ok(
-        unsubFrame?.includes('ch'),
-        'empty UNSUBSCRIBE must be expanded to include the subscribed channel',
+      assert.strictEqual(
+        unsubFrame,
+        '*2\r\n$11\r\nUNSUBSCRIBE\r\n$2\r\nch\r\n',
       );
     });
 
@@ -1340,9 +1439,9 @@ describe('fragility', () => {
         { description: 'SUNSUBSCRIBE frame to arrive at mock server' },
       );
 
-      assert.ok(
-        sunsubFrame?.includes('sh.ch'),
-        'empty SUNSUBSCRIBE must be expanded to include the subscribed shard channel',
+      assert.strictEqual(
+        sunsubFrame,
+        '*2\r\n$12\r\nSUNSUBSCRIBE\r\n$5\r\nsh.ch\r\n',
       );
     });
 
@@ -1395,9 +1494,9 @@ describe('fragility', () => {
         { description: 'PUNSUBSCRIBE frame to arrive at mock server' },
       );
 
-      assert.ok(
-        punsubFrame?.includes('ch.*'),
-        'empty PUNSUBSCRIBE must be expanded to include the subscribed pattern',
+      assert.strictEqual(
+        punsubFrame,
+        '*2\r\n$12\r\nPUNSUBSCRIBE\r\n$4\r\nch.*\r\n',
       );
     });
   });
@@ -1438,7 +1537,10 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.tsMrange(0, 9999, { kind: 'test' }),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message ===
+            '[TS.MRANGE 0 9999 FILTER kind=test] Invalid reply: not-an-array',
       );
     });
 
@@ -1472,7 +1574,10 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.tsMrange(0, 9999, { kind: 'test' }),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message ===
+            '[TS.MRANGE 0 9999 FILTER kind=test] Invalid reply: not-an-array',
       );
     });
   });
@@ -1497,7 +1602,9 @@ describe('fragility', () => {
             void _;
           }
         },
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[SCAN] Unexpected reply: not-an-array',
       );
     });
 
@@ -1520,7 +1627,9 @@ describe('fragility', () => {
             void _;
           }
         },
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[SCAN] Invalid reply: not-array',
       );
     });
 
@@ -1539,7 +1648,10 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.xread(['stream'], ['0']),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message ===
+            '[XREAD STREAMS stream 0] Unexpected reply: not-an-array',
       );
     });
 
@@ -1558,7 +1670,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.xread(['stream'], ['0']),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[XREAD STREAMS stream 0] Invalid reply: scalar',
       );
     });
 
@@ -1579,7 +1693,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.xread(['stream'], ['0']),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[XREAD STREAMS stream 0] Invalid reply: bad',
       );
     });
 
@@ -1598,7 +1714,10 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.xrange('stream', '-', '+'),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message ===
+            '[XRANGE stream - +] Unexpected reply: not-an-array',
       );
     });
 
@@ -1617,7 +1736,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.xrange('stream', '-', '+'),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[STREAM] Invalid reply: scalar',
       );
     });
 
@@ -1636,7 +1757,10 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.tsRange('key', 0, 9999),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message ===
+            '[TS.RANGE key 0 9999] Unexpected reply: not-an-array',
       );
     });
 
@@ -1655,7 +1779,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.tsRange('key', 0, 9999),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[TS.RANGE key 0 9999] Invalid reply: scalar',
       );
     });
 
@@ -1679,7 +1805,9 @@ describe('fragility', () => {
             { fromlonlat: { longitude: 0, latitude: 0 } },
             { byradius: { radius: 100, unit: 'KM' } },
           ),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[GEOSEARCH] Unexpected reply: not-an-array',
       );
     });
 
@@ -1703,7 +1831,9 @@ describe('fragility', () => {
             { fromlonlat: { longitude: 0, latitude: 0 } },
             { byradius: { radius: 100, unit: 'KM' } },
           ),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[GEOSEARCH] Unexpected reply: 999',
       );
     });
 
@@ -1722,7 +1852,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.lmpop(['key'], 'LEFT'),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[LMPOP 1 key LEFT] Unexpected reply: not-an-array',
       );
     });
 
@@ -1741,7 +1873,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.lmpop(['key'], 'LEFT'),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[LMPOP 1 key LEFT] Unexpected reply: 999',
       );
     });
 
@@ -1760,7 +1894,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.lmpop(['key'], 'LEFT'),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[LMPOP 1 key LEFT] Unexpected reply: bad',
       );
     });
 
@@ -1779,7 +1915,10 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.bfScandump('key', 0),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message ===
+            '[BF.SCANDUMP key 0] Unexpected reply: not-an-array',
       );
     });
 
@@ -1800,7 +1939,10 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.bfScandump('key', 0),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message ===
+            '[BF.SCANDUMP key 0] Invalid reply: string-not-buffer',
       );
     });
 
@@ -1819,7 +1961,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.bfScandump('key', 0),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[BF.SCANDUMP key 0] Invalid reply: null',
       );
     });
 
@@ -1838,7 +1982,10 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.tsMrange(0, 9999, { kind: 'test' }),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message ===
+            '[TS.MRANGE 0 9999 FILTER kind=test] Unexpected reply: not-an-array',
       );
     });
 
@@ -1862,7 +2009,10 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.tsMrange(0, 9999, { kind: 'test' }),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message ===
+            '[TS.MRANGE 0 9999 FILTER kind=test] Invalid reply: 999',
       );
     });
 
@@ -1883,7 +2033,10 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.tsMrange(0, 9999, { kind: 'test' }),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message ===
+            '[TS.MRANGE 0 9999 FILTER kind=test] Invalid reply: bad',
       );
     });
 
@@ -1902,7 +2055,10 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.tsMrange(0, 9999, { kind: 'test' }),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message ===
+            '[TS.MRANGE 0 9999 FILTER kind=test] Invalid reply: scalar',
       );
     });
 
@@ -1926,7 +2082,10 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.tsMrange(0, 9999, { kind: 'test' }),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message ===
+            '[TS.MRANGE 0 9999 FILTER kind=test] Invalid reply: NaN/NaN',
       );
     });
 
@@ -1945,7 +2104,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.moduleList(),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[MODULE] Unexpected reply: scalar',
       );
     });
 
@@ -1964,7 +2125,10 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.moduleList(),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message ===
+            '[MODULE] Invalid reply: Missing required MODULE fields: ',
       );
     });
 
@@ -2075,7 +2239,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.role(),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[ROLE] Unexpected reply: sentinel,',
       );
     });
 
@@ -2096,7 +2262,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.role(),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[ROLE] Invalid reply: master,bad,',
       );
     });
 
@@ -2115,7 +2283,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.xpending('stream', 'grp'),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[XPENDING stream grp] Unexpected reply: not-array',
       );
     });
 
@@ -2134,7 +2304,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.xpending('stream', 'grp'),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[XPENDING stream grp] Invalid reply: 0,0',
       );
     });
 
@@ -2158,7 +2330,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.xpending('stream', 'grp'),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[XPENDING stream grp] Invalid reply: bad',
       );
     });
 
@@ -2182,7 +2356,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.xpending('stream', 'grp'),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[XPENDING stream grp] Invalid reply: only-one',
       );
     });
 
@@ -2201,7 +2377,10 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.xpending('stream', 'grp', '-', '+', 10),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message ===
+            '[XPENDING stream grp - + 10] Invalid reply: scalar',
       );
     });
 
@@ -2220,7 +2399,10 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.commandGetkeysandflags('SET', ['k', 'v']),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message ===
+            '[COMMAND GETKEYSANDFLAGS SET k v] Invalid reply: scalar',
       );
     });
 
@@ -2241,7 +2423,10 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.commandGetkeysandflags('SET', ['k', 'v']),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message ===
+            '[COMMAND GETKEYSANDFLAGS SET k v] Invalid reply: 999',
       );
     });
 
@@ -2260,7 +2445,10 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.commandGetkeysandflags('SET', ['k', 'v']),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message ===
+            '[COMMAND GETKEYSANDFLAGS SET k v] Unexpected reply: not-array',
       );
     });
 
@@ -2279,7 +2467,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.latencyHistogram('ping'),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[LATENCY HISTOGRAM ping] Unexpected reply: scalar',
       );
     });
 
@@ -2300,7 +2490,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.latencyHistogram('ping'),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[LATENCY HISTOGRAM ping] Invalid reply: 1,2',
       );
     });
 
@@ -2324,7 +2516,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.latencyHistogram('ping'),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[LATENCY HISTOGRAM ping] Invalid reply: bad',
       );
     });
 
@@ -2343,7 +2537,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.aclGetuser('default'),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[ACL GETUSER default] Unexpected reply: scalar',
       );
     });
 
@@ -2362,7 +2558,10 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.aclGetuser('default'),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message ===
+            '[ACL GETUSER default] Invalid reply: flags & passwords required',
       );
     });
 
@@ -2381,7 +2580,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.tsMget({ kind: 'test' }),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[TS.MGET FILTER kind=test] Invalid reply: scalar',
       );
     });
 
@@ -2405,7 +2606,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.tsMget({ kind: 'test' }),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[TS.MGET FILTER kind=test] Invalid reply: 999',
       );
     });
 
@@ -2426,7 +2629,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.tsMget({ kind: 'test' }),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[TS.MGET FILTER kind=test] Invalid reply: bad',
       );
     });
 
@@ -2445,7 +2650,10 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.tsMget({ kind: 'test' }),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message ===
+            '[TS.MGET FILTER kind=test] Unexpected reply: scalar',
       );
     });
 
@@ -2469,7 +2677,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.role(),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[ROLE] Invalid reply: master,100,not-an-array',
       );
     });
 
@@ -2517,7 +2727,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.xinfoStream('stream', true),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[XINFO STREAM stream FULL] Invalid reply: bad',
       );
     });
 
@@ -2557,7 +2769,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.latencyHistogram('ping'),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[LATENCY HISTOGRAM ping] Invalid reply: not-a-map',
       );
     });
 
@@ -2581,7 +2795,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.aclGetuser('default'),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[ACL GETUSER default] Invalid reply: bad',
       );
     });
 
@@ -2621,7 +2837,10 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.tsMget({ kind: 'test' }),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message ===
+            '[TS.MGET FILTER kind=test] Invalid reply: not-an-array',
       );
     });
 
@@ -2661,7 +2880,10 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.tsMget({ kind: 'test' }),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message ===
+            '[TS.MGET FILTER kind=test] Invalid reply: not-a-pair',
       );
     });
 
@@ -2685,7 +2907,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.xinfoStream('stream', true),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[XINFO STREAM stream FULL] Invalid reply: bad',
       );
     });
   });
@@ -2760,7 +2984,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.latencyLatest(),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[LATENCY LATEST] Invalid reply: bad',
       );
     });
 
@@ -2779,7 +3005,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.latencyHistory('command'),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[LATENCY HISTORY command] Invalid reply: bad,bad',
       );
     });
 
@@ -2798,7 +3026,9 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.latencyLatest(),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[LATENCY LATEST] Unexpected reply: scalar',
       );
     });
 
@@ -2817,7 +3047,10 @@ describe('fragility', () => {
 
       await assert.rejects(
         () => client.latencyHistory('command'),
-        (error: Error) => error instanceof SolidisCommandError,
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message ===
+            '[LATENCY HISTORY command] Unexpected reply: scalar',
       );
     });
 
@@ -2876,7 +3109,10 @@ describe('fragility', () => {
         .catch((error: Error) => error);
 
       assert.ok(result instanceof SolidisRequesterError);
-      assert.match(result.message, /timed out/i);
+      assert.strictEqual(
+        result.message,
+        'Solidis command(s) timed out after 200 ms.',
+      );
     });
 
     it('rejects with connection error when the server drops during a backpressured write', async () => {
@@ -2911,7 +3147,10 @@ describe('fragility', () => {
       const result = await pending;
 
       assert.ok(result instanceof SolidisClientError);
-      assert.match(result.message, /closed|connection/i);
+      assert.strictEqual(
+        result.message,
+        'SolidisConnectionError: Solidis connection closed.',
+      );
     });
   });
 
@@ -2933,12 +3172,9 @@ describe('fragility', () => {
 
       assert.deepStrictEqual(result, [['OK']]);
 
-      const probe = await client.send([['PING']]).catch(() => null);
+      const probe = await client.send([['PING']]);
 
-      assert.ok(
-        probe !== null,
-        'client must remain operable after extra unsolicited replies',
-      );
+      assert.deepStrictEqual(probe, [['OK']]);
     });
 
     it('rejects unsent requests held in the schedule queue on fault recovery', async () => {
@@ -3002,7 +3238,7 @@ describe('fragility', () => {
         .catch((error: Error) => error);
 
       assert.ok(result instanceof SolidisRequesterError);
-      assert.match(result.message, /not connected/i);
+      assert.strictEqual(result.message, 'Socket is not connected');
     });
 
     it('consumes remaining replies for a timed-out pipeline without desync', async () => {
@@ -3042,8 +3278,14 @@ describe('fragility', () => {
       assert.ok(
         typeof firstResult === 'object' &&
           firstResult !== null &&
-          'rejected' in firstResult,
+          'rejected' in firstResult &&
+          firstResult.rejected === true,
         'first command must be rejected by timeout',
+      );
+      assert.ok(firstResult.error instanceof SolidisRequesterError);
+      assert.strictEqual(
+        firstResult.error.message,
+        'Solidis command(s) timed out after 500 ms.',
       );
 
       const second = await client.send([['FAST']]);
@@ -3084,8 +3326,14 @@ describe('fragility', () => {
       assert.ok(
         typeof timedOut === 'object' &&
           timedOut !== null &&
-          'rejected' in timedOut,
+          'rejected' in timedOut &&
+          timedOut.rejected === true,
         'multi-command pipeline must reject once commandTimeout expires',
+      );
+      assert.ok(timedOut.error instanceof SolidisRequesterError);
+      assert.strictEqual(
+        timedOut.error.message,
+        'Solidis command(s) timed out after 100 ms.',
       );
 
       server.send(Buffer.from('+A\r\n+B\r\n+C\r\n', 'latin1'));
@@ -3126,7 +3374,10 @@ describe('fragility', () => {
         .catch((error: Error) => error);
 
       assert.ok(result instanceof SolidisRequesterError);
-      assert.match(result.message, /timed out/i);
+      assert.strictEqual(
+        result.message,
+        'Solidis command(s) timed out after 5000 ms.',
+      );
     });
 
     it('rejects when socket emits error during chunked write', async () => {
@@ -3159,6 +3410,10 @@ describe('fragility', () => {
         .catch((error: Error) => error);
 
       assert.ok(result instanceof SolidisRequesterError);
+      assert.strictEqual(
+        result.message,
+        'Solidis command(s) timed out after 3000 ms.',
+      );
     });
 
     it('receives late replies for a timed-out pipeline and keeps sync', async () => {
@@ -3192,8 +3447,14 @@ describe('fragility', () => {
       assert.ok(
         typeof timedOutResult === 'object' &&
           timedOutResult !== null &&
-          'timedOut' in timedOutResult,
+          'timedOut' in timedOutResult &&
+          timedOutResult.timedOut === true,
         'two-command pipeline must time out when server withholds replies',
+      );
+      assert.ok(timedOutResult.error instanceof SolidisRequesterError);
+      assert.strictEqual(
+        timedOutResult.error.message,
+        'Solidis command(s) timed out after 200 ms.',
       );
 
       server.send(Buffer.from('+LATE-1\r\n+LATE-2\r\n', 'latin1'));

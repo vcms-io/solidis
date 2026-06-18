@@ -104,13 +104,11 @@ describe('geo', () => {
 
     const meters = await client.geodist(key, 'Palermo', 'Catania');
 
-    assert.ok(meters !== null && meters > 160000);
-    assert.ok(meters !== null && meters < 170000);
+    assertCloseTo(meters ?? 0, 166274.1516, 0);
 
     const kilometers = await client.geodist(key, 'Palermo', 'Catania', 'KM');
 
-    assert.ok(kilometers !== null && kilometers > 160);
-    assert.ok(kilometers !== null && kilometers < 170);
+    assertCloseTo(kilometers ?? 0, 166.2742, 1);
 
     assert.strictEqual(await client.geodist(key, 'Palermo', 'Missing'), null);
   });
@@ -123,7 +121,8 @@ describe('geo', () => {
     const hashes = await client.geohash(key, ['Palermo', 'Catania']);
 
     assert.strictEqual(hashes.length, 2);
-    assert.ok(hashes[0] !== null && /^[0-9a-z]+$/.test(hashes[0]));
+    assert.strictEqual(hashes[0], 'sqc8b49rny0');
+    assert.strictEqual(hashes[1], 'sqdtr74hyu0');
   });
 
   it('searches within a radius', async () => {
@@ -159,6 +158,10 @@ describe('geo', () => {
     assertCloseTo(results[0].distance ?? 0, 56.4413, 1);
     assertCloseTo(results[0].position?.longitude ?? 0, catania.longitude, 2);
     assertCloseTo(results[0].position?.latitude ?? 0, catania.latitude, 2);
+    assert.strictEqual(results[1].member, 'Palermo');
+    assertCloseTo(results[1].distance ?? 0, 190.4424, 1);
+    assertCloseTo(results[1].position?.longitude ?? 0, palermo.longitude, 2);
+    assertCloseTo(results[1].position?.latitude ?? 0, palermo.latitude, 2);
   });
 
   it('searches from an existing member', async () => {
@@ -266,7 +269,10 @@ describe('geo', () => {
 
     /** Both seeded cities fall within 200km of (15, 37). */
     assert.strictEqual(result, 2);
-    assert.strictEqual(await client.zcard(destination), 2);
+    assert.deepStrictEqual(
+      [...(await client.zrange(destination, '0', '-1'))].sort(),
+      ['Catania', 'Palermo'],
+    );
   });
 
   it('stores GEORADIUSBYMEMBER results with STOREDIST option', async () => {
@@ -281,7 +287,15 @@ describe('geo', () => {
 
     /** Catania is ~166km from Palermo, so both land in the destination set. */
     assert.strictEqual(result, 2);
-    assert.strictEqual(await client.zcard(destination), 2);
+    assert.deepStrictEqual(
+      await client.zrange(destination, '0', '-1', {
+        withScores: true,
+      }),
+      [
+        { member: 'Palermo', score: 0 },
+        { member: 'Catania', score: 166.27415156960032 },
+      ],
+    );
   });
 
   it('returns null for missing member in GEOHASH', async () => {
@@ -292,7 +306,7 @@ describe('geo', () => {
     const hashes = await client.geohash(key, ['Palermo', 'NonExistent']);
 
     assert.strictEqual(hashes.length, 2);
-    assert.strictEqual(typeof hashes[0], 'string');
+    assert.strictEqual(hashes[0], 'sqc8b49rny0');
     assert.strictEqual(hashes[1], null);
   });
 
@@ -313,13 +327,17 @@ describe('geo', () => {
 
     assert.strictEqual(results.length, 2);
 
-    /** asc orders by distance; Catania (~56km) is nearer than Palermo (~166km). */
-    const [entry] = results;
-
-    assert.strictEqual(entry.member, 'Catania');
-    assertCloseTo(entry.distance ?? 0, 56.4413, 1);
-    assertCloseTo(entry.position?.longitude ?? 0, 15.087269, 2);
-    assertCloseTo(entry.position?.latitude ?? 0, 37.502669, 2);
+    /** asc orders by distance; Catania (~56km) is nearer than Palermo (~190km). */
+    assert.strictEqual(results[0].member, 'Catania');
+    assertCloseTo(results[0].distance ?? 0, 56.4413, 1);
+    assert.strictEqual(results[0].hash, 3479447370796909);
+    assertCloseTo(results[0].position?.longitude ?? 0, 15.087269, 2);
+    assertCloseTo(results[0].position?.latitude ?? 0, 37.502669, 2);
+    assert.strictEqual(results[1].member, 'Palermo');
+    assertCloseTo(results[1].distance ?? 0, 190.4424, 1);
+    assert.strictEqual(results[1].hash, 3479099956230698);
+    assertCloseTo(results[1].position?.longitude ?? 0, 13.361389, 2);
+    assertCloseTo(results[1].position?.latitude ?? 0, 38.115556, 2);
   });
 
   it('builds GEORADIUS with COUNT/ANY/ASC options', async () => {

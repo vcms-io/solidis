@@ -89,8 +89,6 @@ describe('reply-race', () => {
       secondaryPipeline,
     ]);
 
-    assert.strictEqual(primaryReplies.length, commandCount);
-
     assert.deepStrictEqual(
       primaryReplies,
       Array.from({ length: commandCount }, () => ['a']),
@@ -150,8 +148,6 @@ describe('reply-race', () => {
       primaryPipeline,
       secondaryPipeline,
     ]);
-
-    assert.strictEqual(primaryReplies.length, commandCount);
 
     assert.deepStrictEqual(
       primaryReplies,

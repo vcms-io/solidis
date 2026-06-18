@@ -31,6 +31,16 @@ redis.register_function{
 }
 `;
 
+const expectedSolidistestLibrary = {
+  libraryName: 'solidistest',
+  engine: 'LUA',
+  functions: [
+    { name: 'solidistest_echo', description: null, flags: [] },
+    { name: 'solidistest_get', description: null, flags: ['no-writes'] },
+    { name: 'solidistest_set', description: null, flags: [] },
+  ],
+};
+
 describe('function', () => {
   let client: FeaturedClient;
   let capabilities: ServerCapabilities;
@@ -85,15 +95,7 @@ describe('function', () => {
 
     const library = list.find((item) => item.libraryName === 'solidistest');
 
-    assert.deepStrictEqual(library, {
-      libraryName: 'solidistest',
-      engine: 'LUA',
-      functions: [
-        { name: 'solidistest_echo', description: null, flags: [] },
-        { name: 'solidistest_get', description: null, flags: ['no-writes'] },
-        { name: 'solidistest_set', description: null, flags: [] },
-      ],
-    });
+    assert.deepStrictEqual(library, expectedSolidistestLibrary);
   });
 
   it('filters FUNCTION LIST by library name pattern', async (context) => {
@@ -108,8 +110,7 @@ describe('function', () => {
       libraryNamePattern: 'solidistest',
     });
 
-    assert.strictEqual(list.length, 1);
-    assert.strictEqual(list[0].libraryName, 'solidistest');
+    assert.deepStrictEqual(list, [expectedSolidistestLibrary]);
   });
 
   it('invokes a function with FCALL', async (context) => {
@@ -122,7 +123,7 @@ describe('function', () => {
 
     const result = await client.fcall('solidistest_echo', [], ['hello']);
 
-    assert.strictEqual(`${result}`, 'hello');
+    assert.deepStrictEqual(result, Buffer.from('hello'));
   });
 
   it('mutates state through FCALL', async (context) => {
@@ -154,7 +155,7 @@ describe('function', () => {
 
     const result = await client.fcallRo('solidistest_get', [key], []);
 
-    assert.strictEqual(`${result}`, 'read-only');
+    assert.deepStrictEqual(result, Buffer.from('read-only'));
   });
 
   it('reports function stats with FUNCTION STATS', async (context) => {
@@ -184,22 +185,17 @@ describe('function', () => {
 
     const dump = await client.functionDump();
 
-    assert.ok(dump.length > 0);
-
     await client.functionFlush();
 
     const emptyList = await client.functionList();
 
-    assert.strictEqual(
-      emptyList.find((item) => item.libraryName === 'solidistest'),
-      undefined,
-    );
+    assert.deepStrictEqual(emptyList, []);
 
     await client.functionRestore(dump, { replace: true });
 
     const restored = await client.functionList();
 
-    assert.ok(restored.some((item) => item.libraryName === 'solidistest'));
+    assert.deepStrictEqual(restored, [expectedSolidistestLibrary]);
   });
 
   it('restores functions with FLUSH policy', async (context) => {
@@ -216,7 +212,7 @@ describe('function', () => {
 
     const list = await client.functionList();
 
-    assert.ok(list.some((item) => item.libraryName === 'solidistest'));
+    assert.deepStrictEqual(list, [expectedSolidistestLibrary]);
   });
 
   it('deletes a library with FUNCTION DELETE', async (context) => {
@@ -264,6 +260,10 @@ describe('function', () => {
     await client.functionLoad(libraryCode, true);
 
     assert.strictEqual(await client.functionFlush(true), 'OK');
+
+    const list = await client.functionList();
+
+    assert.deepStrictEqual(list, []);
   });
 
   it('returns function stats with engines and null running_script', async (context) => {

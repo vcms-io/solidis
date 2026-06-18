@@ -1,6 +1,7 @@
 /** Lua scripting: EVAL/EVAL_RO, SCRIPT LOAD/EVALSHA, SCRIPT EXISTS. */
 
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { after, before, describe, it } from 'node:test';
 
 import { RespError, SolidisCommandError } from '../../../sources/index.ts';
@@ -40,8 +41,10 @@ describe('scripting', () => {
       ['first', 'second'],
     );
 
-    assert.notStrictEqual(result, null);
-    assert.ok(Array.isArray(result));
+    if (!Array.isArray(result)) {
+      assert.fail('expected eval to return an array');
+    }
+
     assert.deepStrictEqual(
       result.map((item) => `${item}`),
       [key, 'first', 'second'],
@@ -63,10 +66,11 @@ describe('scripting', () => {
   it('loads and executes a cached script with EVALSHA', async () => {
     const script = "return redis.call('INCR', KEYS[1])";
     const key = keyspace.key('evalsha');
+    const expectedSha1 = createHash('sha1').update(script).digest('hex');
 
     const sha1 = await client.scriptLoad(script);
 
-    assert.match(sha1, /^[0-9a-f]{40}$/);
+    assert.strictEqual(sha1, expectedSha1);
     assert.strictEqual(await client.evalsha(sha1, [key], []), 1);
     assert.strictEqual(await client.evalsha(sha1, [key], []), 2);
   });
@@ -87,9 +91,9 @@ describe('scripting', () => {
     const result = await client.evalsha('0'.repeat(40), [], []);
 
     assert.ok(result instanceof RespError);
-    assert.match(
+    assert.strictEqual(
       result.message,
-      /^NOSCRIPT No matching script\. Please use EVAL\./,
+      'NOSCRIPT No matching script. Please use EVAL.',
     );
   });
 

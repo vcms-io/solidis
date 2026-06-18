@@ -112,7 +112,13 @@ describe('stress-correlation', () => {
           case 4: {
             const key = keyspace.key('setget', tag);
             const value = `v-${tag}`;
-            await client.set(key, value);
+            const setReply = await client.set(key, value);
+
+            if (setReply !== 'OK') {
+              mismatches += 1;
+              recordSample(`set -> ${setReply}`);
+            }
+
             const reply = await client.get(key);
 
             if (reply !== value) {

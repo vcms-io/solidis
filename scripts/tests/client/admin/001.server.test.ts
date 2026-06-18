@@ -37,26 +37,41 @@ describe('server', () => {
   });
 
   it('returns a numeric [seconds, microseconds] pair', async () => {
+    const beforeSeconds = Math.floor(Date.now() / 1000);
     const [seconds, microseconds] = await client.time();
+    const afterSeconds = Math.floor(Date.now() / 1000);
 
-    assert.strictEqual(typeof seconds, 'number');
-    assert.strictEqual(typeof microseconds, 'number');
-    assert.ok(seconds > 1_600_000_000);
-    assert.ok(microseconds >= 0);
-    assert.ok(microseconds < 1_000_000);
+    assert.ok(seconds >= beforeSeconds && seconds <= afterSeconds);
+    assert.ok(microseconds >= 0 && microseconds < 1_000_000);
   });
 
   it('parses INFO into a record', async () => {
     const info = await client.info('server');
 
-    assert.match(info.redis_version ?? info.valkey_version ?? '', /^\d+\.\d+/);
-    assert.strictEqual(typeof (info.redis_mode ?? info.server_name), 'string');
+    assert.strictEqual(info.redis_mode ?? info.server_name, 'standalone');
+    assert.match(
+      info.redis_version ?? info.valkey_version ?? '',
+      /^\d+\.\d+\.\d+$/,
+    );
   });
 
   it('reads and writes runtime configuration', async () => {
     const original = await client.configGet('maxmemory-policy');
+    const validPolicies = [
+      'noeviction',
+      'allkeys-lru',
+      'volatile-lru',
+      'allkeys-random',
+      'volatile-random',
+      'volatile-ttl',
+      'allkeys-lfu',
+      'volatile-lfu',
+    ];
 
-    assert.ok((original['maxmemory-policy'] ?? '').length > 0);
+    assert.ok(
+      validPolicies.includes(original['maxmemory-policy'] ?? ''),
+      'maxmemory-policy must be a recognised Redis eviction policy',
+    );
 
     assert.strictEqual(
       await client.configSet('maxmemory-policy', 'allkeys-lru'),
@@ -77,7 +92,9 @@ describe('server', () => {
     const dedicated = await createClient();
 
     try {
-      assert.ok((await dedicated.clientId()) > 0);
+      const clientIdentifier = await dedicated.clientId();
+
+      assert.ok(Number.isInteger(clientIdentifier) && clientIdentifier > 0);
       assert.strictEqual(await dedicated.clientSetname('solidis-test'), 'OK');
       assert.strictEqual(await dedicated.clientGetname(), 'solidis-test');
     } finally {
@@ -86,9 +103,10 @@ describe('server', () => {
   });
 
   it('counts keys in the current database with DBSIZE', async () => {
+    const before = await client.dbsize();
     await client.set(keyspace.key('dbsize'), 'value');
 
-    assert.ok((await client.dbsize()) > 0);
+    assert.strictEqual(await client.dbsize(), before + 1);
   });
 
   it('swaps databases', async () => {
@@ -102,9 +120,12 @@ describe('server', () => {
       await swapClient.set(key, 'in-ten');
 
       assert.strictEqual(await swapClient.swapdb(10, 11), 'OK');
+      assert.strictEqual(await swapClient.get(key), null);
       assert.strictEqual(await probeClient.get(key), 'in-ten');
 
       await swapClient.swapdb(10, 11);
+      assert.strictEqual(await swapClient.get(key), 'in-ten');
+      assert.strictEqual(await probeClient.get(key), null);
       await swapClient.del(key);
     } finally {
       await closeClient(swapClient);
@@ -113,7 +134,9 @@ describe('server', () => {
   });
 
   it('renders LOLWUT', async () => {
-    assert.ok((await client.lolwut()).length > 0);
+    const output = await client.lolwut();
+
+    assert.ok(output.startsWith('Redis ver.'));
   });
 
   it('reports a structured replication role', async () => {
@@ -122,6 +145,7 @@ describe('server', () => {
     assert.strictEqual(role.role, 'master');
 
     if (role.role === 'master') {
+      assert.strictEqual(role.replicationOffset, 0);
       assert.deepStrictEqual(role.slaves, []);
     }
   });
@@ -246,6 +270,12 @@ describe('server', () => {
     assert.strictEqual(info.version, 20000);
     assert.strictEqual(info.path, '/usr/lib/redis/modules/rejson.so');
     assert.deepStrictEqual(info.arguments, ['arg1', 'arg2']);
+    assert.deepStrictEqual(Object.keys(info).sort(), [
+      'arguments',
+      'name',
+      'path',
+      'version',
+    ]);
   });
 
   it('parses recursive string record from reply', async () => {
@@ -265,5 +295,10 @@ describe('server', () => {
     assert.strictEqual(result.name, 'get');
     assert.strictEqual(result.summary, 'Get the value of a key');
     assert.deepStrictEqual(result.arguments, { key: 'string' });
+    assert.deepStrictEqual(Object.keys(result).sort(), [
+      'arguments',
+      'name',
+      'summary',
+    ]);
   });
 });

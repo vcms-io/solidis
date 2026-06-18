@@ -34,7 +34,11 @@ describe('concurrency', () => {
 
     const results = await Promise.all(range(2000).map(() => client.incr(key)));
 
-    assert.strictEqual(Math.max(...results), 2000);
+    assert.strictEqual(results.length, 2000);
+    assert.deepStrictEqual(
+      [...new Set(results)].sort((left, right) => left - right),
+      range(2000).map((index) => index + 1),
+    );
     assert.strictEqual(await client.get(key), '2000');
   });
 
@@ -65,12 +69,18 @@ describe('concurrency', () => {
     const clients = await Promise.all(range(32).map(() => createClient()));
 
     try {
-      await Promise.all(
+      const workerResults = await Promise.all(
         clients.map((worker) =>
           Promise.all(range(50).map(() => worker.incr(key))),
         ),
       );
+      const incrementResults = workerResults.flat();
 
+      assert.strictEqual(incrementResults.length, 32 * 50);
+      assert.deepStrictEqual(
+        [...new Set(incrementResults)].sort((left, right) => left - right),
+        range(32 * 50).map((index) => index + 1),
+      );
       assert.strictEqual(await client.get(key), `${32 * 50}`);
     } finally {
       await Promise.all(clients.map((worker) => closeClient(worker)));
@@ -101,6 +111,15 @@ describe('concurrency', () => {
     assert.strictEqual(await client.scard(set), 500);
     assert.strictEqual(await client.hlen(hash), 500);
     assert.strictEqual(await client.zcard(sortedSet), 500);
+
+    const listItems = await client.lrange(list, 0, -1);
+
+    assert.deepStrictEqual(
+      listItems
+        .map((item) => Number(item.replace('item-', '')))
+        .sort((left, right) => left - right),
+      range(500),
+    );
   });
 
   it('processes very large pipelines submitted with send()', async () => {
@@ -117,6 +136,16 @@ describe('concurrency', () => {
     assert.strictEqual(
       replies.every((reply) => reply[0] === 'OK'),
       true,
+    );
+
+    const sampleIndices = [0, 1, 4999, 9999];
+    const readbacks = await Promise.all(
+      sampleIndices.map((index) => client.get(keyspace.key('pipeline', index))),
+    );
+
+    assert.deepStrictEqual(
+      readbacks,
+      sampleIndices.map((index) => `${index}`),
     );
   });
 
@@ -136,10 +165,12 @@ describe('concurrency', () => {
       );
     }
 
-    assert.strictEqual(
-      await client.get(keyspace.key('sequential', 1999)),
-      '1999',
-    );
+    for (const index of [0, 500, 999, 1999]) {
+      assert.strictEqual(
+        await client.get(keyspace.key('sequential', index)),
+        `${index}`,
+      );
+    }
   });
 
   it('interleaves reads and writes on shared keys without corruption', async () => {
@@ -157,5 +188,9 @@ describe('concurrency', () => {
     assert.strictEqual(length, 1000);
     assert.strictEqual(items.length, 1000);
     assert.strictEqual(new Set(items).size, 1000);
+    assert.deepStrictEqual(
+      items.map((item) => Number(item)).sort((left, right) => left - right),
+      range(1000),
+    );
   });
 });

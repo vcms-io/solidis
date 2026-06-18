@@ -14,6 +14,7 @@ import {
   createClient,
   MockRedisServer,
   mockClientOptions,
+  resolveConnectionTarget,
   waitFor,
 } from '../../utils/index.ts';
 
@@ -40,7 +41,7 @@ describe('lifecycle-edge', () => {
     await client.hset(key, 'a', '1');
 
     const all = await client.hgetall(key);
-    assert.strictEqual(all.a, '1');
+    assert.deepStrictEqual(all, { a: '1' });
 
     await client.del(key);
   });
@@ -57,31 +58,29 @@ describe('lifecycle-edge', () => {
 
     client.on('error', () => {});
 
+    // TLS against a plain TCP endpoint fails after retries in this environment
+    // because no TLS listener is bound on SOLIDIS_TEST_HOST.
     await assert.rejects(
       () => client.connect(),
       (error: Error) => {
-        if (
-          !(
-            error instanceof SolidisClientError ||
-            error instanceof SolidisConnectionError
-          )
-        ) {
+        if (error instanceof SolidisClientError) {
+          if (
+            error.message === 'SolidisClient connection failed after 0 retries.'
+          ) {
+            const original = error.getOriginalError();
+
+            return (
+              original instanceof SolidisConnectionError &&
+              original.message === 'SolidisClient connection timeout (500 ms).'
+            );
+          }
+
           return false;
         }
 
-        const messages = [error.message];
-        const original = error.getOriginalError();
-
-        if (original instanceof Error) {
-          messages.push(original.message);
-        }
-
-        const combined = messages.join(' ');
-
         return (
-          /tls|ssl|handshake|wrong version/i.test(combined) ||
-          /ECONNRESET|closed/i.test(combined) ||
-          /connection timeout/i.test(combined)
+          error instanceof SolidisConnectionError &&
+          error.message === 'SolidisClient connection failed after 0 retries.'
         );
       },
     );
@@ -193,10 +192,20 @@ describe('lifecycle-edge', () => {
     await client.set(`solidis:test:debug:${Date.now()}`, 'v');
     await client.ping();
 
-    await waitFor(() => entries.length > 0, {
-      timeout: 1000,
-      description: 'debug entries emitted',
-    });
+    await waitFor(
+      () =>
+        entries.some(
+          (entry) =>
+            typeof entry === 'object' &&
+            entry !== null &&
+            'message' in entry &&
+            String(entry.message).includes('$3\r\nSET\r\n'),
+        ),
+      {
+        timeout: 1000,
+        description: 'SET debug entry emitted',
+      },
+    );
 
     const messages = entries.map((entry) =>
       typeof entry === 'object' && entry !== null && 'message' in entry
@@ -204,8 +213,20 @@ describe('lifecycle-edge', () => {
         : '',
     );
 
-    assert.ok(messages.some((message) => message.includes('SET')));
-    assert.ok(messages.some((message) => message.includes('PING')));
+    assert.ok(
+      messages.some(
+        (message) =>
+          message.startsWith('Solidis requester serialized command:') &&
+          message.includes('$3\r\nSET\r\n'),
+      ),
+    );
+    assert.ok(
+      messages.some(
+        (message) =>
+          message ===
+          'Solidis requester serialized command: *1\r\n$4\r\nPING\r\n',
+      ),
+    );
   });
 
   it('emits the "reconnected" event after a successful reconnection', async () => {
@@ -243,6 +264,7 @@ describe('lifecycle-edge', () => {
   });
 
   it('does not expose credentials in the uri getter', () => {
+    const target = resolveConnectionTarget();
     const client = track(
       new SolidisFeaturedClient(
         buildClientOptions({
@@ -252,9 +274,9 @@ describe('lifecycle-edge', () => {
       ),
     );
 
-    assert.ok(
-      !client.uri.includes('s3cret-token'),
-      'uri must not contain plaintext password',
+    assert.strictEqual(
+      client.uri,
+      `redis://admin:***@${target.host}:${target.port}`,
     );
   });
 
@@ -269,7 +291,8 @@ describe('lifecycle-edge', () => {
     await assert.rejects(
       () => client.connect(),
       (error: Error) =>
-        error instanceof SolidisClientError && /closed/i.test(error.message),
+        error instanceof SolidisClientError &&
+        error.message === 'Cannot connect after the client was closed.',
     );
   });
 
@@ -343,11 +366,11 @@ describe('lifecycle-edge', () => {
 
     const error = await errorPromise;
 
-    assert.ok(
-      error instanceof SolidisClientError ||
-        error instanceof SolidisConnectionError,
+    assert.ok(error instanceof SolidisClientError);
+    assert.strictEqual(
+      error.message,
+      'SolidisConnectionError: Error: connect ECONNREFUSED 127.0.0.1:1',
     );
-    assert.match(error.message, /ECONNREFUSED|connection timeout/i);
   });
 
   it('skips standalone AUTH when HELLO carries credentials (RESP3 single-HELLO auth)', async () => {

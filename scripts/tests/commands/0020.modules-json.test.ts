@@ -49,8 +49,7 @@ describe('modules-json', () => {
 
     const raw = await client.jsonGet(key);
 
-    assert.ok(raw !== null);
-    assert.deepStrictEqual(JSON.parse(raw), document);
+    assert.deepStrictEqual(JSON.parse(raw ?? ''), document);
   });
 
   it('reads a nested path', async (context) => {
@@ -65,8 +64,7 @@ describe('modules-json', () => {
 
     const name = await client.jsonGet(key, { path: ['$.user.name'] });
 
-    assert.ok(name !== null);
-    assert.deepStrictEqual(JSON.parse(name), ['jay']);
+    assert.deepStrictEqual(JSON.parse(name ?? ''), ['jay']);
   });
 
   it('reports value types', async (context) => {
@@ -97,8 +95,7 @@ describe('modules-json', () => {
 
     const result = await client.jsonNumincrby(key, '$.hits', 5);
 
-    assert.ok(result !== null);
-    assert.deepStrictEqual(JSON.parse(result), [15]);
+    assert.deepStrictEqual(JSON.parse(result ?? ''), [15]);
   });
 
   it('appends to arrays and reports length', async (context) => {
@@ -116,6 +113,9 @@ describe('modules-json', () => {
       [4],
     );
     assert.deepStrictEqual(await client.jsonArrlen(key, '$.items'), [4]);
+    assert.deepStrictEqual(JSON.parse((await client.jsonGet(key)) ?? ''), {
+      items: [1, 2, 3, 4],
+    });
   });
 
   it('appends to strings', async (context) => {
@@ -132,6 +132,10 @@ describe('modules-json', () => {
       await client.jsonStrappend(key, '" world"', '$.greeting'),
       [11],
     );
+    assert.deepStrictEqual(
+      JSON.parse((await client.jsonGet(key, { path: ['$.greeting'] })) ?? ''),
+      ['hello world'],
+    );
   });
 
   it('toggles booleans', async (context) => {
@@ -145,7 +149,15 @@ describe('modules-json', () => {
     await client.jsonSet(key, '$', '{"active":true}');
 
     assert.deepStrictEqual(await client.jsonToggle(key, '$.active'), [0]);
+    assert.deepStrictEqual(
+      JSON.parse((await client.jsonGet(key, { path: ['$.active'] })) ?? ''),
+      [false],
+    );
     assert.deepStrictEqual(await client.jsonToggle(key, '$.active'), [1]);
+    assert.deepStrictEqual(
+      JSON.parse((await client.jsonGet(key, { path: ['$.active'] })) ?? ''),
+      [true],
+    );
   });
 
   it('lists object keys', async (context) => {
@@ -160,10 +172,13 @@ describe('modules-json', () => {
 
     const keys = await client.jsonObjkeys(key, '$');
 
-    assert.strictEqual(keys.length, 1);
-
-    assert.ok(Array.isArray(keys[0]));
-    assert.deepStrictEqual([...keys[0]].sort(), ['a', 'b', 'c']);
+    assert.deepStrictEqual(
+      keys.map((entry) => {
+        assert.ok(Array.isArray(entry));
+        return [...entry].sort();
+      }),
+      [['a', 'b', 'c']],
+    );
   });
 
   it('deletes a path', async (context) => {
@@ -180,8 +195,7 @@ describe('modules-json', () => {
 
     const remaining = await client.jsonGet(key);
 
-    assert.ok(remaining !== null);
-    assert.deepStrictEqual(JSON.parse(remaining), { keep: 1 });
+    assert.deepStrictEqual(JSON.parse(remaining ?? ''), { keep: 1 });
   });
 
   it('finds an element index in an array with JSON.ARRINDEX', async (context) => {
@@ -221,8 +235,7 @@ describe('modules-json', () => {
 
     const raw = await client.jsonGet(key, { path: ['$.items'] });
 
-    assert.ok(raw !== null);
-    assert.deepStrictEqual(JSON.parse(raw), [[1, 2, 3, 4]]);
+    assert.deepStrictEqual(JSON.parse(raw ?? ''), [[1, 2, 3, 4]]);
   });
 
   it('pops from an array with JSON.ARRPOP', async (context) => {
@@ -238,6 +251,10 @@ describe('modules-json', () => {
     const popped = await client.jsonArrpop(key, '$.items');
 
     assert.deepStrictEqual(popped, ['30']);
+    assert.deepStrictEqual(
+      JSON.parse((await client.jsonGet(key, { path: ['$.items'] })) ?? ''),
+      [[10, 20]],
+    );
   });
 
   it('trims an array with JSON.ARRTRIM', async (context) => {
@@ -257,8 +274,7 @@ describe('modules-json', () => {
 
     const raw = await client.jsonGet(key, { path: ['$.items'] });
 
-    assert.ok(raw !== null);
-    assert.deepStrictEqual(JSON.parse(raw), [[1, 2, 3]]);
+    assert.deepStrictEqual(JSON.parse(raw ?? ''), [[1, 2, 3]]);
   });
 
   it('clears containers with JSON.CLEAR', async (context) => {
@@ -275,8 +291,7 @@ describe('modules-json', () => {
 
     const raw = await client.jsonGet(key);
 
-    assert.ok(raw !== null);
-    assert.deepStrictEqual(JSON.parse(raw), { obj: {}, arr: [] });
+    assert.deepStrictEqual(JSON.parse(raw ?? ''), { obj: {}, arr: [] });
   });
 
   it('reports memory usage with JSON.DEBUG MEMORY', async (context) => {
@@ -292,7 +307,7 @@ describe('modules-json', () => {
     const memory = await client.jsonDebug('MEMORY', key);
 
     assert.ok(typeof memory === 'number');
-    assert.ok(memory > 0);
+    assert.ok(memory >= 50 && memory <= 500);
   });
 
   it('aliases deletion with JSON.FORGET', async (context) => {
@@ -309,8 +324,7 @@ describe('modules-json', () => {
 
     const raw = await client.jsonGet(key);
 
-    assert.ok(raw !== null);
-    assert.deepStrictEqual(JSON.parse(raw), { a: 1 });
+    assert.deepStrictEqual(JSON.parse(raw ?? ''), { a: 1 });
   });
 
   it('merges documents with JSON.MERGE', async (context) => {
@@ -327,8 +341,7 @@ describe('modules-json', () => {
 
     const raw = await client.jsonGet(key);
 
-    assert.ok(raw !== null);
-    assert.deepStrictEqual(JSON.parse(raw), { a: 1, b: 3, c: 4 });
+    assert.deepStrictEqual(JSON.parse(raw ?? ''), { a: 1, b: 3, c: 4 });
   });
 
   it('reads multiple keys with JSON.MGET', async (context) => {
@@ -345,11 +358,8 @@ describe('modules-json', () => {
 
     const results = await client.jsonMget([key1, key2], '$.val');
 
-    assert.ok(Array.isArray(results));
-    assert.ok(results[0] !== null);
-    assert.ok(results[1] !== null);
-    assert.deepStrictEqual(JSON.parse(results[0]), [1]);
-    assert.deepStrictEqual(JSON.parse(results[1]), [2]);
+    assert.deepStrictEqual(JSON.parse(results[0] ?? ''), [1]);
+    assert.deepStrictEqual(JSON.parse(results[1] ?? ''), [2]);
   });
 
   it('writes multiple keys with JSON.MSET', async (context) => {
@@ -372,10 +382,8 @@ describe('modules-json', () => {
     const raw1 = await client.jsonGet(key1);
     const raw2 = await client.jsonGet(key2);
 
-    assert.ok(raw1 !== null);
-    assert.ok(raw2 !== null);
-    assert.deepStrictEqual(JSON.parse(raw1), { x: 1 });
-    assert.deepStrictEqual(JSON.parse(raw2), { x: 2 });
+    assert.deepStrictEqual(JSON.parse(raw1 ?? ''), { x: 1 });
+    assert.deepStrictEqual(JSON.parse(raw2 ?? ''), { x: 2 });
   });
 
   it('multiplies a numeric field with JSON.NUMMULTBY', async (context) => {
@@ -390,8 +398,7 @@ describe('modules-json', () => {
 
     const result = await client.jsonNummultby(key, '$.factor', 4);
 
-    assert.ok(result !== null);
-    assert.deepStrictEqual(JSON.parse(result), [12]);
+    assert.deepStrictEqual(JSON.parse(result ?? ''), [12]);
   });
 
   it('reports object length with JSON.OBJLEN', async (context) => {
@@ -433,15 +440,17 @@ describe('modules-json', () => {
     const result = await client.jsonResp(key);
 
     assert.ok(Array.isArray(result));
-
     if (capabilities.isValkey) {
-      /** Valkey JSON returns a flat array including nested values. */
-      assert.ok(result.length >= 1);
-    } else {
-      /** Redis ReJSON RESP form: `['{', <key>, <value>, ...]`. */
+      /**
+       * Valkey JSON.RESP nests each object field as a [key, value] pair after
+       * the leading `{` sentinel.
+       */
+      assert.strictEqual(result.length, 3);
       assert.strictEqual(result[0], '{');
-      assert.strictEqual(`${result[1]}`, 'num');
-      assert.strictEqual(result[2], 42);
+      assert.deepStrictEqual(result[1], ['num', 42]);
+    } else {
+      /** Redis ReJSON RESP form: `['{', <key>, <value>]`. */
+      assert.deepStrictEqual(result, ['{', Buffer.from('num'), 42]);
     }
   });
 
@@ -542,8 +551,10 @@ describe('modules-json', () => {
 
     const result = await client.jsonDebug('HELP');
 
-    assert.ok(result.length > 0);
-    assert.ok(result.every((line) => typeof line === 'string'));
+    assert.deepStrictEqual(result, [
+      'MEMORY <key> [path] - reports memory usage',
+      'HELP                - this message',
+    ]);
   });
 
   it('reports JSON.DEBUG MEMORY with a path', async (context) => {
@@ -559,12 +570,7 @@ describe('modules-json', () => {
     const result = await client.jsonDebug('MEMORY', key, '$.user');
 
     /** JSONPath form returns one byte-size measurement per match. */
-    assert.ok(Array.isArray(result));
-    assert.strictEqual(result.length, 1);
-
-    const [bytes] = result;
-
-    assert.ok(typeof bytes === 'number' && bytes > 0);
+    assert.deepStrictEqual(result, [128]);
   });
 
   it('returns root-level keys with JSON.OBJKEYS (no path)', async (context) => {
@@ -594,16 +600,11 @@ describe('modules-json', () => {
 
     const result = await client.jsonObjkeys(key, '$.str');
 
-    assert.ok(Array.isArray(result));
-
     if (capabilities.isValkey) {
       /** Valkey wraps non-object paths as an empty nested array. */
-      assert.ok(
-        Array.isArray(result[0]) && result[0].length === 0,
-        `expected [[]] but got ${JSON.stringify(result)}`,
-      );
+      assert.deepStrictEqual(result, [[]]);
     } else {
-      assert.strictEqual(result[0], null);
+      assert.deepStrictEqual(result, [null]);
     }
   });
 
