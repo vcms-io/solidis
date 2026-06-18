@@ -41,10 +41,6 @@ describe('scripting', () => {
 
     assert.ok(Array.isArray(result));
 
-    if (!Array.isArray(result)) {
-      return;
-    }
-
     assert.deepStrictEqual(
       result.map((item) => `${item}`),
       [key, 'first', 'second'],

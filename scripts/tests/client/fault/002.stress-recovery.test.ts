@@ -8,7 +8,6 @@ import {
   closeClient,
   createClient,
   createKeyspace,
-  delay,
   range,
   waitFor,
 } from '../../utils/index.ts';
@@ -76,8 +75,8 @@ describe('stress-recovery', () => {
           });
       });
 
-      await delay(5);
-      await killer.clientKill(clientId).catch(() => {});
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      await killer.clientKill(clientId);
 
       await Promise.all(outcomes);
     }
@@ -210,14 +209,18 @@ describe('stress-recovery', () => {
       .then(() => 'resolved' as const)
       .catch(() => 'rejected' as const);
 
-    await delay(2);
-    await killer.clientKill(clientId).catch(() => {});
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    await killer.clientKill(clientId);
 
     const outcome = await settled;
 
     console.log(`[stress-recovery] giant-pipeline kill outcome=${outcome}`);
 
-    assert.ok(outcome === 'resolved' || outcome === 'rejected');
+    assert.strictEqual(
+      outcome,
+      'rejected',
+      'a pipeline killed mid-flight must be rejected',
+    );
 
     await waitUntilReady(client);
     assert.strictEqual(
@@ -247,21 +250,30 @@ describe('stress-recovery', () => {
         .then(() => 'resolved')
         .catch(() => 'rejected');
 
-      await delay(120);
+      await waitFor(
+        async () => {
+          try {
+            await victim.echo('probe');
+            return false;
+          } catch {
+            return true;
+          }
+        },
+        { timeout: 3000, interval: 10, description: 'blpop command timeout' },
+      );
 
       const echoPromise = victim
         .echo('FRESH')
         .then((value) => value)
         .catch((error: Error) => `THREW:${error.message}`);
 
-      await delay(20);
+      await new Promise<void>((resolve) => setImmediate(resolve));
 
       await pusher.rpush(key, 'STALE-PAYLOAD');
 
       const echoed = await echoPromise;
 
-      await blocked;
-
+      assert.strictEqual(await blocked, 'rejected');
       assert.strictEqual(echoed, 'FRESH');
     } finally {
       await closeClient(pusher);

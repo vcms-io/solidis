@@ -51,11 +51,7 @@ describe('modules-json', () => {
 
     assert.strictEqual(typeof raw, 'string');
 
-    if (typeof raw !== 'string') {
-      return;
-    }
-
-    assert.deepStrictEqual(JSON.parse(raw), document);
+    assert.deepStrictEqual(JSON.parse(raw as string), document);
   });
 
   it('reads a nested path', async (context) => {
@@ -72,11 +68,7 @@ describe('modules-json', () => {
 
     assert.strictEqual(typeof name, 'string');
 
-    if (typeof name !== 'string') {
-      return;
-    }
-
-    assert.deepStrictEqual(JSON.parse(name), ['jay']);
+    assert.deepStrictEqual(JSON.parse(name as string), ['jay']);
   });
 
   it('reports value types', async (context) => {
@@ -109,11 +101,7 @@ describe('modules-json', () => {
 
     assert.strictEqual(typeof result, 'string');
 
-    if (typeof result !== 'string') {
-      return;
-    }
-
-    assert.deepStrictEqual(JSON.parse(result), [15]);
+    assert.deepStrictEqual(JSON.parse(result as string), [15]);
   });
 
   it('appends to arrays and reports length', async (context) => {
@@ -178,10 +166,6 @@ describe('modules-json', () => {
     assert.strictEqual(keys.length, 1);
     assert.ok(Array.isArray(keys[0]));
 
-    if (!Array.isArray(keys[0])) {
-      return;
-    }
-
     assert.deepStrictEqual([...keys[0]].sort(), ['a', 'b', 'c']);
   });
 
@@ -201,11 +185,7 @@ describe('modules-json', () => {
 
     assert.strictEqual(typeof remaining, 'string');
 
-    if (typeof remaining !== 'string') {
-      return;
-    }
-
-    assert.deepStrictEqual(JSON.parse(remaining), { keep: 1 });
+    assert.deepStrictEqual(JSON.parse(remaining as string), { keep: 1 });
   });
 
   it('finds an element index in an array with JSON.ARRINDEX', async (context) => {
@@ -247,11 +227,7 @@ describe('modules-json', () => {
 
     assert.strictEqual(typeof raw, 'string');
 
-    if (typeof raw !== 'string') {
-      return;
-    }
-
-    assert.deepStrictEqual(JSON.parse(raw), [[1, 2, 3, 4]]);
+    assert.deepStrictEqual(JSON.parse(raw as string), [[1, 2, 3, 4]]);
   });
 
   it('pops from an array with JSON.ARRPOP', async (context) => {
@@ -288,11 +264,7 @@ describe('modules-json', () => {
 
     assert.strictEqual(typeof raw, 'string');
 
-    if (typeof raw !== 'string') {
-      return;
-    }
-
-    assert.deepStrictEqual(JSON.parse(raw), [[1, 2, 3]]);
+    assert.deepStrictEqual(JSON.parse(raw as string), [[1, 2, 3]]);
   });
 
   it('clears containers with JSON.CLEAR', async (context) => {
@@ -311,11 +283,7 @@ describe('modules-json', () => {
 
     assert.strictEqual(typeof raw, 'string');
 
-    if (typeof raw !== 'string') {
-      return;
-    }
-
-    assert.deepStrictEqual(JSON.parse(raw), { obj: {}, arr: [] });
+    assert.deepStrictEqual(JSON.parse(raw as string), { obj: {}, arr: [] });
   });
 
   it('reports memory usage with JSON.DEBUG MEMORY', async (context) => {
@@ -350,11 +318,7 @@ describe('modules-json', () => {
 
     assert.strictEqual(typeof raw, 'string');
 
-    if (typeof raw !== 'string') {
-      return;
-    }
-
-    assert.deepStrictEqual(JSON.parse(raw), { a: 1 });
+    assert.deepStrictEqual(JSON.parse(raw as string), { a: 1 });
   });
 
   it('merges documents with JSON.MERGE', async (context) => {
@@ -373,11 +337,7 @@ describe('modules-json', () => {
 
     assert.strictEqual(typeof raw, 'string');
 
-    if (typeof raw !== 'string') {
-      return;
-    }
-
-    assert.deepStrictEqual(JSON.parse(raw), { a: 1, b: 3, c: 4 });
+    assert.deepStrictEqual(JSON.parse(raw as string), { a: 1, b: 3, c: 4 });
   });
 
   it('reads multiple keys with JSON.MGET', async (context) => {
@@ -397,12 +357,8 @@ describe('modules-json', () => {
     assert.strictEqual(typeof results[0], 'string');
     assert.strictEqual(typeof results[1], 'string');
 
-    if (typeof results[0] !== 'string' || typeof results[1] !== 'string') {
-      return;
-    }
-
-    assert.deepStrictEqual(JSON.parse(results[0]), [1]);
-    assert.deepStrictEqual(JSON.parse(results[1]), [2]);
+    assert.deepStrictEqual(JSON.parse(results[0] as string), [1]);
+    assert.deepStrictEqual(JSON.parse(results[1] as string), [2]);
   });
 
   it('writes multiple keys with JSON.MSET', async (context) => {
@@ -428,12 +384,8 @@ describe('modules-json', () => {
     assert.strictEqual(typeof raw1, 'string');
     assert.strictEqual(typeof raw2, 'string');
 
-    if (typeof raw1 !== 'string' || typeof raw2 !== 'string') {
-      return;
-    }
-
-    assert.deepStrictEqual(JSON.parse(raw1), { x: 1 });
-    assert.deepStrictEqual(JSON.parse(raw2), { x: 2 });
+    assert.deepStrictEqual(JSON.parse(raw1 as string), { x: 1 });
+    assert.deepStrictEqual(JSON.parse(raw2 as string), { x: 2 });
   });
 
   it('multiplies a numeric field with JSON.NUMMULTBY', async (context) => {
@@ -450,11 +402,7 @@ describe('modules-json', () => {
 
     assert.strictEqual(typeof result, 'string');
 
-    if (typeof result !== 'string') {
-      return;
-    }
-
-    assert.deepStrictEqual(JSON.parse(result), [12]);
+    assert.deepStrictEqual(JSON.parse(result as string), [12]);
   });
 
   it('reports object length with JSON.OBJLEN', async (context) => {

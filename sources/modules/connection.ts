@@ -61,17 +61,7 @@ export class SolidisConnection extends EventEmitter {
       return;
     }
 
-    if (this.#connectLock) {
-      return await this.#connectLock;
-    }
-
-    this.#connectLock = this.#tryConnectWithRetry();
-
-    try {
-      await this.#connectLock;
-    } finally {
-      this.#connectLock = null;
-    }
+    await this.#acquireConnectLock();
   }
 
   public cleanup() {
@@ -229,6 +219,10 @@ export class SolidisConnection extends EventEmitter {
       return;
     }
 
+    await this.#acquireConnectLock();
+  }
+
+  async #acquireConnectLock(): Promise<void> {
     if (this.#connectLock) {
       return await this.#connectLock;
     }

@@ -96,16 +96,8 @@ describe('parser', () => {
 
     assert.ok(Array.isArray(nested));
 
-    if (!Array.isArray(nested)) {
-      return;
-    }
-
     assert.deepStrictEqual(nested[0], [1, 2]);
     assert.ok(Buffer.isBuffer(nested[1]));
-
-    if (!Buffer.isBuffer(nested[1])) {
-      return;
-    }
 
     assert.strictEqual(nested[1].toString(), 'foo');
   });
@@ -209,15 +201,7 @@ describe('parser', () => {
     assert.strictEqual(collected.length, 1);
     assert.ok(Array.isArray(collected[0]));
 
-    if (!Array.isArray(collected[0])) {
-      return;
-    }
-
     assert.ok(Buffer.isBuffer(collected[0][0]));
-
-    if (!Buffer.isBuffer(collected[0][0])) {
-      return;
-    }
 
     assert.strictEqual(collected[0][0].toString(), 'foo');
     assert.strictEqual(collected[0][1], 42);
@@ -254,10 +238,6 @@ describe('parser', () => {
 
     for (let level = 0; level < depth; level += 1) {
       assert.ok(Array.isArray(cursor));
-
-      if (!Array.isArray(cursor)) {
-        return;
-      }
 
       cursor = cursor[0];
     }

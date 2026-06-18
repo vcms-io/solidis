@@ -42,6 +42,7 @@ export const SolidisDefaultOptions: SolidisClientFrozenOptions = {
   port: 6379,
   protocol: 'RESP2',
   readyCheckInterval: 100,
+  maxReadyCheckRetries: 100,
   rejectOnPartialPipelineError: false,
   socketWriteTimeout: 1000,
   useTLS: false,

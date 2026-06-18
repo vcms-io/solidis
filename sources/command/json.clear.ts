@@ -1,13 +1,11 @@
-import { executeCommand, tryReplyNumber } from './utils/index.ts';
+import {
+  buildJsonKeyPathCommand,
+  executeCommand,
+  tryReplyNumber,
+} from './utils/index.ts';
 
 export function createCommand(key: string, path?: string) {
-  const command = ['JSON.CLEAR', key];
-
-  if (path !== undefined) {
-    command.push(path);
-  }
-
-  return command;
+  return buildJsonKeyPathCommand('JSON.CLEAR', key, path);
 }
 
 export async function jsonClear<T>(

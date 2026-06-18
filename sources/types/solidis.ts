@@ -76,6 +76,7 @@ export interface SolidisClientOptions {
   port?: number;
   protocol?: SolidisProtocols;
   readyCheckInterval?: number;
+  maxReadyCheckRetries?: number;
   rejectOnPartialPipelineError?: boolean;
   socketWriteTimeout?: number;
   useTLS?: boolean;
@@ -155,6 +156,7 @@ export interface SolidisPipelineRequest {
   subRequests: SolidisPipelineSubRequest[];
   subscribeCommandCount: number;
   timeoutId?: NodeJS.Timeout;
+  isTimedOut?: boolean;
 }
 
 export interface SolidisPipelineRequestChunk {
@@ -197,6 +199,7 @@ export type SolidisTranslatedPubSubReplies = [
 export interface SolidisClientEvents extends SolidisPubSubEvents {
   connect: () => void;
   ready: () => void;
+  reconnected: () => void;
   error: (error: Error) => void;
   end: () => void;
   drain: () => void;

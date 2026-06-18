@@ -384,12 +384,10 @@ describe('modules-bloom-cuckoo', () => {
 
     const nocreateKey = keyspace.key('bloom-nocreate-missing');
 
-    try {
-      await client.bfInsert(nocreateKey, ['x'], { nocreate: true });
-      assert.fail('Should throw for non-existing filter with NOCREATE');
-    } catch {
-      /* expected error */
-    }
+    await assert.rejects(
+      () => client.bfInsert(nocreateKey, ['x'], { nocreate: true }),
+      /not found/i,
+    );
   });
 
   it('reserves a cuckoo filter with BUCKETSIZE and EXPANSION', async (context) => {

@@ -80,32 +80,33 @@ export function wrapWithError(error: unknown): Error {
   return error instanceof Error ? error : new Error(`${error}`);
 }
 
-export function wrapWithSolidisClientError(error: unknown): SolidisClientError {
-  return error instanceof SolidisClientError
+function wrapWithSolidisError<T extends SolidisError>(
+  ErrorClass: new (message: string, originalError?: unknown) => T,
+  error: unknown,
+): T {
+  return error instanceof ErrorClass
     ? error
-    : new SolidisClientError(`${error}`, error);
+    : new ErrorClass(`${error}`, error);
+}
+
+export function wrapWithSolidisClientError(error: unknown): SolidisClientError {
+  return wrapWithSolidisError(SolidisClientError, error);
 }
 
 export function wrapWithSolidisConnectionError(
   error: unknown,
 ): SolidisConnectionError {
-  return error instanceof SolidisConnectionError
-    ? error
-    : new SolidisConnectionError(`${error}`, error);
+  return wrapWithSolidisError(SolidisConnectionError, error);
 }
 
 export function wrapWithParserError(error: unknown): SolidisParserError {
-  return error instanceof SolidisParserError
-    ? error
-    : new SolidisParserError(`${error}`, error);
+  return wrapWithSolidisError(SolidisParserError, error);
 }
 
 export function wrapWithSolidisRequesterError(
   error: unknown,
 ): SolidisRequesterError {
-  return error instanceof SolidisRequesterError
-    ? error
-    : new SolidisRequesterError(`${error}`, error);
+  return wrapWithSolidisError(SolidisRequesterError, error);
 }
 
 export function unwrapSolidisError(error: unknown): Error[] {

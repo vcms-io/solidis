@@ -36,22 +36,23 @@ export function checkReplyIsArray(reply: SolidisData): reply is SolidisData[] {
   return true;
 }
 
-export function checkReplyIsPubSubEvent(reply: SolidisData[]): boolean {
-  const eventName = reply[0];
-
-  if (!eventName || !(eventName instanceof Buffer)) {
-    return false;
-  }
-
-  return SolidisPubSubEventNameSet.has(eventName.toString('latin1'));
-}
-
-export function checkReplyIsMessageEvent(reply: SolidisData[]): boolean {
+function checkReplyEventName(
+  reply: SolidisData[],
+  nameSet: ReadonlySet<string>,
+): boolean {
   const eventName = reply[0];
 
   if (!Buffer.isBuffer(eventName)) {
     return false;
   }
 
-  return SolidisMessageEventNameSet.has(eventName.toString('latin1'));
+  return nameSet.has(eventName.toString('latin1'));
+}
+
+export function checkReplyIsPubSubEvent(reply: SolidisData[]): boolean {
+  return checkReplyEventName(reply, SolidisPubSubEventNameSet);
+}
+
+export function checkReplyIsMessageEvent(reply: SolidisData[]): boolean {
+  return checkReplyEventName(reply, SolidisMessageEventNameSet);
 }

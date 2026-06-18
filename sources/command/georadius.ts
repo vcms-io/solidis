@@ -1,7 +1,7 @@
 import {
   buildGeoRadiusCommand,
   executeCommand,
-  tryReplyToGeoRadius,
+  tryReplyToGeoRadiusOrStoreCount,
 } from './utils/index.ts';
 
 import type {
@@ -43,12 +43,7 @@ export async function georadius<T>(
   return await executeCommand(
     this,
     createCommand(key, longitude, latitude, radius, unit, options),
-    (reply) => {
-      if (typeof reply === 'number') {
-        return reply;
-      }
-
-      return tryReplyToGeoRadius(reply, 'GEORADIUS', options);
-    },
+    (reply, command) =>
+      tryReplyToGeoRadiusOrStoreCount(reply, command, options),
   );
 }

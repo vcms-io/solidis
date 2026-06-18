@@ -89,14 +89,10 @@ describe('function', () => {
 
     assert.notStrictEqual(library, undefined);
 
-    if (library === undefined) {
-      return;
-    }
-
-    assert.strictEqual(library.engine, 'LUA');
-    assert.ok(library.functions.length >= 2);
+    assert.strictEqual(library?.engine, 'LUA');
+    assert.ok(library?.functions.length >= 2);
     assert.ok(
-      library.functions.some((entry) => entry.name === 'solidistest_echo'),
+      library?.functions.some((entry) => entry.name === 'solidistest_echo'),
     );
   });
 
@@ -179,12 +175,8 @@ describe('function', () => {
 
     assert.notStrictEqual(luaEngine, undefined);
 
-    if (luaEngine === undefined) {
-      return;
-    }
-
-    assert.ok(luaEngine.libraries >= 1);
-    assert.ok(luaEngine.functions >= 2);
+    assert.ok((luaEngine?.libraries ?? -1) >= 1);
+    assert.ok((luaEngine?.functions ?? -1) >= 2);
   });
 
   it('dumps and restores function state', async (context) => {

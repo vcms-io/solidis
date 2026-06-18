@@ -7,8 +7,8 @@ import {
   closeClient,
   createClient,
   createKeyspace,
-  delay,
   detectServerCapabilities,
+  waitFor,
 } from '../utils/index.ts';
 
 import type { FeaturedClient } from '../utils/index.ts';
@@ -147,10 +147,6 @@ describe('keys-generic', () => {
 
     assert.ok(Buffer.isBuffer(serialized));
 
-    if (!Buffer.isBuffer(serialized)) {
-      return;
-    }
-
     assert.strictEqual(await client.restore(destination, 0, serialized), 'OK');
     assert.strictEqual(await client.get(destination), 'serialized-value');
 
@@ -259,9 +255,11 @@ describe('keys-generic', () => {
     await client.set(key, 'value');
     await client.pexpire(key, 50);
 
-    await delay(110);
-
-    assert.strictEqual(await client.exists(key), 0);
+    await waitFor(async () => (await client.exists(key)) === 0, {
+      timeout: 2000,
+      interval: 20,
+      description: 'key expired after pexpire',
+    });
   });
 
   it('uses EXPIREAT with NX option', async (context) => {

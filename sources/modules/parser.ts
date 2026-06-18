@@ -280,16 +280,29 @@ export class SolidisParser {
   }
 
   #parseInteger(): SolidisParsed {
-    const parsed = this.#parseNumeric('Integer');
+    try {
+      const parsed = this.#parseNumeric('Integer');
 
-    if (parsed === null) {
-      return null;
+      if (parsed === null) {
+        return null;
+      }
+
+      return {
+        data: parsed.data,
+        length: parsed.length,
+      };
+    } catch {
+      const line = this.#parseLine(this.#readOffset + 1, 'Integer');
+
+      if (line === null) {
+        return null;
+      }
+
+      return {
+        data: new RespError(`Integer parse error: '${line.data}'`),
+        length: line.length + 1,
+      };
     }
-
-    return {
-      data: parsed.data,
-      length: parsed.length,
-    };
   }
 
   #parseBulkString(type: SolidisRespLengthType): SolidisParsed {
@@ -443,6 +456,10 @@ export class SolidisParser {
     }
   }
 
+  #nullLengthResult(lengthLength: number) {
+    return { data: null, length: 1 + lengthLength } as const;
+  }
+
   #parseMap(): SolidisParsed {
     const lengthObject = this.#parseLength('Map');
 
@@ -453,10 +470,7 @@ export class SolidisParser {
     const { data: lengthData, length: lengthLength } = lengthObject;
 
     if (lengthData < 0) {
-      return {
-        data: null,
-        length: 1 + lengthLength,
-      };
+      return this.#nullLengthResult(lengthLength);
     }
 
     const map = new Map<string, SolidisData>();
@@ -536,10 +550,7 @@ export class SolidisParser {
     const { data: lengthData, length: lengthLength } = lengthObject;
 
     if (lengthData < 0) {
-      return {
-        data: null,
-        length: 1 + lengthLength,
-      };
+      return this.#nullLengthResult(lengthLength);
     }
 
     const items = new Array<SolidisData>(lengthData);
@@ -610,6 +621,15 @@ export class SolidisParser {
         };
       }
 
+      if (
+        character < SolidisSymbolBytes.ZERO ||
+        character > SolidisSymbolBytes.ZERO + 9
+      ) {
+        throw new SolidisParserError(
+          `${type} parse error: non-digit byte 0x${character.toString(16)}`,
+        );
+      }
+
       number = number * 10 + (character - SolidisSymbolBytes.ZERO);
     }
 
@@ -641,10 +661,7 @@ export class SolidisParser {
     const { data: lengthData, length: lengthLength } = lengthObject;
 
     if (lengthData < 0) {
-      return {
-        data: null,
-        length: 1 + lengthLength,
-      };
+      return this.#nullLengthResult(lengthLength);
     }
 
     if (lengthData > this.#maxBulkStringLength) {
@@ -669,7 +686,7 @@ export class SolidisParser {
     };
   }
 
-  #parseLine(startPosition: number, type: SolidisRespSimpleLineType) {
+  #parseLine(startPosition: number, type: SolidisRespType) {
     const endPosition = this.#writeOffset;
 
     if (startPosition >= endPosition) {

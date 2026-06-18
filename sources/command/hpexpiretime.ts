@@ -1,7 +1,11 @@
-import { executeCommand, tryReplyToNumberArray } from './utils/index.ts';
+import {
+  buildHashFieldsCommand,
+  executeCommand,
+  tryReplyToNumberArray,
+} from './utils/index.ts';
 
 export function createCommand(key: string, fields: string[]) {
-  return ['HPEXPIRETIME', key, 'FIELDS', `${fields.length}`, ...fields];
+  return buildHashFieldsCommand('HPEXPIRETIME', key, fields);
 }
 
 export async function hpexpiretime<T>(

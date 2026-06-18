@@ -324,33 +324,27 @@ describe('sorted-sets', () => {
       'd',
     ]);
 
-    const diffScores = await client.zdiff([first, second], true);
+    assert.deepStrictEqual(await client.zdiff([first, second], true), [
+      { member: 'a', score: 1 },
+    ]);
 
-    assert.ok(Array.isArray(diffScores));
-    assert.ok(diffScores.length >= 1);
-    assert.ok(typeof diffScores[0] === 'object' && 'member' in diffScores[0]);
-    assert.strictEqual(typeof diffScores[0].member, 'string');
-    assert.strictEqual(typeof diffScores[0].score, 'number');
+    assert.deepStrictEqual(
+      await client.zinter([first, second], { withScores: true }),
+      [
+        { member: 'b', score: 3 },
+        { member: 'c', score: 4 },
+      ],
+    );
 
-    const interScores = await client.zinter([first, second], {
-      withScores: true,
-    });
-
-    assert.ok(Array.isArray(interScores));
-    assert.ok(interScores.length >= 1);
-    assert.ok(typeof interScores[0] === 'object' && 'member' in interScores[0]);
-    assert.strictEqual(typeof interScores[0].member, 'string');
-    assert.strictEqual(typeof interScores[0].score, 'number');
-
-    const unionScores = await client.zunion([first, second], {
-      withScores: true,
-    });
-
-    assert.ok(Array.isArray(unionScores));
-    assert.ok(unionScores.length >= 1);
-    assert.ok(typeof unionScores[0] === 'object' && 'member' in unionScores[0]);
-    assert.strictEqual(typeof unionScores[0].member, 'string');
-    assert.strictEqual(typeof unionScores[0].score, 'number');
+    assert.deepStrictEqual(
+      await client.zunion([first, second], { withScores: true }),
+      [
+        { member: 'a', score: 1 },
+        { member: 'd', score: 1 },
+        { member: 'b', score: 3 },
+        { member: 'c', score: 4 },
+      ],
+    );
   });
 
   it('computes intersection cardinality with ZINTERCARD', async (context) => {

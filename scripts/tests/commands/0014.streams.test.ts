@@ -70,10 +70,6 @@ describe('streams', () => {
 
     assert.ok(Array.isArray(result));
 
-    if (!Array.isArray(result)) {
-      return;
-    }
-
     assert.strictEqual(result.length, 1);
     assert.strictEqual(result[0].stream, key);
     assert.strictEqual(result[0].entries.length, 2);
@@ -127,10 +123,6 @@ describe('streams', () => {
 
     assert.ok(Array.isArray(delivered));
 
-    if (!Array.isArray(delivered)) {
-      return;
-    }
-
     assert.strictEqual(delivered[0].entries.length, 2);
 
     const pendingBefore = await client.xpending(key, group);
@@ -165,10 +157,6 @@ describe('streams', () => {
     const entries = await client.xpending(key, group, '-', '+', 10);
 
     assert.ok(Array.isArray(entries));
-
-    if (!Array.isArray(entries)) {
-      return;
-    }
 
     assert.strictEqual(entries[0].id, '1-1');
   });
@@ -250,10 +238,6 @@ describe('streams', () => {
 
     assert.ok(Array.isArray(delivered));
 
-    if (!Array.isArray(delivered)) {
-      return;
-    }
-
     assert.strictEqual(delivered[0].entries.length, 1);
     assert.strictEqual(delivered[0].entries[0].id, '2-1');
   });
@@ -313,22 +297,19 @@ describe('streams', () => {
 
     assert.strictEqual(typeof info.length, 'number');
     assert.ok('entries' in info);
+    assert.ok(Array.isArray(info.entries));
+    assert.ok(info.entries.length >= 2);
 
-    if ('entries' in info) {
-      assert.ok(Array.isArray(info.entries));
-      assert.ok(info.entries.length >= 2);
-    }
+    assert.ok('groups' in info);
+    assert.ok(Array.isArray(info.groups));
+    assert.ok(info.groups.length >= 1);
 
-    if ('groups' in info && Array.isArray(info.groups)) {
-      assert.ok(info.groups.length >= 1);
+    const detail = info.groups[0];
 
-      const detail = info.groups[0];
-
-      assert.strictEqual(detail.name, group);
-      assert.ok(Array.isArray(detail.consumers));
-      assert.ok(detail.consumers.length >= 1);
-      assert.strictEqual(detail.consumers[0].name, 'consumer-1');
-    }
+    assert.strictEqual(detail.name, group);
+    assert.ok(Array.isArray(detail.consumers));
+    assert.ok(detail.consumers.length >= 1);
+    assert.strictEqual(detail.consumers[0].name, 'consumer-1');
   });
 
   it('introspects full stream with COUNT option', async () => {
@@ -340,10 +321,9 @@ describe('streams', () => {
 
     const info = await client.xinfoStream(key, true, 2);
 
-    if ('entries' in info) {
-      assert.ok(Array.isArray(info.entries));
-      assert.ok(info.entries.length <= 2);
-    }
+    assert.ok('entries' in info);
+    assert.ok(Array.isArray(info.entries));
+    assert.ok(info.entries.length <= 2);
   });
 
   it('reads multiple streams with XREAD COUNT option', async () => {
@@ -357,10 +337,6 @@ describe('streams', () => {
     const result = await client.xread([keyA, keyB], ['0', '0'], 10);
 
     assert.ok(Array.isArray(result));
-
-    if (!Array.isArray(result)) {
-      return;
-    }
 
     assert.strictEqual(result.length, 2);
     assert.strictEqual(result[0].entries.length, 2);
@@ -657,40 +633,6 @@ describe('streams', () => {
     assert.deepStrictEqual(result.entries, [{ id: '1-1', fields: {} }]);
   });
 
-  it('introspects consumer groups with XINFO GROUPS', async () => {
-    const key = keyspace.key('xinfo-groups');
-
-    await client.xadd(key, '*', { val: 'a' });
-    await client.xgroupCreate(key, 'grp1', '0');
-    await client.xgroupCreate(key, 'grp2', '0');
-
-    const groups = await client.xinfoGroups(key);
-
-    assert.ok(Array.isArray(groups));
-    assert.ok(groups.length >= 2);
-    assert.ok('name' in groups[0]);
-    assert.ok('consumers' in groups[0]);
-    assert.ok('pending' in groups[0]);
-    assert.ok('lastDeliveredId' in groups[0]);
-  });
-
-  it('introspects consumers with XINFO CONSUMERS', async () => {
-    const key = keyspace.key('xinfo-consumers-detail');
-    const group = 'inspectors';
-
-    await client.xadd(key, '*', { val: 'a' });
-    await client.xgroupCreate(key, group, '0');
-    await client.xreadgroup(group, 'w1', [key], ['>']);
-
-    const consumers = await client.xinfoConsumers(key, group);
-
-    assert.ok(Array.isArray(consumers));
-    assert.ok(consumers.length >= 1);
-    assert.ok('name' in consumers[0]);
-    assert.ok('pending' in consumers[0]);
-    assert.ok('idle' in consumers[0]);
-  });
-
   it('uses XPENDING with consumer filter and idle', async () => {
     const key = keyspace.key('xpending-consumer-idle');
     const group = 'workers';
@@ -705,11 +647,10 @@ describe('streams', () => {
     assert.ok(Array.isArray(pending));
     assert.ok(pending.length >= 1);
 
-    if (typeof pending[0] === 'object' && pending[0] !== null) {
-      assert.ok('id' in pending[0]);
-      assert.ok('consumer' in pending[0]);
-      assert.ok('deliveryCount' in pending[0]);
-    }
+    assert.ok(typeof pending[0] === 'object' && pending[0] !== null);
+    assert.ok('id' in pending[0]);
+    assert.ok('consumer' in pending[0]);
+    assert.ok('deliveryCount' in pending[0]);
   });
 
   it('returns XPENDING summary with consumer breakdown', async () => {

@@ -1,5 +1,6 @@
 import { RespJsonType } from '../index.ts';
 import {
+  buildJsonKeyPathCommand,
   executeCommand,
   InvalidReplyPrefix,
   newCommandError,
@@ -8,13 +9,7 @@ import {
 import type { StringOrBuffer } from '../index.ts';
 
 export function createCommand(key: string, path?: string) {
-  const command = ['JSON.TYPE', key];
-
-  if (path !== undefined) {
-    command.push(path);
-  }
-
-  return command;
+  return buildJsonKeyPathCommand('JSON.TYPE', key, path);
 }
 
 function parseJsonType(

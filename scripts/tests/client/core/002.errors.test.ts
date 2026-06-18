@@ -8,6 +8,8 @@ import { after, before, describe, it } from 'node:test';
 
 import { SolidisFeaturedClient } from '../../../../sources/client/featured.ts';
 import {
+  checkReplyIsMessageEvent,
+  checkReplyIsPubSubEvent,
   RespError,
   SolidisClientError,
   SolidisCommandError,
@@ -268,5 +270,131 @@ describe('errors', () => {
     );
 
     assert.doesNotThrow(() => escapeReply([]));
+  });
+
+  it('returns false for pubsub event checks with non-buffer event names', () => {
+    assert.strictEqual(
+      checkReplyIsPubSubEvent([
+        'message',
+        Buffer.from('ch'),
+        Buffer.from('data'),
+      ]),
+      false,
+    );
+
+    assert.strictEqual(
+      checkReplyIsMessageEvent([
+        'message',
+        Buffer.from('ch'),
+        Buffer.from('data'),
+      ]),
+      false,
+    );
+  });
+
+  it('throws on invalid input to tryReplyToBoolean', async () => {
+    const { tryReplyToBoolean } = await import(
+      '../../../../sources/command/utils/reply.ts'
+    );
+
+    assert.throws(() => tryReplyToBoolean('yes'));
+    assert.throws(() => tryReplyToBoolean(42));
+  });
+
+  it('throws on non-array input to tryReplyToBooleanArray', async () => {
+    const { tryReplyToBooleanArray } = await import(
+      '../../../../sources/command/utils/reply.ts'
+    );
+
+    assert.throws(() => tryReplyToBooleanArray('not-an-array'));
+  });
+
+  it('handles string input and throws on invalid input for tryReplyToBinaryString', async () => {
+    const { tryReplyToBinaryString } = await import(
+      '../../../../sources/command/utils/reply.ts'
+    );
+
+    assert.strictEqual(tryReplyToBinaryString('hello'), 'hello');
+    assert.throws(() => tryReplyToBinaryString(42));
+  });
+
+  it('throws on NaN input to tryReplyToNumber', async () => {
+    const { tryReplyToNumber } = await import(
+      '../../../../sources/command/utils/reply.ts'
+    );
+
+    assert.throws(() => tryReplyToNumber('not-a-number'));
+    assert.throws(() => tryReplyToNumber({}));
+  });
+
+  it('throws on non-array non-Map input to processPairedArray', async () => {
+    const { processPairedArray } = await import(
+      '../../../../sources/command/utils/reply.ts'
+    );
+
+    assert.throws(() => processPairedArray(42, () => {}));
+  });
+
+  it('throws on non-array input to tryReplyArray', async () => {
+    const { tryReplyArray } = await import(
+      '../../../../sources/command/utils/reply.ts'
+    );
+
+    assert.throws(() => tryReplyArray('not-an-array'));
+    assert.throws(() => tryReplyArray(42));
+  });
+
+  it('throws on non-array non-Set input to tryReplyToStringArray', async () => {
+    const { tryReplyToStringArray } = await import(
+      '../../../../sources/command/utils/reply.ts'
+    );
+
+    assert.throws(() => tryReplyToStringArray(42));
+  });
+
+  it('throws on non-array input to tryReplyToSortedSetMembers', async () => {
+    const { tryReplyToSortedSetMembers } = await import(
+      '../../../../sources/command/utils/reply.ts'
+    );
+
+    assert.throws(() => tryReplyToSortedSetMembers('bad'));
+  });
+
+  it('throws on non-array input to tryReplyToStringsOrSortedSetMembers', async () => {
+    const { tryReplyToStringsOrSortedSetMembers } = await import(
+      '../../../../sources/command/utils/reply.ts'
+    );
+
+    assert.throws(() =>
+      tryReplyToStringsOrSortedSetMembers('bad', 'ZRANGE', true),
+    );
+  });
+
+  it('throws on malformed BZPOPMIN tuple in tryReplyToKeyMemberScoreOrNull', async () => {
+    const { tryReplyToKeyMemberScoreOrNull } = await import(
+      '../../../../sources/command/utils/reply.ts'
+    );
+
+    assert.throws(() => tryReplyToKeyMemberScoreOrNull([1, 2, 3], 'BZPOPMIN'));
+  });
+
+  it('returns true for pubsub event checks with buffer event names', () => {
+    assert.strictEqual(
+      checkReplyIsPubSubEvent([
+        Buffer.from('message'),
+        Buffer.from('ch'),
+        Buffer.from('data'),
+      ]),
+      true,
+    );
+
+    assert.strictEqual(
+      checkReplyIsMessageEvent([
+        Buffer.from('message'),
+        Buffer.from('ch'),
+        Buffer.from('data'),
+      ]),
+      true,
+    );
   });
 });

@@ -11,16 +11,28 @@ export class SolidisPubSub {
   #subscribedShardChannels: Set<string> = new Set();
   #psubscribedPatterns: Set<string> = new Set();
 
-  public get subscribedChannels() {
-    return this.#subscribedChannels;
+  public get subscribedChannels(): ReadonlySet<string> {
+    return new Set(this.#subscribedChannels);
   }
 
-  public get subscribedShardChannels() {
-    return this.#subscribedShardChannels;
+  public get subscribedShardChannels(): ReadonlySet<string> {
+    return new Set(this.#subscribedShardChannels);
   }
 
-  public get subscribedPatterns() {
-    return this.#psubscribedPatterns;
+  public get subscribedPatterns(): ReadonlySet<string> {
+    return new Set(this.#psubscribedPatterns);
+  }
+
+  public clearSubscribedChannels() {
+    this.#subscribedChannels.clear();
+  }
+
+  public clearSubscribedShardChannels() {
+    this.#subscribedShardChannels.clear();
+  }
+
+  public clearSubscribedPatterns() {
+    this.#psubscribedPatterns.clear();
   }
 
   public get hasActiveSubscriptions() {

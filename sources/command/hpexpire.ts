@@ -1,4 +1,8 @@
-import { executeCommand, tryReplyToNumberArray } from './utils/index.ts';
+import {
+  buildHashFieldExpireCommand,
+  executeCommand,
+  tryReplyToNumberArray,
+} from './utils/index.ts';
 
 import type { CommandExpireMode } from '../index.ts';
 
@@ -8,15 +12,13 @@ export function createCommand(
   fields: string[],
   mode?: CommandExpireMode,
 ) {
-  const command = ['HPEXPIRE', key, `${milliseconds}`];
-
-  if (mode) {
-    command.push(mode);
-  }
-
-  command.push('FIELDS', `${fields.length}`, ...fields);
-
-  return command;
+  return buildHashFieldExpireCommand(
+    'HPEXPIRE',
+    key,
+    milliseconds,
+    fields,
+    mode,
+  );
 }
 
 export async function hpexpire<T>(

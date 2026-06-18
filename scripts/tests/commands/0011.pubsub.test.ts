@@ -7,6 +7,7 @@ import {
   closeClient,
   createClient,
   createKeyspace,
+  delay,
   detectServerCapabilities,
   waitFor,
 } from '../utils/index.ts';
@@ -188,6 +189,7 @@ describe('pubsub', () => {
     );
 
     await publisher.publish(channel, 'ignored');
+    await delay(200);
 
     assert.strictEqual(messageCount, 0);
   });
@@ -237,6 +239,7 @@ describe('pubsub', () => {
     await waitFor(async () => (await publisher.pubsubNumpat()) === 0);
 
     await publisher.publish(channel, 'ignored');
+    await delay(200);
 
     assert.strictEqual(messageCount, 0);
   });
@@ -267,6 +270,7 @@ describe('pubsub', () => {
     );
 
     await publisher.spublish(channel, 'ignored');
+    await delay(200);
 
     assert.strictEqual(messageCount, 0);
   });
@@ -517,6 +521,42 @@ describe('pubsub', () => {
     );
 
     assert.strictEqual(errors.length, 1);
+  });
+
+  it('does not allow external mutation of subscribedChannels to corrupt state', async () => {
+    const { SolidisPubSub } = await import(
+      '../../../sources/modules/pubsub.ts'
+    );
+
+    const pubsub = new SolidisPubSub();
+    const emit = () => true;
+
+    pubsub.dispatchPubSubEvent(
+      [Buffer.from('subscribe'), Buffer.from('real-channel'), 1],
+      emit,
+    );
+
+    const exposedSet = pubsub.subscribedChannels;
+
+    assert.ok(exposedSet.has('real-channel'));
+
+    if (exposedSet instanceof Set) {
+      exposedSet.add('phantom-channel');
+      exposedSet.delete('real-channel');
+    }
+
+    const internalSet = pubsub.subscribedChannels;
+
+    assert.notStrictEqual(
+      internalSet.has('phantom-channel'),
+      true,
+      'the returned Set is the same reference as the internal state — ' +
+        'adding "phantom-channel" externally corrupts the PubSub ' +
+        'bookkeeping: auto-recovery after reconnect will attempt to ' +
+        're-subscribe to a channel the user never subscribed to, and ' +
+        'the real channel was deleted so it will not be recovered; ' +
+        'the getter should return a defensive copy',
+    );
   });
 
   it('handles PSUBSCRIBE and PUNSUBSCRIBE for pattern channels', async () => {

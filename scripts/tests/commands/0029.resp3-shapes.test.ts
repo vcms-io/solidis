@@ -7,9 +7,9 @@ import {
   closeClient,
   createClient,
   createKeyspace,
-  delay,
   detectServerCapabilities,
   isCommandSupported,
+  waitFor,
 } from '../utils/index.ts';
 
 import type { FeaturedClient, ServerCapabilities } from '../utils/index.ts';
@@ -252,6 +252,37 @@ describe('resp3-shapes', () => {
     ]);
   });
 
+  it('reads RESP3 ZRANDMEMBER without count or WITHSCORES', async () => {
+    const key = keyspace.key('zrandmember-single');
+
+    await client.zadd(key, 1, 'member');
+
+    const result = await client.zrandmember(key);
+
+    assert.strictEqual(result, 'member');
+  });
+
+  it('returns null from ZRANDMEMBER on a non-existent key', async () => {
+    const result = await client.zrandmember(
+      keyspace.key('zrandmember-missing'),
+    );
+
+    assert.strictEqual(result, null);
+  });
+
+  it('reads RESP3 ZRANDMEMBER with count but without WITHSCORES', async () => {
+    const key = keyspace.key('zrandmember-count');
+
+    await client.zadd(key, 1, 'a');
+    await client.zadd(key, 2, 'b');
+
+    const result = await client.zrandmember(key, 2);
+
+    assert.ok(Array.isArray(result));
+    assert.strictEqual(result.length, 2);
+    assert.deepStrictEqual([...result].sort(), ['a', 'b']);
+  });
+
   it('reads RESP3 nested pairs from ZSCAN', async () => {
     const key = keyspace.key('zscan');
 
@@ -441,9 +472,16 @@ describe('resp3-shapes', () => {
   });
 
   it('reads a RESP3 nested reply from SLOWLOG GET', async () => {
+    await client.configSet('slowlog-log-slower-than', '0');
+
+    await client.ping();
+
+    await client.configSet('slowlog-log-slower-than', '10000');
+
     const entries = await client.slowlogGet(5);
 
     assert.ok(Array.isArray(entries));
+    assert.ok(entries.length >= 1);
 
     for (const entry of entries) {
       assert.strictEqual(typeof entry.id, 'number');
@@ -603,8 +641,6 @@ describe('resp3-shapes', () => {
     await client.xgroupCreate(key, 'grp', '0');
     await client.xreadgroup('grp', 'old-consumer', [key], ['>']);
 
-    await delay(50);
-
     const result = await client.xautoclaim(key, 'grp', 'new-consumer', 0, '0');
 
     assert.strictEqual(typeof result.nextId, 'string');
@@ -711,41 +747,45 @@ describe('resp3-shapes', () => {
   it('reads RESP3 parsed entries from LATENCY LATEST with real data', async () => {
     await client.configSet('latency-monitor-threshold', '1');
 
-    await client.send([['DEBUG', 'SLEEP', '0.005']]).catch(() => {});
-    await client.ping();
+    await client.send([
+      ['EVAL', 'local x=0 for i=1,5000000 do x=x+1 end return x', '0'],
+    ]);
 
     const entries = await client.latencyLatest();
 
     await client.configSet('latency-monitor-threshold', '0');
 
     assert.ok(Array.isArray(entries));
-
-    if (entries.length > 0) {
-      assert.strictEqual(typeof entries[0].event, 'string');
-      assert.strictEqual(typeof entries[0].timestamp, 'number');
-      assert.ok(entries[0].timestamp > 0);
-      assert.strictEqual(typeof entries[0].latency, 'number');
-      assert.strictEqual(typeof entries[0].maximumLatency, 'number');
-    }
+    assert.ok(
+      entries.length > 0,
+      'latency events must exist after busy script',
+    );
+    assert.strictEqual(typeof entries[0].event, 'string');
+    assert.strictEqual(typeof entries[0].timestamp, 'number');
+    assert.ok(entries[0].timestamp > 0);
+    assert.strictEqual(typeof entries[0].latency, 'number');
+    assert.strictEqual(typeof entries[0].maximumLatency, 'number');
   });
 
   it('reads RESP3 parsed entries from LATENCY HISTORY with real data', async () => {
     await client.configSet('latency-monitor-threshold', '1');
 
-    await client.send([['DEBUG', 'SLEEP', '0.005']]).catch(() => {});
-    await client.ping();
+    await client.send([
+      ['EVAL', 'local x=0 for i=1,5000000 do x=x+1 end return x', '0'],
+    ]);
 
     const history = await client.latencyHistory('command');
 
     await client.configSet('latency-monitor-threshold', '0');
 
     assert.ok(Array.isArray(history));
-
-    if (history.length > 0) {
-      assert.strictEqual(typeof history[0].timestamp, 'number');
-      assert.ok(history[0].timestamp > 0);
-      assert.strictEqual(typeof history[0].latency, 'number');
-    }
+    assert.ok(
+      history.length > 0,
+      'latency history must exist after busy script',
+    );
+    assert.strictEqual(typeof history[0].timestamp, 'number');
+    assert.ok(history[0].timestamp > 0);
+    assert.strictEqual(typeof history[0].latency, 'number');
   });
 
   it('reads a RESP3 Map reply from LATENCY HISTOGRAM', async (context) => {
@@ -1114,5 +1154,92 @@ describe('resp3-shapes', () => {
     );
 
     assert.strictEqual(missingOld, null);
+  });
+
+  it('reads a RESP3 ACL GETUSER reply with selectors', async (context) => {
+    if (!capabilities.atLeast(7, 0)) {
+      context.skip('ACL selectors require Redis 7.0+');
+      return;
+    }
+
+    const testUser = keyspace.key('acl-sel-user').replace(/[^a-zA-Z0-9]/g, '');
+
+    try {
+      await client.aclSetuser(
+        testUser,
+        'on',
+        '>testpass',
+        'resetkeys',
+        '~key:*',
+        'resetchannels',
+        '&chan:*',
+        '+get',
+        '+set',
+        '(~extra:* &extra:* +del)',
+      );
+
+      const info = await client.aclGetuser(testUser);
+
+      assert.ok(info !== null);
+      assert.ok(Array.isArray(info.selectors));
+      assert.ok(info.selectors.length >= 1);
+      assert.strictEqual(typeof info.selectors[0].commands, 'string');
+      assert.strictEqual(typeof info.selectors[0].keys, 'string');
+      assert.strictEqual(typeof info.selectors[0].channels, 'string');
+    } finally {
+      await client.aclDeluser(testUser).catch(() => {});
+    }
+  });
+
+  it('reads a RESP3 TS.MGET with filterByValue option', async (context) => {
+    if (!hasTimeSeries) {
+      context.skip('RedisTimeSeries not loaded');
+      return;
+    }
+
+    const key = keyspace.key('ts-mget-fbv');
+    const label = keyspace.key('ts-mget-fbv-label');
+
+    await client.tsCreate(key, { labels: { kind: label } });
+    await client.tsAdd(key, 1000, 50);
+    await client.tsAdd(key, 2000, 150);
+
+    const filtered = await client.tsMget(
+      { kind: label },
+      { filterByValue: [[100, 200]] },
+    );
+
+    assert.ok(filtered.length >= 1);
+    assert.strictEqual(filtered[0].key, key);
+    assert.ok(filtered[0].value >= 100 && filtered[0].value <= 200);
+  });
+
+  it('receives RESP3 push messages via subscribe', async () => {
+    const channel = keyspace.key('resp3-push');
+    let received = false;
+
+    const subscriber = await createClient({ protocol: 'RESP3' });
+
+    subscriber.on('message', (subscribedChannel, message) => {
+      const messageString = Buffer.isBuffer(message)
+        ? message.toString()
+        : String(message);
+
+      if (subscribedChannel === channel && messageString === 'hello-resp3') {
+        received = true;
+      }
+    });
+
+    await subscriber.subscribe(channel);
+
+    await client.publish(channel, 'hello-resp3');
+
+    await waitFor(() => received, {
+      description: 'RESP3 push message delivery',
+    });
+
+    assert.strictEqual(received, true);
+
+    await closeClient(subscriber);
   });
 });

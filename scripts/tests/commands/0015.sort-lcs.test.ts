@@ -149,14 +149,6 @@ describe('sort-lcs', () => {
       typeof result === 'object' && result !== null && 'length' in result,
     );
 
-    if (
-      typeof result !== 'object' ||
-      result === null ||
-      !('length' in result)
-    ) {
-      return;
-    }
-
     assert.strictEqual(result.length, 6);
     assert.ok(result.matches.length > 0);
   });

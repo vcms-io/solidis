@@ -168,10 +168,6 @@ describe('hashes', () => {
 
     assert.ok(Buffer.isBuffer(value));
 
-    if (!Buffer.isBuffer(value)) {
-      return;
-    }
-
     assert.ok(value.equals(payload));
   });
 

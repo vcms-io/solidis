@@ -1,4 +1,4 @@
-import { executeCommand } from './utils/index.ts';
+import { buildScriptCommand, executeCommand } from './utils/index.ts';
 
 import type { SolidisData } from '../index.ts';
 
@@ -7,7 +7,7 @@ export function createCommand(
   keys: string[],
   parameters: string[],
 ) {
-  return ['FCALL_RO', functionName, `${keys.length}`, ...keys, ...parameters];
+  return buildScriptCommand('FCALL_RO', functionName, keys, parameters);
 }
 
 export async function fcallRo<T>(

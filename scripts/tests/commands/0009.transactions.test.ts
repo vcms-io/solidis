@@ -205,4 +205,19 @@ describe('transactions', () => {
       error.message.includes('same length'),
     );
   });
+
+  it('handles discard on an empty pipeline gracefully', async () => {
+    const transaction = client.multi();
+
+    transaction.discard();
+
+    assert.deepStrictEqual(await transaction.exec(), []);
+  });
+
+  it('returns undefined when accessing a non-function property through the transaction proxy', () => {
+    const transaction = client.multi();
+    const value = (transaction as Record<string, unknown>).nonExistentProperty;
+
+    assert.strictEqual(value, undefined);
+  });
 });

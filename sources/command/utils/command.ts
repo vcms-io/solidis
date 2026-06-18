@@ -1,13 +1,20 @@
-import { escapeReply, newCommandError } from './index.ts';
+import {
+  escapeReply,
+  newCommandError,
+  tryReplyToScan,
+  tryReplyToStringArray,
+} from './index.ts';
 
 import type {
   CommandCuckooFilterInsertOptions,
+  CommandExpireMode,
   CommandGeoRadiusOptions,
   CommandGeoSearchByOptions,
   CommandGeoSearchFromOptions,
   CommandGeoSearchOptions,
   CommandScanOptions,
   CommandSetOptions,
+  CommandSortOptions,
   CommandTimeSeriesOptions,
   CommandTimeSeriesRangeOptions,
   CommandZInterOptions,
@@ -88,12 +95,10 @@ export function buildCuckooFilterInsertCommand(
   return result;
 }
 
-export function buildGeoRadiusCommand(
-  baseCommand: string[],
-  options?: CommandGeoRadiusOptions,
+function appendGeoResultOptions(
+  command: string[],
+  options?: CommandGeoSearchOptions,
 ) {
-  const command = [...baseCommand];
-
   if (options?.withCoord) {
     command.push('WITHCOORD');
   }
@@ -118,6 +123,15 @@ export function buildGeoRadiusCommand(
   } else if (options?.desc) {
     command.push('DESC');
   }
+}
+
+export function buildGeoRadiusCommand(
+  baseCommand: string[],
+  options?: CommandGeoRadiusOptions,
+) {
+  const command = [...baseCommand];
+
+  appendGeoResultOptions(command, options);
 
   if (options?.store) {
     command.push('STORE', options.store);
@@ -163,30 +177,7 @@ export function buildGeoSearchCommand(
     );
   }
 
-  if (options?.withCoord) {
-    command.push('WITHCOORD');
-  }
-
-  if (options?.withDist) {
-    command.push('WITHDIST');
-  }
-
-  if (options?.withHash) {
-    command.push('WITHHASH');
-  }
-
-  if (options?.count !== undefined) {
-    command.push('COUNT', `${options.count}`);
-    if (options.any) {
-      command.push('ANY');
-    }
-  }
-
-  if (options?.asc) {
-    command.push('ASC');
-  } else if (options?.desc) {
-    command.push('DESC');
-  }
+  appendGeoResultOptions(command, options);
 
   return command;
 }
@@ -199,21 +190,7 @@ export function buildSetCommand(
   const command = ['SET', key, value];
 
   if (options !== undefined) {
-    if (options.expireInSeconds !== undefined) {
-      command.push('EX', `${options.expireInSeconds}`);
-    }
-
-    if (options.expireInMilliseconds !== undefined) {
-      command.push('PX', `${options.expireInMilliseconds}`);
-    }
-
-    if (options.expireAtSeconds !== undefined) {
-      command.push('EXAT', `${options.expireAtSeconds}`);
-    }
-
-    if (options.expireAtMilliseconds !== undefined) {
-      command.push('PXAT', `${options.expireAtMilliseconds}`);
-    }
+    appendExpireOptions(command, options);
 
     if (options.keepOriginalTimeToLive === true) {
       command.push('KEEPTTL');
@@ -395,4 +372,152 @@ export function buildSortedSetRangeCommand(
   }
 
   return command;
+}
+
+export function buildHelpExecutor(group: string) {
+  return async function <T>(this: T): Promise<string[]> {
+    return await executeCommand(this, [group, 'HELP'], tryReplyToStringArray);
+  };
+}
+
+export function buildPubSubExecutor(commandName: string) {
+  return async function <T>(this: T, ...channels: string[]): Promise<void> {
+    if (!guard(this)) {
+      return undefined as never;
+    }
+
+    await this.send([[commandName, ...channels]]);
+  };
+}
+
+export function buildHashFieldsCommand(
+  commandName: string,
+  key: string,
+  fields: string[],
+) {
+  return [commandName, key, 'FIELDS', `${fields.length}`, ...fields];
+}
+
+export function buildHashFieldExpireCommand(
+  commandName: string,
+  key: string,
+  value: number,
+  fields: string[],
+  mode?: CommandExpireMode,
+) {
+  const command = [commandName, key, `${value}`];
+
+  if (mode) {
+    command.push(mode);
+  }
+
+  command.push('FIELDS', `${fields.length}`, ...fields);
+
+  return command;
+}
+
+export function buildScriptCommand(
+  commandName: string,
+  scriptOrName: string,
+  keys: string[],
+  parameters: string[],
+) {
+  return [commandName, scriptOrName, `${keys.length}`, ...keys, ...parameters];
+}
+
+export function buildSortCommand(
+  commandName: string,
+  key: string,
+  options?: CommandSortOptions,
+) {
+  const command = [commandName, key];
+
+  if (options) {
+    if (options.by !== undefined) {
+      command.push('BY', options.by);
+    }
+
+    if (options.limit) {
+      command.push(
+        'LIMIT',
+        `${options.limit.offset}`,
+        `${options.limit.count}`,
+      );
+    }
+
+    if (options.get) {
+      for (const pattern of options.get) {
+        command.push('GET', pattern);
+      }
+    }
+
+    if (options.order) {
+      command.push(options.order);
+    }
+
+    if (options.alpha) {
+      command.push('ALPHA');
+    }
+  }
+
+  return command;
+}
+
+export function buildJsonKeyPathCommand(
+  commandName: string,
+  key: string,
+  path?: string,
+) {
+  const command = [commandName, key];
+
+  if (path !== undefined) {
+    command.push(path);
+  }
+
+  return command;
+}
+
+export function appendExpireOptions(
+  command: StringOrBuffer[],
+  options: {
+    expireInSeconds?: number;
+    expireInMilliseconds?: number;
+    expireAtSeconds?: number;
+    expireAtMilliseconds?: number;
+  },
+) {
+  if (options.expireInSeconds !== undefined) {
+    command.push('EX', `${options.expireInSeconds}`);
+  }
+
+  if (options.expireInMilliseconds !== undefined) {
+    command.push('PX', `${options.expireInMilliseconds}`);
+  }
+
+  if (options.expireAtSeconds !== undefined) {
+    command.push('EXAT', `${options.expireAtSeconds}`);
+  }
+
+  if (options.expireAtMilliseconds !== undefined) {
+    command.push('PXAT', `${options.expireAtMilliseconds}`);
+  }
+}
+
+export async function* createScanIterator<T, R>(
+  client: T,
+  baseCommand: string[],
+  options: CommandScanOptions,
+  parseElements: (elements: unknown, commandName: StringOrBuffer[]) => R,
+): AsyncGenerator<R> {
+  let cursor = '0';
+
+  do {
+    const command = buildScanCommand(baseCommand, cursor, options);
+    const reply = await executeCommand(client, command);
+    const [newCursor, elements] = tryReplyToScan(reply);
+
+    cursor = newCursor;
+
+    yield parseElements(elements, command);
+  } while (cursor !== '0');
 }

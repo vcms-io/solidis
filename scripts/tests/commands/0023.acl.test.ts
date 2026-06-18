@@ -113,10 +113,7 @@ describe('acl', () => {
     const info = await client.aclGetuser(user);
 
     assert.notStrictEqual(info, null);
-
-    if (info !== null) {
-      assert.ok(info.flags.includes('on'));
-    }
+    assert.ok(info?.flags.includes('on'));
 
     assert.strictEqual(await client.aclDeluser(user), 1);
 

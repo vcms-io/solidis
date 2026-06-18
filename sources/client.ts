@@ -38,6 +38,7 @@ export class SolidisClient extends EventEmitter {
   #requester: SolidisRequester;
 
   #connectLock: Promise<unknown> | null = null;
+  #hasConnectedBefore = false;
 
   #debug?: (type: SolidisDebugLogType, message: string, data?: unknown) => void;
   #debugMemory?: SolidisDebugMemory;
@@ -260,6 +261,12 @@ export class SolidisClient extends EventEmitter {
       this.#debug?.('info', 'Solidis client initialization completed');
 
       this.emit('ready');
+
+      if (this.#hasConnectedBefore) {
+        this.emit('reconnected');
+      }
+
+      this.#hasConnectedBefore = true;
     } catch (error) {
       this.#onInitializeError(error);
     }
@@ -381,8 +388,9 @@ export class SolidisClient extends EventEmitter {
     }
   }
 
-  async #readyCheck() {
-    const { enableReadyCheck, readyCheckInterval } = this.#options;
+  async #readyCheck(attempt = 0) {
+    const { enableReadyCheck, readyCheckInterval, maxReadyCheckRetries } =
+      this.#options;
 
     if (!enableReadyCheck) {
       this.#debug?.('info', 'Skipping ready check: ready check is disabled.');
@@ -399,9 +407,15 @@ export class SolidisClient extends EventEmitter {
         return;
       }
 
+      if (attempt >= maxReadyCheckRetries) {
+        throw new SolidisClientError(
+          `Ready check failed: server still loading after ${maxReadyCheckRetries} attempts`,
+        );
+      }
+
       await new Promise((resolve) => setTimeout(resolve, readyCheckInterval));
 
-      await this.#readyCheck();
+      await this.#readyCheck(attempt + 1);
     } catch (error) {
       this.#debug?.('error', 'Ready check failed with error', error);
 
@@ -445,15 +459,15 @@ export class SolidisClient extends EventEmitter {
     ]);
 
     if (!subscribe) {
-      pubSub.subscribedChannels.clear();
+      pubSub.clearSubscribedChannels();
     }
 
     if (!ssubscribe) {
-      pubSub.subscribedShardChannels.clear();
+      pubSub.clearSubscribedShardChannels();
     }
 
     if (!psubscribe) {
-      pubSub.subscribedPatterns.clear();
+      pubSub.clearSubscribedPatterns();
     }
   }
 

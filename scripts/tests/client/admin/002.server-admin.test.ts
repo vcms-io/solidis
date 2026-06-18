@@ -551,7 +551,7 @@ describe('server-admin', () => {
     );
   });
 
-  it('executes DEBUG SLEEP 0 without blocking', async () => {
+  it('handles DEBUG SLEEP 0 regardless of server configuration', async () => {
     const [[reply]] = await client.send([['DEBUG', 'SLEEP', '0']]);
 
     if (reply instanceof RespError) {
@@ -777,39 +777,40 @@ describe('server-admin', () => {
   it('returns parsed LATENCY LATEST entries', async () => {
     await client.configSet('latency-monitor-threshold', '1');
 
-    await client.send([['DEBUG', 'SLEEP', '0.005']]).catch(() => {});
-    await client.ping();
+    await client.send([
+      ['EVAL', 'local x=0 for i=1,5000000 do x=x+1 end return x', '0'],
+    ]);
 
     const result = await client.latencyLatest();
 
     await client.configSet('latency-monitor-threshold', '0');
 
     assert.ok(Array.isArray(result));
-
-    if (result.length > 0) {
-      assert.strictEqual(typeof result[0].event, 'string');
-      assert.strictEqual(typeof result[0].timestamp, 'number');
-      assert.strictEqual(typeof result[0].latency, 'number');
-      assert.strictEqual(typeof result[0].maximumLatency, 'number');
-    }
+    assert.ok(result.length > 0, 'latency events must exist after busy script');
+    assert.strictEqual(typeof result[0].event, 'string');
+    assert.strictEqual(typeof result[0].timestamp, 'number');
+    assert.strictEqual(typeof result[0].latency, 'number');
+    assert.strictEqual(typeof result[0].maximumLatency, 'number');
   });
 
   it('returns parsed LATENCY HISTORY entries', async () => {
     await client.configSet('latency-monitor-threshold', '1');
 
-    await client.send([['DEBUG', 'SLEEP', '0.005']]).catch(() => {});
-    await client.ping();
+    await client.send([
+      ['EVAL', 'local x=0 for i=1,5000000 do x=x+1 end return x', '0'],
+    ]);
 
     const result = await client.latencyHistory('command');
 
     await client.configSet('latency-monitor-threshold', '0');
 
     assert.ok(Array.isArray(result));
-
-    if (result.length > 0) {
-      assert.strictEqual(typeof result[0].timestamp, 'number');
-      assert.strictEqual(typeof result[0].latency, 'number');
-    }
+    assert.ok(
+      result.length > 0,
+      'latency history must exist after busy script',
+    );
+    assert.strictEqual(typeof result[0].timestamp, 'number');
+    assert.strictEqual(typeof result[0].latency, 'number');
   });
 
   it('verifies SORT command construction with all options', async () => {

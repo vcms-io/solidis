@@ -171,11 +171,22 @@ export class SolidisRequester {
   #setRequestTimeout(request: SolidisPipelineRequest, action: 'set' | 'clear') {
     if (action === 'set' && this.#options.commandTimeout > 0) {
       request.timeoutId = setTimeout(() => {
-        this.recoveryFromFault(
-          new SolidisRequesterError(
-            `Solidis command(s) timed out after ${this.#options.commandTimeout} ms.`,
-          ),
+        request.isTimedOut = true;
+
+        const timeoutError = new SolidisRequesterError(
+          `Solidis command(s) timed out after ${this.#options.commandTimeout} ms.`,
         );
+
+        this.#setRequestTimeout(request, 'clear');
+        this.#rejectSubRequests(request, timeoutError);
+
+        if (
+          this.#inflightQueue.length > 0 &&
+          this.#inflightQueue.every((inflight) => inflight.isTimedOut) &&
+          this.#requestQueue.length === 0
+        ) {
+          this.recoveryFromFault(timeoutError);
+        }
       }, this.#options.commandTimeout);
     }
 
@@ -397,7 +408,7 @@ export class SolidisRequester {
 
   #getUnsubscribeChannelSet(
     commandName: StringOrBuffer,
-  ): Set<string> | undefined {
+  ): ReadonlySet<string> | undefined {
     const name = (
       typeof commandName === 'string' ? commandName : commandName.toString()
     ).toUpperCase();
@@ -632,13 +643,21 @@ export class SolidisRequester {
       return;
     }
 
+    request.receivedReplyCount += 1;
+
+    if (request.isTimedOut) {
+      if (request.receivedReplyCount === request.expectedReplyCount) {
+        this.#resolvePipelineRequest(request);
+      }
+
+      return;
+    }
+
     const subRequest = request.subRequests[request.subRequestIndex];
 
     if (!subRequest) {
       return;
     }
-
-    request.receivedReplyCount += 1;
 
     this.#processSubRequest(request, reply);
 

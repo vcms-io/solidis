@@ -24,6 +24,9 @@ import {
 
 import type { FeaturedClient } from '../../utils/index.ts';
 
+const buildLargeEchoCommands = (count: number, payloadSize: number) =>
+  Array.from({ length: count }, () => ['ECHO', 'x'.repeat(payloadSize)]);
+
 describe('fragility', () => {
   const keyspace = createKeyspace('fragility');
 
@@ -272,6 +275,88 @@ describe('fragility', () => {
       assert.deepStrictEqual(await client.send([['PING']]), [['PONG']]);
     });
 
+    it('grows the parser buffer when a bulk reply exceeds the initial capacity', async () => {
+      const server = await startMockServer();
+      const payloadSize = 200_000;
+      const payload = 'z'.repeat(payloadSize);
+      const header = `$${payloadSize}\r\n`;
+      const bodyPart1 = payload.slice(0, 150_000);
+      const bodyPart2 = `${payload.slice(150_000)}\r\n`;
+
+      server.onData((socket) => {
+        socket.write(Buffer.from(header, 'latin1'));
+        socket.write(Buffer.from(bodyPart1, 'latin1'));
+        socket.write(Buffer.from(bodyPart2, 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            parser: {
+              buffer: { initial: 65536, shiftThreshold: 32768 },
+              maxBulkStringLength: 1048576,
+            },
+          }),
+        ),
+      );
+
+      await client.connect();
+
+      const [[reply]] = await client.send([['GET', 'large-key']]);
+
+      assert.ok(Buffer.isBuffer(reply));
+      assert.strictEqual(reply.length, payloadSize);
+      assert.strictEqual(reply.toString(), payload);
+    });
+
+    it('shifts the parser buffer after many small replies accumulate readOffset', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('+O', 'latin1'));
+        socket.write(Buffer.from(`K\r\n${'+OK\r\n'.repeat(19)}`, 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            parser: {
+              buffer: { initial: 512, shiftThreshold: 16 },
+              maxBulkStringLength: 1048576,
+            },
+          }),
+        ),
+      );
+
+      await client.connect();
+
+      const replies = await client.send(range(20).map(() => ['PING'] as const));
+
+      assert.strictEqual(replies.length, 20);
+      assert.ok(replies.every((reply) => reply[0] === 'OK'));
+    });
+
+    it('reassembles a RESP3 null reply split across two socket chunks', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('_\r', 'latin1'));
+        socket.write(Buffer.from('\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, { protocol: 'RESP3' }),
+        ),
+      );
+
+      await client.connect();
+
+      const [[reply]] = await client.send([['GET', 'missing-key']]);
+
+      assert.strictEqual(reply, null);
+    });
+
     it('rejects the in-flight command when the server vanishes mid-reply', async () => {
       const server = await startMockServer();
 
@@ -360,7 +445,17 @@ describe('fragility', () => {
         .then(() => false)
         .catch(() => true);
 
-      await delay(30);
+      await waitFor(
+        async () => {
+          const list = await killer.clientList();
+          return list.includes('cmd=blpop');
+        },
+        {
+          timeout: 2000,
+          interval: 10,
+          description: 'blpop registered on server',
+        },
+      );
       await killer.clientKill(clientId);
 
       assert.strictEqual(await blocked, true);
@@ -510,10 +605,15 @@ describe('fragility', () => {
 
       const result = await client.send([['GET', 'test-key']]);
 
-      assert.ok(
-        Array.isArray(result) && result.length === 1,
-        'command reply must not be consumed as a pubsub event',
-      );
+      assert.deepStrictEqual(result, [
+        [
+          [
+            Buffer.from('message'),
+            Buffer.from('channel-a'),
+            Buffer.from('hello'),
+          ],
+        ],
+      ]);
     });
   });
 
@@ -567,8 +667,7 @@ describe('fragility', () => {
         if (requestCount === 1) {
           socket.write(
             Buffer.from(
-              '*3\r\n$9\r\nsubscribe\r\n$2\r\nch\r\n:1\r\n' +
-                '*3\r\n$7\r\nmessage\r\n$2\r\nch\r\n$4\r\nboom\r\n',
+              '*3\r\n$9\r\nsubscribe\r\n$2\r\nch\r\n:1\r\n*3\r\n$7\r\nmessage\r\n$2\r\nch\r\n$4\r\nboom\r\n',
               'latin1',
             ),
           );
@@ -590,13 +689,20 @@ describe('fragility', () => {
 
       process.on('unhandledRejection', trap);
 
+      let listenerCrashed = false;
+
       client.on('message', () => {
+        listenerCrashed = true;
         throw new Error('listener crash');
       });
 
       await client.send([['SUBSCRIBE', 'ch']]);
 
-      await delay(50);
+      await waitFor(() => listenerCrashed, {
+        timeout: 1000,
+        interval: 5,
+        description: 'pubsub listener throws',
+      });
 
       const reply = await client.send([['GET', 'key']]);
 
@@ -607,6 +713,76 @@ describe('fragility', () => {
   });
 
   describe('ready check', () => {
+    it('rejects connect when the server stays loading beyond maxReadyCheckRetries', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket, data) => {
+        const text = data.toString();
+
+        if (text.includes('INFO')) {
+          const infoPayload =
+            'loading:1\r\nloading_start_time:1000000\r\nloading_total_bytes:100000000\r\n';
+
+          socket.write(
+            Buffer.from(
+              `$${infoPayload.length}\r\n${infoPayload}\r\n`,
+              'latin1',
+            ),
+          );
+
+          return;
+        }
+
+        socket.write(Buffer.from('+OK\r\n', 'latin1'));
+      });
+
+      const connectDeadline = 2000;
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            enableReadyCheck: true,
+            maxReadyCheckRetries: 10,
+            readyCheckInterval: 50,
+            commandTimeout: 30000,
+            connectionTimeout: 30000,
+            autoReconnect: false,
+          }),
+        ),
+      );
+
+      const connectOutcome = await Promise.race([
+        client
+          .connect()
+          .then(() => 'connected' as const)
+          .catch((error: Error) => ({
+            status: 'rejected' as const,
+            error,
+          })),
+        delay(connectDeadline).then(() => 'timed-out' as const),
+      ]);
+
+      assert.notStrictEqual(
+        connectOutcome,
+        'connected',
+        'connect() must not succeed while the server keeps reporting loading:1',
+      );
+      assert.notStrictEqual(
+        connectOutcome,
+        'timed-out',
+        'connect() must reject within ' +
+          `${connectDeadline}ms once maxReadyCheckRetries is exhausted ` +
+          'while the server keeps reporting loading:1',
+      );
+      assert.ok(
+        typeof connectOutcome === 'object' &&
+          connectOutcome !== null &&
+          connectOutcome.status === 'rejected',
+        'connect() must reject once maxReadyCheckRetries is exhausted ' +
+          'while the server keeps reporting loading:1',
+      );
+    });
+
     it('does not emit ready when the ready check encounters an error', async () => {
       const server = await startMockServer();
 
@@ -625,9 +801,9 @@ describe('fragility', () => {
         readyFired = true;
       });
 
-      try {
-        await client.connect();
-      } catch {}
+      const error = await client.connect().catch((caught: Error) => caught);
+
+      assert.ok(error instanceof Error);
 
       assert.strictEqual(
         readyFired,
@@ -661,11 +837,70 @@ describe('fragility', () => {
 
       assert.ok(caught instanceof SolidisCommandError);
 
-      const original = caught.getOriginalError();
+      assert.strictEqual(caught.getOriginalError(), undefined);
+    });
+  });
+
+  describe('command timeout cascade', () => {
+    it('does not cascade-reject a later pipeline before its own timeout expires', async () => {
+      const server = await startMockServer();
+
+      server.onData(() => {});
+
+      const commandTimeout = 200;
+      const staggerDelay = 100;
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            commandTimeout,
+            autoReconnect: false,
+          }),
+        ),
+      );
+
+      await client.connect();
+
+      const startTime = Date.now();
+
+      const commandA = client.send([['COMMAND-A']]).catch((error: Error) => ({
+        rejected: true as const,
+        error,
+        elapsed: Date.now() - startTime,
+      }));
+
+      await delay(staggerDelay);
+
+      const commandB = client.send([['COMMAND-B']]).catch((error: Error) => ({
+        rejected: true as const,
+        error,
+        elapsed: Date.now() - startTime,
+      }));
+
+      const [resultA, resultB] = await Promise.all([commandA, commandB]);
 
       assert.ok(
-        original === undefined || original instanceof Error,
-        `originalError must be undefined or Error, got ${typeof original}`,
+        resultA && typeof resultA === 'object' && 'rejected' in resultA,
+        'Command A must be rejected by its own timeout',
+      );
+
+      assert.ok(
+        resultB && typeof resultB === 'object' && 'rejected' in resultB,
+        'Command B must also be rejected',
+      );
+
+      assert.ok(
+        'elapsed' in resultB,
+        'rejected result must include elapsed time',
+      );
+      assert.ok(
+        resultB.elapsed >= commandTimeout + staggerDelay - 30,
+        'Command B was rejected at ' +
+          `${resultB.elapsed}ms instead of its own timeout at ` +
+          `~${commandTimeout + staggerDelay}ms — Command A's timeout ` +
+          `at ~${commandTimeout}ms triggered recoveryFromFault which ` +
+          'cascade-rejects ALL pending pipelines, cutting short ' +
+          "Command B's legitimate timeout window",
       );
     });
   });
@@ -690,11 +925,2265 @@ describe('fragility', () => {
 
       await client.send([['PING']]);
 
-      await delay(100);
+      await waitFor(() => errors.length > 0, {
+        description: 'orphan reply error event',
+      });
+
+      assert.strictEqual(
+        errors[0].message,
+        'Received reply with no pending request',
+      );
+    });
+  });
+
+  describe('connection lifecycle guards', () => {
+    it('throws when a quit client retries connection during #tryConnectWithRetry', async () => {
+      const server = await startMockServer();
+      const deadPort = server.port;
+
+      await server.close();
+
+      let retryAttempted = false;
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(
+          mockClientOptions(deadPort, {
+            maxConnectionRetries: 20,
+            connectionRetryDelay: 10,
+            connectionTimeout: 50,
+          }),
+        ),
+      );
+
+      client.on('error', () => {
+        retryAttempted = true;
+      });
+
+      const connectPromise = client.connect().catch((error: Error) => error);
+
+      await waitFor(() => retryAttempted, {
+        description: 'connection retry to begin',
+      });
+
+      client.quit();
+
+      const result = await connectPromise;
 
       assert.ok(
-        errors.length > 0,
-        'orphan reply must trigger an error or warning event',
+        result instanceof Error,
+        'connect() must reject when quit is called during retry',
+      );
+    });
+  });
+
+  describe('parser error during data processing', () => {
+    it('emits a parser error and cleans up when onData encounters corrupt bytes', async () => {
+      const server = await startMockServer();
+
+      let commandIndex = 0;
+
+      server.onData((socket) => {
+        commandIndex += 1;
+
+        if (commandIndex === 1) {
+          socket.write(Buffer.from('+OK\r\n', 'latin1'));
+
+          return;
+        }
+
+        socket.write(Buffer.from([0xff, 0xfe, 0x0d, 0x0a]));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            commandTimeout: 2000,
+            autoReconnect: false,
+          }),
+        ),
+      );
+
+      const parserErrors: SolidisParserError[] = [];
+
+      client.on('error', (error) => {
+        if (error instanceof SolidisParserError) {
+          parserErrors.push(error);
+        }
+      });
+
+      await client.connect();
+      await client.send([['PING']]);
+
+      await assert.rejects(
+        () => client.send([['PING']]),
+        (error: Error) =>
+          error instanceof SolidisParserError ||
+          error instanceof SolidisClientError,
+      );
+
+      await waitFor(() => parserErrors.length > 0, {
+        timeout: 500,
+        description: 'parser error surfaced from corrupt bytes in onData',
+      });
+    });
+  });
+
+  describe('HELLO protocol selection edge cases', () => {
+    it('falls back gracefully when the server does not support HELLO', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket, data) => {
+        const text = data.toString();
+
+        if (text.includes('HELLO')) {
+          socket.write(
+            Buffer.from('-ERR unknown command `HELLO`\r\n', 'latin1'),
+          );
+
+          return;
+        }
+
+        if (text.includes('INFO')) {
+          socket.write(Buffer.from('$11\r\nloading:0\r\n\r\n', 'latin1'));
+
+          return;
+        }
+
+        socket.write(Buffer.from('+OK\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            protocol: 'RESP3',
+            enableReadyCheck: false,
+            commandTimeout: 1000,
+          }),
+        ),
+      );
+
+      await client.connect();
+
+      const result = await client.send([['PING']]);
+
+      assert.deepStrictEqual(result, [['OK']]);
+    });
+
+    it('recovers when CLIENT SETNAME is denied by ACL', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket, data) => {
+        const text = data.toString();
+
+        if (text.includes('CLIENT') && text.includes('SETNAME')) {
+          socket.write(
+            Buffer.from(
+              '-NOPERM this user has no permissions to run CLIENT SETNAME\r\n',
+              'latin1',
+            ),
+          );
+
+          return;
+        }
+
+        socket.write(Buffer.from('+OK\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            clientName: 'blocked-name',
+            enableReadyCheck: false,
+          }),
+        ),
+      );
+
+      await client.connect();
+
+      const result = await client.send([['PING']]);
+
+      assert.deepStrictEqual(result, [['OK']]);
+    });
+  });
+
+  describe('recovery step failure', () => {
+    it('absorbs a recovery step error and continues operating', async () => {
+      const server = await startMockServer();
+
+      let selectReceived = false;
+
+      server.onData((socket, data) => {
+        const text = data.toString();
+
+        if (text.includes('SELECT')) {
+          selectReceived = true;
+
+          socket.write(Buffer.from('-ERR invalid DB index\r\n', 'latin1'));
+
+          return;
+        }
+
+        if (text.includes('PING')) {
+          socket.write(Buffer.from('+PONG\r\n', 'latin1'));
+
+          return;
+        }
+
+        socket.write(Buffer.from('+OK\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            enableReadyCheck: false,
+            database: 15,
+            autoRecovery: {
+              database: true,
+              subscribe: false,
+              ssubscribe: false,
+              psubscribe: false,
+            },
+          }),
+        ),
+      );
+
+      await client.connect();
+
+      assert.ok(
+        selectReceived,
+        'SELECT 15 must have been sent as a recovery step',
+      );
+
+      const result = await client.send([['PING']]);
+
+      assert.deepStrictEqual(
+        result,
+        [['PONG']],
+        'client must remain functional after a failed recovery step',
+      );
+    });
+  });
+
+  describe('recoveryFromFault idempotency', () => {
+    it('does not double-reject when recoveryFromFault is called twice rapidly', async () => {
+      const { SolidisRequester } = await import(
+        '../../../../sources/modules/requester.ts'
+      );
+      const { SolidisPubSub } = await import(
+        '../../../../sources/modules/pubsub.ts'
+      );
+      const { SolidisDefaultOptions } = await import(
+        '../../../../sources/common/constants.ts'
+      );
+
+      const mockConnection = {
+        socket: null,
+        reset() {},
+      };
+
+      const requester = new SolidisRequester({
+        ...SolidisDefaultOptions,
+        connection: mockConnection as never,
+        pubSub: new SolidisPubSub(),
+      });
+
+      const pending = requester
+        .send([['COMMAND-A']])
+        .catch((error: Error) => error);
+
+      let rejectionCount = 0;
+
+      pending.then((result) => {
+        if (result instanceof Error) {
+          rejectionCount += 1;
+        }
+      });
+
+      requester.recoveryFromFault(new Error('first fault'));
+      requester.recoveryFromFault(new Error('second fault'));
+
+      const result = await pending;
+
+      assert.ok(
+        result instanceof Error,
+        'pending command should be rejected after fault recovery',
+      );
+      assert.strictEqual(
+        rejectionCount,
+        1,
+        'command must be rejected exactly once despite two recoveryFromFault calls',
+      );
+    });
+  });
+
+  describe('unsubscribe expansion', () => {
+    it('expands an empty UNSUBSCRIBE to include all subscribed channels', async () => {
+      const server = await startMockServer();
+
+      const received: string[] = [];
+
+      server.onData((socket, data) => {
+        const text = data.toString();
+        received.push(text);
+
+        if (text.includes('SUBSCRIBE') && !text.includes('UNSUBSCRIBE')) {
+          socket.write(
+            Buffer.from(
+              '*3\r\n$9\r\nsubscribe\r\n$2\r\nch\r\n:1\r\n',
+              'latin1',
+            ),
+          );
+
+          return;
+        }
+
+        if (text.includes('UNSUBSCRIBE')) {
+          socket.write(
+            Buffer.from(
+              '*3\r\n$11\r\nunsubscribe\r\n$2\r\nch\r\n:0\r\n',
+              'latin1',
+            ),
+          );
+
+          return;
+        }
+
+        socket.write(Buffer.from('+OK\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, { commandTimeout: 1000 }),
+        ),
+      );
+
+      await client.connect();
+      await client.subscribe('ch');
+      await client.unsubscribe();
+
+      const unsubFrame = await waitFor(
+        () => received.find((frame) => frame.includes('UNSUBSCRIBE')),
+        { description: 'UNSUBSCRIBE frame to arrive at mock server' },
+      );
+
+      assert.ok(
+        unsubFrame?.includes('ch'),
+        'empty UNSUBSCRIBE must be expanded to include the subscribed channel',
+      );
+    });
+
+    it('expands an empty SUNSUBSCRIBE to include all subscribed shard channels', async () => {
+      const server = await startMockServer();
+
+      const received: string[] = [];
+
+      server.onData((socket, data) => {
+        const text = data.toString();
+        received.push(text);
+
+        if (text.includes('SSUBSCRIBE') && !text.includes('SUNSUBSCRIBE')) {
+          socket.write(
+            Buffer.from(
+              '*3\r\n$10\r\nssubscribe\r\n$5\r\nsh.ch\r\n:1\r\n',
+              'latin1',
+            ),
+          );
+
+          return;
+        }
+
+        if (text.includes('SUNSUBSCRIBE')) {
+          socket.write(
+            Buffer.from(
+              '*3\r\n$12\r\nsunsubscribe\r\n$5\r\nsh.ch\r\n:0\r\n',
+              'latin1',
+            ),
+          );
+
+          return;
+        }
+
+        socket.write(Buffer.from('+OK\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, { commandTimeout: 1000 }),
+        ),
+      );
+
+      await client.connect();
+      await client.ssubscribe('sh.ch');
+      await client.sunsubscribe();
+
+      const sunsubFrame = await waitFor(
+        () => received.find((frame) => frame.includes('SUNSUBSCRIBE')),
+        { description: 'SUNSUBSCRIBE frame to arrive at mock server' },
+      );
+
+      assert.ok(
+        sunsubFrame?.includes('sh.ch'),
+        'empty SUNSUBSCRIBE must be expanded to include the subscribed shard channel',
+      );
+    });
+
+    it('expands an empty PUNSUBSCRIBE to include all subscribed patterns', async () => {
+      const server = await startMockServer();
+
+      const received: string[] = [];
+
+      server.onData((socket, data) => {
+        const text = data.toString();
+        received.push(text);
+
+        if (text.includes('PSUBSCRIBE') && !text.includes('PUNSUBSCRIBE')) {
+          socket.write(
+            Buffer.from(
+              '*3\r\n$10\r\npsubscribe\r\n$4\r\nch.*\r\n:1\r\n',
+              'latin1',
+            ),
+          );
+
+          return;
+        }
+
+        if (text.includes('PUNSUBSCRIBE')) {
+          socket.write(
+            Buffer.from(
+              '*3\r\n$12\r\npunsubscribe\r\n$4\r\nch.*\r\n:0\r\n',
+              'latin1',
+            ),
+          );
+
+          return;
+        }
+
+        socket.write(Buffer.from('+OK\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, { commandTimeout: 1000 }),
+        ),
+      );
+
+      await client.connect();
+      await client.psubscribe('ch.*');
+      await client.punsubscribe();
+
+      const punsubFrame = await waitFor(
+        () => received.find((frame) => frame.includes('PUNSUBSCRIBE')),
+        { description: 'PUNSUBSCRIBE frame to arrive at mock server' },
+      );
+
+      assert.ok(
+        punsubFrame?.includes('ch.*'),
+        'empty PUNSUBSCRIBE must be expanded to include the subscribed pattern',
+      );
+    });
+  });
+
+  describe('RESP3 wire-level defensive guards with mock server', () => {
+    const resp3HelloReply = Buffer.from(
+      '%7\r\n$6\r\nserver\r\n$5\r\nredis\r\n$7\r\nversion\r\n$5\r\n7.0.0\r\n$5\r\nproto\r\n:3\r\n$2\r\nid\r\n:1\r\n$4\r\nmode\r\n$10\r\nstandalone\r\n$4\r\nrole\r\n$6\r\nmaster\r\n$7\r\nmodules\r\n*0\r\n',
+      'latin1',
+    );
+
+    it('throws SolidisCommandError when RESP3 TS.MRANGE Map value is not an array', async () => {
+      const server = await startMockServer();
+
+      let handshakeDone = false;
+
+      server.onData((socket, data) => {
+        const text = data.toString();
+
+        if (!handshakeDone && text.includes('HELLO')) {
+          handshakeDone = true;
+          socket.write(resp3HelloReply);
+
+          return;
+        }
+
+        socket.write(
+          Buffer.from('%1\r\n$3\r\nkey\r\n+not-an-array\r\n', 'latin1'),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, { protocol: 'RESP3' }),
+        ),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.tsMrange(0, 9999, { kind: 'test' }),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError when RESP3 TS.MRANGE Map samples field is not an array', async () => {
+      const server = await startMockServer();
+
+      let handshakeDone = false;
+
+      server.onData((socket, data) => {
+        const text = data.toString();
+
+        if (!handshakeDone && text.includes('HELLO')) {
+          handshakeDone = true;
+          socket.write(resp3HelloReply);
+
+          return;
+        }
+
+        socket.write(
+          Buffer.from('%1\r\n$3\r\nkey\r\n*1\r\n+not-an-array\r\n', 'latin1'),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, { protocol: 'RESP3' }),
+        ),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.tsMrange(0, 9999, { kind: 'test' }),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+  });
+
+  describe('reply parser defensive guards with malformed server replies', () => {
+    it('throws SolidisCommandError when SCAN returns a non-array reply', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('+not-an-array\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        async () => {
+          for await (const _ of client.scan()) {
+            void _;
+          }
+        },
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError when SCAN elements field is not an array', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('*2\r\n$1\r\n0\r\n+not-array\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        async () => {
+          for await (const _ of client.scan()) {
+            void _;
+          }
+        },
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError when XREAD returns a non-array reply', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('+not-an-array\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.xread(['stream'], ['0']),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError when XREAD stream item is malformed', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('*1\r\n+scalar\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.xread(['stream'], ['0']),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError when XREAD entries are not an array', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(
+          Buffer.from('*1\r\n*2\r\n$6\r\nstream\r\n+bad\r\n', 'latin1'),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.xread(['stream'], ['0']),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError when XRANGE returns a non-array reply', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('+not-an-array\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.xrange('stream', '-', '+'),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError when a stream entry has wrong shape', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('*1\r\n+scalar\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.xrange('stream', '-', '+'),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError when TS.RANGE returns a non-array reply', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('+not-an-array\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.tsRange('key', 0, 9999),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError when TS.RANGE has malformed samples', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('*1\r\n+scalar\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.tsRange('key', 0, 9999),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError when GEOSEARCH returns a non-array reply', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('+not-an-array\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () =>
+          client.geosearch(
+            'key',
+            { fromlonlat: { longitude: 0, latitude: 0 } },
+            { byradius: { radius: 100, unit: 'KM' } },
+          ),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError when GEOSEARCH item is neither string nor array', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('*1\r\n:999\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () =>
+          client.geosearch(
+            'key',
+            { fromlonlat: { longitude: 0, latitude: 0 } },
+            { byradius: { radius: 100, unit: 'KM' } },
+          ),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError for a malformed LMPOP reply', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('+not-an-array\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.lmpop(['key'], 'LEFT'),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError when LMPOP key is not a string or buffer', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('*2\r\n:999\r\n*1\r\n$1\r\na\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.lmpop(['key'], 'LEFT'),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError when LMPOP elements is not an array', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('*2\r\n$3\r\nkey\r\n+bad\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.lmpop(['key'], 'LEFT'),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError for a non-array BF.SCANDUMP reply', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('+not-an-array\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.bfScandump('key', 0),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError for a scan dump with non-buffer data', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(
+          Buffer.from('*2\r\n:42\r\n+string-not-buffer\r\n', 'latin1'),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.bfScandump('key', 0),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError for a scan dump with unexpected null data', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('*2\r\n:42\r\n$-1\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.bfScandump('key', 0),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError when TS.MRANGE returns a non-array body', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('+not-an-array\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.tsMrange(0, 9999, { kind: 'test' }),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError when TS.MRANGE item has non-string key', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(
+          Buffer.from(
+            '*1\r\n*2\r\n:999\r\n*1\r\n*2\r\n:1000\r\n:42\r\n',
+            'latin1',
+          ),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.tsMrange(0, 9999, { kind: 'test' }),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError when TS.MRANGE item has non-array samples', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(
+          Buffer.from('*1\r\n*2\r\n$3\r\nkey\r\n+bad\r\n', 'latin1'),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.tsMrange(0, 9999, { kind: 'test' }),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError when TS.MRANGE item is not an array', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('*1\r\n+scalar\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.tsMrange(0, 9999, { kind: 'test' }),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError when time series samples contain NaN values', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(
+          Buffer.from(
+            '*1\r\n*2\r\n$3\r\nkey\r\n*1\r\n*2\r\n$3\r\nNaN\r\n$3\r\nNaN\r\n',
+            'latin1',
+          ),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.tsMrange(0, 9999, { kind: 'test' }),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError when MODULE LIST entry is not array or map', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('*1\r\n+scalar\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.moduleList(),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError when MODULE LIST entry lacks name or version', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('*1\r\n*0\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.moduleList(),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('parses GEOSEARCH WITHHASH when hash is a bulk string', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(
+          Buffer.from(
+            '*1\r\n*4\r\n$7\r\nPalermo\r\n$6\r\n190.44\r\n$16\r\n3479099956230698\r\n*2\r\n$9\r\n13.361389\r\n$9\r\n38.115556\r\n',
+            'latin1',
+          ),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      const results = await client.geosearch(
+        'key',
+        { fromlonlat: { longitude: 15, latitude: 37 } },
+        { byradius: { radius: 400, unit: 'KM' } },
+        { withCoord: true, withDist: true, withHash: true },
+      );
+
+      assert.strictEqual(results.length, 1);
+      assert.strictEqual(results[0].member, 'Palermo');
+      assert.strictEqual(results[0].hash, 3479099956230698);
+      assert.ok(typeof results[0].distance === 'number');
+      assert.ok(results[0].position !== undefined);
+    });
+  });
+
+  describe('command-level reply guards with mock server', () => {
+    it('parses ROLE master reply with connected replicas', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(
+          Buffer.from(
+            '*3\r\n$6\r\nmaster\r\n:100\r\n*1\r\n*3\r\n$9\r\n127.0.0.1\r\n$4\r\n6380\r\n$3\r\n100\r\n',
+            'latin1',
+          ),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      const result = await client.role();
+
+      assert.strictEqual(result.role, 'master');
+      assert.strictEqual(result.replicationOffset, 100);
+      assert.ok('slaves' in result && Array.isArray(result.slaves));
+      assert.strictEqual(result.slaves.length, 1);
+      assert.strictEqual(result.slaves[0].ip, '127.0.0.1');
+      assert.strictEqual(result.slaves[0].port, 6380);
+      assert.strictEqual(result.slaves[0].offset, 100);
+    });
+
+    it('parses ROLE slave reply', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(
+          Buffer.from(
+            '*5\r\n$5\r\nslave\r\n$9\r\n127.0.0.1\r\n:6379\r\n$9\r\nconnected\r\n:500\r\n',
+            'latin1',
+          ),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      const result = await client.role();
+
+      assert.strictEqual(result.role, 'slave');
+      assert.ok('masterHost' in result);
+      assert.strictEqual(result.masterHost, '127.0.0.1');
+      assert.strictEqual(result.masterPort, 6379);
+      assert.strictEqual(result.replicationState, 'connected');
+      assert.strictEqual(result.replicationOffset, 500);
+    });
+
+    it('throws SolidisCommandError for unknown ROLE type', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('*2\r\n$8\r\nsentinel\r\n*0\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.role(),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError for ROLE master with invalid offset', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(
+          Buffer.from('*3\r\n$6\r\nmaster\r\n$3\r\nbad\r\n*0\r\n', 'latin1'),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.role(),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError for malformed XPENDING summary', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('+not-array\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.xpending('stream', 'grp'),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError for XPENDING summary with wrong length', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('*2\r\n:0\r\n$1\r\n0\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.xpending('stream', 'grp'),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError for XPENDING summary with non-array consumers', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(
+          Buffer.from(
+            '*4\r\n:1\r\n$3\r\n1-1\r\n$3\r\n1-1\r\n+bad\r\n',
+            'latin1',
+          ),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.xpending('stream', 'grp'),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError for XPENDING summary with malformed consumer tuple', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(
+          Buffer.from(
+            '*4\r\n:1\r\n$3\r\n1-1\r\n$3\r\n1-1\r\n*1\r\n+only-one\r\n',
+            'latin1',
+          ),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.xpending('stream', 'grp'),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError for XPENDING range with malformed entry', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('*1\r\n+scalar\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.xpending('stream', 'grp', '-', '+', 10),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError for COMMAND GETKEYSANDFLAGS with malformed item', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('*1\r\n+scalar\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.commandGetkeysandflags('SET', ['k', 'v']),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError for COMMAND GETKEYSANDFLAGS with non-string key', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(
+          Buffer.from('*1\r\n*2\r\n:999\r\n*1\r\n$2\r\nRW\r\n', 'latin1'),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.commandGetkeysandflags('SET', ['k', 'v']),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError for COMMAND GETKEYSANDFLAGS with non-array reply', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('+not-array\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.commandGetkeysandflags('SET', ['k', 'v']),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError for LATENCY HISTOGRAM with non-array non-Map reply', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('+scalar\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.latencyHistogram('ping'),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError for LATENCY HISTOGRAM RESP2 with malformed event data', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(
+          Buffer.from('*2\r\n$4\r\nping\r\n*2\r\n:1\r\n:2\r\n', 'latin1'),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.latencyHistogram('ping'),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError for LATENCY HISTOGRAM RESP3 with non-Map histogram_usec', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(
+          Buffer.from(
+            '*2\r\n$4\r\nping\r\n*4\r\n$5\r\ncalls\r\n:10\r\n$14\r\nhistogram_usec\r\n+bad\r\n',
+            'latin1',
+          ),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.latencyHistogram('ping'),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError for ACL GETUSER with scalar reply', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('+scalar\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.aclGetuser('default'),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError for ACL GETUSER with missing flags/passwords', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('*0\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.aclGetuser('default'),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError for TS.MGET RESP2 with malformed item', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('*1\r\n+scalar\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.tsMget({ kind: 'test' }),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError for TS.MGET RESP2 with non-string key', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(
+          Buffer.from(
+            '*1\r\n*3\r\n:999\r\n*0\r\n*2\r\n:1000\r\n:42\r\n',
+            'latin1',
+          ),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.tsMget({ kind: 'test' }),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError for TS.MGET RESP2 with malformed sample', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(
+          Buffer.from('*1\r\n*3\r\n$3\r\nkey\r\n*0\r\n+bad\r\n', 'latin1'),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.tsMget({ kind: 'test' }),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError for TS.MGET with non-array non-Map reply', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('+scalar\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.tsMget({ kind: 'test' }),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError for ROLE master with malformed slave entry', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(
+          Buffer.from(
+            '*3\r\n$6\r\nmaster\r\n:100\r\n*1\r\n+not-an-array\r\n',
+            'latin1',
+          ),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.role(),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('parses XPENDING summary with null consumers (empty group)', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(
+          Buffer.from('*4\r\n:0\r\n$-1\r\n$-1\r\n$-1\r\n', 'latin1'),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      const result = await client.xpending('stream', 'grp');
+
+      assert.ok(!Array.isArray(result));
+      assert.strictEqual(result.pending, 0);
+      assert.strictEqual(result.minId, null);
+      assert.strictEqual(result.maxId, null);
+      assert.deepStrictEqual(result.consumers, []);
+    });
+
+    it('throws SolidisCommandError for XINFO STREAM FULL with non-array entries', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(
+          Buffer.from(
+            '*18\r\n$6\r\nlength\r\n:1\r\n$15\r\nradix-tree-keys\r\n:1\r\n$16\r\nradix-tree-nodes\r\n:1\r\n$17\r\nlast-generated-id\r\n$3\r\n1-1\r\n$20\r\nmax-deleted-entry-id\r\n$3\r\n0-0\r\n$13\r\nentries-added\r\n:1\r\n$6\r\ngroups\r\n:0\r\n$23\r\nrecorded-first-entry-id\r\n$3\r\n0-0\r\n$7\r\nentries\r\n+bad\r\n',
+            'latin1',
+          ),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.xinfoStream('stream', true),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError for LATENCY HISTOGRAM RESP3 Map with non-Map inner value', async () => {
+      const helloRequest = Buffer.from('HELLO');
+      let handshakeDone = false;
+
+      const server = await startMockServer();
+
+      server.onData((socket, data) => {
+        if (!handshakeDone && data.includes(helloRequest)) {
+          handshakeDone = true;
+
+          socket.write(
+            Buffer.from(
+              '%7\r\n$6\r\nserver\r\n$5\r\nredis\r\n$7\r\nversion\r\n$5\r\n7.0.0\r\n$5\r\nproto\r\n:3\r\n$2\r\nid\r\n:1\r\n$4\r\nmode\r\n$10\r\nstandalone\r\n$4\r\nrole\r\n$6\r\nmaster\r\n$7\r\nmodules\r\n*0\r\n',
+              'latin1',
+            ),
+          );
+
+          return;
+        }
+
+        socket.write(
+          Buffer.from('%1\r\n$4\r\nping\r\n+not-a-map\r\n', 'latin1'),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient({
+          ...mockClientOptions(server.port),
+          protocol: 'RESP3',
+        }),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.latencyHistogram('ping'),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError for ACL GETUSER selectors with non-array item', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(
+          Buffer.from(
+            '*12\r\n$5\r\nflags\r\n*1\r\n$2\r\non\r\n$9\r\npasswords\r\n*0\r\n$8\r\ncommands\r\n$5\r\n+@all\r\n$4\r\nkeys\r\n$2\r\n~*\r\n$8\r\nchannels\r\n$2\r\n&*\r\n$9\r\nselectors\r\n*1\r\n+bad\r\n',
+            'latin1',
+          ),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.aclGetuser('default'),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError for TS.MGET RESP3 Map with non-array value', async () => {
+      const helloRequest = Buffer.from('HELLO');
+      let handshakeDone = false;
+
+      const server = await startMockServer();
+
+      server.onData((socket, data) => {
+        if (!handshakeDone && data.includes(helloRequest)) {
+          handshakeDone = true;
+
+          socket.write(
+            Buffer.from(
+              '%7\r\n$6\r\nserver\r\n$5\r\nredis\r\n$7\r\nversion\r\n$5\r\n7.0.0\r\n$5\r\nproto\r\n:3\r\n$2\r\nid\r\n:1\r\n$4\r\nmode\r\n$10\r\nstandalone\r\n$4\r\nrole\r\n$6\r\nmaster\r\n$7\r\nmodules\r\n*0\r\n',
+              'latin1',
+            ),
+          );
+
+          return;
+        }
+
+        socket.write(
+          Buffer.from('%1\r\n$3\r\nkey\r\n+not-an-array\r\n', 'latin1'),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient({
+          ...mockClientOptions(server.port),
+          protocol: 'RESP3',
+        }),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.tsMget({ kind: 'test' }),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError for TS.MGET RESP3 Map with malformed sample', async () => {
+      const helloRequest = Buffer.from('HELLO');
+      let handshakeDone = false;
+
+      const server = await startMockServer();
+
+      server.onData((socket, data) => {
+        if (!handshakeDone && data.includes(helloRequest)) {
+          handshakeDone = true;
+
+          socket.write(
+            Buffer.from(
+              '%7\r\n$6\r\nserver\r\n$5\r\nredis\r\n$7\r\nversion\r\n$5\r\n7.0.0\r\n$5\r\nproto\r\n:3\r\n$2\r\nid\r\n:1\r\n$4\r\nmode\r\n$10\r\nstandalone\r\n$4\r\nrole\r\n$6\r\nmaster\r\n$7\r\nmodules\r\n*0\r\n',
+              'latin1',
+            ),
+          );
+
+          return;
+        }
+
+        socket.write(
+          Buffer.from('%1\r\n$3\r\nkey\r\n*1\r\n+not-a-pair\r\n', 'latin1'),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient({
+          ...mockClientOptions(server.port),
+          protocol: 'RESP3',
+        }),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.tsMget({ kind: 'test' }),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError for XINFO STREAM FULL with non-array groups', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(
+          Buffer.from(
+            '*18\r\n$6\r\nlength\r\n:1\r\n$15\r\nradix-tree-keys\r\n:1\r\n$16\r\nradix-tree-nodes\r\n:1\r\n$17\r\nlast-generated-id\r\n$3\r\n1-1\r\n$20\r\nmax-deleted-entry-id\r\n$3\r\n0-0\r\n$13\r\nentries-added\r\n:1\r\n$6\r\ngroups\r\n+bad\r\n$23\r\nrecorded-first-entry-id\r\n$3\r\n0-0\r\n$7\r\nentries\r\n*0\r\n',
+            'latin1',
+          ),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.xinfoStream('stream', true),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+  });
+
+  describe('latency and slowlog parsing with mock server', () => {
+    it('parses LATENCY LATEST with populated event entries', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(
+          Buffer.from(
+            '*1\r\n*4\r\n$7\r\ncommand\r\n:1718700000\r\n:5\r\n:20\r\n',
+            'latin1',
+          ),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      const result = await client.latencyLatest();
+
+      assert.strictEqual(result.length, 1);
+      assert.strictEqual(result[0].event, 'command');
+      assert.strictEqual(result[0].timestamp, 1718700000);
+      assert.strictEqual(result[0].latency, 5);
+      assert.strictEqual(result[0].maximumLatency, 20);
+    });
+
+    it('parses LATENCY HISTORY with populated entries', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(
+          Buffer.from(
+            '*2\r\n*2\r\n:1718700000\r\n:5\r\n*2\r\n:1718700001\r\n:10\r\n',
+            'latin1',
+          ),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      const result = await client.latencyHistory('command');
+
+      assert.strictEqual(result.length, 2);
+      assert.strictEqual(result[0].timestamp, 1718700000);
+      assert.strictEqual(result[0].latency, 5);
+      assert.strictEqual(result[1].timestamp, 1718700001);
+      assert.strictEqual(result[1].latency, 10);
+    });
+
+    it('throws SolidisCommandError for LATENCY LATEST with malformed entry', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('*1\r\n+bad\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.latencyLatest(),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError for LATENCY HISTORY with malformed entry', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('*1\r\n*2\r\n+bad\r\n+bad\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.latencyHistory('command'),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError for LATENCY LATEST with non-array reply', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('+scalar\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.latencyLatest(),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('throws SolidisCommandError for LATENCY HISTORY with non-array reply', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('+scalar\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      await assert.rejects(
+        () => client.latencyHistory('command'),
+        (error: Error) => error instanceof SolidisCommandError,
+      );
+    });
+
+    it('parses SLOWLOG GET with structured entries via mock', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(
+          Buffer.from(
+            '*1\r\n*6\r\n:1\r\n:1718700000\r\n:5000\r\n*2\r\n$4\r\nPING\r\n$0\r\n\r\n$9\r\n127.0.0.1\r\n$5\r\nmyapp\r\n',
+            'latin1',
+          ),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      const result = await client.slowlogGet();
+
+      assert.strictEqual(result.length, 1);
+      assert.strictEqual(result[0].id, 1);
+      assert.strictEqual(result[0].timestamp, 1718700000);
+      assert.strictEqual(result[0].duration, 5000);
+      assert.ok(Array.isArray(result[0].commandArguments));
+      assert.strictEqual(result[0].clientIpPort, '127.0.0.1');
+      assert.strictEqual(result[0].clientName, 'myapp');
+    });
+  });
+
+  describe('requester socket write paths', () => {
+    it('rejects when server pauses and command timeout fires', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.pause();
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            maxSocketWriteSizePerOnce: 32,
+            commandTimeout: 200,
+            autoReconnect: false,
+          }),
+        ),
+      );
+
+      await client.connect();
+
+      const result = await client
+        .send(buildLargeEchoCommands(50, 200))
+        .catch((error: Error) => error);
+
+      assert.ok(result instanceof Error);
+      assert.match(result.message, /timed out/i);
+    });
+
+    it('rejects with connection error when the server drops during a backpressured write', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.pause();
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            maxSocketWriteSizePerOnce: 32,
+            socketWriteTimeout: 5000,
+            autoReconnect: false,
+          }),
+        ),
+      );
+
+      await client.connect();
+
+      const pending = client
+        .send(buildLargeEchoCommands(50, 200))
+        .catch((error: Error) => error);
+
+      await waitFor(() => server.received.length > 0, {
+        description: 'client started writing to the paused mock server',
+      });
+
+      server.destroySockets();
+
+      const result = await pending;
+
+      assert.ok(result instanceof Error);
+    });
+  });
+
+  describe('requester inflight guard paths', () => {
+    it('silently discards replies when the inflight queue is empty', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('+OK\r\n+EXTRA\r\n+EXTRA2\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      const result = await client.send([['PING']]);
+
+      assert.deepStrictEqual(result, [['OK']]);
+
+      const probe = await client.send([['PING']]).catch(() => null);
+
+      assert.ok(
+        probe !== null,
+        'client must remain operable after extra unsolicited replies',
+      );
+    });
+
+    it('rejects unsent requests held in the schedule queue on fault recovery', async () => {
+      const { SolidisRequester } = await import(
+        '../../../../sources/modules/requester.ts'
+      );
+      const { SolidisPubSub } = await import(
+        '../../../../sources/modules/pubsub.ts'
+      );
+      const { SolidisDefaultOptions } = await import(
+        '../../../../sources/common/constants.ts'
+      );
+
+      const mockConnection = {
+        socket: null,
+        reset() {},
+      };
+
+      const requester = new SolidisRequester({
+        ...SolidisDefaultOptions,
+        connection: mockConnection as never,
+        pubSub: new SolidisPubSub(),
+      });
+
+      const pending = requester
+        .send([['QUEUED-CMD']])
+        .catch((error: Error) => error);
+
+      requester.recoveryFromFault(new Error('forced recovery'));
+
+      const result = await pending;
+
+      assert.ok(result instanceof Error);
+      assert.ok(result.message.includes('forced recovery'));
+    });
+
+    it('rejects pipeline when socket becomes null during flush', async () => {
+      const { SolidisRequester } = await import(
+        '../../../../sources/modules/requester.ts'
+      );
+      const { SolidisPubSub } = await import(
+        '../../../../sources/modules/pubsub.ts'
+      );
+      const { SolidisDefaultOptions } = await import(
+        '../../../../sources/common/constants.ts'
+      );
+
+      const mockConnection = {
+        socket: null,
+        reset() {},
+      };
+
+      const requester = new SolidisRequester({
+        ...SolidisDefaultOptions,
+        connection: mockConnection as never,
+        pubSub: new SolidisPubSub(),
+      });
+
+      const result = await requester
+        .send([['WILL-FAIL']])
+        .catch((error: Error) => error);
+
+      assert.ok(result instanceof Error);
+    });
+
+    it('consumes remaining replies for a timed-out pipeline without desync', async () => {
+      const server = await startMockServer();
+
+      let commandIndex = 0;
+
+      server.onData((socket) => {
+        commandIndex += 1;
+
+        if (commandIndex === 1) {
+          return;
+        }
+
+        socket.write(Buffer.from('+SECOND\r\n', 'latin1'));
+
+        setImmediate(() => {
+          socket.write(Buffer.from('+LATE-FIRST\r\n', 'latin1'));
+        });
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            commandTimeout: 500,
+            autoReconnect: false,
+          }),
+        ),
+      );
+
+      await client.connect();
+
+      const firstResult = await client
+        .send([['SLOW']])
+        .catch((error: Error) => ({ rejected: true, error }));
+
+      assert.ok(
+        typeof firstResult === 'object' &&
+          firstResult !== null &&
+          'rejected' in firstResult,
+        'first command must be rejected by timeout',
+      );
+
+      const second = await client.send([['FAST']]);
+
+      assert.deepStrictEqual(
+        second,
+        [['SECOND']],
+        'second command must get its own reply, not the late first reply',
+      );
+    });
+
+    it('drains every reply for a timed-out multi-command pipeline', async () => {
+      const server = await startMockServer();
+
+      let replyCount = 0;
+
+      server.onData(() => {
+        replyCount += 1;
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            commandTimeout: 100,
+            autoReconnect: false,
+          }),
+        ),
+      );
+
+      await client.connect();
+
+      const pending = client
+        .send([['SLOW-A'], ['SLOW-B'], ['SLOW-C']])
+        .catch((error: Error) => ({ rejected: true as const, error }));
+
+      const timedOut = await pending;
+
+      assert.ok(
+        typeof timedOut === 'object' &&
+          timedOut !== null &&
+          'rejected' in timedOut,
+        'multi-command pipeline must reject once commandTimeout expires',
+      );
+
+      server.send(Buffer.from('+A\r\n+B\r\n+C\r\n', 'latin1'));
+
+      await waitFor(() => replyCount >= 1, {
+        description: 'client must receive late replies before next command',
+      });
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('+OK\r\n', 'latin1'));
+      });
+
+      assert.deepStrictEqual(await client.send([['PING']]), [['OK']]);
+    });
+
+    it('rejects with socketWriteTimeout error when socket never drains', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.pause();
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            maxSocketWriteSizePerOnce: 1,
+            socketWriteTimeout: 100,
+            commandTimeout: 5000,
+            autoReconnect: false,
+          }),
+        ),
+      );
+
+      await client.connect();
+
+      const result = await client
+        .send(buildLargeEchoCommands(100, 500))
+        .catch((error: Error) => error);
+
+      assert.ok(result instanceof Error);
+    });
+
+    it('rejects when socket emits error during chunked write', async () => {
+      const server = await startMockServer();
+
+      let dataCount = 0;
+
+      server.onData((socket) => {
+        dataCount += 1;
+
+        if (dataCount >= 2) {
+          socket.destroy(new Error('forced socket error'));
+        }
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            maxSocketWriteSizePerOnce: 16,
+            commandTimeout: 3000,
+            autoReconnect: false,
+          }),
+        ),
+      );
+
+      await client.connect();
+
+      const result = await client
+        .send(buildLargeEchoCommands(50, 200))
+        .catch((error: Error) => error);
+
+      assert.ok(result instanceof Error);
+    });
+
+    it('receives late replies for a timed-out pipeline and keeps sync', async () => {
+      const server = await startMockServer();
+
+      let lateRepliesSent = false;
+
+      server.onData((socket, _data, _server) => {
+        if (!lateRepliesSent) {
+          return;
+        }
+
+        socket.write(Buffer.from('+FRESH\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            commandTimeout: 200,
+            autoReconnect: false,
+          }),
+        ),
+      );
+
+      await client.connect();
+
+      const timedOutResult = await client
+        .send([['SLOW-A'], ['SLOW-B']])
+        .catch((error: Error) => ({ timedOut: true, error }));
+
+      assert.ok(
+        typeof timedOutResult === 'object' &&
+          timedOutResult !== null &&
+          'timedOut' in timedOutResult,
+        'two-command pipeline must time out when server withholds replies',
+      );
+
+      server.send(Buffer.from('+LATE-1\r\n+LATE-2\r\n', 'latin1'));
+      lateRepliesSent = true;
+
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      const freshResult = await client.send([['FAST']]);
+
+      assert.deepStrictEqual(
+        freshResult,
+        [['FRESH']],
+        'next command must get its own reply after timed-out pipeline is drained',
       );
     });
   });

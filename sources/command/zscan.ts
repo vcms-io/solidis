@@ -1,7 +1,6 @@
 import {
   buildScanCommand,
-  executeCommand,
-  tryReplyToScan,
+  createScanIterator,
   tryReplyToSortedSetMembers,
 } from './utils/index.ts';
 
@@ -20,17 +19,10 @@ export async function* zscan<T>(
   key: string,
   options: CommandScanBaseOptions = {},
 ): AsyncGenerator<RespSortedSetMember[]> {
-  let cursor = '0';
-  const { count = 10, match } = options;
-
-  do {
-    const command = createCommand(key, cursor, { count, match });
-
-    const reply = await executeCommand(this, command);
-
-    const [newCursor, elements] = tryReplyToScan(reply);
-    cursor = newCursor;
-
-    yield tryReplyToSortedSetMembers(elements, command);
-  } while (cursor !== '0');
+  yield* createScanIterator(
+    this,
+    ['ZSCAN', key],
+    options,
+    tryReplyToSortedSetMembers,
+  );
 }

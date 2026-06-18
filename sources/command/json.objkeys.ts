@@ -1,4 +1,5 @@
 import {
+  buildJsonKeyPathCommand,
   executeCommand,
   newCommandError,
   tryReplyToString,
@@ -7,13 +8,7 @@ import {
 } from './utils/index.ts';
 
 export function createCommand(key: string, path?: string) {
-  const command = ['JSON.OBJKEYS', key];
-
-  if (path !== undefined) {
-    command.push(path);
-  }
-
-  return command;
+  return buildJsonKeyPathCommand('JSON.OBJKEYS', key, path);
 }
 
 export async function jsonObjkeys<T>(

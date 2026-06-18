@@ -1,13 +1,11 @@
-import { executeCommand, tryReplyNumber } from './utils/index.ts';
+import {
+  buildJsonKeyPathCommand,
+  executeCommand,
+  tryReplyNumber,
+} from './utils/index.ts';
 
 export function createCommand(key: string, path?: string) {
-  const command = ['JSON.FORGET', key];
-
-  if (path !== undefined) {
-    command.push(path);
-  }
-
-  return command;
+  return buildJsonKeyPathCommand('JSON.FORGET', key, path);
 }
 
 export async function jsonForget<T>(

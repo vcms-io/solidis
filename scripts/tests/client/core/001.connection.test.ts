@@ -1,15 +1,23 @@
 /** Connection lifecycle, handshake, and reconnection behaviour. */
 
 import assert from 'node:assert/strict';
+import net from 'node:net';
 import { after, describe, it } from 'node:test';
 
 import { SolidisFeaturedClient } from '../../../../sources/client/featured.ts';
-import { SolidisClientError } from '../../../../sources/index.ts';
+import { SolidisDefaultOptions } from '../../../../sources/common/constants.ts';
+import {
+  SolidisClientError,
+  SolidisConnectionError,
+} from '../../../../sources/index.ts';
+import { SolidisConnection } from '../../../../sources/modules/connection.ts';
+import { SolidisDebugMemory } from '../../../../sources/modules/debug.ts';
 import {
   buildClientOptions,
   closeClient,
   createClient,
-  delay,
+  MockRedisServer,
+  waitFor,
 } from '../../utils/index.ts';
 
 import type { FeaturedClient } from '../../utils/index.ts';
@@ -71,7 +79,7 @@ describe('connection', () => {
       readyFired = true;
     });
 
-    await delay(50);
+    await new Promise<void>((resolve) => setImmediate(resolve));
 
     assert.strictEqual(readyFired, false);
 
@@ -146,32 +154,6 @@ describe('connection', () => {
     assert.ok(pongs.every((value) => value === 'PONG'));
   });
 
-  it('wraps connection failures in SolidisClientError', async () => {
-    const client = new SolidisFeaturedClient(
-      buildClientOptions({
-        host: '127.0.0.1',
-        port: 1,
-        lazyConnect: true,
-        maxConnectionRetries: 0,
-        connectionTimeout: 200,
-      }),
-    );
-
-    client.on('error', () => {});
-
-    let caught: unknown;
-
-    try {
-      await client.connect();
-    } catch (error) {
-      caught = error;
-    }
-
-    assert.ok(caught instanceof SolidisClientError);
-
-    client.quit();
-  });
-
   it('applies clientName via HELLO when using RESP3', async () => {
     const name = `solidis-resp3-${Date.now()}`;
     const client = await createClient({ clientName: name, protocol: 'RESP3' });
@@ -196,16 +178,14 @@ describe('connection', () => {
     assert.strictEqual(await client.ping(), 'PONG');
   });
 
-  it('performs ready check when enabled', async () => {
-    const client = track(await createClient({ enableReadyCheck: true }));
+  it('accepts enableReadyCheck in both states without error', async () => {
+    const enabled = track(await createClient({ enableReadyCheck: true }));
 
-    assert.strictEqual(await client.ping(), 'PONG');
-  });
+    assert.strictEqual(await enabled.ping(), 'PONG');
 
-  it('skips ready check when disabled', async () => {
-    const client = track(await createClient({ enableReadyCheck: false }));
+    const disabled = track(await createClient({ enableReadyCheck: false }));
 
-    assert.strictEqual(await client.ping(), 'PONG');
+    assert.strictEqual(await disabled.ping(), 'PONG');
   });
 
   it('connects automatically when lazyConnect is false', async () => {
@@ -300,7 +280,7 @@ describe('connection', () => {
     track(raceClient);
   });
 
-  it('rejects with timeout error when host is unreachable', async () => {
+  it('rejects with a connection error when host is unreachable', async () => {
     const unreachableClient = new SolidisFeaturedClient(
       buildClientOptions({
         lazyConnect: true,
@@ -316,9 +296,9 @@ describe('connection', () => {
     await assert.rejects(
       () => unreachableClient.connect(),
       (error: Error) =>
-        error.message.includes('timeout') ||
-        error.message.includes('connect') ||
-        error.message.includes('ECONNREFUSED'),
+        error instanceof SolidisClientError &&
+        (error.message.includes('timeout') ||
+          error.message.includes('ECONNREFUSED')),
     );
 
     unreachableClient.quit();
@@ -336,7 +316,8 @@ describe('connection', () => {
 
     await assert.rejects(
       () => quitClient.connect(),
-      (error: Error) => error instanceof SolidisClientError,
+      (error: Error) =>
+        error instanceof SolidisClientError && /closed/i.test(error.message),
     );
   });
 
@@ -358,7 +339,16 @@ describe('connection', () => {
 
     await killer.clientKill(clientId);
 
-    await delay(500);
+    await waitFor(
+      async () => {
+        try {
+          return (await reconnectClient.ping()) === 'PONG';
+        } catch {
+          return false;
+        }
+      },
+      { timeout: 3000, interval: 25, description: 'reconnect after kill' },
+    );
 
     const value = await reconnectClient.get(key);
 
@@ -413,5 +403,245 @@ describe('connection', () => {
     );
 
     badClient.quit();
+  });
+
+  describe('SolidisConnection transport', () => {
+    it('throws when connect follows quit on the transport layer', async () => {
+      const server = new MockRedisServer();
+      await server.listen();
+
+      const connection = new SolidisConnection({
+        ...SolidisDefaultOptions,
+        host: '127.0.0.1',
+        port: server.port,
+        clientName: '',
+        enableReadyCheck: false,
+        autoReconnect: false,
+        maxConnectionRetries: 0,
+      });
+
+      connection.on('error', () => {});
+
+      await connection.connect();
+      connection.quit();
+
+      await assert.rejects(
+        () => connection.connect(),
+        (error: Error) =>
+          error instanceof SolidisConnectionError &&
+          error.message === 'Cannot connect because user quit the connection.',
+      );
+
+      await server.close();
+    });
+
+    it('returns immediately when connect is called on an established transport', async () => {
+      const server = new MockRedisServer();
+      await server.listen();
+
+      const connection = new SolidisConnection({
+        ...SolidisDefaultOptions,
+        host: '127.0.0.1',
+        port: server.port,
+        clientName: '',
+        enableReadyCheck: false,
+        autoReconnect: false,
+      });
+
+      connection.on('error', () => {});
+
+      let connectEventCount = 0;
+
+      connection.on('connect', () => {
+        connectEventCount += 1;
+      });
+
+      await connection.connect();
+
+      assert.strictEqual(connectEventCount, 1);
+
+      await connection.connect();
+
+      assert.strictEqual(
+        connectEventCount,
+        1,
+        'a duplicate connect() must be a no-op and must not emit connect again',
+      );
+
+      connection.quit();
+      await server.close();
+    });
+
+    it('cleans up the previous socket when a connection retry begins', async () => {
+      let acceptCount = 0;
+      let server: net.Server;
+
+      const listen = (): Promise<number> =>
+        new Promise((resolve) => {
+          server = net.createServer((socket) => {
+            acceptCount += 1;
+            socket.on('error', () => {});
+          });
+
+          server.listen(0, '127.0.0.1', () => {
+            resolve((server.address() as net.AddressInfo).port);
+          });
+        });
+
+      const port = await listen();
+
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve());
+      });
+
+      let cleanupCalls = 0;
+
+      const connection = new SolidisConnection({
+        ...SolidisDefaultOptions,
+        host: '127.0.0.1',
+        port,
+        maxConnectionRetries: 5,
+        connectionRetryDelay: 100,
+        connectionTimeout: 200,
+        enableReadyCheck: false,
+      });
+
+      const originalCleanup = connection.cleanup.bind(connection);
+
+      connection.cleanup = () => {
+        cleanupCalls += 1;
+        originalCleanup();
+      };
+
+      connection.on('error', () => {});
+
+      const reopenTimer = setTimeout(() => {
+        server = net.createServer((socket) => {
+          acceptCount += 1;
+          socket.on('error', () => {});
+        });
+
+        server.listen(port, '127.0.0.1');
+      }, 250);
+
+      await connection.connect();
+
+      clearTimeout(reopenTimer);
+
+      assert.strictEqual(connection.isConnected, true);
+      assert.ok(acceptCount >= 1, 'server must accept at least one retry');
+      assert.ok(
+        cleanupCalls >= 2,
+        'failed attempts must invoke cleanup before the successful retry',
+      );
+
+      connection.quit();
+
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve());
+      });
+    });
+
+    it('catches background reconnect failure after reset() on a dead server', async () => {
+      const debugMemory = new SolidisDebugMemory(50);
+      const server = new MockRedisServer();
+      await server.listen();
+      const port = server.port;
+
+      const connection = new SolidisConnection({
+        ...SolidisDefaultOptions,
+        host: '127.0.0.1',
+        port,
+        clientName: '',
+        enableReadyCheck: false,
+        autoReconnect: true,
+        maxConnectionRetries: 0,
+        connectionTimeout: 500,
+        debugMemory,
+      });
+
+      connection.on('error', () => {});
+
+      await connection.connect();
+      await server.close();
+
+      connection.reset();
+
+      await waitFor(
+        () =>
+          debugMemory
+            .getLogs()
+            .some((log) => log.message.includes('failed to reset reconnect')),
+        {
+          timeout: 3000,
+          description: 'reset reconnect failure must be logged via debug',
+        },
+      );
+
+      assert.ok(
+        debugMemory
+          .getLogs()
+          .some(
+            (log) =>
+              log.message === 'Solidis connection failed to reset reconnect.',
+          ),
+        'reset() must log the background reconnect failure via debug',
+      );
+
+      connection.quit();
+    });
+
+    it('triggers background reconnect failure in the socket close handler', async () => {
+      const debugMemory = new SolidisDebugMemory(50);
+      const server = new MockRedisServer();
+      await server.listen();
+      const port = server.port;
+
+      const connection = new SolidisConnection({
+        ...SolidisDefaultOptions,
+        host: '127.0.0.1',
+        port,
+        clientName: '',
+        enableReadyCheck: false,
+        autoReconnect: true,
+        maxConnectionRetries: 0,
+        connectionTimeout: 500,
+        debugMemory,
+      });
+
+      connection.on('error', () => {});
+
+      await connection.connect();
+      await server.close();
+
+      server.destroySockets();
+
+      await waitFor(
+        () =>
+          debugMemory
+            .getLogs()
+            .some((log) =>
+              log.message.includes('failed to background reconnect'),
+            ),
+        {
+          timeout: 5000,
+          description:
+            'close handler must log the background reconnect failure via debug',
+        },
+      );
+
+      assert.ok(
+        debugMemory
+          .getLogs()
+          .some(
+            (log) =>
+              log.message ===
+              'Solidis connection failed to background reconnect.',
+          ),
+        'socket close handler must log the background reconnect failure via debug',
+      );
+
+      connection.quit();
+    });
   });
 });

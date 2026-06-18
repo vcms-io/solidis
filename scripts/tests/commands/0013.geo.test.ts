@@ -189,10 +189,6 @@ describe('geo', () => {
 
     assert.ok(Array.isArray(results));
 
-    if (!Array.isArray(results)) {
-      return;
-    }
-
     const members = results.map((entry) => entry.member);
 
     assert.ok(members.includes('Catania'));
@@ -207,10 +203,6 @@ describe('geo', () => {
     const results = await client.georadiusbymember(key, 'Palermo', 200, 'KM');
 
     assert.ok(Array.isArray(results));
-
-    if (!Array.isArray(results)) {
-      return;
-    }
 
     const members = results.map((entry) => entry.member);
 

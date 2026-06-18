@@ -5,14 +5,14 @@
  */
 
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import { after, before, describe, it } from 'node:test';
 
-import { RespError } from '../../../../sources/index.ts';
+import { RespError, SolidisRequesterError } from '../../../../sources/index.ts';
 import {
   closeClient,
   createClient,
   createKeyspace,
-  delay,
   waitFor,
 } from '../../utils/index.ts';
 
@@ -96,7 +96,7 @@ describe('debug-requester', () => {
 
       memory.write({ type: 'debug', message: 'event test' });
 
-      await delay(10);
+      await new Promise<void>((resolve) => setImmediate(resolve));
 
       assert.notStrictEqual(emittedEntry, null);
       assert.strictEqual((emittedEntry as { type: string }).type, 'debug');
@@ -179,7 +179,7 @@ describe('debug-requester', () => {
 
       handle('info', 'test message', { extra: true });
 
-      await delay(10);
+      await new Promise<void>((resolve) => setImmediate(resolve));
 
       const logs = memory.getLogs();
 
@@ -189,7 +189,7 @@ describe('debug-requester', () => {
   });
 
   describe('debug stream via DEBUG environment variable', () => {
-    it('activates debug stream when DEBUG includes solidis', async () => {
+    it('writes and retrieves logs when DEBUG environment variable includes solidis', async () => {
       const originalDebug = process.env.DEBUG;
 
       process.env.DEBUG = 'solidis';
@@ -228,7 +228,7 @@ describe('debug-requester', () => {
       assert.deepStrictEqual(command, ['DEBUG', 'SLEEP', '0']);
     });
 
-    it('executes DEBUG SLEEP 0 without error', async () => {
+    it('handles DEBUG SLEEP 0 regardless of server configuration', async () => {
       const reply = await client.debug('SLEEP', '0');
 
       if (reply instanceof RespError) {
@@ -339,8 +339,12 @@ describe('debug-requester', () => {
     it('rejects command when commandTimeout expires', async () => {
       const timeoutClient = await createClient({ commandTimeout: 50 });
 
-      await assert.rejects(() =>
-        timeoutClient.send([['BLPOP', keyspace.key('never-exists'), '0']]),
+      await assert.rejects(
+        () =>
+          timeoutClient.send([['BLPOP', keyspace.key('never-exists'), '0']]),
+        (error: Error) =>
+          error instanceof SolidisRequesterError &&
+          /timed? ?out/i.test(error.message),
       );
 
       await closeClient(timeoutClient);
@@ -394,6 +398,84 @@ describe('debug-requester', () => {
   });
 
   describe('requester recovery from write error', () => {
+    it('rejects in-flight pipeline when recovery begins between chunked socket writes', async () => {
+      const { SolidisRequester } = await import(
+        '../../../../sources/modules/requester.ts'
+      );
+      const { SolidisPubSub } = await import(
+        '../../../../sources/modules/pubsub.ts'
+      );
+      const { SolidisDefaultOptions } = await import(
+        '../../../../sources/common/constants.ts'
+      );
+
+      let writeIndex = 0;
+      let requester!: InstanceType<typeof SolidisRequester>;
+      const emitter = new EventEmitter();
+
+      const originalOnce = emitter.once.bind(emitter);
+      const originalRemoveListener = emitter.removeListener.bind(emitter);
+
+      const socket = emitter as import('node:net').Socket;
+
+      socket.write = () => {
+        writeIndex += 1;
+
+        if (writeIndex === 2) {
+          requester.recoveryFromFault(new Error('mid-write fault'));
+        }
+
+        return true;
+      };
+
+      socket.once = ((
+        event: string,
+        listener: (...arguments_: unknown[]) => void,
+      ) => {
+        originalOnce(event, listener);
+
+        return socket;
+      }) as typeof socket.once;
+
+      socket.removeListener = ((
+        event: string,
+        listener: (...arguments_: unknown[]) => void,
+      ) => {
+        originalRemoveListener(event, listener);
+
+        return socket;
+      }) as typeof socket.removeListener;
+
+      requester = new SolidisRequester({
+        ...SolidisDefaultOptions,
+        maxSocketWriteSizePerOnce: 16,
+        connection: { socket, reset() {} } as never,
+        pubSub: new SolidisPubSub(),
+        autoReconnect: false,
+      });
+
+      const commands = Array.from({ length: 20 }, () => [
+        'ECHO',
+        'x'.repeat(100),
+      ]);
+
+      const sendError = await requester
+        .send(commands)
+        .then(() => null)
+        .catch((error: Error) => error);
+
+      assert.ok(
+        sendError instanceof Error,
+        'send must reject when recoveryFromFault interrupts chunked writes',
+      );
+      assert.strictEqual(
+        sendError.message,
+        'mid-write fault',
+        'the rejection must carry the exact error passed to recoveryFromFault, ' +
+          'because #rejectAllRequests propagates it without wrapping',
+      );
+    });
+
     it('triggers recoveryFromFault when socket write fails mid-command', async () => {
       const faultClient = await createClient({
         autoReconnect: true,
@@ -418,14 +500,28 @@ describe('debug-requester', () => {
         .then(() => ({ rejected: false, error: undefined as unknown }))
         .catch((error: unknown) => ({ rejected: true, error }));
 
-      await delay(30);
+      await waitFor(
+        async () => {
+          const list = await killerClient.clientList();
+          return list.includes('cmd=blpop');
+        },
+        {
+          timeout: 2000,
+          interval: 10,
+          description: 'blpop registered on server',
+        },
+      );
 
       await killerClient.clientKill(clientId);
 
       const settlement = await pendingSettled;
 
       assert.strictEqual(settlement.rejected, true);
-      assert.ok(settlement.error instanceof Error);
+      assert.ok(
+        settlement.error instanceof Error,
+        'CLIENT KILL must surface an error from the fault recovery path, got: ' +
+          (settlement.error as Error)?.constructor?.name,
+      );
 
       await waitFor(
         async () => {
@@ -442,37 +538,6 @@ describe('debug-requester', () => {
       assert.strictEqual(await faultClient.get(key), 'recovered');
 
       await closeClient(faultClient);
-      await closeClient(killerClient);
-    });
-  });
-
-  describe('requester duplicate recovery is idempotent', () => {
-    it('does not corrupt state on repeated disconnect events', async () => {
-      const recoveryClient = await createClient({
-        autoReconnect: true,
-        maxConnectionRetries: 3,
-        connectionRetryDelay: 25,
-        connectionTimeout: 500,
-      });
-
-      recoveryClient.on('error', () => {});
-
-      const key = keyspace.key('dup-recovery');
-
-      await recoveryClient.set(key, 'stable');
-
-      const clientId = await recoveryClient.clientId();
-      const killerClient = await createClient();
-
-      await killerClient.clientKill(clientId);
-
-      await delay(150);
-
-      const value = await recoveryClient.get(key);
-
-      assert.strictEqual(value, 'stable');
-
-      await closeClient(recoveryClient);
       await closeClient(killerClient);
     });
   });

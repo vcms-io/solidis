@@ -1,4 +1,8 @@
-import { executeCommand, tryReplyToStringOrNull } from './utils/index.ts';
+import {
+  appendExpireOptions,
+  executeCommand,
+  tryReplyToStringOrNull,
+} from './utils/index.ts';
 
 import type { CommandGetExOptions } from '../index.ts';
 
@@ -6,21 +10,7 @@ export function createCommand(key: string, options?: CommandGetExOptions) {
   const command = ['GETEX', key];
 
   if (options) {
-    if (options.expireInSeconds !== undefined) {
-      command.push('EX', `${options.expireInSeconds}`);
-    }
-
-    if (options.expireInMilliseconds !== undefined) {
-      command.push('PX', `${options.expireInMilliseconds}`);
-    }
-
-    if (options.expireAtSeconds !== undefined) {
-      command.push('EXAT', `${options.expireAtSeconds}`);
-    }
-
-    if (options.expireAtMilliseconds !== undefined) {
-      command.push('PXAT', `${options.expireAtMilliseconds}`);
-    }
+    appendExpireOptions(command, options);
 
     if (options.persist === true) {
       command.push('PERSIST');

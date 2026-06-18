@@ -11,7 +11,7 @@ import {
   closeClient,
   createClient,
   createKeyspace,
-  delay,
+  waitFor,
 } from '../utils/index.ts';
 
 import type { FeaturedClient } from '../utils/index.ts';
@@ -275,9 +275,11 @@ describe('strings', () => {
 
     assert.strictEqual(await client.get(key), 'value');
 
-    await delay(120);
-
-    assert.strictEqual(await client.get(key), null);
+    await waitFor(async () => (await client.get(key)) === null, {
+      timeout: 2000,
+      interval: 20,
+      description: 'key expired',
+    });
   });
 
   it('preserves binary payloads round-trip', async () => {
@@ -289,10 +291,6 @@ describe('strings', () => {
     const value = await client.getBuffer(key);
 
     assert.ok(Buffer.isBuffer(value));
-
-    if (!Buffer.isBuffer(value)) {
-      return;
-    }
 
     assert.ok(value.equals(payload));
   });
