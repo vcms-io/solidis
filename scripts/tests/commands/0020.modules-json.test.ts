@@ -313,13 +313,13 @@ describe('modules-json', () => {
     }
     if (capabilities.isValkey) {
       assert.ok(
-        memory >= 30 && memory <= 500,
-        `memory usage ${memory} outside expected Valkey range 30..500`,
+        memory >= 30 && memory <= 200,
+        `memory usage ${memory} outside expected Valkey range 30..200`,
       );
     } else {
       assert.ok(
-        memory >= 50 && memory <= 500,
-        `memory usage ${memory} outside expected Redis range 50..500`,
+        memory >= 50 && memory <= 200,
+        `memory usage ${memory} outside expected Redis range 50..200`,
       );
     }
   });

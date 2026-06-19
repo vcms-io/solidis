@@ -51,6 +51,15 @@ describe('geo', () => {
     };
 
     assert.strictEqual(await client.geoadd(key, [updated], { nx: true }), 0);
+
+    const positions = await client.geopos(key, ['Palermo']);
+
+    assert.ok(positions[0] !== null, 'Palermo must still exist after NX no-op');
+
+    assert.ok(
+      Math.abs(positions[0].longitude - palermo.longitude) < 0.01,
+      `NX must not change existing coordinates; longitude=${positions[0].longitude}`,
+    );
   });
 
   it('adds members with XX option (only update existing)', async () => {
@@ -65,6 +74,14 @@ describe('geo', () => {
     };
 
     assert.strictEqual(await client.geoadd(key, [newMember], { xx: true }), 0);
+
+    const romePosition = await client.geopos(key, ['Rome']);
+
+    assert.strictEqual(
+      romePosition[0],
+      null,
+      'XX must not add a new member that did not exist before',
+    );
   });
 
   it('adds members with CH option (return changed count)', async () => {

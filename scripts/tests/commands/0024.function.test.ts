@@ -298,20 +298,21 @@ describe('function', () => {
     assert.deepStrictEqual(list, []);
   });
 
-  it('returns function stats with engines and null running_script', async (context) => {
+  it('reflects zero libraries in function stats after a flush', async (context) => {
     if (!capabilities.atLeast(7, 0)) {
       context.skip('requires Redis 7.0+');
       return;
     }
 
     await client.functionLoad(libraryCode, true);
+    await client.functionFlush();
 
     const stats = await client.functionStats();
 
     assert.strictEqual(stats.runningScript, null);
     assert.deepStrictEqual(
       stats.engines.find((engine) => engine.name === 'LUA'),
-      { name: 'LUA', libraries: 1, functions: 3 },
+      { name: 'LUA', libraries: 0, functions: 0 },
     );
   });
 });

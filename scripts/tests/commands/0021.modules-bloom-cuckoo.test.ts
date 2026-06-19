@@ -82,10 +82,12 @@ describe('modules-bloom-cuckoo', () => {
       range(500).map((index) => client.bfAdd(key, `item-${index}`)),
     );
 
-    for (const index of range(500).filter(
-      (value) => value === 0 || value % 100 === 0,
-    )) {
-      assert.strictEqual(await client.bfExists(key, `item-${index}`), true);
+    for (const index of range(500).filter((value) => value % 50 === 0)) {
+      assert.strictEqual(
+        await client.bfExists(key, `item-${index}`),
+        true,
+        `item-${index} must exist in the Bloom filter after insertion`,
+      );
     }
   });
 
@@ -323,10 +325,11 @@ describe('modules-bloom-cuckoo', () => {
       );
     }
 
-    for (const item of [0, 25, 50, 75, 99]) {
+    for (const item of range(100).filter((value) => value % 10 === 0)) {
       assert.strictEqual(
         await client.bfExists(destination, `item-${item}`),
         true,
+        `item-${item} must exist after BF.LOADCHUNK restore`,
       );
     }
   });
@@ -376,10 +379,11 @@ describe('modules-bloom-cuckoo', () => {
       );
     }
 
-    for (const item of [0, 12, 24, 36, 49]) {
+    for (const item of range(50).filter((value) => value % 5 === 0)) {
       assert.strictEqual(
         await client.cfExists(destination, `item-${item}`),
         true,
+        `item-${item} must exist after CF.LOADCHUNK restore`,
       );
     }
   });

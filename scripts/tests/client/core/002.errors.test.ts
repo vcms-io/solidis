@@ -195,15 +195,24 @@ describe('errors', () => {
     );
   });
 
-  it('does not produce duplicate entries when unwrapping nested errors', () => {
+  it('does not produce duplicate entries when unwrapping deeply nested errors', () => {
     const root = new Error('root cause');
-    const wrapped = new SolidisClientError('outer failure', root);
+    const middle = new SolidisClientError('middle layer', root);
+    const outer = new SolidisClientError('outer layer', middle);
 
-    const chain = unwrapSolidisError(wrapped);
+    const chain = unwrapSolidisError(outer);
 
     assert.deepStrictEqual(
       chain.map((entry) => entry.message),
-      ['outer failure', 'root cause'],
+      ['outer layer', 'middle layer', 'root cause'],
+    );
+
+    const uniqueMessages = new Set(chain.map((entry) => entry.message));
+
+    assert.strictEqual(
+      uniqueMessages.size,
+      chain.length,
+      'unwrapped chain must not contain duplicate entries',
     );
   });
 

@@ -260,8 +260,12 @@ describe('acl', () => {
 
     try {
       await restricted.set('forbidden:key', 'val');
-    } catch {
-      /* expected NOPERM */
+      assert.fail('expected NOPERM rejection for restricted user');
+    } catch (error) {
+      assert.ok(
+        error instanceof Error && error.message.includes('NOPERM'),
+        `expected NOPERM error but got: ${error instanceof Error ? error.message : String(error)}`,
+      );
     } finally {
       await closeClient(restricted);
     }

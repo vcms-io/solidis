@@ -119,6 +119,12 @@ describe('keys-generic', () => {
       await client.copy(source, crossDbDestination, { destinationDatabase: 0 }),
       1,
     );
+
+    assert.strictEqual(
+      await client.get(crossDbDestination),
+      'updated',
+      'COPY with destinationDatabase must preserve the source value',
+    );
   });
 
   it('moves keys between databases', async () => {
@@ -197,7 +203,16 @@ describe('keys-generic', () => {
     );
 
     const databaseSize = await client.dbsize();
-    assert.ok(databaseSize >= 1);
+    assert.ok(
+      databaseSize >= 1,
+      `DBSIZE must be at least 1 after inserting a key, got ${databaseSize}`,
+    );
+
+    assert.strictEqual(
+      await client.exists(keyspace.key('randomkey')),
+      1,
+      'the key inserted for RANDOMKEY testing must exist',
+    );
   });
 
   it('reports an object encoding', async () => {

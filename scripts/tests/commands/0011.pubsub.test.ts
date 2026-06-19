@@ -7,7 +7,6 @@ import {
   closeClient,
   createClient,
   createKeyspace,
-  delay,
   detectServerCapabilities,
   waitFor,
 } from '../utils/index.ts';
@@ -198,7 +197,10 @@ describe('pubsub', () => {
     );
 
     await publisher.publish(channel, 'ignored');
-    await delay(200);
+
+    for (let tick = 0; tick < 20; tick += 1) {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
 
     assert.strictEqual(messageCount, 0);
   });
@@ -249,7 +251,10 @@ describe('pubsub', () => {
     await waitFor(async () => (await publisher.pubsubNumpat()) === 0);
 
     await publisher.publish(channel, 'ignored');
-    await delay(200);
+
+    for (let tick = 0; tick < 20; tick += 1) {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
 
     assert.strictEqual(messageCount, 0);
   });
@@ -282,7 +287,10 @@ describe('pubsub', () => {
     });
 
     await publisher.spublish(channel, 'ignored');
-    await delay(200);
+
+    for (let tick = 0; tick < 20; tick += 1) {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
 
     assert.strictEqual(messageCount, 0);
   });

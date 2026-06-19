@@ -185,7 +185,10 @@ describe('hashes', () => {
     const ttls = await client.httl(key, ['withTtl', 'withoutTtl', 'missing']);
     const withTtlSeconds = ttls[0];
 
-    assert.ok(withTtlSeconds >= 1 && withTtlSeconds <= 100);
+    assert.ok(
+      withTtlSeconds >= 90 && withTtlSeconds <= 100,
+      `HTTL must return a TTL close to 100s, got ${withTtlSeconds}`,
+    );
     assert.strictEqual(ttls[1], -1);
     assert.strictEqual(ttls[2], -2);
   });
@@ -205,7 +208,10 @@ describe('hashes', () => {
     const pttls = await client.hpttl(key, ['field']);
     const fieldMilliseconds = pttls[0];
 
-    assert.ok(fieldMilliseconds >= 1 && fieldMilliseconds <= 100000);
+    assert.ok(
+      fieldMilliseconds >= 90000 && fieldMilliseconds <= 100000,
+      `HPTTL must return a TTL close to 100000ms, got ${fieldMilliseconds}`,
+    );
   });
 
   it('HEXPIREAT/HEXPIRETIME pin an absolute field TTL', async (context) => {
@@ -239,7 +245,10 @@ describe('hashes', () => {
 
     const unchangedTtl = (await client.httl(key, ['field']))[0];
 
-    assert.ok(unchangedTtl >= 1 && unchangedTtl <= 100);
+    assert.ok(
+      unchangedTtl >= 90 && unchangedTtl <= 100,
+      `HTTL after NX no-op must still be close to 100s, got ${unchangedTtl}`,
+    );
 
     assert.deepStrictEqual(
       await client.hexpire(key, 200, ['field'], 'GT'),
@@ -248,7 +257,10 @@ describe('hashes', () => {
 
     const extendedTtl = (await client.httl(key, ['field']))[0];
 
-    assert.ok(extendedTtl >= 1 && extendedTtl <= 200);
+    assert.ok(
+      extendedTtl >= 190 && extendedTtl <= 200,
+      `HTTL after GT extension must be close to 200s, got ${extendedTtl}`,
+    );
   });
 
   it('HPERSIST clears a field TTL', async (context) => {
@@ -347,7 +359,10 @@ describe('hashes', () => {
 
     const unchangedMilliseconds = (await client.hpttl(key, ['field']))[0];
 
-    assert.ok(unchangedMilliseconds >= 1 && unchangedMilliseconds <= 120000);
+    assert.ok(
+      unchangedMilliseconds >= 110000 && unchangedMilliseconds <= 120000,
+      `HPTTL after NX no-op must still be close to 120000ms, got ${unchangedMilliseconds}`,
+    );
   });
 
   it('applies HPEXPIRE with LT mode', async (context) => {
@@ -367,7 +382,10 @@ describe('hashes', () => {
 
     const shortenedMilliseconds = (await client.hpttl(key, ['field']))[0];
 
-    assert.ok(shortenedMilliseconds >= 1 && shortenedMilliseconds <= 60000);
+    assert.ok(
+      shortenedMilliseconds >= 50000 && shortenedMilliseconds <= 60000,
+      `HPTTL after LT shortening must be close to 60000ms, got ${shortenedMilliseconds}`,
+    );
   });
 
   it('applies HPEXPIREAT with GT mode', async (context) => {

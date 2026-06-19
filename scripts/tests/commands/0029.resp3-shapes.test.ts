@@ -640,9 +640,23 @@ describe('resp3-shapes', () => {
 
     const list = await client.functionList();
 
+    assert.ok(
+      Array.isArray(list),
+      'FUNCTION LIST must return an array even when no libraries are loaded',
+    );
+
     for (const item of list) {
       assert.strictEqual(typeof item.libraryName, 'string');
+      assert.ok(
+        item.libraryName.length > 0,
+        'libraryName must be a non-empty string',
+      );
       assert.strictEqual(typeof item.engine, 'string');
+
+      assert.ok(
+        Array.isArray(item.functions),
+        'each library entry must have a functions array',
+      );
 
       for (const functionEntry of item.functions) {
         assert.strictEqual(typeof functionEntry.name, 'string');
@@ -777,7 +791,9 @@ describe('resp3-shapes', () => {
 
     for (const mod of modules) {
       assert.strictEqual(typeof mod.name, 'string');
+      assert.ok(mod.name.length > 0, 'module name must be non-empty');
       assert.strictEqual(typeof mod.version, 'number');
+      assert.ok(mod.version >= 0, 'module version must be non-negative');
     }
   });
 
@@ -1038,11 +1054,22 @@ describe('resp3-shapes', () => {
     const info = await client.hello('RESP3');
 
     assert.strictEqual(typeof info.server, 'string');
+    assert.ok(
+      info.server.length > 0,
+      'HELLO server must be a non-empty string',
+    );
     assert.strictEqual(typeof info.version, 'string');
+    assert.ok(
+      info.version.length > 0,
+      'HELLO version must be a non-empty string',
+    );
     assert.strictEqual(info.proto, 3);
     assert.strictEqual(typeof info.id, 'number');
+    assert.ok(info.id >= 0, 'HELLO id must be a non-negative integer');
     assert.strictEqual(typeof info.mode, 'string');
+    assert.ok(info.mode.length > 0, 'HELLO mode must be a non-empty string');
     assert.strictEqual(typeof info.role, 'string');
+    assert.ok(info.role.length > 0, 'HELLO role must be a non-empty string');
   });
 
   it('reads a RESP3 HELLO reply with SETNAME option', async () => {
@@ -1314,11 +1341,15 @@ describe('resp3-shapes', () => {
     const libraryName = 'solidisresp3test';
     const code = `#!lua name=${libraryName}\nredis.register_function('solidisresp3fn', function() return 'ok' end)`;
 
-    try {
-      await client.functionLoad(code, true);
-    } catch {
-      await client.functionLoad(code);
-    }
+    await client.functionDelete(libraryName).catch(() => undefined);
+
+    const loadResult = await client.functionLoad(code);
+
+    assert.strictEqual(
+      loadResult,
+      libraryName,
+      'FUNCTION LOAD must return the library name on success',
+    );
 
     const list = await client.functionList({ withCode: true });
 

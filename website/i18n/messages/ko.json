@@ -24,7 +24,7 @@
     "typescriptFirst": "TypeScript 우선",
     "typescriptFirstDesc": "포괄적인 타입 정의와 IntelliSense를 갖춘 완전한 TypeScript 지원",
     "blazingFast": "놀라운 성능",
-    "blazingFastDesc": "Solidis는 의존성 없이 IoRedis보다 최대 79% 빠른 성능을 제공합니다",
+    "blazingFastDesc": "Solidis는 의존성 없이 ioredis보다 최대 2배 빠른 성능을 제공합니다",
     "viewBenchmarks": "모든 벤치마크 보기",
     "getStartedMinutes": "몇 분 만에 시작하기",
     "getStartedDesc": "Solidis를 설치하고 몇 줄의 코드만으로 고성능 Redis 애플리케이션 구축을 시작하세요.",
@@ -141,7 +141,7 @@
   },
   "benchmarks": {
     "title": "성능 벤치마크",
-    "subtitle": "Solidis와 IoRedis 간의 실제 성능 비교.",
+    "subtitle": "Solidis와 ioredis 간의 실제 성능 비교.",
     "testEnvironment": "테스트 환경",
     "benchmarkResults": "벤치마크 결과",
     "howToRun": "벤치마크 실행 방법",

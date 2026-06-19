@@ -95,18 +95,34 @@ describe('lifecycle-edge', () => {
 
     client.on('error', () => {});
 
+    let connectedBeforeCommand = false;
+
+    client.on('connect', () => {
+      connectedBeforeCommand = true;
+    });
+
+    for (let tick = 0; tick < 10; tick += 1) {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
+
+    assert.strictEqual(
+      connectedBeforeCommand,
+      false,
+      'lazyConnect must not establish a connection until a command is issued',
+    );
+
     assert.strictEqual(await client.ping(), 'PONG');
   });
 
   it('does not reconnect after a kill when autoReconnect is disabled', async () => {
     const client = track(
-      await createClient({ autoReconnect: false, maxConnectionRetries: 0 }),
+      await createClient({
+        autoReconnect: false,
+        maxConnectionRetries: 0,
+      }),
     );
 
     client.on('error', () => {});
-
-    const clientId = await client.clientId();
-    const killer = track(await createClient());
 
     let backgroundReconnectCount = 0;
 
@@ -114,20 +130,31 @@ describe('lifecycle-edge', () => {
       backgroundReconnectCount += 1;
     });
 
-    await killer.clientKill(clientId);
+    const clientId = await client.clientId();
+    const killer = track(await createClient());
 
-    await new Promise<void>((resolve) => setTimeout(resolve, 1500));
+    const killResult = await killer.clientKill(clientId);
+
+    assert.strictEqual(
+      killResult,
+      1,
+      'CLIENT KILL must return 1 when the target client exists',
+    );
+
+    await waitFor(async () => (await killer.clientKill(clientId)) === 0, {
+      timeout: 3000,
+      interval: 50,
+      description: 'killed client no longer exists on server',
+    });
+
+    for (let tick = 0; tick < 50; tick += 1) {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
 
     assert.strictEqual(
       backgroundReconnectCount,
       0,
       'autoReconnect: false must suppress background reconnection after kill',
-    );
-
-    assert.strictEqual(
-      await killer.clientKill(clientId),
-      0,
-      'client must stay disconnected without silently reconnecting',
     );
   });
 
@@ -336,8 +363,9 @@ describe('lifecycle-edge', () => {
 
     await ended;
 
-    await new Promise<void>((resolve) => setImmediate(resolve));
-    await new Promise<void>((resolve) => setImmediate(resolve));
+    for (let tick = 0; tick < 20; tick += 1) {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
 
     assert.strictEqual(
       readyAfterQuit,

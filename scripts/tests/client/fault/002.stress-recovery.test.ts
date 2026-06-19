@@ -70,12 +70,23 @@ describe('stress-recovery', () => {
           .then(() => {
             resolved += 1;
           })
-          .catch(() => {
+          .catch((error: unknown) => {
+            assert.ok(
+              error instanceof Error,
+              `rejection must be an Error instance but got: ${typeof error}`,
+            );
             rejected += 1;
           });
       });
 
-      await new Promise<void>((resolve) => setImmediate(resolve));
+      const firstKeyOfRound = keyspace.key('loss', round, 0);
+
+      await waitFor(async () => (await killer.exists(firstKeyOfRound)) === 1, {
+        timeout: 3000,
+        interval: 5,
+        description: 'at least one command reached server before kill',
+      });
+
       await killer.clientKill(clientId);
 
       await Promise.all(outcomes);
@@ -123,6 +134,12 @@ describe('stress-recovery', () => {
     );
 
     assert.ok(
+      resolved > 0,
+      'expected at least some commands to resolve successfully, ' +
+        `but all ${total} were rejected`,
+    );
+
+    assert.ok(
       persisted >= resolved,
       `acknowledged writes must be durable: persisted=${persisted} < resolved=${resolved}`,
     );
@@ -166,7 +183,11 @@ describe('stress-recovery', () => {
               }
             }
           })
-          .catch(() => {
+          .catch((error: unknown) => {
+            assert.ok(
+              error instanceof Error,
+              `rejection must be an Error instance but got: ${typeof error}`,
+            );
             rejected += 1;
           });
       }),

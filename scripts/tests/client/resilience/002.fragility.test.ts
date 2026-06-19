@@ -1,6 +1,7 @@
 /** Fragility & recovery: hostile payloads, protocol corruption, and fault accounting. */
 
 import assert from 'node:assert/strict';
+import net from 'node:net';
 import { after, afterEach, before, describe, it } from 'node:test';
 
 import { SolidisFeaturedClient } from '../../../../sources/client/featured.ts';
@@ -522,7 +523,6 @@ describe('fragility', () => {
 
       const elapsed = Date.now() - startTime;
 
-      assert.ok(elapsed >= 0);
       assert.ok(
         elapsed < 2000,
         `expected immediate rejection but took ${elapsed}ms`,
@@ -620,6 +620,15 @@ describe('fragility', () => {
           .catch(() => 'rejected' as const),
       );
 
+      await waitFor(
+        async () => (await killer.exists(keyspace.key('loss', 0))) === 1,
+        {
+          timeout: 3000,
+          interval: 5,
+          description: 'at least one write reached server',
+        },
+      );
+
       await killer.clientKill(clientId);
 
       const settled = await Promise.all(outcomes);
@@ -656,10 +665,17 @@ describe('fragility', () => {
       }
 
       assert.ok(
+        resolved > 0,
+        `expected at least some commands to resolve, but all ${total} were rejected`,
+      );
+      assert.ok(
         persisted >= resolved,
         `persisted (${persisted}) must cover resolved (${resolved})`,
       );
-      assert.ok(persisted <= total);
+      assert.ok(
+        persisted <= total,
+        `persisted (${persisted}) cannot exceed total (${total})`,
+      );
 
       assert.strictEqual(
         await client.set(keyspace.key('loss-final'), 'ok'),
@@ -3405,12 +3421,29 @@ describe('fragility', () => {
         socket.pause();
       });
 
+      const originalConnect = Reflect.get(net, 'connect');
+      let capturedSocket: net.Socket | undefined;
+
+      Reflect.set(
+        net,
+        'connect',
+        function captureConnect(
+          ...connectArguments: Parameters<typeof net.connect>
+        ) {
+          const socket = originalConnect.apply(net, connectArguments);
+          capturedSocket = socket;
+          return socket;
+        },
+      );
+
+      const socketWriteTimeout = 200;
+
       const client = trackMockClient(
         new SolidisFeaturedClient(
           mockClientOptions(server.port, {
-            maxSocketWriteSizePerOnce: 1,
-            socketWriteTimeout: 100,
-            commandTimeout: 5000,
+            maxSocketWriteSizePerOnce: 65536,
+            socketWriteTimeout,
+            commandTimeout: 30000,
             autoReconnect: false,
           }),
         ),
@@ -3418,14 +3451,32 @@ describe('fragility', () => {
 
       await client.connect();
 
+      Reflect.set(net, 'connect', originalConnect);
+
+      assert.ok(
+        capturedSocket instanceof net.Socket,
+        'failed to capture the client socket via net.connect interception',
+      );
+
+      capturedSocket.cork();
+
+      const startTime = Date.now();
+
       const result = await client
-        .send(buildLargeEchoCommands(100, 500))
+        .send(buildLargeEchoCommands(5, 50000))
         .catch((error: Error) => error);
 
+      const elapsed = Date.now() - startTime;
+
       assert.ok(result instanceof SolidisRequesterError);
-      assert.strictEqual(
-        result.message,
-        'Solidis command(s) timed out after 5000 ms.',
+      assert.strictEqual(result.message, 'Socket timed out');
+      assert.ok(
+        elapsed < 5000,
+        `expected rejection well before commandTimeout (30 s) but took ${elapsed} ms`,
+      );
+      assert.ok(
+        elapsed >= socketWriteTimeout,
+        `expected at least socketWriteTimeout (${socketWriteTimeout} ms) to elapse but took ${elapsed} ms`,
       );
     });
 

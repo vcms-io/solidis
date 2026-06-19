@@ -56,7 +56,7 @@ export default function FaqPage() {
         {
           question: "What's the performance compared to other Redis clients?",
           answer:
-            'Solidis is optimized for high throughput and low latency. Benchmarks show it performs up to 79% faster than ioredis in hash operations, with the added benefits of better TypeScript support and cleaner architecture.',
+            'Solidis is optimized for high throughput and low latency. Benchmarks show it performs up to 2x faster than ioredis across 15 different operation types (100K iterations, 10K concurrency), with the added benefits of better TypeScript support and cleaner architecture.',
         },
         {
           question: 'Does Solidis support transactions?',

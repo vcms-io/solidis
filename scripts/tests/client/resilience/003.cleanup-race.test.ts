@@ -77,6 +77,12 @@ describe('cleanup-race', () => {
       true,
       'client must emit a second ready event after reconnection',
     );
+
+    assert.strictEqual(
+      server.connectionCount,
+      1,
+      'mock server must accept exactly one new socket after reconnection',
+    );
   });
 
   it('reconnects after a forced CLIENT KILL with no retries', async () => {

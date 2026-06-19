@@ -143,6 +143,8 @@ describe('streams', () => {
       assert.fail('expected non-null xreadgroup result');
     }
     assert.strictEqual(delivered[0].entries.length, 2);
+    assert.deepStrictEqual(delivered[0].entries[0].fields, { task: 'a' });
+    assert.deepStrictEqual(delivered[0].entries[1].fields, { task: 'b' });
 
     const pendingBefore = await client.xpending(key, group);
 
@@ -324,8 +326,70 @@ describe('streams', () => {
     const detail = info.groups[0];
 
     assert.strictEqual(detail.name, group);
+    assert.strictEqual(detail.lastDeliveredId, '2-1');
+    assert.strictEqual(detail.entriesRead, 2);
+    assert.ok(
+      detail.lag === 0 || detail.lag === null,
+      `lag must be 0 (fully consumed) or null, got: ${detail.lag}`,
+    );
+    assert.strictEqual(
+      detail.pelCount,
+      2,
+      'group must have 2 pending entries (none acknowledged)',
+    );
+
+    assert.strictEqual(detail.pending.length, 2);
+
+    const sortedGroupPending = [...detail.pending].sort((left, right) =>
+      left.id.localeCompare(right.id),
+    );
+
+    assert.strictEqual(sortedGroupPending[0].id, '1-1');
+    assert.strictEqual(sortedGroupPending[0].consumer, 'consumer-1');
+    assert.ok(
+      sortedGroupPending[0].deliveryTime > 0,
+      'group pending deliveryTime must be a positive timestamp',
+    );
+    assert.strictEqual(sortedGroupPending[0].deliveryCount, 1);
+
+    assert.strictEqual(sortedGroupPending[1].id, '2-1');
+    assert.strictEqual(sortedGroupPending[1].consumer, 'consumer-1');
+    assert.strictEqual(sortedGroupPending[1].deliveryCount, 1);
+
     assert.strictEqual(detail.consumers.length, 1);
-    assert.strictEqual(detail.consumers[0].name, 'consumer-1');
+
+    const consumer = detail.consumers[0];
+
+    assert.strictEqual(consumer.name, 'consumer-1');
+    assert.ok(
+      consumer.seenTime > 0,
+      'consumer seenTime must be a positive timestamp',
+    );
+    assert.ok(
+      consumer.activeTime > 0,
+      'consumer activeTime must be a positive timestamp',
+    );
+    assert.strictEqual(
+      consumer.pelCount,
+      2,
+      'consumer must have 2 pending entries',
+    );
+
+    assert.strictEqual(consumer.pending.length, 2);
+
+    const sortedConsumerPending = [...consumer.pending].sort((left, right) =>
+      left.id.localeCompare(right.id),
+    );
+
+    assert.strictEqual(sortedConsumerPending[0].id, '1-1');
+    assert.ok(
+      sortedConsumerPending[0].deliveryTime > 0,
+      'consumer pending deliveryTime must be a positive timestamp',
+    );
+    assert.strictEqual(sortedConsumerPending[0].deliveryCount, 1);
+
+    assert.strictEqual(sortedConsumerPending[1].id, '2-1');
+    assert.strictEqual(sortedConsumerPending[1].deliveryCount, 1);
   });
 
   it('introspects full stream with COUNT option', async () => {
@@ -358,7 +422,9 @@ describe('streams', () => {
     }
     assert.strictEqual(result.length, 2);
     assert.strictEqual(result[0].entries.length, 2);
+    assert.deepStrictEqual(result[0].entries[0].fields, { source: 'a' });
     assert.strictEqual(result[1].entries.length, 1);
+    assert.deepStrictEqual(result[1].entries[0].fields, { source: 'b' });
   });
 
   it('reads from group with COUNT and NOACK options', async () => {

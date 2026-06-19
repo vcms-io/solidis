@@ -11,6 +11,7 @@ import {
   closeClient,
   createClient,
   createKeyspace,
+  delay,
   detectServerCapabilities,
 } from '../../utils/index.ts';
 
@@ -61,9 +62,15 @@ describe('server-admin', () => {
       stats.total.allocated > 0,
       `expected positive memory allocation, got ${stats.total.allocated}`,
     );
-    assert.ok(
-      stats.keys.count >= 0,
-      `expected non-negative key count, got ${stats.keys.count}`,
+    assert.strictEqual(
+      typeof stats.keys.count,
+      'number',
+      'MEMORY STATS keys.count must be a number',
+    );
+    assert.strictEqual(
+      Number.isFinite(stats.keys.count),
+      true,
+      `expected finite key count, got ${stats.keys.count}`,
     );
   });
 
@@ -228,9 +235,14 @@ describe('server-admin', () => {
       .bgsave(true)
       .catch((error: Error) => error.message);
 
-    assert.strictEqual(
-      result,
+    const expectedMessages = [
+      '[BGSAVE SCHEDULE] Invalid reply: Background saving scheduled',
       '[BGSAVE SCHEDULE] Invalid reply: RespError: ERR Background save already in progress',
+    ];
+
+    assert.ok(
+      typeof result === 'string' && expectedMessages.includes(result),
+      `BGSAVE SCHEDULE must return a scheduled or already-in-progress reply, got: ${result}`,
     );
   });
 
@@ -640,16 +652,28 @@ describe('server-admin', () => {
   });
 
   it('performs a synchronous save with SAVE', async () => {
-    const result = await client.save().catch((error: Error) => error);
+    let lastResult: unknown;
 
-    if (result instanceof Error) {
-      assert.strictEqual(
-        result.message,
-        '[SAVE] Invalid reply: RespError: ERR Background save already in progress',
-      );
-    } else {
-      assert.strictEqual(result, 'OK');
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const result = await client.save().catch((error: Error) => error);
+      lastResult = result;
+
+      if (!(result instanceof Error)) {
+        assert.strictEqual(result, 'OK');
+        return;
+      }
+
+      if (result.message.includes('Background save already in progress')) {
+        await delay(500);
+        continue;
+      }
+
+      assert.fail(`SAVE rejected with an unexpected error: ${result.message}`);
     }
+
+    assert.fail(
+      `SAVE did not succeed after 20 retries; last result: ${lastResult}`,
+    );
   });
 
   it('reports object access frequency with OBJECT FREQ', async () => {

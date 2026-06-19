@@ -318,19 +318,24 @@ describe('client-commands', () => {
     }
   });
 
-  it('unblocks a client by id', async () => {
+  it('returns 0 when unblocking a non-blocked client in all modes', async () => {
     const id = await client.clientId();
-    assert.strictEqual(await client.clientUnblock(id), 0);
-  });
 
-  it('unblocks a client with TIMEOUT option', async () => {
-    const id = await client.clientId();
-    assert.strictEqual(await client.clientUnblock(id, { timeout: true }), 0);
-  });
-
-  it('unblocks a client with ERROR option', async () => {
-    const id = await client.clientId();
-    assert.strictEqual(await client.clientUnblock(id, { error: true }), 0);
+    assert.strictEqual(
+      await client.clientUnblock(id),
+      0,
+      'CLIENT UNBLOCK without options must return 0 for a non-blocked client',
+    );
+    assert.strictEqual(
+      await client.clientUnblock(id, { timeout: true }),
+      0,
+      'CLIENT UNBLOCK TIMEOUT must return 0 for a non-blocked client',
+    );
+    assert.strictEqual(
+      await client.clientUnblock(id, { error: true }),
+      0,
+      'CLIENT UNBLOCK ERROR must return 0 for a non-blocked client',
+    );
   });
 
   it('actually unblocks a blocked client with ERROR', async () => {

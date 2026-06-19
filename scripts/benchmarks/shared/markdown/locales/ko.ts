@@ -24,7 +24,7 @@ export const ko: BenchmarkLocale = {
 
   noComparableResults: '*비교 가능한 결과가 없습니다.*',
 
-  nonComparableTitle: '### 엄격한 비교가 불가능한 벤치마크',
+  nonComparableTitle: '### 엄격 비교가 불가능한 벤치마크',
   nonComparableDescription:
     '라이브러리별 고유 동작으로 인해 엄밀한 비교가 어려운 벤치마크입니다.',
 

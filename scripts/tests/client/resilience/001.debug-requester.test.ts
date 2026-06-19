@@ -239,7 +239,7 @@ describe('debug-requester', () => {
   });
 
   describe('debug stream via DEBUG environment variable', () => {
-    it('writes and retrieves logs when DEBUG environment variable includes solidis', async () => {
+    it('pipes formatted log entries to stdout when DEBUG includes solidis', async () => {
       const originalDebug = process.env.DEBUG;
 
       process.env.DEBUG = 'solidis';
@@ -251,7 +251,51 @@ describe('debug-requester', () => {
 
         const memory = new SolidisDebugMemory(10);
 
-        memory.write({ type: 'info', message: 'env-activated debug' });
+        const stdoutChunks: string[] = [];
+        const originalStdoutWrite = process.stdout.write.bind(process.stdout);
+
+        const interceptingWrite: typeof process.stdout.write = (
+          chunk: Uint8Array | string,
+          encodingOrCallback?:
+            | BufferEncoding
+            | ((error?: Error | null) => void),
+          callback?: (error?: Error | null) => void,
+        ): boolean => {
+          stdoutChunks.push(
+            typeof chunk === 'string'
+              ? chunk
+              : Buffer.from(chunk).toString('utf8'),
+          );
+          if (typeof encodingOrCallback === 'function') {
+            return originalStdoutWrite(chunk, encodingOrCallback);
+          }
+          return originalStdoutWrite(chunk, encodingOrCallback, callback);
+        };
+
+        process.stdout.write = interceptingWrite;
+
+        try {
+          memory.write({ type: 'info', message: 'env-activated debug' });
+
+          await waitFor(
+            () => stdoutChunks.join('').includes('[Solidis info]'),
+            {
+              timeout: 3000,
+              interval: 10,
+              description: 'debug entry piped to stdout',
+            },
+          );
+
+          const combinedOutput = stdoutChunks.join('');
+
+          assert.ok(
+            combinedOutput.includes('[Solidis info] env-activated debug'),
+            'when DEBUG=solidis, SolidisDebugMemory must pipe formatted ' +
+              `entries to stdout but captured: ${combinedOutput.slice(0, 200)}`,
+          );
+        } finally {
+          process.stdout.write = originalStdoutWrite;
+        }
 
         const logs = memory.getLogs();
 
@@ -832,13 +876,21 @@ describe('debug-requester', () => {
           autoReconnect: false,
         });
 
-        const sendPromise = requester.send([['PING']]).catch(() => {});
+        const sendResult = requester
+          .send([['PING']])
+          .then(() => null)
+          .catch((error: Error) => error);
 
         trackingEnabled = true;
 
         requester.recoveryFromFault(new Error('test fault'));
 
-        await sendPromise;
+        const rejectionError = await sendResult;
+
+        assert.ok(
+          rejectionError instanceof Error,
+          'send must reject when recoveryFromFault is triggered during inflight request',
+        );
         await new Promise<void>((resolve) => setTimeout(resolve, 100));
 
         trackingEnabled = false;
@@ -855,6 +907,246 @@ describe('debug-requester', () => {
       } finally {
         globalThis.clearImmediate = originalClearImmediate;
       }
+    });
+
+    it('calls clearImmediate on scheduled reply processing callbacks during fault recovery', async () => {
+      const { SolidisRequester } = await import(
+        '../../../../sources/modules/requester.ts'
+      );
+      const { SolidisPubSub } = await import(
+        '../../../../sources/modules/pubsub.ts'
+      );
+      const { SolidisDefaultOptions } = await import(
+        '../../../../sources/common/constants.ts'
+      );
+
+      const clearedHandles: NodeJS.Immediate[] = [];
+      const originalClearImmediate = globalThis.clearImmediate;
+      let trackingEnabled = false;
+
+      globalThis.clearImmediate = ((handle: NodeJS.Immediate) => {
+        if (trackingEnabled) {
+          clearedHandles.push(handle);
+        }
+
+        return originalClearImmediate(handle);
+      }) as typeof globalThis.clearImmediate;
+
+      try {
+        const emitter = new EventEmitter();
+        const originalOnce = emitter.once.bind(emitter);
+        const originalRemoveListener = emitter.removeListener.bind(emitter);
+        const socket = emitter as import('node:net').Socket;
+
+        socket.write = () => true;
+
+        socket.once = ((
+          event: string,
+          listener: (...arguments_: unknown[]) => void,
+        ) => {
+          originalOnce(event, listener);
+
+          return socket;
+        }) as typeof socket.once;
+
+        socket.removeListener = ((
+          event: string,
+          listener: (...arguments_: unknown[]) => void,
+        ) => {
+          originalRemoveListener(event, listener);
+
+          return socket;
+        }) as typeof socket.removeListener;
+
+        const requester = new SolidisRequester({
+          ...SolidisDefaultOptions,
+          maxSocketWriteSizePerOnce: 65536,
+          connection: { socket, reset() {} } as never,
+          pubSub: new SolidisPubSub(),
+          autoReconnect: false,
+        });
+
+        const sendResult = requester
+          .send([['PING']])
+          .then(() => null)
+          .catch((error: Error) => error);
+
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        requester.onReply(
+          Buffer.from('+PONG\r\n'),
+          emitter.emit.bind(emitter) as never,
+        );
+
+        trackingEnabled = true;
+
+        requester.recoveryFromFault(
+          new Error('test fault with pending replies'),
+        );
+
+        const rejectionError = await sendResult;
+
+        assert.ok(
+          rejectionError instanceof Error,
+          'send must reject when recoveryFromFault is triggered',
+        );
+
+        await new Promise<void>((resolve) => setTimeout(resolve, 100));
+
+        trackingEnabled = false;
+
+        assert.ok(
+          clearedHandles.length >= 1,
+          'recoveryFromFault must call clearImmediate for the scheduled ' +
+            'reply processing callback — ' +
+            `cleared ${clearedHandles.length} handle(s), expected at least 1`,
+        );
+      } finally {
+        globalThis.clearImmediate = originalClearImmediate;
+      }
+    });
+  });
+
+  describe('requester socket fault during drain backpressure', () => {
+    it('resolves the drain wait and rejects the command when socket closes during backpressure', async () => {
+      const { SolidisRequester } = await import(
+        '../../../../sources/modules/requester.ts'
+      );
+      const { SolidisPubSub } = await import(
+        '../../../../sources/modules/pubsub.ts'
+      );
+      const { SolidisDefaultOptions } = await import(
+        '../../../../sources/common/constants.ts'
+      );
+
+      const emitter = new EventEmitter();
+      const originalOnce = emitter.once.bind(emitter);
+      const originalRemoveListener = emitter.removeListener.bind(emitter);
+      const socket = emitter as import('node:net').Socket;
+
+      let writeCallCount = 0;
+
+      socket.write = () => {
+        writeCallCount += 1;
+
+        if (writeCallCount === 1) {
+          setImmediate(() => {
+            emitter.emit('close', false);
+          });
+
+          return false;
+        }
+
+        return true;
+      };
+
+      socket.once = ((
+        event: string,
+        listener: (...arguments_: unknown[]) => void,
+      ) => {
+        originalOnce(event, listener);
+
+        return socket;
+      }) as typeof socket.once;
+
+      socket.removeListener = ((
+        event: string,
+        listener: (...arguments_: unknown[]) => void,
+      ) => {
+        originalRemoveListener(event, listener);
+
+        return socket;
+      }) as typeof socket.removeListener;
+
+      const requester = new SolidisRequester({
+        ...SolidisDefaultOptions,
+        commandTimeout: 2000,
+        maxSocketWriteSizePerOnce: 16,
+        connection: { socket, reset() {} } as never,
+        pubSub: new SolidisPubSub(),
+        autoReconnect: false,
+      });
+
+      const sendError = await requester
+        .send([['ECHO', 'x'.repeat(100)]])
+        .then(() => null)
+        .catch((error: Error) => error);
+
+      assert.ok(
+        sendError instanceof SolidisRequesterError,
+        'command must reject when socket closes during drain backpressure',
+      );
+
+      assert.ok(
+        sendError.message.includes('Socket closed'),
+        `error message must indicate socket closure, got: ${sendError.message}`,
+      );
+    });
+  });
+
+  describe('requester non-standard socket write error wrapping', () => {
+    it('wraps a non-SolidisRequesterError thrown by socket.write into SolidisRequesterError', async () => {
+      const { SolidisRequester } = await import(
+        '../../../../sources/modules/requester.ts'
+      );
+      const { SolidisPubSub } = await import(
+        '../../../../sources/modules/pubsub.ts'
+      );
+      const { SolidisDefaultOptions } = await import(
+        '../../../../sources/common/constants.ts'
+      );
+
+      const emitter = new EventEmitter();
+      const originalOnce = emitter.once.bind(emitter);
+      const originalRemoveListener = emitter.removeListener.bind(emitter);
+      const socket = emitter as import('node:net').Socket;
+
+      socket.write = () => {
+        throw new TypeError('Cannot write to a destroyed socket');
+      };
+
+      socket.once = ((
+        event: string,
+        listener: (...arguments_: unknown[]) => void,
+      ) => {
+        originalOnce(event, listener);
+
+        return socket;
+      }) as typeof socket.once;
+
+      socket.removeListener = ((
+        event: string,
+        listener: (...arguments_: unknown[]) => void,
+      ) => {
+        originalRemoveListener(event, listener);
+
+        return socket;
+      }) as typeof socket.removeListener;
+
+      const requester = new SolidisRequester({
+        ...SolidisDefaultOptions,
+        commandTimeout: 2000,
+        maxSocketWriteSizePerOnce: 65536,
+        connection: { socket, reset() {} } as never,
+        pubSub: new SolidisPubSub(),
+        autoReconnect: false,
+      });
+
+      const sendError = await requester
+        .send([['PING']])
+        .then(() => null)
+        .catch((error: Error) => error);
+
+      assert.ok(
+        sendError instanceof SolidisRequesterError,
+        'send must reject with SolidisRequesterError when socket.write throws a non-standard error',
+      );
+
+      assert.ok(
+        sendError.message.includes('Socket write chunk error'),
+        'error message must include the wrapping context, got: ' +
+          sendError.message,
+      );
     });
   });
 });
