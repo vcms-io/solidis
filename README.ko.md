@@ -1,4 +1,4 @@
-<h1 align="center"><img src="https://resources.vcms.io/assets/solidis.png" alt="Solidis" width="50"/></h1>
+<h1 align="center"><img src="./assets/solidis.png" alt="Solidis" width="50"/></h1>
 
 <p align="center">
   <b>Zero-dependency RESP client for Redis. Fastest by design.</b>
