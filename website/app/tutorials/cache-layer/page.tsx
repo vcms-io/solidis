@@ -1,3 +1,5 @@
+'use client';
+
 import {
   ArrowRight,
   CheckCircle,
@@ -17,61 +19,64 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { useI18n } from '@/lib/i18n-context';
 
 export default function CacheLayerTutorial() {
+  const { t } = useI18n();
+
   return (
-    <div className="container mx-auto max-w-4xl py-12 px-4">
+    <div className="content-container pt-20 sm:pt-24 pb-10 sm:pb-16">
       {/* Header */}
       <div className="mb-8">
         <Link
           href="/tutorials"
-          className="text-yellow-600 hover:underline text-sm mb-4 inline-block"
+          className="text-amber-500 hover:underline text-sm mb-4 inline-block"
         >
-          ← Back to Tutorials
+          {t('tutorialCache.backToTutorials')}
         </Link>
-        <div className="flex items-center gap-4 mb-4">
-          <Badge className="bg-yellow-100 text-yellow-800">Intermediate</Badge>
-          <div className="flex items-center gap-1 text-gray-500">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4">
+          <Badge className="bg-amber-500/10 text-amber-600">
+            {t('tutorialCache.level')}
+          </Badge>
+          <div className="flex items-center gap-1 text-muted-foreground">
             <Clock className="h-4 w-4" />
-            <span className="text-sm">25 min</span>
+            <span className="text-sm">{t('tutorialCache.duration')}</span>
           </div>
-          <div className="flex items-center gap-1 text-gray-500">
+          <div className="flex items-center gap-1 text-muted-foreground">
             <User className="h-4 w-4" />
-            <span className="text-sm">Some Redis experience needed</span>
+            <span className="text-sm">{t('tutorialCache.levelDesc')}</span>
           </div>
         </div>
-        <h1 className="text-4xl font-bold mb-4">
-          Implementing a High-Performance Cache Layer
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4">
+          {t('tutorialCache.title')}
         </h1>
-        <p className="text-xl text-gray-600">
-          Create a robust caching layer to dramatically improve your
-          application's performance by reducing database load and response
-          times.
+        <p className="text-xl text-muted-foreground">
+          {t('tutorialCache.description')}
         </p>
       </div>
 
       {/* What You'll Learn */}
       <Card className="mb-8">
         <CardHeader>
-          <CardTitle>What You'll Learn</CardTitle>
+          <CardTitle>{t('tutorialCache.whatYoullLearn')}</CardTitle>
         </CardHeader>
         <CardContent>
           <ul className="space-y-2">
             <li className="flex items-start gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-              <span>Cache-aside (lazy loading) pattern</span>
+              <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+              <span>{t('tutorialCache.learn1')}</span>
             </li>
             <li className="flex items-start gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-              <span>Cache invalidation strategies</span>
+              <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+              <span>{t('tutorialCache.learn2')}</span>
             </li>
             <li className="flex items-start gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-              <span>Cache warming and preloading</span>
+              <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+              <span>{t('tutorialCache.learn3')}</span>
             </li>
             <li className="flex items-start gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-              <span>Monitoring cache hit rates</span>
+              <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+              <span>{t('tutorialCache.learn4')}</span>
             </li>
           </ul>
         </CardContent>
@@ -80,21 +85,21 @@ export default function CacheLayerTutorial() {
       {/* Prerequisites */}
       <Card className="mb-8">
         <CardHeader>
-          <CardTitle>Prerequisites</CardTitle>
+          <CardTitle>{t('tutorialCache.prerequisites')}</CardTitle>
         </CardHeader>
         <CardContent>
           <ul className="space-y-2 text-sm">
             <li className="flex items-center gap-2">
-              <span className="text-yellow-600">•</span>
-              <span>Basic understanding of caching concepts</span>
+              <span className="text-amber-500">•</span>
+              <span>{t('tutorialCache.prereq1')}</span>
             </li>
             <li className="flex items-center gap-2">
-              <span className="text-yellow-600">•</span>
-              <span>Familiarity with Redis data types</span>
+              <span className="text-amber-500">•</span>
+              <span>{t('tutorialCache.prereq2')}</span>
             </li>
             <li className="flex items-center gap-2">
-              <span className="text-yellow-600">•</span>
-              <span>Database knowledge (PostgreSQL, MySQL, etc.)</span>
+              <span className="text-amber-500">•</span>
+              <span>{t('tutorialCache.prereq3')}</span>
             </li>
           </ul>
         </CardContent>
@@ -104,17 +109,17 @@ export default function CacheLayerTutorial() {
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold">
+            <div className="w-8 h-8 bg-amber-500/10 rounded-full flex items-center justify-center text-amber-500 font-semibold">
               1
             </div>
-            Create Cache Manager
+            {t('tutorialCache.createCacheManager')}
           </CardTitle>
           <CardDescription>
-            Build a flexible cache manager with multiple strategies
+            {t('tutorialCache.createCacheManagerDesc')}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
+          <div className="rounded-lg text-sm overflow-x-auto">
             <CodeBlock
               code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
 
@@ -293,17 +298,17 @@ export class CacheManager {
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold">
+            <div className="w-8 h-8 bg-amber-500/10 rounded-full flex items-center justify-center text-amber-500 font-semibold">
               2
             </div>
-            Integrate with Database
+            {t('tutorialCache.integrateDb')}
           </CardTitle>
           <CardDescription>
-            Example with a user repository pattern
+            {t('tutorialCache.integrateDbDesc')}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
+          <div className="rounded-lg text-sm overflow-x-auto">
             <CodeBlock
               code={`import { CacheManager } from './cache-manager';
 
@@ -447,15 +452,17 @@ export class UserRepository {
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold">
+            <div className="w-8 h-8 bg-amber-500/10 rounded-full flex items-center justify-center text-amber-500 font-semibold">
               3
             </div>
-            Cache Warming Strategy
+            {t('tutorialCache.cacheWarming')}
           </CardTitle>
-          <CardDescription>Preload frequently accessed data</CardDescription>
+          <CardDescription>
+            {t('tutorialCache.cacheWarmingDesc')}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
+          <div className="rounded-lg text-sm overflow-x-auto">
             <CodeBlock
               code={`export class CacheWarmer {
   private cache: CacheManager;
@@ -527,17 +534,17 @@ export class UserRepository {
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold">
+            <div className="w-8 h-8 bg-amber-500/10 rounded-full flex items-center justify-center text-amber-500 font-semibold">
               4
             </div>
-            Complete Usage Example
+            {t('tutorialCache.completeExample')}
           </CardTitle>
           <CardDescription>
-            Putting it all together in your application
+            {t('tutorialCache.completeExampleDesc')}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
+          <div className="rounded-lg text-sm overflow-x-auto">
             <CodeBlock
               code={`import express from 'express';
 import { CacheManager } from './cache-manager';
@@ -632,60 +639,64 @@ start().catch(console.error);`}
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Zap className="h-5 w-5 text-yellow-600" />
-            Performance Optimization Tips
+            <Zap className="h-5 w-5 text-amber-500" />
+            {t('tutorialCache.perfTips')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <ul className="space-y-3">
             <li className="flex items-start gap-2">
-              <span className="text-green-600 mt-1">✓</span>
-              <div>
-                <div className="font-medium">Use appropriate TTL values</div>
-                <div className="text-sm text-gray-600">
-                  Longer TTL for static data, shorter for frequently changing
-                  data
-                </div>
-              </div>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-green-600 mt-1">✓</span>
+              <span className="text-emerald-600 mt-1">✓</span>
               <div>
                 <div className="font-medium">
-                  Implement cache stampede protection
+                  {t('tutorialCache.tip1Title')}
                 </div>
-                <div className="text-sm text-gray-600">
-                  Use locks to prevent multiple simultaneous cache misses
-                </div>
-              </div>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-green-600 mt-1">✓</span>
-              <div>
-                <div className="font-medium">Monitor cache hit rates</div>
-                <div className="text-sm text-gray-600">
-                  Aim for 80%+ hit rate for optimal performance
+                <div className="text-sm text-muted-foreground">
+                  {t('tutorialCache.tip1Desc')}
                 </div>
               </div>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-green-600 mt-1">✓</span>
+              <span className="text-emerald-600 mt-1">✓</span>
               <div>
                 <div className="font-medium">
-                  Use pipelining for batch operations
+                  {t('tutorialCache.tip2Title')}
                 </div>
-                <div className="text-sm text-gray-600">
-                  Reduce network round trips when caching multiple items
+                <div className="text-sm text-muted-foreground">
+                  {t('tutorialCache.tip2Desc')}
                 </div>
               </div>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-green-600 mt-1">✓</span>
+              <span className="text-emerald-600 mt-1">✓</span>
               <div>
-                <div className="font-medium">Implement tiered caching</div>
-                <div className="text-sm text-gray-600">
-                  Combine in-memory cache (Node.js) with Redis for maximum
-                  performance
+                <div className="font-medium">
+                  {t('tutorialCache.tip3Title')}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {t('tutorialCache.tip3Desc')}
+                </div>
+              </div>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-emerald-600 mt-1">✓</span>
+              <div>
+                <div className="font-medium">
+                  {t('tutorialCache.tip4Title')}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {t('tutorialCache.tip4Desc')}
+                </div>
+              </div>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-emerald-600 mt-1">✓</span>
+              <div>
+                <div className="font-medium">
+                  {t('tutorialCache.tip5Title')}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {t('tutorialCache.tip5Desc')}
                 </div>
               </div>
             </li>
@@ -697,34 +708,42 @@ start().catch(console.error);`}
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Database className="h-5 w-5 text-yellow-600" />
-            Cache Invalidation Strategies
+            <Database className="h-5 w-5 text-amber-500" />
+            {t('tutorialCache.invalidationStrategies')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             <div className="border-l-4 border-blue-500 pl-4">
-              <h4 className="font-semibold mb-1">Time-based (TTL)</h4>
-              <p className="text-sm text-gray-600">
-                Best for: Data that changes predictably over time
+              <h4 className="font-semibold mb-1">
+                {t('tutorialCache.strategyTtl')}
+              </h4>
+              <p className="text-sm text-muted-foreground">
+                {t('tutorialCache.strategyTtlDesc')}
               </p>
             </div>
             <div className="border-l-4 border-green-500 pl-4">
-              <h4 className="font-semibold mb-1">Event-based</h4>
-              <p className="text-sm text-gray-600">
-                Best for: Data that changes based on user actions
+              <h4 className="font-semibold mb-1">
+                {t('tutorialCache.strategyEvent')}
+              </h4>
+              <p className="text-sm text-muted-foreground">
+                {t('tutorialCache.strategyEventDesc')}
               </p>
             </div>
             <div className="border-l-4 border-purple-500 pl-4">
-              <h4 className="font-semibold mb-1">Pattern-based</h4>
-              <p className="text-sm text-gray-600">
-                Best for: Invalidating related cache entries
+              <h4 className="font-semibold mb-1">
+                {t('tutorialCache.strategyPattern')}
+              </h4>
+              <p className="text-sm text-muted-foreground">
+                {t('tutorialCache.strategyPatternDesc')}
               </p>
             </div>
             <div className="border-l-4 border-yellow-500 pl-4">
-              <h4 className="font-semibold mb-1">Write-through</h4>
-              <p className="text-sm text-gray-600">
-                Best for: Data consistency requirements
+              <h4 className="font-semibold mb-1">
+                {t('tutorialCache.strategyWriteThrough')}
+              </h4>
+              <p className="text-sm text-muted-foreground">
+                {t('tutorialCache.strategyWriteThroughDesc')}
               </p>
             </div>
           </div>
@@ -735,28 +754,32 @@ start().catch(console.error);`}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <ArrowRight className="h-5 w-5 text-yellow-600" />
-            Next Steps
+            <ArrowRight className="h-5 w-5 text-amber-500" />
+            {t('tutorialCache.nextSteps')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid md:grid-cols-2 gap-4">
             <Link
               href="/tutorials/distributed-locking"
-              className="p-4 border rounded-lg hover:shadow-lg transition-shadow"
+              className="card-base card-interactive p-4 block"
             >
-              <h3 className="font-semibold mb-2">Distributed Locking</h3>
-              <p className="text-sm text-gray-600">
-                Prevent race conditions in distributed systems
+              <h3 className="font-semibold mb-2">
+                {t('tutorialCache.nextLocking')}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                {t('tutorialCache.nextLockingDesc')}
               </p>
             </Link>
             <Link
               href="/tutorials/job-queue"
-              className="p-4 border rounded-lg hover:shadow-lg transition-shadow"
+              className="card-base card-interactive p-4 block"
             >
-              <h3 className="font-semibold mb-2">Job Queue Implementation</h3>
-              <p className="text-sm text-gray-600">
-                Build a background job processing system
+              <h3 className="font-semibold mb-2">
+                {t('tutorialCache.nextJobQueue')}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                {t('tutorialCache.nextJobQueueDesc')}
               </p>
             </Link>
           </div>

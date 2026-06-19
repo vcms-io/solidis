@@ -10,6 +10,7 @@ import {
   Users,
 } from 'lucide-react';
 
+import { CodeBlock } from '@/components/code-block';
 import { Badge } from '@/components/ui/badge';
 import {
   Card,
@@ -25,75 +26,178 @@ export default function ContributingPage() {
 
   const contributionTypes = [
     {
-      icon: <Code className="h-8 w-8 text-blue-600" />,
-      title: 'Code Contributions',
-      description: 'Fix bugs, add features, or improve performance',
+      icon: <Code className="h-5 w-5 text-blue-600" />,
+      title: t('contributing.codeContributions'),
+      description: t('contributing.codeContributionsDesc'),
       examples: [
-        'Bug fixes',
-        'New features',
-        'Performance optimizations',
-        'Refactoring',
+        t('contributing.bugFixes'),
+        t('contributing.newFeatures'),
+        t('contributing.perfOptimizations'),
+        t('contributing.refactoring'),
       ],
     },
     {
-      icon: <FileText className="h-8 w-8 text-green-600" />,
-      title: 'Documentation',
-      description: 'Improve docs, add examples, or fix typos',
+      icon: <FileText className="h-5 w-5 text-emerald-600" />,
+      title: t('contributing.documentationCont'),
+      description: t('contributing.documentationContDesc'),
       examples: [
-        'API documentation',
-        'Tutorials',
-        'Code examples',
-        'Translations',
+        t('contributing.apiDocs'),
+        t('contributing.tutorials'),
+        t('contributing.codeExamples'),
+        t('contributing.translations'),
       ],
     },
     {
-      icon: <TestTube className="h-8 w-8 text-purple-600" />,
-      title: 'Testing',
-      description: 'Add tests or improve test coverage',
+      icon: <TestTube className="h-5 w-5 text-purple-600" />,
+      title: t('contributing.testing'),
+      description: t('contributing.testingDesc'),
       examples: [
-        'Unit tests',
-        'Integration tests',
-        'Performance tests',
-        'Edge cases',
+        t('contributing.unitTests'),
+        t('contributing.integrationTests'),
+        t('contributing.perfTests'),
+        t('contributing.edgeCases'),
       ],
     },
     {
-      icon: <AlertCircle className="h-8 w-8 text-red-600" />,
-      title: 'Bug Reports',
-      description: 'Report issues with detailed information',
+      icon: <AlertCircle className="h-5 w-5 text-red-500" />,
+      title: t('contributing.bugReportsTitle'),
+      description: t('contributing.bugReportsDesc'),
       examples: [
-        'Bug reports',
-        'Feature requests',
-        'Performance issues',
-        'Security concerns',
+        t('contributing.bugReportsItem'),
+        t('contributing.featureRequests'),
+        t('contributing.perfIssues'),
+        t('contributing.securityConcerns'),
       ],
     },
   ];
 
+  const workflowSteps = [
+    {
+      step: 1,
+      title: t('contributing.step1Title'),
+      description: t('contributing.step1Desc'),
+      code: 'git checkout -b feature/your-feature-name',
+    },
+    {
+      step: 2,
+      title: t('contributing.step2Title'),
+      description: t('contributing.step2Desc'),
+    },
+    {
+      step: 3,
+      title: t('contributing.step3Title'),
+      description: t('contributing.step3Desc'),
+      code: 'npm test',
+    },
+    {
+      step: 4,
+      title: t('contributing.step4Title'),
+      description: t('contributing.step4Desc'),
+      code: 'git add .\ngit commit -m "feat: add new feature"',
+    },
+    {
+      step: 5,
+      title: t('contributing.step5Title'),
+      description: t('contributing.step5Desc'),
+      code: 'git push origin feature/your-feature-name',
+    },
+  ];
+
+  const codeQualitySections = [
+    {
+      color: 'border-amber-500/50',
+      title: t('contributing.tsBestPractices'),
+      items: [
+        t('contributing.tsRule1'),
+        t('contributing.tsRule2'),
+        t('contributing.tsRule3'),
+      ],
+    },
+    {
+      color: 'border-blue-500/50',
+      title: t('contributing.perfConsiderations'),
+      items: [
+        t('contributing.perfRule1'),
+        t('contributing.perfRule2'),
+        t('contributing.perfRule3'),
+      ],
+    },
+    {
+      color: 'border-emerald-500/50',
+      title: t('contributing.depsTitle'),
+      items: [
+        t('contributing.depsRule1'),
+        t('contributing.depsRule2'),
+        t('contributing.depsRule3'),
+      ],
+    },
+    {
+      color: 'border-purple-500/50',
+      title: t('contributing.testTitle'),
+      items: [
+        t('contributing.testRule1'),
+        t('contributing.testRule2'),
+        t('contributing.testRule3'),
+      ],
+    },
+  ];
+
+  const communityLinks = [
+    {
+      title: t('contributing.ghIssues'),
+      description: t('contributing.ghIssuesDesc'),
+      href: 'https://github.com/vcms-io/solidis/issues',
+    },
+    {
+      title: t('contributing.ghDiscussions'),
+      description: t('contributing.ghDiscussionsDesc'),
+      href: 'https://github.com/vcms-io/solidis/discussions',
+    },
+    {
+      title: t('contributing.ghPullRequests'),
+      description: t('contributing.ghPullRequestsDesc'),
+      href: 'https://github.com/vcms-io/solidis/pulls',
+    },
+  ];
+
   return (
-    <div className="container mx-auto max-w-6xl py-12 px-4">
-      <div className="mb-12">
-        <h1 className="text-4xl font-bold mb-4">{t('contributing.title')}</h1>
-        <p className="text-xl text-gray-600">{t('contributing.subtitle')}</p>
+    <div className="content-container pt-20 sm:pt-24 pb-10 sm:pb-16">
+      <div className="mb-10">
+        <h1 className="text-3xl font-bold tracking-tight text-foreground mb-3">
+          {t('contributing.title')}
+        </h1>
+        <p className="text-lg text-muted-foreground">
+          {t('contributing.subtitle')}
+        </p>
       </div>
 
-      {/* Ways to Contribute */}
-      <div className="mb-12">
-        <h2 className="text-3xl font-bold mb-6">Ways to Contribute</h2>
-        <div className="grid md:grid-cols-2 gap-6">
+      <div className="mb-10">
+        <h2 className="text-xl font-bold text-foreground mb-6">
+          {t('contributing.waysToContribute')}
+        </h2>
+        <div className="grid md:grid-cols-2 gap-4">
           {contributionTypes.map((type, index) => (
-            <Card key={index} className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="flex items-center gap-3 mb-2">
+            <Card
+              key={index}
+              className="transition-all hover:border-foreground/20"
+            >
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2 mb-1">
                   {type.icon}
-                  <CardTitle>{type.title}</CardTitle>
+                  <CardTitle className="text-sm">{type.title}</CardTitle>
                 </div>
-                <CardDescription>{type.description}</CardDescription>
+                <CardDescription className="text-xs">
+                  {type.description}
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  {type.examples.map((example, index) => (
-                    <Badge key={index} variant="outline" className="text-xs">
+                <div className="flex flex-wrap gap-1.5">
+                  {type.examples.map((example, exampleIndex) => (
+                    <Badge
+                      key={exampleIndex}
+                      variant="outline"
+                      className="text-[10px]"
+                    >
                       {example}
                     </Badge>
                   ))}
@@ -104,370 +208,172 @@ export default function ContributingPage() {
         </div>
       </div>
 
-      {/* Getting Started */}
-      <Card className="mb-12">
+      <Card className="mb-10">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <GitBranch className="h-5 w-5 text-yellow-600" />
-            Development Setup
+          <CardTitle className="flex items-center gap-2 text-base">
+            <GitBranch className="h-4 w-4 text-amber-500" />
+            {t('contributing.developmentSetup')}
           </CardTitle>
           <CardDescription>
-            Setting up your development environment
+            {t('contributing.developmentSetupDesc')}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-6">
+          <div className="space-y-4">
             <div>
-              <h3 className="text-lg font-semibold mb-3">1. Fork and Clone</h3>
-              <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm">
-                <div className="text-green-400">
-                  # Fork the repository on GitHub first
-                </div>
-                <div>
-                  git clone https://github.com/YOUR_USERNAME/solidis.git
-                </div>
-                <div>cd solidis</div>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-lg font-semibold mb-3">
-                2. Install Dependencies
+              <h3 className="text-sm font-semibold text-foreground mb-2">
+                {t('contributing.forkClone')}
               </h3>
-              <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm">
-                <div className="text-green-400"># Install all dependencies</div>
-                <div>npm install</div>
-              </div>
+              <CodeBlock
+                code={`# Fork the repository on GitHub first
+git clone https://github.com/YOUR_USERNAME/solidis.git
+cd solidis`}
+                language="bash"
+              />
             </div>
-
             <div>
-              <h3 className="text-lg font-semibold mb-3">
-                3. Build the Project
+              <h3 className="text-sm font-semibold text-foreground mb-2">
+                {t('contributing.installDeps')}
               </h3>
-              <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm">
-                <div className="text-green-400">
-                  # Build the TypeScript code
-                </div>
-                <div>npm run build</div>
-              </div>
+              <CodeBlock code="npm install" language="bash" />
             </div>
-
             <div>
-              <h3 className="text-lg font-semibold mb-3">4. Run Tests</h3>
-              <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm">
-                <div className="text-green-400"># Make sure all tests pass</div>
-                <div>npm test</div>
-              </div>
+              <h3 className="text-sm font-semibold text-foreground mb-2">
+                {t('contributing.buildProject')}
+              </h3>
+              <CodeBlock code="npm run build" language="bash" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-2">
+                {t('contributing.runTests')}
+              </h3>
+              <CodeBlock code="npm test" language="bash" />
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Development Workflow */}
-      <Card className="mb-12">
+      <Card className="mb-10">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Code className="h-5 w-5 text-yellow-600" />
-            Development Workflow
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Code className="h-4 w-4 text-amber-500" />
+            {t('contributing.workflowTitle')}
           </CardTitle>
-          <CardDescription>
-            Step-by-step guide to making contributions
-          </CardDescription>
+          <CardDescription>{t('contributing.workflowGuide')}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="flex items-start gap-4">
-              <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold shrink-0">
-                1
-              </div>
-              <div>
-                <div className="font-medium mb-1">Create a Feature Branch</div>
-                <div className="text-sm text-gray-600 mb-2">
-                  Create a new branch for your feature or bug fix
+            {workflowSteps.map((item) => (
+              <div key={item.step} className="flex items-start gap-4">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-500/10 text-xs font-semibold text-amber-500">
+                  {item.step}
                 </div>
-                <div className="bg-gray-900 text-gray-100 p-3 rounded font-mono text-sm">
-                  git checkout -b feature/your-feature-name
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-4">
-              <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold shrink-0">
-                2
-              </div>
-              <div>
-                <div className="font-medium mb-1">Make Your Changes</div>
-                <div className="text-sm text-gray-600">
-                  Follow the code style guidelines and write tests for your
-                  changes
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-4">
-              <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold shrink-0">
-                3
-              </div>
-              <div>
-                <div className="font-medium mb-1">Test Your Changes</div>
-                <div className="text-sm text-gray-600 mb-2">
-                  Ensure all tests pass and add new tests if needed
-                </div>
-                <div className="bg-gray-900 text-gray-100 p-3 rounded font-mono text-sm">
-                  npm test
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-4">
-              <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold shrink-0">
-                4
-              </div>
-              <div>
-                <div className="font-medium mb-1">Commit Your Changes</div>
-                <div className="text-sm text-gray-600 mb-2">
-                  Write clear, descriptive commit messages
-                </div>
-                <div className="bg-gray-900 text-gray-100 p-3 rounded font-mono text-sm">
-                  <div>git add .</div>
-                  <div>git commit -m "feat: add new feature"</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-4">
-              <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold shrink-0">
-                5
-              </div>
-              <div>
-                <div className="font-medium mb-1">
-                  Push and Create Pull Request
-                </div>
-                <div className="text-sm text-gray-600 mb-2">
-                  Push your branch and create a pull request
-                </div>
-                <div className="bg-gray-900 text-gray-100 p-3 rounded font-mono text-sm">
-                  <div>git push origin feature/your-feature-name</div>
-                  <div className="mt-2 text-green-400">
-                    # Then create a PR on GitHub
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-foreground mb-1">
+                    {item.title}
                   </div>
+                  <div className="text-xs text-muted-foreground mb-2">
+                    {item.description}
+                  </div>
+                  {item.code && <CodeBlock code={item.code} language="bash" />}
                 </div>
               </div>
-            </div>
+            ))}
           </div>
         </CardContent>
       </Card>
 
-      {/* Code Quality Guidelines */}
-      <Card className="mb-12">
+      <Card className="mb-10">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Star className="h-5 w-5 text-yellow-600" />
-            Code Quality Guidelines
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Star className="h-4 w-4 text-amber-500" />
+            {t('contributing.codeQuality')}
           </CardTitle>
-          <CardDescription>
-            Standards to follow when contributing code
-          </CardDescription>
+          <CardDescription>{t('contributing.codeQualityDesc')}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="border-l-4 border-yellow-500 pl-4">
-              <h4 className="font-semibold mb-2">TypeScript Best Practices</h4>
-              <ul className="space-y-1 text-sm text-gray-600">
-                <li className="flex items-start gap-2">
-                  <span className="text-yellow-600 mt-1">•</span>
-                  <span>
-                    Use strict typing and avoid{' '}
-                    <code className="bg-gray-100 px-1 py-0.5 rounded">any</code>{' '}
-                    types where possible
-                  </span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-yellow-600 mt-1">•</span>
-                  <span>
-                    Avoid type casting with{' '}
-                    <code className="bg-gray-100 px-1 py-0.5 rounded">as</code>{' '}
-                    unless absolutely necessary
-                  </span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-yellow-600 mt-1">•</span>
-                  <span>
-                    Provide comprehensive type definitions for all public APIs
-                  </span>
-                </li>
-              </ul>
-            </div>
-
-            <div className="border-l-4 border-blue-500 pl-4">
-              <h4 className="font-semibold mb-2">Performance Considerations</h4>
-              <ul className="space-y-1 text-sm text-gray-600">
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-600 mt-1">•</span>
-                  <span>Consider performance implications of your changes</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-600 mt-1">•</span>
-                  <span>Avoid unnecessary allocations and copying</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-600 mt-1">•</span>
-                  <span>
-                    Use benchmarks to validate performance improvements
-                  </span>
-                </li>
-              </ul>
-            </div>
-
-            <div className="border-l-4 border-green-500 pl-4">
-              <h4 className="font-semibold mb-2">Dependencies</h4>
-              <ul className="space-y-1 text-sm text-gray-600">
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1">•</span>
-                  <span>
-                    Avoid adding new dependencies unless absolutely necessary
-                  </span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1">•</span>
-                  <span>Keep the bundle size minimal</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1">•</span>
-                  <span>
-                    Justify any new dependencies in your PR description
-                  </span>
-                </li>
-              </ul>
-            </div>
-
-            <div className="border-l-4 border-purple-500 pl-4">
-              <h4 className="font-semibold mb-2">Testing</h4>
-              <ul className="space-y-1 text-sm text-gray-600">
-                <li className="flex items-start gap-2">
-                  <span className="text-purple-600 mt-1">•</span>
-                  <span>Write tests for all new features and bug fixes</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-purple-600 mt-1">•</span>
-                  <span>Ensure existing tests continue to pass</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-purple-600 mt-1">•</span>
-                  <span>Include edge cases and error scenarios in tests</span>
-                </li>
-              </ul>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Pull Request Guidelines */}
-      <Card className="mb-12">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5 text-yellow-600" />
-            Pull Request Guidelines
-          </CardTitle>
-          <CardDescription>
-            What to include in your pull request
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div>
-              <h4 className="font-semibold mb-2">PR Description</h4>
-              <p className="text-sm text-gray-600 mb-2">
-                Provide a clear description of the changes and their purpose:
-              </p>
-              <ul className="space-y-1 text-sm text-gray-600 ml-4">
-                <li className="flex items-start gap-2">
-                  <span className="text-yellow-600 mt-1">•</span>
-                  <span>What problem does this solve?</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-yellow-600 mt-1">•</span>
-                  <span>How does it solve the problem?</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-yellow-600 mt-1">•</span>
-                  <span>Are there any breaking changes?</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-yellow-600 mt-1">•</span>
-                  <span>Reference any related issues</span>
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="font-semibold mb-2">Documentation</h4>
-              <p className="text-sm text-gray-600">
-                Update documentation to reflect your changes, including README,
-                API docs, and code comments.
-              </p>
-            </div>
-
-            <div>
-              <h4 className="font-semibold mb-2">Commit Messages</h4>
-              <p className="text-sm text-gray-600 mb-2">
-                Follow conventional commit format:
-              </p>
-              <div className="bg-gray-900 text-gray-100 p-3 rounded font-mono text-sm">
-                <div>feat: add new feature</div>
-                <div>fix: resolve bug in parser</div>
-                <div>docs: update API reference</div>
-                <div>test: add integration tests</div>
-                <div>perf: improve connection pooling</div>
+            {codeQualitySections.map((section, index) => (
+              <div key={index} className={`border-l-2 ${section.color} pl-4`}>
+                <h4 className="text-sm font-semibold text-foreground mb-2">
+                  {section.title}
+                </h4>
+                <ul className="space-y-1">
+                  {section.items.map((item, itemIndex) => (
+                    <li
+                      key={itemIndex}
+                      className="flex items-start gap-2 text-xs text-muted-foreground"
+                    >
+                      <span className="text-muted-foreground mt-0.5">·</span>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
               </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="mb-10">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Users className="h-4 w-4 text-amber-500" />
+            {t('contributing.prGuidelines')}
+          </CardTitle>
+          <CardDescription>
+            {t('contributing.prGuidelinesDesc')}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div>
+              <h4 className="text-sm font-semibold text-foreground mb-2">
+                {t('contributing.commitMessages')}
+              </h4>
+              <p className="text-xs text-muted-foreground mb-2">
+                {t('contributing.commitFormat')}
+              </p>
+              <CodeBlock
+                code={`feat: add new feature
+fix: resolve bug in parser
+docs: update API reference
+test: add integration tests
+perf: improve connection pooling`}
+                language="bash"
+              />
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Community */}
       <Card>
         <CardHeader>
-          <CardTitle>Join the Community</CardTitle>
+          <CardTitle className="text-base">
+            {t('contributing.joinCommunity')}
+          </CardTitle>
           <CardDescription>
-            Connect with other contributors and get help
+            {t('contributing.joinCommunityDesc')}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid md:grid-cols-3 gap-4">
-            <a
-              href="https://github.com/vcms-io/solidis/issues"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-4 border rounded-lg hover:shadow-lg transition-shadow"
-            >
-              <h3 className="font-semibold mb-2">GitHub Issues</h3>
-              <p className="text-sm text-gray-600">
-                Report bugs and request features
-              </p>
-            </a>
-            <a
-              href="https://github.com/vcms-io/solidis/discussions"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-4 border rounded-lg hover:shadow-lg transition-shadow"
-            >
-              <h3 className="font-semibold mb-2">Discussions</h3>
-              <p className="text-sm text-gray-600">
-                Ask questions and share ideas
-              </p>
-            </a>
-            <a
-              href="https://github.com/vcms-io/solidis/pulls"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-4 border rounded-lg hover:shadow-lg transition-shadow"
-            >
-              <h3 className="font-semibold mb-2">Pull Requests</h3>
-              <p className="text-sm text-gray-600">
-                Review and contribute code
-              </p>
-            </a>
+          <div className="grid md:grid-cols-3 gap-3">
+            {communityLinks.map((item, index) => (
+              <a
+                key={index}
+                href={item.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="card-base card-interactive p-4 block"
+              >
+                <h3 className="text-sm font-semibold text-foreground mb-1">
+                  {item.title}
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  {item.description}
+                </p>
+              </a>
+            ))}
           </div>
         </CardContent>
       </Card>

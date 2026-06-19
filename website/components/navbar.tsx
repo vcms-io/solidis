@@ -1,12 +1,17 @@
 'use client';
 
-import { ExternalLink, Menu } from 'lucide-react';
+import { Menu } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 
 import { LanguageSwitcher } from '@/components/language-switcher';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 import { useI18n } from '@/lib/i18n-context';
 
 function GithubIcon({ className }: { className?: string }) {
@@ -28,74 +33,83 @@ export function Navbar() {
 
   const navigation = [
     { name: t('nav.gettingStarted'), href: '/getting-started' },
-    { name: t('nav.architecture'), href: '/architecture' },
     { name: t('nav.apiReference'), href: '/api-reference' },
     { name: t('nav.benchmarks'), href: '/benchmarks' },
     { name: t('nav.tutorials'), href: '/tutorials' },
+  ];
+
+  const mobileNavigation = [
+    ...navigation,
+    { name: t('nav.architecture'), href: '/architecture' },
     { name: t('nav.contributing'), href: '/contributing' },
     { name: t('nav.faq'), href: '/faq' },
     { name: t('nav.updates'), href: '/updates' },
   ];
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        <Link href="/" className="flex items-center space-x-2">
+    <header className="fixed top-0 z-50 w-full glass">
+      <div className="content-container flex h-14 items-center justify-between">
+        <Link
+          href="/"
+          className="flex items-center gap-1 transition-opacity hover:opacity-70"
+        >
           <img
             src="https://resources.vcms.io/assets/solidis.png"
             alt="Solidis Logo"
-            className="h-8 w-8"
+            className="h-5 w-5"
           />
-          <span className="font-bold text-xl">Solidis</span>
+          <span className="text-[15px] font-semibold tracking-tight text-foreground">
+            Solidis
+          </span>
         </Link>
 
-        <nav className="hidden md:flex items-center space-x-6">
+        <nav className="hidden md:flex items-center gap-1">
           {navigation.map((item) => (
             <Link
-              key={item.name}
+              key={item.href}
               href={item.href}
-              className="text-sm font-medium transition-colors hover:text-primary"
+              className="rounded-md px-3 py-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground hover:bg-secondary/60"
             >
               {item.name}
             </Link>
           ))}
         </nav>
 
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center gap-1">
           <LanguageSwitcher />
-          <Button
-            variant="outline"
-            size="sm"
-            className="border-yellow-500 text-yellow-600 hover:bg-yellow-50"
-            asChild
+          <Link
+            href="https://github.com/vcms-io/solidis"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground hover:bg-secondary/60"
           >
-            <Link href="https://github.com/vcms-io/solidis" target="_blank">
-              <GithubIcon className="h-4 w-4 mr-2" />
-              <span className="hidden sm:inline">{t('nav.github')}</span>
-              <span className="sm:hidden">GH</span>
-              <ExternalLink className="h-3 w-3 ml-1" />
-            </Link>
-          </Button>
+            <GithubIcon className="h-4 w-4" />
+            <span className="hidden sm:inline">GitHub</span>
+          </Link>
 
           <Sheet open={isOpen} onOpenChange={setIsOpen}>
             <SheetTrigger asChild className="md:hidden">
-              <Button variant="outline" size="icon">
+              <Button variant="ghost" size="icon" className="h-8 w-8">
                 <Menu className="h-4 w-4" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="right">
-              <div className="flex flex-col space-y-4 mt-8">
-                {navigation.map((item) => (
+            <SheetContent
+              side="right"
+              className="w-72 bg-background border-border"
+            >
+              <SheetTitle className="sr-only">Navigation</SheetTitle>
+              <nav className="flex flex-col gap-0.5 pt-8">
+                {mobileNavigation.map((item) => (
                   <Link
-                    key={item.name}
+                    key={item.href}
                     href={item.href}
-                    className="text-lg font-medium"
+                    className="rounded-md px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
                     onClick={() => setIsOpen(false)}
                   >
                     {item.name}
                   </Link>
                 ))}
-              </div>
+              </nav>
             </SheetContent>
           </Sheet>
         </div>

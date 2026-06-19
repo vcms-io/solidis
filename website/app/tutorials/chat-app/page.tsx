@@ -1,57 +1,63 @@
+'use client';
+
 import { ArrowRight, CheckCircle, Clock, MessageCircle } from 'lucide-react';
 import Link from 'next/link';
 
 import { CodeBlock } from '@/components/code-block';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useI18n } from '@/lib/i18n-context';
 
 export default function ChatAppTutorial() {
+  const { t } = useI18n();
+
   return (
-    <div className="container mx-auto max-w-4xl py-12 px-4">
+    <div className="content-container pt-20 sm:pt-24 pb-10 sm:pb-16">
       <div className="mb-8">
         <Link
           href="/tutorials"
-          className="text-yellow-600 hover:underline text-sm mb-4 inline-block"
+          className="text-amber-500 hover:underline text-sm mb-4 inline-block"
         >
-          ← Back to Tutorials
+          {t('tutorialChat.backToTutorials')}
         </Link>
-        <div className="flex items-center gap-4 mb-4">
-          <Badge className="bg-red-100 text-red-800">Advanced</Badge>
-          <div className="flex items-center gap-1 text-gray-500">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4">
+          <Badge className="bg-red-500/10 text-red-500">
+            {t('tutorialChat.level')}
+          </Badge>
+          <div className="flex items-center gap-1 text-muted-foreground">
             <Clock className="h-4 w-4" />
-            <span className="text-sm">45 min</span>
+            <span className="text-sm">{t('tutorialChat.duration')}</span>
           </div>
         </div>
-        <h1 className="text-4xl font-bold mb-4">
-          Building a Real-time Chat Application
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4">
+          {t('tutorialChat.title')}
         </h1>
-        <p className="text-xl text-gray-600">
-          Create a scalable real-time chat system using Redis Pub/Sub with
-          Solidis and WebSockets.
+        <p className="text-xl text-muted-foreground">
+          {t('tutorialChat.description')}
         </p>
       </div>
 
       <Card className="mb-8">
         <CardHeader>
-          <CardTitle>What You'll Build</CardTitle>
+          <CardTitle>{t('tutorialChat.whatYoullBuild')}</CardTitle>
         </CardHeader>
         <CardContent>
           <ul className="space-y-2">
             <li className="flex items-start gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-              <span>Real-time message broadcasting with Redis Pub/Sub</span>
+              <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+              <span>{t('tutorialChat.build1')}</span>
             </li>
             <li className="flex items-start gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-              <span>WebSocket server integration</span>
+              <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+              <span>{t('tutorialChat.build2')}</span>
             </li>
             <li className="flex items-start gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-              <span>Multiple chat rooms support</span>
+              <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+              <span>{t('tutorialChat.build3')}</span>
             </li>
             <li className="flex items-start gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-              <span>Message history and persistence</span>
+              <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+              <span>{t('tutorialChat.build4')}</span>
             </li>
           </ul>
         </CardContent>
@@ -60,14 +66,14 @@ export default function ChatAppTutorial() {
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold">
+            <div className="w-8 h-8 bg-amber-500/10 rounded-full flex items-center justify-center text-amber-500 font-semibold">
               1
             </div>
-            Chat Manager with Pub/Sub
+            {t('tutorialChat.chatManager')}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
+          <div className="rounded-lg text-sm overflow-x-auto">
             <CodeBlock
               code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
 
@@ -220,14 +226,14 @@ export class ChatManager {
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold">
+            <div className="w-8 h-8 bg-amber-500/10 rounded-full flex items-center justify-center text-amber-500 font-semibold">
               2
             </div>
-            WebSocket Server Integration
+            {t('tutorialChat.wsServer')}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
+          <div className="rounded-lg text-sm overflow-x-auto">
             <CodeBlock
               code={`import { WebSocketServer, WebSocket } from 'ws';
 import { ChatManager, Message } from './chat-manager';
@@ -420,14 +426,14 @@ export class ChatServer {
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold">
+            <div className="w-8 h-8 bg-amber-500/10 rounded-full flex items-center justify-center text-amber-500 font-semibold">
               3
             </div>
-            Start the Server
+            {t('tutorialChat.startServer')}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
+          <div className="rounded-lg text-sm overflow-x-auto">
             <CodeBlock
               code={`import { ChatManager } from './chat-manager';
 import { ChatServer } from './chat-server';
@@ -456,12 +462,12 @@ start().catch(console.error);`}
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <MessageCircle className="h-5 w-5 text-yellow-600" />
-            Client Example
+            <MessageCircle className="h-5 w-5 text-amber-500" />
+            {t('tutorialChat.clientExample')}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
+          <div className="rounded-lg text-sm overflow-x-auto">
             <CodeBlock
               code={`// Simple WebSocket client example
 const ws = new WebSocket('ws://localhost:8080');
@@ -512,28 +518,32 @@ sendMessage('Hello, everyone!');`}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <ArrowRight className="h-5 w-5 text-yellow-600" />
-            Next Steps
+            <ArrowRight className="h-5 w-5 text-amber-500" />
+            {t('tutorialChat.nextSteps')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid md:grid-cols-2 gap-4">
             <Link
               href="/tutorials/job-queue"
-              className="p-4 border rounded-lg hover:shadow-lg transition-shadow"
+              className="card-base card-interactive p-4 block"
             >
-              <h3 className="font-semibold mb-2">Job Queue</h3>
-              <p className="text-sm text-gray-600">
-                Process background jobs efficiently
+              <h3 className="font-semibold mb-2">
+                {t('tutorialChat.nextJobQueue')}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                {t('tutorialChat.nextJobQueueDesc')}
               </p>
             </Link>
             <Link
               href="/tutorials/session-store"
-              className="p-4 border rounded-lg hover:shadow-lg transition-shadow"
+              className="card-base card-interactive p-4 block"
             >
-              <h3 className="font-semibold mb-2">Session Store</h3>
-              <p className="text-sm text-gray-600">
-                Manage user sessions with Redis
+              <h3 className="font-semibold mb-2">
+                {t('tutorialChat.nextSession')}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                {t('tutorialChat.nextSessionDesc')}
               </p>
             </Link>
           </div>

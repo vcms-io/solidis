@@ -1,19 +1,16 @@
-import { Inter } from 'next/font/google';
-
 import type { Metadata } from 'next';
 import type React from 'react';
 import './globals.css';
 
+import { AmbientBackground } from '@/components/ambient-background';
 import { Footer } from '@/components/footer';
 import { Navbar } from '@/components/navbar';
 import { I18nProvider } from '@/lib/i18n-context';
 
-const inter = Inter({ subsets: ['latin'] });
-
 export const metadata: Metadata = {
-  title: 'Solidis Documentation - High-Performance Redis Client',
+  title: 'Solidis | Zero-dependency RESP client for Redis',
   description:
-    'Official documentation for Solidis, a high-performance SOLID-structured RESP client for Redis and other RESP-compatible servers.',
+    'The fastest Redis client for Node.js. Zero dependencies, full RESP2/RESP3 support, TypeScript-first. Up to 2x faster than ioredis.',
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },
@@ -22,18 +19,6 @@ export const metadata: Metadata = {
     ],
     apple: [
       { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
-    ],
-    other: [
-      {
-        url: '/android-chrome-192x192.png',
-        sizes: '192x192',
-        type: 'image/png',
-      },
-      {
-        url: '/android-chrome-512x512.png',
-        sizes: '512x512',
-        type: 'image/png',
-      },
     ],
   },
 };
@@ -45,10 +30,23 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <head>
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+        />
+        <link
+          rel="stylesheet"
+          as="style"
+          crossOrigin="anonymous"
+          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
+        />
+      </head>
+      <body>
+        <AmbientBackground />
         <I18nProvider>
           <Navbar />
-          <main>{children}</main>
+          <main className="min-h-screen relative">{children}</main>
           <Footer />
         </I18nProvider>
       </body>

@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowRight, Clock, User } from 'lucide-react';
+import { ArrowRight, Clock } from 'lucide-react';
 import Link from 'next/link';
 
 import { Badge } from '@/components/ui/badge';
@@ -73,122 +73,122 @@ export default function TutorialsPage() {
     const advanced = t('tutorials.advanced');
 
     if (difficulty === beginner) {
-      return 'bg-green-100 text-green-800';
+      return 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20';
     }
     if (difficulty === intermediate) {
-      return 'bg-yellow-100 text-yellow-800';
+      return 'bg-amber-500/10 text-amber-600 border-amber-500/20';
     }
     if (difficulty === advanced) {
-      return 'bg-red-100 text-red-800';
+      return 'bg-red-500/10 text-red-500 border-red-500/20';
     }
-    return 'bg-gray-100 text-gray-800';
+    return '';
   };
 
+  const learningSteps = [
+    {
+      step: 1,
+      title: t('tutorials.step1'),
+      description: t('tutorials.step1Desc'),
+    },
+    {
+      step: 2,
+      title: t('tutorials.step2'),
+      description: t('tutorials.step2Desc'),
+    },
+    {
+      step: 3,
+      title: t('tutorials.step3'),
+      description: t('tutorials.step3Desc'),
+    },
+    {
+      step: 4,
+      title: t('tutorials.step4'),
+      description: t('tutorials.step4Desc'),
+    },
+  ];
+
   return (
-    <div className="container mx-auto max-w-6xl py-12 px-4">
-      <div className="mb-12">
-        <h1 className="text-4xl font-bold mb-4">{t('tutorials.title')}</h1>
-        <p className="text-xl text-gray-600">{t('tutorials.subtitle')}</p>
+    <div className="content-container pt-20 sm:pt-24 pb-10 sm:pb-16">
+      <div className="mb-10">
+        <h1 className="text-3xl font-bold tracking-tight text-foreground mb-3">
+          {t('tutorials.title')}
+        </h1>
+        <p className="text-lg text-muted-foreground">
+          {t('tutorials.subtitle')}
+        </p>
       </div>
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {tutorials.map((tutorial, index) => (
-          <Card key={index} className="hover:shadow-lg transition-shadow group">
-            <CardHeader>
-              <div className="flex items-start justify-between mb-2">
-                <Badge className={getDifficultyColor(tutorial.difficulty)}>
-                  {tutorial.difficulty}
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-16">
+        {tutorials.map((tutorial) => (
+          <Link
+            key={tutorial.href}
+            href={tutorial.href}
+            className="group card-base card-interactive p-5 block"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <Badge className={getDifficultyColor(tutorial.difficulty)}>
+                {tutorial.difficulty}
+              </Badge>
+              <div className="flex items-center text-xs text-muted-foreground">
+                <Clock className="h-3 w-3 mr-1" />
+                {tutorial.duration}
+              </div>
+            </div>
+            <h3 className="text-sm font-semibold text-foreground mb-1.5 group-hover:text-amber-500 transition-colors">
+              {tutorial.title}
+            </h3>
+            <p className="text-xs text-muted-foreground leading-relaxed mb-3">
+              {tutorial.description}
+            </p>
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {tutorial.tags.map((tag) => (
+                <Badge
+                  key={tag}
+                  variant="outline"
+                  className="text-[10px] px-1.5 py-0"
+                >
+                  {tag}
                 </Badge>
-                <div className="flex items-center text-sm text-gray-500">
-                  <Clock className="h-4 w-4 mr-1" />
-                  {tutorial.duration}
-                </div>
-              </div>
-              <CardTitle className="group-hover:text-yellow-600 transition-colors">
-                {tutorial.title}
-              </CardTitle>
-              <CardDescription>{tutorial.description}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2 mb-4">
-                {tutorial.tags.map((tag, tagIndex) => (
-                  <Badge key={tagIndex} variant="outline" className="text-xs">
-                    {tag}
-                  </Badge>
-                ))}
-              </div>
-              <Link
-                href={tutorial.href}
-                className="inline-flex items-center text-yellow-600 hover:text-yellow-800 font-medium text-sm"
-              >
-                {t('tutorials.startTutorial')}
-                <ArrowRight className="h-4 w-4 ml-1" />
-              </Link>
-            </CardContent>
-          </Card>
+              ))}
+            </div>
+            <span className="inline-flex items-center text-xs text-muted-foreground group-hover:text-foreground transition-colors">
+              {t('tutorials.startTutorial')}
+              <ArrowRight className="h-3 w-3 ml-1 transition-transform group-hover:translate-x-0.5" />
+            </span>
+          </Link>
         ))}
       </div>
 
-      {/* Learning Path */}
-      <div className="mt-16">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5 text-blue-600" />
-              {t('tutorials.learningPath')}
-            </CardTitle>
-            <CardDescription>{t('tutorials.learningPathDesc')}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center gap-4 p-4 border rounded-lg">
-                <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-600 font-semibold">
-                  1
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">
+            {t('tutorials.learningPath')}
+          </CardTitle>
+          <CardDescription>{t('tutorials.learningPathDesc')}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {learningSteps.map((item) => (
+              <div
+                key={item.step}
+                className="flex items-center gap-4 card-base p-4"
+              >
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-500/10 text-xs font-semibold text-amber-500">
+                  {item.step}
                 </div>
                 <div>
-                  <div className="font-medium">{t('tutorials.step1')}</div>
-                  <div className="text-sm text-gray-600">
-                    {t('tutorials.step1Desc')}
+                  <div className="text-sm font-medium text-foreground">
+                    {item.title}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {item.description}
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-4 p-4 border rounded-lg">
-                <div className="w-8 h-8 bg-yellow-200 rounded-full flex items-center justify-center text-yellow-700 font-semibold">
-                  2
-                </div>
-                <div>
-                  <div className="font-medium">{t('tutorials.step2')}</div>
-                  <div className="text-sm text-gray-600">
-                    {t('tutorials.step2Desc')}
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-4 p-4 border rounded-lg">
-                <div className="w-8 h-8 bg-yellow-300 rounded-full flex items-center justify-center text-yellow-800 font-semibold">
-                  3
-                </div>
-                <div>
-                  <div className="font-medium">{t('tutorials.step3')}</div>
-                  <div className="text-sm text-gray-600">
-                    {t('tutorials.step3Desc')}
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-4 p-4 border rounded-lg">
-                <div className="w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center text-yellow-900 font-semibold">
-                  4
-                </div>
-                <div>
-                  <div className="font-medium">{t('tutorials.step4')}</div>
-                  <div className="text-sm text-gray-600">
-                    {t('tutorials.step4Desc')}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

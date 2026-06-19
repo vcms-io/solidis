@@ -24,111 +24,100 @@ export default function FaqPage() {
   const categories = [
     {
       title: t('faq.gettingStartedCat'),
-      icon: <HelpCircle className="h-5 w-5 text-yellow-600" />,
+      icon: <HelpCircle className="h-4 w-4 text-amber-500" />,
       questions: [
         {
-          question:
-            'What is Solidis and how is it different from other Redis clients?',
-          answer:
-            "Solidis is a high-performance RESP client built with SOLID principles in mind. It offers better type safety and follows clean architecture patterns compared to traditional Redis clients. It's designed for modern TypeScript applications with a focus on maintainability and performance.",
+          question: t('faq.q1'),
+          answer: t('faq.a1'),
         },
         {
-          question: 'Which Redis versions are supported?',
-          answer:
-            'Solidis supports any RESP-compatible server, including Redis 5.0 and above, as well as cloud Redis services like AWS ElastiCache and Azure Cache for Redis.',
+          question: t('faq.q2'),
+          answer: t('faq.a2'),
         },
         {
-          question: 'Can I use Solidis in production?',
-          answer:
-            'Yes! Solidis is production-ready and includes features like automatic reconnection with configurable retry attempts and delays, comprehensive error handling, and pipeline optimization to ensure reliability in production deployments.',
+          question: t('faq.q3'),
+          answer: t('faq.a3'),
         },
       ],
     },
     {
       title: t('faq.performanceCat'),
-      icon: <Zap className="h-5 w-5 text-yellow-600" />,
+      icon: <Zap className="h-4 w-4 text-amber-500" />,
       questions: [
         {
-          question: 'How does Solidis handle command pipelining?',
-          answer:
-            'Solidis automatically batches commands into pipelines to reduce network round trips. You can configure the maximum number of commands per pipeline via the maxCommandsPerPipeline option (default: 300). This significantly improves throughput when executing multiple Redis operations.',
+          question: t('faq.q4'),
+          answer: t('faq.a4'),
         },
         {
-          question: "What's the performance compared to other Redis clients?",
-          answer:
-            'Solidis is optimized for high throughput and low latency. Benchmarks show it performs up to 2x faster than ioredis across 15 different operation types (100K iterations, 10K concurrency), with the added benefits of better TypeScript support and cleaner architecture.',
+          question: t('faq.q5'),
+          answer: t('faq.a5'),
         },
         {
-          question: 'Does Solidis support transactions?',
-          answer:
-            'Yes, Solidis supports Redis transactions via the MULTI/EXEC pattern. Use client.multi() to start a transaction, queue commands, then call exec() to execute them atomically.',
+          question: t('faq.q6'),
+          answer: t('faq.a6'),
         },
       ],
     },
     {
       title: t('faq.configurationCat'),
-      icon: <Code className="h-5 w-5 text-yellow-600" />,
+      icon: <Code className="h-4 w-4 text-amber-500" />,
       questions: [
         {
-          question: 'How do I configure connection timeouts?',
-          answer:
-            'You can configure both connection and command timeouts when creating a SolidisClient instance. Use the connectionTimeout option (default: 2000ms) for connection establishment timeout and commandTimeout (default: 5000ms) for individual command execution timeout.',
+          question: t('faq.q7'),
+          answer: t('faq.a7'),
         },
         {
-          question: 'How do I handle authentication?',
-          answer:
-            'Set the authentication option in your SolidisClient configuration with username and password fields. For Redis 6+ with ACL users, you can specify both the username and password.',
+          question: t('faq.q8'),
+          answer: t('faq.a8'),
         },
         {
-          question: 'What protocol versions are supported?',
-          answer:
-            'Solidis supports both RESP2 (default) and RESP3 protocols. You can configure the protocol version via the protocol option when creating a SolidisClient instance.',
+          question: t('faq.q9'),
+          answer: t('faq.a9'),
         },
       ],
     },
     {
       title: t('faq.troubleshootingCat'),
-      icon: <Shield className="h-5 w-5 text-red-600" />,
+      icon: <Shield className="h-4 w-4 text-red-500" />,
       questions: [
         {
-          question: 'How do I handle connection errors?',
-          answer:
-            'Solidis provides comprehensive error handling with specific error types like SolidisConnectionError, SolidisClientError, and SolidisRequesterError. The client supports automatic reconnection with configurable retry attempts (maxConnectionRetries, default: 20) and delays (connectionRetryDelay, default: 100ms).',
+          question: t('faq.q10'),
+          answer: t('faq.a10'),
         },
         {
-          question: 'Why am I getting timeout errors?',
-          answer:
-            'Timeout errors can occur due to network issues, Redis server overload, or misconfigured timeout values. Check your connectionTimeout (default: 2000ms) and commandTimeout (default: 5000ms) settings, and ensure your Redis server is responsive.',
+          question: t('faq.q11'),
+          answer: t('faq.a11'),
         },
         {
-          question: 'How do I debug connection issues?',
-          answer:
-            "Enable debug logging by setting debug: true in your SolidisClient configuration. Listen for debug events via client.on('debug', (entry) => console.log(entry)) to get detailed logging for connection events, command execution, and errors.",
+          question: t('faq.q12'),
+          answer: t('faq.a12'),
         },
       ],
     },
   ];
 
   return (
-    <div className="container mx-auto max-w-4xl py-12 px-4">
-      <div className="mb-12">
-        <h1 className="text-4xl font-bold mb-4">{t('faq.title')}</h1>
-        <p className="text-xl text-gray-600">
-          {t('faq.subtitle')}
+    <div className="content-container pt-20 sm:pt-24 pb-10 sm:pb-16">
+      <div className="mb-10">
+        <h1 className="text-3xl font-bold tracking-tight text-foreground mb-3">
+          {t('faq.title')}
+        </h1>
+        <p className="text-lg text-muted-foreground">
+          {t('faq.subtitle')}{' '}
           <a
             href="https://github.com/vcms-io/solidis/discussions"
-            className="text-yellow-600 hover:underline ml-1"
+            className="text-amber-500 hover:underline"
           >
             {t('faq.askOnGitHub')}
           </a>
         </p>
       </div>
 
-      <div className="space-y-8">
+      <div className="space-y-6">
         {categories.map((category, categoryIndex) => (
           <Card key={categoryIndex}>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
                 {category.icon}
                 {category.title}
               </CardTitle>
@@ -140,10 +129,10 @@ export default function FaqPage() {
                     key={index}
                     value={`item-${categoryIndex}-${index}`}
                   >
-                    <AccordionTrigger className="text-left">
+                    <AccordionTrigger className="text-left text-sm">
                       {item.question}
                     </AccordionTrigger>
-                    <AccordionContent className="text-gray-600">
+                    <AccordionContent className="text-sm text-muted-foreground leading-relaxed">
                       {item.answer}
                     </AccordionContent>
                   </AccordionItem>
@@ -154,36 +143,59 @@ export default function FaqPage() {
         ))}
       </div>
 
-      <Card className="mt-12">
+      <Card className="mt-10">
         <CardHeader>
-          <CardTitle>{t('faq.stillNeedHelp')}</CardTitle>
+          <CardTitle className="text-base">{t('faq.stillNeedHelp')}</CardTitle>
           <CardDescription>{t('faq.stillNeedHelpDesc')}</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid md:grid-cols-3 gap-4">
-            <div className="text-center p-4 border rounded-lg">
-              <h3 className="font-semibold mb-2">{t('faq.githubIssues')}</h3>
-              <p className="text-sm text-gray-600 mb-3">
+          <div className="grid md:grid-cols-3 gap-3">
+            <a
+              href="https://github.com/vcms-io/solidis/issues"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="card-base card-interactive p-4 text-center block"
+            >
+              <h3 className="text-sm font-semibold text-foreground mb-1">
+                {t('faq.githubIssues')}
+              </h3>
+              <p className="text-xs text-muted-foreground mb-2">
                 {t('faq.githubIssuesDesc')}
               </p>
-              <Badge variant="outline">{t('faq.bugReports')}</Badge>
-            </div>
-            <div className="text-center p-4 border rounded-lg">
-              <h3 className="font-semibold mb-2">
+              <Badge variant="outline" className="text-[10px]">
+                {t('faq.bugReports')}
+              </Badge>
+            </a>
+            <a
+              href="https://github.com/vcms-io/solidis/discussions"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="card-base card-interactive p-4 text-center block"
+            >
+              <h3 className="text-sm font-semibold text-foreground mb-1">
                 {t('faq.githubDiscussions')}
               </h3>
-              <p className="text-sm text-gray-600 mb-3">
+              <p className="text-xs text-muted-foreground mb-2">
                 {t('faq.githubDiscussionsDesc')}
               </p>
-              <Badge variant="outline">{t('faq.communitySupport')}</Badge>
-            </div>
-            <div className="text-center p-4 border rounded-lg">
-              <h3 className="font-semibold mb-2">{t('faq.documentation')}</h3>
-              <p className="text-sm text-gray-600 mb-3">
+              <Badge variant="outline" className="text-[10px]">
+                {t('faq.communitySupport')}
+              </Badge>
+            </a>
+            <a
+              href="/getting-started"
+              className="card-base card-interactive p-4 text-center block"
+            >
+              <h3 className="text-sm font-semibold text-foreground mb-1">
+                {t('faq.documentation')}
+              </h3>
+              <p className="text-xs text-muted-foreground mb-2">
                 {t('faq.documentationDesc')}
               </p>
-              <Badge variant="outline">{t('faq.selfService')}</Badge>
-            </div>
+              <Badge variant="outline" className="text-[10px]">
+                {t('faq.selfService')}
+              </Badge>
+            </a>
           </div>
         </CardContent>
       </Card>

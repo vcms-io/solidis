@@ -10,6 +10,7 @@ import {
   Zap,
 } from 'lucide-react';
 
+import { ArchitectureDiagram } from '@/components/architecture-diagram';
 import { Badge } from '@/components/ui/badge';
 import {
   Card,
@@ -26,187 +27,196 @@ export default function ArchitecturePage() {
   const components = [
     {
       name: 'SolidisClient',
-      icon: <Code className="h-8 w-8 text-yellow-600" />,
-      description:
-        'Core entry point that creates and coordinates all components',
+      icon: <Code className="h-5 w-5 text-amber-500" />,
+      description: t('architecture.coreDesc'),
       responsibilities: [
-        'Component initialization and lifecycle management',
-        'Configuration management',
-        'Event coordination between components',
-        'Extension system for custom commands',
+        t('architecture.coreInit'),
+        t('architecture.coreConfig'),
+        t('architecture.coreEvent'),
+        t('architecture.coreExtension'),
       ],
     },
     {
       name: 'Connection',
-      icon: <Network className="h-8 w-8 text-blue-600" />,
-      description: 'Manages TCP/TLS socket connections',
+      icon: <Network className="h-5 w-5 text-blue-600" />,
+      description: t('architecture.connectionDesc'),
       responsibilities: [
-        'Socket connection establishment',
-        'Automatic reconnection with configurable retry delay',
-        'TLS/SSL support',
-        'Connection state management',
-        'Auto-recovery for database selection and subscriptions',
+        t('architecture.connSocket'),
+        t('architecture.connReconnect'),
+        t('architecture.connTls'),
+        t('architecture.connState'),
+        t('architecture.connRecovery'),
       ],
     },
     {
       name: 'Requester',
-      icon: <Zap className="h-8 w-8 text-green-600" />,
-      description: 'Handles command pipelining and request states',
+      icon: <Zap className="h-5 w-5 text-emerald-600" />,
+      description: t('architecture.requesterDesc'),
       responsibilities: [
-        'Command queue management',
-        'Pipeline optimization',
-        'Request/response correlation',
-        'Command timeout handling',
-        'Transaction (MULTI/EXEC) coordination',
+        t('architecture.reqQueue'),
+        t('architecture.reqPipeline'),
+        t('architecture.reqCorrelation'),
+        t('architecture.reqTimeout'),
+        t('architecture.reqTransaction'),
       ],
     },
     {
       name: 'Parser',
-      icon: <Database className="h-8 w-8 text-purple-600" />,
-      description:
-        'Processes RESP2/RESP3 protocol with optimized buffer handling',
+      icon: <Database className="h-5 w-5 text-purple-600" />,
+      description: t('architecture.parserDesc'),
       responsibilities: [
-        'RESP protocol parsing (RESP2 and RESP3)',
-        'Zero-copy buffer operations',
-        'Efficient memory management',
-        'Multi-byte character support',
-        'Binary-safe data handling',
+        t('architecture.parserParsing'),
+        t('architecture.parserZeroCopy'),
+        t('architecture.parserMemory'),
+        t('architecture.parserMultibyte'),
+        t('architecture.parserBinary'),
       ],
     },
     {
       name: 'PubSub',
-      icon: <Shield className="h-8 w-8 text-red-600" />,
-      description: 'Maintains subscription state for pub/sub functionality',
+      icon: <Shield className="h-5 w-5 text-red-500" />,
+      description: t('architecture.pubsubDesc'),
       responsibilities: [
-        'Channel subscription management',
-        'Pattern subscription support',
-        'Message routing to event handlers',
-        'Subscription state recovery after reconnection',
+        t('architecture.pubsubChannel'),
+        t('architecture.pubsubPattern'),
+        t('architecture.pubsubRouting'),
+        t('architecture.pubsubRecovery'),
       ],
     },
     {
       name: 'Debug Memory',
-      icon: <Layers className="h-8 w-8 text-gray-600" />,
-      description: 'Centralized debug logging system',
+      icon: <Layers className="h-5 w-5 text-muted-foreground" />,
+      description: t('architecture.debugDesc'),
       responsibilities: [
-        'Debug event collection',
-        'Circular buffer for memory efficiency',
-        'Debug event filtering',
-        'Performance metrics tracking',
+        t('architecture.debugEvent'),
+        t('architecture.debugBuffer'),
+        t('architecture.debugFilter'),
+        t('architecture.debugMetrics'),
       ],
     },
   ];
 
   const principles = [
     {
-      title: 'Single Responsibility',
-      description: 'Each component has a single, well-defined responsibility',
-      example:
-        'Parser only handles RESP protocol parsing, not connection management',
+      letter: 'S',
+      title: t('architecture.srp'),
+      description: t('architecture.srpDesc'),
+      example: t('architecture.srpExample'),
     },
     {
-      title: 'Open/Closed',
-      description:
-        'Open for extension, closed for modification via the extension system',
-      example: 'Add custom commands without modifying core client code',
+      letter: 'O',
+      title: t('architecture.ocp'),
+      description: t('architecture.ocpDesc'),
+      example: t('architecture.ocpExample'),
     },
     {
-      title: 'Liskov Substitution',
-      description:
-        'Components can be replaced with alternative implementations',
-      example: 'Different parser implementations for RESP2 vs RESP3',
+      letter: 'L',
+      title: t('architecture.lsp'),
+      description: t('architecture.lspDesc'),
+      example: t('architecture.lspExample'),
     },
     {
-      title: 'Interface Segregation',
-      description: 'Minimal, focused interfaces between components',
-      example: 'PubSub exposes only subscription-related methods',
+      letter: 'I',
+      title: t('architecture.isp'),
+      description: t('architecture.ispDesc'),
+      example: t('architecture.ispExample'),
     },
     {
-      title: 'Dependency Inversion',
-      description:
-        'Components depend on abstractions, not concrete implementations',
-      example:
-        'Client depends on parser interface, not specific parser implementation',
+      letter: 'D',
+      title: t('architecture.dip'),
+      description: t('architecture.dipDesc'),
+      example: t('architecture.dipExample'),
+    },
+  ];
+
+  const executionSteps = [
+    {
+      step: 1,
+      title: t('architecture.flow1'),
+      description: t('architecture.flow1Desc'),
+    },
+    {
+      step: 2,
+      title: t('architecture.flow2'),
+      description: t('architecture.flow2Desc'),
+    },
+    {
+      step: 3,
+      title: t('architecture.flow3'),
+      description: t('architecture.flow3Desc'),
+    },
+    {
+      step: 4,
+      title: t('architecture.flow4'),
+      description: t('architecture.flow4Desc'),
+    },
+    {
+      step: 5,
+      title: t('architecture.flow5'),
+      description: t('architecture.flow5Desc'),
+    },
+    {
+      step: 6,
+      title: t('architecture.flow6'),
+      description: t('architecture.flow6Desc'),
     },
   ];
 
   return (
-    <div className="container mx-auto max-w-6xl py-12 px-4">
-      <div className="mb-12">
-        <h1 className="text-4xl font-bold mb-4">{t('architecture.title')}</h1>
-        <p className="text-xl text-gray-600">{t('architecture.subtitle')}</p>
+    <div className="content-container pt-20 sm:pt-24 pb-10 sm:pb-16">
+      <div className="mb-10">
+        <h1 className="text-3xl font-bold tracking-tight text-foreground mb-3">
+          {t('architecture.title')}
+        </h1>
+        <p className="text-lg text-muted-foreground">
+          {t('architecture.subtitle')}
+        </p>
       </div>
 
-      {/* Architecture Diagram */}
-      <Card className="mb-12">
+      <Card className="mb-10">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Layers className="h-5 w-5 text-yellow-600" />
-            System Architecture
+          <CardTitle className="text-base">
+            {t('architecture.systemArchitecture')}
           </CardTitle>
           <CardDescription>
-            Overview of how Solidis components work together to provide a robust
-            Redis client
+            {t('architecture.systemArchitectureDesc')}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="bg-gray-900 text-gray-100 p-8 rounded-lg font-mono text-sm overflow-x-auto">
-            <pre className="text-xs md:text-sm">{`
-┌─────────────────────────────────────────────────┐
-│                  SolidisClient                  │
-│                                                 │
-│      Creates & coordinates all components       │
-│                                                 │
-│     ┌────────────────────────────────────┐      │
-│     │             Debug Memory           │      │
-│     └───────┬───────────────────┬────────┘      │
-│             ▼                   ▼               │
-│     ┌────────────────┐  ┌────────────────┐      │
-│     │   Connection   │─►│   Requester    │─┐    │
-│     └────────────────┘  └────────────────┘ │    │
-│                         ┌────────────────┐ │    │
-│                         │     Parser     │◄┤    │
-│                         └────────────────┘ │    │
-│                         ┌────────────────┐ │    │
-│                         │     PubSub     │◄┘    │
-│                         └────────────────┘      │
-│                                                 │
-└─────────────────────────────────────────────────┘
-         ┌──────────────┴─────────────┐
-         ▼                            ▼
-┌─────────────────┐       ┌───────────────────────┐
-│ SolidisClient   │       │ SolidisFeaturedClient │
-│ (needs extend)  │       │ (all commands)        │
-└─────────────────┘       └───────────────────────┘
-            `}</pre>
-          </div>
+          <ArchitectureDiagram />
         </CardContent>
       </Card>
 
-      {/* Components */}
-      <div className="mb-12">
-        <h2 className="text-3xl font-bold mb-6">
+      <div className="mb-10">
+        <h2 className="text-xl font-bold text-foreground mb-6">
           {t('architecture.coreComponents')}
         </h2>
-        <div className="grid md:grid-cols-2 gap-6">
-          {components.map((component, index) => (
-            <Card key={index} className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="flex items-center gap-3 mb-2">
+        <div className="grid md:grid-cols-2 gap-4">
+          {components.map((component) => (
+            <Card
+              key={component.name}
+              className="transition-all hover:border-foreground/20"
+            >
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2 mb-1">
                   {component.icon}
-                  <CardTitle>{component.name}</CardTitle>
+                  <CardTitle className="text-sm">{component.name}</CardTitle>
                 </div>
-                <CardDescription>{component.description}</CardDescription>
+                <CardDescription className="text-xs">
+                  {component.description}
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <h4 className="font-semibold mb-2 text-sm">
-                  Key Responsibilities:
-                </h4>
                 <ul className="space-y-1">
-                  {component.responsibilities.map((responsibility, index) => (
-                    <li key={index} className="flex items-start gap-2 text-sm">
-                      <span className="text-yellow-600 mt-1">•</span>
-                      <span className="text-gray-600">{responsibility}</span>
+                  {component.responsibilities.map((responsibility) => (
+                    <li
+                      key={responsibility}
+                      className="flex items-start gap-2 text-xs"
+                    >
+                      <span className="text-amber-500 mt-0.5">·</span>
+                      <span className="text-muted-foreground">
+                        {responsibility}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -216,39 +226,38 @@ export default function ArchitecturePage() {
         </div>
       </div>
 
-      {/* SOLID Principles */}
-      <div className="mb-12">
-        <h2 className="text-3xl font-bold mb-6">
+      <div className="mb-10">
+        <h2 className="text-xl font-bold text-foreground mb-6">
           {t('architecture.solidPrinciples')}
         </h2>
-        <p className="text-gray-600 mb-6">
-          Solidis is built following SOLID design principles, ensuring
-          maintainability, testability, and extensibility.
+        <p className="text-sm text-muted-foreground mb-6">
+          {t('architecture.solidDesc')}
         </p>
-        <div className="space-y-4">
-          {principles.map((principle, index) => (
-            <Card key={index}>
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <Badge variant="outline" className="font-mono text-xs">
-                        {principle.title.charAt(0)}
-                      </Badge>
-                      {principle.title}
-                    </CardTitle>
-                    <CardDescription className="mt-2">
-                      {principle.description}
-                    </CardDescription>
-                  </div>
-                </div>
+        <div className="space-y-3">
+          {principles.map((principle) => (
+            <Card key={principle.letter}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Badge
+                    variant="outline"
+                    className="font-mono text-xs text-amber-500 border-amber-500/30"
+                  >
+                    {principle.letter}
+                  </Badge>
+                  {principle.title}
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  {principle.description}
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <div className="text-sm text-gray-600">
-                    <span className="font-medium">Example: </span>
+                <div className="rounded-md bg-secondary/50 px-3 py-2">
+                  <span className="text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">
+                      {t('architecture.example')}
+                    </span>
                     {principle.example}
-                  </div>
+                  </span>
                 </div>
               </CardContent>
             </Card>
@@ -256,155 +265,72 @@ export default function ArchitecturePage() {
         </div>
       </div>
 
-      {/* Data Flow */}
-      <Card className="mb-12">
+      <Card className="mb-10">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ArrowRight className="h-5 w-5 text-yellow-600" />
-            Command Execution Flow
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ArrowRight className="h-4 w-4 text-amber-500" />
+            {t('architecture.commandFlow')}
           </CardTitle>
-          <CardDescription>
-            How commands flow through the Solidis architecture
-          </CardDescription>
+          <CardDescription>{t('architecture.commandFlowDesc')}</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-6">
-            <div className="flex items-start gap-4">
-              <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold shrink-0">
-                1
-              </div>
-              <div>
-                <div className="font-medium mb-1">Client receives command</div>
-                <div className="text-sm text-gray-600">
-                  User calls a command method (e.g.,{' '}
-                  <code className="bg-gray-100 px-1 py-0.5 rounded">
-                    client.set('key', 'value')
-                  </code>
-                  )
+          <div className="space-y-4">
+            {executionSteps.map((item) => (
+              <div key={item.step} className="flex items-start gap-4">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-500/10 text-xs font-semibold text-amber-500">
+                  {item.step}
+                </div>
+                <div>
+                  <div className="text-sm font-medium text-foreground">
+                    {item.title}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {item.description}
+                  </div>
                 </div>
               </div>
-            </div>
-
-            <div className="flex items-start gap-4">
-              <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold shrink-0">
-                2
-              </div>
-              <div>
-                <div className="font-medium mb-1">Requester queues command</div>
-                <div className="text-sm text-gray-600">
-                  Command is added to the pipeline queue for batch processing
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-4">
-              <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold shrink-0">
-                3
-              </div>
-              <div>
-                <div className="font-medium mb-1">Connection sends data</div>
-                <div className="text-sm text-gray-600">
-                  Command is serialized to RESP protocol and sent through the
-                  TCP socket
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-4">
-              <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold shrink-0">
-                4
-              </div>
-              <div>
-                <div className="font-medium mb-1">
-                  Parser processes response
-                </div>
-                <div className="text-sm text-gray-600">
-                  Parser reads and parses RESP response from Redis using
-                  zero-copy operations
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-4">
-              <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold shrink-0">
-                5
-              </div>
-              <div>
-                <div className="font-medium mb-1">
-                  Requester resolves promise
-                </div>
-                <div className="text-sm text-gray-600">
-                  Parsed response is matched to the original command and the
-                  promise is resolved
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-4">
-              <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold shrink-0">
-                6
-              </div>
-              <div>
-                <div className="font-medium mb-1">Result returned to user</div>
-                <div className="text-sm text-gray-600">
-                  The parsed result is returned to the user's await statement
-                </div>
-              </div>
-            </div>
+            ))}
           </div>
         </CardContent>
       </Card>
 
-      {/* Performance Optimizations */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Zap className="h-5 w-5 text-yellow-600" />
-            Performance Optimizations
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Zap className="h-4 w-4 text-amber-500" />
+            {t('architecture.performanceOptimizations')}
           </CardTitle>
-          <CardDescription>
-            Key architectural decisions that make Solidis fast
-          </CardDescription>
+          <CardDescription>{t('architecture.perfDesc')}</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <h4 className="font-semibold mb-3">Zero-Copy Operations</h4>
-              <p className="text-sm text-gray-600 mb-2">
-                The parser uses buffer slicing instead of copying data, reducing
-                memory allocations and improving throughput for large payloads.
-              </p>
-            </div>
-
-            <div>
-              <h4 className="font-semibold mb-3">Pipeline Batching</h4>
-              <p className="text-sm text-gray-600 mb-2">
-                Commands are automatically batched in pipelines to reduce
-                network round trips, configurable via{' '}
-                <code className="bg-gray-100 px-1 py-0.5 rounded text-xs">
-                  maxCommandsPerPipeline
-                </code>
-                .
-              </p>
-            </div>
-
-            <div>
-              <h4 className="font-semibold mb-3">
-                Efficient Buffer Management
-              </h4>
-              <p className="text-sm text-gray-600 mb-2">
-                Smart buffer allocation and reuse strategies minimize garbage
-                collection pressure and memory overhead.
-              </p>
-            </div>
-
-            <div>
-              <h4 className="font-semibold mb-3">Lazy Connections</h4>
-              <p className="text-sm text-gray-600 mb-2">
-                Optional lazy connection mode delays connection establishment
-                until needed, reducing resource usage for idle clients.
-              </p>
-            </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            {[
+              {
+                title: t('architecture.zeroCopy'),
+                description: t('architecture.zeroCopyDesc'),
+              },
+              {
+                title: t('architecture.pipelineBatching'),
+                description: t('architecture.pipelineBatchingDesc'),
+              },
+              {
+                title: t('architecture.bufferMgmt'),
+                description: t('architecture.bufferMgmtDesc'),
+              },
+              {
+                title: t('architecture.lazyConn'),
+                description: t('architecture.lazyConnDesc'),
+              },
+            ].map((item, index) => (
+              <div key={index}>
+                <h4 className="text-sm font-semibold text-foreground mb-1">
+                  {item.title}
+                </h4>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {item.description}
+                </p>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>

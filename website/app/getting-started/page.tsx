@@ -8,6 +8,7 @@ import {
   Terminal,
   Zap,
 } from 'lucide-react';
+import Link from 'next/link';
 
 import { CodeBlock } from '@/components/code-block';
 import { Badge } from '@/components/ui/badge';
@@ -25,18 +26,21 @@ export default function GettingStartedPage() {
   const { t } = useI18n();
 
   return (
-    <div className="container mx-auto max-w-4xl py-12 px-4">
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold mb-4">{t('gettingStarted.title')}</h1>
-        <p className="text-xl text-gray-600">{t('gettingStarted.subtitle')}</p>
+    <div className="content-container pt-20 sm:pt-24 pb-10 sm:pb-16">
+      <div className="mb-10">
+        <h1 className="text-3xl font-bold tracking-tight text-foreground mb-3">
+          {t('gettingStarted.title')}
+        </h1>
+        <p className="text-lg text-muted-foreground">
+          {t('gettingStarted.subtitle')}
+        </p>
       </div>
 
-      <div className="space-y-8">
-        {/* Prerequisites */}
+      <div className="space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-yellow-600" />
+            <CardTitle className="flex items-center gap-2 text-base">
+              <CheckCircle className="h-4 w-4 text-amber-500" />
               {t('gettingStarted.prerequisites')}
             </CardTitle>
           </CardHeader>
@@ -44,25 +48,30 @@ export default function GettingStartedPage() {
             <ul className="space-y-2">
               <li className="flex items-center gap-2">
                 <Badge variant="outline">Node.js</Badge>
-                <span>Version 14.0 or higher (Node.js 22 LTS recommended)</span>
+                <span className="text-sm text-muted-foreground">
+                  {t('gettingStarted.nodeVersion')}
+                </span>
               </li>
               <li className="flex items-center gap-2">
                 <Badge variant="outline">TypeScript</Badge>
-                <span>Version 4.5 or higher (optional but recommended)</span>
+                <span className="text-sm text-muted-foreground">
+                  {t('gettingStarted.tsVersion')}
+                </span>
               </li>
               <li className="flex items-center gap-2">
                 <Badge variant="outline">Redis</Badge>
-                <span>Any RESP-compatible server</span>
+                <span className="text-sm text-muted-foreground">
+                  {t('gettingStarted.redisVersion')}
+                </span>
               </li>
             </ul>
           </CardContent>
         </Card>
 
-        {/* Installation */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Terminal className="h-5 w-5 text-yellow-600" />
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Terminal className="h-4 w-4 text-amber-500" />
               {t('gettingStarted.installation')}
             </CardTitle>
             <CardDescription>
@@ -92,11 +101,10 @@ export default function GettingStartedPage() {
           </CardContent>
         </Card>
 
-        {/* Client Types */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5 text-yellow-600" />
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Package className="h-4 w-4 text-amber-500" />
               {t('gettingStarted.clientTypes')}
             </CardTitle>
             <CardDescription>
@@ -106,26 +114,23 @@ export default function GettingStartedPage() {
           <CardContent>
             <div className="space-y-6">
               <div>
-                <h3 className="text-lg font-semibold mb-3">
+                <h3 className="text-sm font-semibold text-foreground mb-2">
                   1. {t('gettingStarted.basicClient')}
                 </h3>
-                <p className="text-sm text-gray-600 mb-3">
+                <p className="text-sm text-muted-foreground mb-3">
                   {t('gettingStarted.basicClientDesc')}
                 </p>
                 <CodeBlock
-                  code={`// Import the basic client and commands
-import { SolidisClient } from '@vcms-io/solidis';
+                  code={`import { SolidisClient } from '@vcms-io/solidis';
 import { get, set, multi } from '@vcms-io/solidis/command';
 import type { SolidisClientExtensions } from '@vcms-io/solidis';
 
-// Define extensions with type safety
 const extensions = {
   get,
   set,
   multi,
 } satisfies SolidisClientExtensions;
 
-// Initialize client with extensions
 const client = new SolidisClient({
   host: '127.0.0.1',
   port: 6379,
@@ -136,10 +141,10 @@ const client = new SolidisClient({
               </div>
 
               <div>
-                <h3 className="text-lg font-semibold mb-3">
+                <h3 className="text-sm font-semibold text-foreground mb-2">
                   2. {t('gettingStarted.featuredClient')}
                 </h3>
-                <p className="text-sm text-gray-600 mb-3">
+                <p className="text-sm text-muted-foreground mb-3">
                   {t('gettingStarted.featuredClientDesc')}
                 </p>
                 <CodeBlock
@@ -157,11 +162,10 @@ const client = new SolidisFeaturedClient({
           </CardContent>
         </Card>
 
-        {/* Connection Management */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Layers className="h-5 w-5 text-yellow-600" />
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Layers className="h-4 w-4 text-amber-500" />
               {t('gettingStarted.connectionManagement')}
             </CardTitle>
             <CardDescription>
@@ -170,22 +174,18 @@ const client = new SolidisFeaturedClient({
           </CardHeader>
           <CardContent>
             <CodeBlock
-              code={`// Create client (with lazy connect)
-const client = new SolidisClient({
+              code={`const client = new SolidisClient({
   uri: 'redis://127.0.0.1:6379',
   lazyConnect: true,
 }).extend({ get, set });
 
-// Explicitly connect when needed
 await client.connect();
 
-// Handle connection events
 client.on('connect', () => console.log('Connected to server'));
 client.on('ready', () => console.log('Client is ready for commands'));
 client.on('error', (err) => console.error('Error occurred: ', err));
 client.on('end', () => console.log('Connection closed'));
 
-// Close connection when done
 client.quit();`}
               language="typescript"
               showLineNumbers={true}
@@ -193,11 +193,10 @@ client.quit();`}
           </CardContent>
         </Card>
 
-        {/* Basic Operations */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Zap className="h-5 w-5 text-yellow-600" />
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Zap className="h-4 w-4 text-amber-500" />
               {t('gettingStarted.basicOperations')}
             </CardTitle>
             <CardDescription>
@@ -206,15 +205,11 @@ client.quit();`}
           </CardHeader>
           <CardContent>
             <CodeBlock
-              code={`// Set a key
-await client.set('key', 'value');
+              code={`await client.set('key', 'value');
 
-// Get a key
 const value = await client.get('key');
-
 console.log(value); // 'value'
 
-// Delete a key
 await client.del('key');`}
               language="typescript"
               showLineNumbers={true}
@@ -222,11 +217,10 @@ await client.del('key');`}
           </CardContent>
         </Card>
 
-        {/* Transactions */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Code className="h-5 w-5 text-yellow-600" />
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Code className="h-4 w-4 text-amber-500" />
               {t('gettingStarted.transactions')}
             </CardTitle>
             <CardDescription>
@@ -248,42 +242,45 @@ const results = await transaction.exec();`}
           </CardContent>
         </Card>
 
-        {/* Next Steps */}
         <Card>
           <CardHeader>
-            <CardTitle>{t('gettingStarted.nextSteps')}</CardTitle>
+            <CardTitle className="text-base">
+              {t('gettingStarted.nextSteps')}
+            </CardTitle>
             <CardDescription>
               {t('gettingStarted.nextStepsDesc')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid md:grid-cols-2 gap-4">
-              <div className="p-4 border rounded-lg">
-                <h3 className="font-semibold mb-2">
-                  📚 {t('nav.apiReference')}
+              <Link
+                href="/api-reference"
+                className="group card-base card-interactive p-4 block"
+              >
+                <h3 className="text-sm font-semibold text-foreground mb-1">
+                  {t('nav.apiReference')}
                 </h3>
-                <p className="text-sm text-gray-600 mb-3">
+                <p className="text-xs text-muted-foreground mb-2">
                   {t('gettingStarted.apiReferenceLink')}
                 </p>
-                <a
-                  href="/api-reference"
-                  className="text-yellow-600 hover:underline text-sm"
-                >
+                <span className="text-xs text-amber-500">
                   {t('gettingStarted.viewApiReference')}
-                </a>
-              </div>
-              <div className="p-4 border rounded-lg">
-                <h3 className="font-semibold mb-2">🎯 {t('nav.tutorials')}</h3>
-                <p className="text-sm text-gray-600 mb-3">
+                </span>
+              </Link>
+              <Link
+                href="/tutorials"
+                className="group card-base card-interactive p-4 block"
+              >
+                <h3 className="text-sm font-semibold text-foreground mb-1">
+                  {t('nav.tutorials')}
+                </h3>
+                <p className="text-xs text-muted-foreground mb-2">
                   {t('gettingStarted.tutorialsLink')}
                 </p>
-                <a
-                  href="/tutorials"
-                  className="text-yellow-600 hover:underline text-sm"
-                >
+                <span className="text-xs text-amber-500">
                   {t('gettingStarted.startLearning')}
-                </a>
-              </div>
+                </span>
+              </Link>
             </div>
           </CardContent>
         </Card>
