@@ -3,14 +3,13 @@ import {
   checkReplyIsMessageEvent,
   checkReplyIsPubSubEvent,
   commandsToBuffer,
-  extractNextChunkToWrite,
   findErrorInReplies,
   generateDebugHandle,
   RespPush,
   SolidisParser,
   SolidisProtocols,
+  SolidisPubSubEventNames,
   SolidisRequesterError,
-  SolidisSubscribeCommandNameSet,
   sanitizeCommandsBufferForDebug,
   wrapWithParserError,
   wrapWithSolidisRequesterError,
@@ -23,12 +22,16 @@ import type {
   SolidisPipelineRequest,
   SolidisPipelineRequestChunk,
   SolidisPipelineRequestChunkContext,
-  SolidisPipelineSubRequest,
   SolidisRequest,
   SolidisRequesterOptions,
   SolidisSocketWriteEventHandlers,
   StringOrBuffer,
 } from '../index.ts';
+
+const SolidisSubscribeCommandNameSet = new Set(
+  SolidisPubSubEventNames.slice(3).map((name) => name.toUpperCase()),
+);
+const SocketIsNotConnected = 'Socket is not connected';
 
 export class SolidisRequester {
   #options: SolidisRequesterOptions;
@@ -115,7 +118,7 @@ export class SolidisRequester {
 
       this.#debug?.(
         'debug',
-        `Solidis requester serialized command: ${sanitizeCommandsBufferForDebug(commandsBuffer, pipelineChunk.pipelinedCommands)}`,
+        `Requester serialized: ${sanitizeCommandsBufferForDebug(commandsBuffer, pipelineChunk.pipelinedCommands)}`,
       );
 
       const pipelineRequest: SolidisPipelineRequest = {
@@ -144,7 +147,7 @@ export class SolidisRequester {
   }
 
   async #flushRequestQueue() {
-    this.#debug?.('debug', 'Solidis requester will flush queue.');
+    this.#debug?.('debug', 'Requester will flush queue.');
 
     while (this.#requestQueue.length > 0) {
       const request = this.#requestQueue.shift();
@@ -157,7 +160,7 @@ export class SolidisRequester {
 
       this.#debug?.(
         'debug',
-        `Solidis requester will write pipeline: ${request.commandsBuffer.length} bytes`,
+        `Requester will write: ${request.commandsBuffer.length} bytes`,
       );
 
       try {
@@ -175,7 +178,7 @@ export class SolidisRequester {
         request.isTimedOut = true;
 
         const timeoutError = new SolidisRequesterError(
-          `Solidis command(s) timed out after ${this.#options.commandTimeout} ms.`,
+          `Command(s) timed out after ${this.#options.commandTimeout} ms.`,
         );
 
         this.#setRequestTimeout(request, 'clear');
@@ -206,22 +209,28 @@ export class SolidisRequester {
       let isWritable = true;
 
       while (offset < buffer.length) {
-        const chunk = extractNextChunkToWrite(
-          buffer,
-          offset,
-          maxSocketWriteSizePerOnce,
+        const endOffset = Math.min(
+          offset + maxSocketWriteSizePerOnce,
+          buffer.length,
         );
+        const chunk = buffer.subarray(offset, endOffset);
 
         if (!isWritable) {
           await eventHandlers.waitForDrain();
         }
 
         if (this.#isOnRecovery) {
-          throw new SolidisRequesterError('Stale request: old session.');
+          throw new SolidisRequesterError('Stale request');
         }
 
-        isWritable = this.#writeChunkToSocket(chunk);
-        offset += chunk.length;
+        const socket = this.#options.connection.socket;
+
+        if (!socket) {
+          throw new SolidisRequesterError(SocketIsNotConnected);
+        }
+
+        isWritable = socket.write(chunk);
+        offset = endOffset;
       }
     } catch (error) {
       if (error instanceof SolidisRequesterError) {
@@ -238,59 +247,18 @@ export class SolidisRequester {
     }
   }
 
-  #getSocketOrThrow() {
+  #getSocketWriteEventHandlers() {
     const socket = this.#options.connection.socket;
 
     if (!socket) {
-      throw new SolidisRequesterError('Socket is not connected');
+      throw new SolidisRequesterError(SocketIsNotConnected);
     }
-
-    return socket;
-  }
-
-  async #waitForSocketDrain(
-    connectionTimeoutId: NodeJS.Timeout,
-  ): Promise<void> {
-    const socket = this.#getSocketOrThrow();
-
-    return new Promise<void>((resolve) => {
-      const drainTimeoutId = setTimeout(() => {
-        cleanup();
-        resolve();
-      }, this.#options.socketWriteTimeout);
-
-      const cleanup = () => {
-        socket.removeListener('drain', onDrain);
-        socket.removeListener('error', onSocketFault);
-        socket.removeListener('close', onSocketFault);
-      };
-
-      const onDrain = () => {
-        clearTimeout(drainTimeoutId);
-        clearTimeout(connectionTimeoutId);
-        cleanup();
-        resolve();
-      };
-
-      const onSocketFault = () => {
-        clearTimeout(drainTimeoutId);
-        cleanup();
-        resolve();
-      };
-
-      socket.once('drain', onDrain);
-      socket.once('error', onSocketFault);
-      socket.once('close', onSocketFault);
-    });
-  }
-
-  #getSocketWriteEventHandlers() {
-    const socket = this.#getSocketOrThrow();
+    const { socketWriteTimeout } = this.#options;
 
     const timeoutId = setTimeout(() => {
       handlers.isError = true;
       handlers.error = new SolidisRequesterError('Socket timed out');
-    }, this.#options.socketWriteTimeout);
+    }, socketWriteTimeout);
 
     const onClose = (hadError: boolean) => {
       handlers.onError(
@@ -307,7 +275,36 @@ export class SolidisRequester {
 
         clearTimeout(timeoutId);
       },
-      waitForDrain: () => this.#waitForSocketDrain(timeoutId),
+      waitForDrain: () =>
+        new Promise<void>((resolve) => {
+          const drainTimeoutId = setTimeout(() => {
+            cleanup();
+            resolve();
+          }, socketWriteTimeout);
+
+          const cleanup = () => {
+            socket.removeListener('drain', onDrain);
+            socket.removeListener('error', onSocketFault);
+            socket.removeListener('close', onSocketFault);
+          };
+
+          const onDrain = () => {
+            clearTimeout(drainTimeoutId);
+            clearTimeout(timeoutId);
+            cleanup();
+            resolve();
+          };
+
+          const onSocketFault = () => {
+            clearTimeout(drainTimeoutId);
+            cleanup();
+            resolve();
+          };
+
+          socket.once('drain', onDrain);
+          socket.once('error', onSocketFault);
+          socket.once('close', onSocketFault);
+        }),
       removeEventListeners: () => {
         socket.removeListener('error', handlers.onError);
         socket.removeListener('close', onClose);
@@ -322,10 +319,6 @@ export class SolidisRequester {
     socket.once('close', onClose);
 
     return handlers;
-  }
-
-  #writeChunkToSocket(chunk: Buffer) {
-    return this.#getSocketOrThrow().write(chunk);
   }
 
   #buildPipelineChunksFromRequests(
@@ -350,14 +343,14 @@ export class SolidisRequester {
         let command = request.commands[index];
         const isLastCommand = index === request.commands.length - 1;
 
-        const isSubscribeFamily = this.#checkCommandIsSubscribeFamily(command);
+        const expandedCommand = this.#processSubscribeCommand(command);
 
-        if (isSubscribeFamily) {
-          command = this.#expandUnsubscribeAllCommand(command);
+        if (expandedCommand) {
+          command = expandedCommand;
           context.subscribeCommandCount += 1;
         }
 
-        const replySpan = this.#getCommandReplySpan(command, isSubscribeFamily);
+        const replySpan = expandedCommand ? Math.max(1, command.length - 1) : 1;
 
         context.pipelinedCommands.push(command);
         context.subRequests.push({
@@ -385,75 +378,40 @@ export class SolidisRequester {
     return context.chunks;
   }
 
-  #checkCommandIsSubscribeFamily(command: StringOrBuffer[]) {
+  #processSubscribeCommand(command: StringOrBuffer[]): StringOrBuffer[] | null {
     const commandName = command[0];
 
     if (commandName === undefined) {
-      return false;
+      return null;
     }
 
-    const name =
+    const commandNameString =
       typeof commandName === 'string' ? commandName : commandName.toString();
 
-    if (name.length < 9) {
-      return false;
+    if (commandNameString.length < 9) {
+      return null;
     }
 
-    if (SolidisSubscribeCommandNameSet.has(name)) {
-      return true;
+    const upper = SolidisSubscribeCommandNameSet.has(commandNameString)
+      ? commandNameString
+      : commandNameString.toUpperCase();
+
+    if (!SolidisSubscribeCommandNameSet.has(upper)) {
+      return null;
     }
 
-    return SolidisSubscribeCommandNameSet.has(name.toUpperCase());
-  }
-
-  #getCommandReplySpan(command: StringOrBuffer[], isSubscribeFamily: boolean) {
-    if (!isSubscribeFamily) {
-      return 1;
-    }
-
-    return Math.max(1, command.length - 1);
-  }
-
-  #expandUnsubscribeAllCommand(command: StringOrBuffer[]): StringOrBuffer[] {
     if (command.length !== 1) {
       return command;
     }
 
-    const channels = this.#getUnsubscribeChannelSet(command[0]);
+    const channels =
+      this.#options.pubSub.getChannelsForUnsubscribeCommand(upper);
 
     if (!channels || channels.size === 0) {
       return command;
     }
 
     return [command[0], ...channels];
-  }
-
-  #getUnsubscribeChannelSet(
-    commandName: StringOrBuffer,
-  ): ReadonlySet<string> | undefined {
-    const name = (
-      typeof commandName === 'string' ? commandName : commandName.toString()
-    ).toUpperCase();
-
-    const { pubSub } = this.#options;
-
-    switch (name) {
-      case 'UNSUBSCRIBE': {
-        return pubSub.subscribedChannels;
-      }
-
-      case 'SUNSUBSCRIBE': {
-        return pubSub.subscribedShardChannels;
-      }
-
-      case 'PUNSUBSCRIBE': {
-        return pubSub.subscribedPatterns;
-      }
-
-      default: {
-        return undefined;
-      }
-    }
   }
 
   #finalizePipelineChunkContext(context: SolidisPipelineRequestChunkContext) {
@@ -509,9 +467,11 @@ export class SolidisRequester {
       try {
         parsedReplies = await this.#parser.queueParse(...replyBuffers);
       } catch (parserError: unknown) {
-        emit('error', wrapWithParserError(parserError));
+        const wrappedParserError = wrapWithParserError(parserError);
 
-        this.recoveryFromFault(wrapWithParserError(parserError));
+        emit('error', wrappedParserError);
+
+        this.recoveryFromFault(wrappedParserError);
 
         return;
       }
@@ -566,10 +526,6 @@ export class SolidisRequester {
   ) {
     const length = parsedReplies.length;
 
-    if (length === 0) {
-      return;
-    }
-
     if (length <= maxChunkSize) {
       this.#resolveReplies(parsedReplies, emit);
 
@@ -577,12 +533,14 @@ export class SolidisRequester {
     }
 
     for (let index = 0; index < length; index += maxChunkSize) {
-      const start = index;
-      const end = Math.min(index + maxChunkSize, length);
-
       await new Promise<void>((resolve) => {
         setImmediate(() => {
-          this.#resolveReplies(parsedReplies, emit, start, end);
+          this.#resolveReplies(
+            parsedReplies,
+            emit,
+            index,
+            Math.min(index + maxChunkSize, length),
+          );
 
           resolve();
         });
@@ -681,63 +639,36 @@ export class SolidisRequester {
       return;
     }
 
-    this.#processSubRequest(request, reply);
+    let subReplies: SolidisData[];
+
+    if (subRequest.span === 1) {
+      subReplies = [reply];
+      request.subRequestIndex += 1;
+    } else {
+      request.currentSubReplies.push(reply);
+
+      if (request.currentSubReplies.length < subRequest.span) {
+        return;
+      }
+
+      subReplies = request.currentSubReplies;
+      request.subRequestIndex += 1;
+      request.currentSubReplies = [];
+    }
+
+    const foundErrorReply =
+      this.#options.rejectOnPartialPipelineError &&
+      findErrorInReplies(subReplies);
+
+    if (foundErrorReply) {
+      subRequest.reject(foundErrorReply);
+    } else {
+      subRequest.resolve(subReplies);
+    }
 
     if (request.receivedReplyCount === request.expectedReplyCount) {
       this.#resolvePipelineRequest(request);
     }
-  }
-
-  #processSubRequest(request: SolidisPipelineRequest, reply: SolidisData) {
-    const subRequest = request.subRequests[request.subRequestIndex];
-
-    if (!subRequest) {
-      return;
-    }
-
-    if (subRequest.span === 1) {
-      this.#resolveSubRequest(subRequest, [reply]);
-
-      request.subRequestIndex += 1;
-
-      return;
-    }
-
-    request.currentSubReplies.push(reply);
-
-    if (request.currentSubReplies.length === subRequest.span) {
-      this.#resolveSubRequest(subRequest, request.currentSubReplies);
-
-      request.subRequestIndex += 1;
-      request.currentSubReplies = [];
-    }
-  }
-
-  #resolveSubRequest(
-    subRequest: SolidisPipelineSubRequest,
-    subReplies: SolidisData[],
-  ) {
-    const { rejectOnPartialPipelineError } = this.#options;
-
-    if (!rejectOnPartialPipelineError) {
-      subRequest.resolve(subReplies);
-
-      return;
-    }
-
-    const foundErrorReply = findErrorInReplies(subReplies);
-
-    if (foundErrorReply) {
-      subRequest.reject(foundErrorReply);
-
-      return;
-    }
-
-    subRequest.resolve(subReplies);
-  }
-
-  #shiftInflightRequest() {
-    this.#inflightQueue.shift();
   }
 
   #resolvePipelineRequest(request: SolidisPipelineRequest) {
@@ -748,7 +679,7 @@ export class SolidisRequester {
       this.#pendingSubscribeCommandCount - request.subscribeCommandCount,
     );
 
-    this.#shiftInflightRequest();
+    this.#inflightQueue.shift();
   }
 
   public recoveryFromFault(error: Error) {

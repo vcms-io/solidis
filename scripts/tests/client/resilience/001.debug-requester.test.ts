@@ -452,7 +452,7 @@ describe('debug-requester', () => {
           timeoutClient.send([['BLPOP', keyspace.key('never-exists'), '0']]),
         (error: Error) =>
           error instanceof SolidisRequesterError &&
-          error.message === 'Solidis command(s) timed out after 50 ms.',
+          error.message === 'Command(s) timed out after 50 ms.',
       );
 
       await closeClient(timeoutClient);
@@ -639,7 +639,7 @@ describe('debug-requester', () => {
 
       assert.strictEqual(
         settlement.error.message,
-        'SolidisConnectionError: Solidis connection closed.',
+        'SolidisConnectionError: Connection closed.',
       );
 
       await waitFor(

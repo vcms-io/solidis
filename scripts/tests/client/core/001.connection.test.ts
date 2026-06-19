@@ -453,8 +453,7 @@ describe('connection', () => {
         typeof entry === 'object' &&
         entry !== null &&
         'message' in entry &&
-        entry.message ===
-          'Solidis requester serialized command: *1\r\n$4\r\nPING\r\n',
+        entry.message === 'Requester serialized: *1\r\n$4\r\nPING\r\n',
     );
 
     assert.ok(
@@ -512,7 +511,7 @@ describe('connection', () => {
         () => connection.connect(),
         (error: Error) =>
           error instanceof SolidisConnectionError &&
-          error.message === 'Cannot connect because user quit the connection.',
+          error.message === 'Cannot connect: user quit the connection.',
       );
 
       await server.close();
@@ -662,10 +661,7 @@ describe('connection', () => {
         () =>
           debugMemory
             .getLogs()
-            .some(
-              (log) =>
-                log.message === 'Solidis connection failed to reset reconnect.',
-            ),
+            .some((log) => log.message === 'Failed to reset reconnect.'),
         {
           timeout: 3000,
           description: 'reset reconnect failure must be logged via debug',
@@ -766,11 +762,7 @@ describe('connection', () => {
         () =>
           debugMemory
             .getLogs()
-            .some(
-              (log) =>
-                log.message ===
-                'Solidis connection failed to background reconnect.',
-            ),
+            .some((log) => log.message === 'Failed to background reconnect.'),
         {
           timeout: 5000,
           description:

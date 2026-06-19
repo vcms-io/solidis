@@ -1,9 +1,3 @@
-import { executeCommand, tryReplyNumber } from './utils/index.ts';
+import { buildWithoutArgumentsNumberExecutor } from './utils/index.ts';
 
-export function createCommand() {
-  return ['LASTSAVE'];
-}
-
-export async function lastsave<T>(this: T): Promise<number> {
-  return await executeCommand(this, createCommand(), tryReplyNumber);
-}
+export const lastsave = buildWithoutArgumentsNumberExecutor('LASTSAVE');

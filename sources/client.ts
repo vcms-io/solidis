@@ -178,7 +178,7 @@ export class SolidisClient extends EventEmitter {
     }
 
     if (this.#connection.isConnected && !this.#connection.isQuitted) {
-      this.#debug?.('info', 'Solidis client connection already established');
+      this.#debug?.('info', 'Connection already established');
 
       return;
     }
@@ -208,7 +208,7 @@ export class SolidisClient extends EventEmitter {
 
   #setupDefaultErrorListener() {
     this.on('error', (error: Error) => {
-      this.#debug?.('error', 'Solidis client encountered an error', error);
+      this.#debug?.('error', 'Encountered an error', error);
     });
   }
 
@@ -242,7 +242,7 @@ export class SolidisClient extends EventEmitter {
   }
 
   async #onConnect() {
-    this.#debug?.('info', 'Solidis connection established');
+    this.#debug?.('info', 'Connection established');
 
     this.#requester.setNegotiatedProtocol(SolidisProtocols.RESP2);
 
@@ -269,7 +269,7 @@ export class SolidisClient extends EventEmitter {
       await this.#readyCheck();
       await this.#recoveryAfterConnect();
 
-      this.#debug?.('info', 'Solidis client initialization completed');
+      this.#debug?.('info', 'Initialization completed');
 
       this.emit('ready');
 
@@ -290,7 +290,7 @@ export class SolidisClient extends EventEmitter {
   }
 
   #onData(chunk: Buffer) {
-    this.#debug?.('debug', 'Solidis connection socket received data', chunk);
+    this.#debug?.('debug', 'Connection socket received data', chunk);
 
     try {
       this.#requester.onReply(
@@ -310,24 +310,24 @@ export class SolidisClient extends EventEmitter {
   }
 
   #onInitializeError(error: unknown) {
-    this.#debug?.('error', 'Solidis client initialization failed', error);
+    this.#debug?.('error', 'Initialization failed', error);
     this.emit('error', wrapWithError(error));
 
     this.#cleanupConnection();
   }
 
   #onError(error: Error) {
-    this.#debug?.('error', 'Solidis connection error occurred', error);
+    this.#debug?.('error', 'Connection error occurred', error);
     this.emit('error', wrapWithSolidisClientError(error));
   }
 
   #onEnd() {
-    this.#debug?.('info', 'Solidis connection terminated');
+    this.#debug?.('info', 'Connection terminated');
     this.emit('end');
   }
 
   #onClosed(error: Error) {
-    this.#debug?.('error', 'Solidis connection closed unexpectedly', error);
+    this.#debug?.('error', 'Connection closed unexpectedly', error);
 
     this.#requester.recoveryFromFault(wrapWithSolidisClientError(error));
   }
@@ -368,11 +368,7 @@ export class SolidisClient extends EventEmitter {
     try {
       await clientSetname.call(this, clientName);
     } catch (error) {
-      this.#debug?.(
-        'warn',
-        `CLIENT SETNAME "${clientName}" failed (non-fatal, likely ACL restriction)`,
-        error,
-      );
+      this.#debug?.('warn', `CLIENT SETNAME "${clientName}" failed`, error);
     }
   }
 
@@ -404,7 +400,7 @@ export class SolidisClient extends EventEmitter {
       this.#options;
 
     if (!enableReadyCheck) {
-      this.#debug?.('info', 'Skipping ready check: ready check is disabled.');
+      this.#debug?.('info', 'Ready check disabled.');
 
       return;
     }
@@ -420,7 +416,7 @@ export class SolidisClient extends EventEmitter {
 
       if (attempt >= maxReadyCheckRetries) {
         throw new SolidisClientError(
-          `Ready check failed: server still loading after ${maxReadyCheckRetries} attempts`,
+          `Ready check failed: still loading after ${maxReadyCheckRetries} attempts`,
         );
       }
 
@@ -491,7 +487,7 @@ export class SolidisClient extends EventEmitter {
     parameters,
   }: SolidisClientRecoveryStep<T>) {
     if (condition) {
-      this.#debug?.('debug', `Solidis client ${methodName} recovery step`);
+      this.#debug?.('debug', `${methodName} recovery step`);
 
       if (method) {
         await method(...parameters).catch((error) => {

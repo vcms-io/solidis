@@ -216,7 +216,7 @@ export default function BenchmarksPage() {
             </div>
             <div className="text-center">
               <div className="text-3xl font-bold text-yellow-600 mb-2">
-                {'<30KB'}
+                {'<29KB'}
               </div>
               <div className="text-sm font-medium">Bundle Size</div>
               <div className="text-xs text-gray-600">Minimal footprint</div>

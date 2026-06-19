@@ -109,7 +109,7 @@ describe('parser-edge', () => {
       if (!(result[0] instanceof RespError)) {
         assert.fail('expected a RespError for malformed integer');
       }
-      assert.strictEqual(result[0].message, "Integer parse error: '12ab'");
+      assert.strictEqual(result[0].message, "Integer: '12ab'");
     });
 
     it('rejects a malformed integer containing a space character', async () => {
@@ -119,7 +119,7 @@ describe('parser-edge', () => {
       if (!(result[0] instanceof RespError)) {
         assert.fail('expected a RespError for malformed integer');
       }
-      assert.strictEqual(result[0].message, "Integer parse error: '1 2'");
+      assert.strictEqual(result[0].message, "Integer: '1 2'");
     });
 
     it('rejects a float-in-integer frame instead of producing garbage', async () => {
@@ -129,7 +129,7 @@ describe('parser-edge', () => {
       if (!(result[0] instanceof RespError)) {
         assert.fail('expected a RespError for malformed integer');
       }
-      assert.strictEqual(result[0].message, "Integer parse error: '3.14'");
+      assert.strictEqual(result[0].message, "Integer: '3.14'");
     });
 
     it('rejects an array length containing non-digit characters', async () => {
@@ -139,7 +139,7 @@ describe('parser-edge', () => {
         () => parseOnce(frame),
         (error: Error) =>
           error instanceof SolidisParserError &&
-          error.message === 'Array parse error: non-digit byte 0x78',
+          error.message === 'Array: non-digit 0x78',
         'a malformed array length "*2x\\r\\n" must throw a ' +
           'SolidisParserError because the corrupted length would stall ' +
           'all subsequent replies on the connection',
@@ -154,7 +154,7 @@ describe('parser-edge', () => {
       if (!(reply instanceof RespError)) {
         assert.fail('expected a RespError for unparseable double');
       }
-      assert.strictEqual(reply.message, "Double parse error: 'not-a-number'");
+      assert.strictEqual(reply.message, "Double: 'not-a-number'");
     });
 
     it('turns an unparseable big number into a RespError', async () => {
@@ -163,7 +163,7 @@ describe('parser-edge', () => {
       if (!(reply instanceof RespError)) {
         assert.fail('expected a RespError for unparseable big number');
       }
-      assert.strictEqual(reply.message, "BigNumber parse error: '12notdigits'");
+      assert.strictEqual(reply.message, "BigNumber: '12notdigits'");
     });
 
     it('parses a blob error into a RespError carrying its text', async () => {
@@ -354,7 +354,7 @@ describe('parser-edge', () => {
         () => parseOnce(bytes('_X\r\n')),
         (error: Error) =>
           error instanceof SolidisParserError &&
-          error.message === 'Null parse error: missing CRLF',
+          error.message === 'Null: missing CRLF',
         '#checkCRLF detects that offset+1 after the underscore prefix ' +
           'is 0x58 ("X") instead of CR, and throws a SolidisParserError',
       );
@@ -367,7 +367,7 @@ describe('parser-edge', () => {
         () => parseOnce(bytes('#x\r\n')),
         (error: Error) =>
           error instanceof SolidisParserError &&
-          error.message === 'Boolean parse error: invalid value byte 0x78',
+          error.message === 'Boolean: invalid byte 0x78',
         'the parser must throw a SolidisParserError when the boolean ' +
           'character is not the canonical "t" or "f" because silently ' +
           'returning false for arbitrary bytes masks protocol corruption',
@@ -384,8 +384,7 @@ describe('parser-edge', () => {
           () => parseOnce(bytes(`#${character}\r\n`)),
           (error: Error) =>
             error instanceof SolidisParserError &&
-            error.message ===
-              `Boolean parse error: invalid value byte 0x${hexByte}`,
+            error.message === `Boolean: invalid byte 0x${hexByte}`,
           `boolean character "${character}" (0x${hexByte}) must throw ` +
             'a SolidisParserError instead of being silently accepted as false',
         );

@@ -252,20 +252,40 @@ export class SolidisParser {
       }
 
       case SolidisReplyBytes.MAP: {
-        parsed = this.#parseMap();
+        parsed = this.#parseSequence(
+          'Map',
+          (items) => {
+            const map = new Map<string, SolidisData>();
+
+            for (let index = 0; index < items.length; index += 2) {
+              const key = items[index];
+
+              if (key !== null) {
+                map.set(key.toString(), items[index + 1]);
+              }
+            }
+
+            return map;
+          },
+          true,
+        );
 
         break;
       }
 
       case SolidisReplyBytes.ATTRIBUTE: {
-        parsed = this.#parseAttribute();
+        const attributeParsed = this.#parseSequence('Map', undefined, true);
+
+        parsed = attributeParsed
+          ? { data: null, length: attributeParsed.length, ignore: true }
+          : null;
 
         break;
       }
 
       default: {
         throw new SolidisParserError(
-          `Unknown prefix '${String.fromCharCode(prefixByte)}' in Solidis response`,
+          `Unknown prefix '${String.fromCharCode(prefixByte)}'`,
         );
       }
     }
@@ -312,7 +332,7 @@ export class SolidisParser {
       }
 
       return {
-        data: new RespError(`Integer parse error: '${line.data}'`),
+        data: new RespError(`Integer: '${line.data}'`),
         length: line.length + 1,
       };
     }
@@ -404,7 +424,7 @@ export class SolidisParser {
       boolByte !== SolidisSymbolBytes.LOWER_F
     ) {
       throw new SolidisParserError(
-        `Boolean parse error: invalid value byte 0x${boolByte.toString(16)}`,
+        `Boolean: invalid byte 0x${boolByte.toString(16)}`,
       );
     }
 
@@ -452,7 +472,7 @@ export class SolidisParser {
 
     return {
       data: Number.isNaN(parsedNumber)
-        ? new RespError(`Double parse error: '${parsed.data}'`)
+        ? new RespError(`Double: '${parsed.data}'`)
         : parsedNumber,
       length: parsed.length,
     };
@@ -472,7 +492,7 @@ export class SolidisParser {
       };
     } catch {
       return {
-        data: new RespError(`BigNumber parse error: '${parsed.data}'`),
+        data: new RespError(`BigNumber: '${parsed.data}'`),
         length: parsed.length,
       };
     }
@@ -482,86 +502,10 @@ export class SolidisParser {
     return { data: null, length: 1 + lengthLength } as const;
   }
 
-  #parseMap(): SolidisParsed {
-    const lengthObject = this.#parseLength('Map');
-
-    if (!lengthObject) {
-      return null;
-    }
-
-    const { data: lengthData, length: lengthLength } = lengthObject;
-
-    if (lengthData < 0) {
-      return this.#nullLengthResult(lengthLength);
-    }
-
-    const map = new Map<string, SolidisData>();
-
-    const readOffsetState = this.#readOffset;
-
-    this.#readOffset += 1 + lengthLength;
-
-    for (let index = 0; index < lengthData; index += 1) {
-      if (this.#readOffset >= this.#writeOffset) {
-        this.#readOffset = readOffsetState;
-
-        return null;
-      }
-
-      const key: SolidisParsed = this.#tryParseOnce();
-
-      if (key === null) {
-        this.#readOffset = readOffsetState;
-
-        return null;
-      }
-
-      if (this.#readOffset >= this.#writeOffset) {
-        this.#readOffset = readOffsetState;
-
-        return null;
-      }
-
-      const value: SolidisParsed = this.#tryParseOnce();
-
-      if (value === null) {
-        this.#readOffset = readOffsetState;
-
-        return null;
-      }
-
-      if (key.data !== null) {
-        map.set(key.data.toString(), value.data);
-      }
-    }
-
-    const totalLength = this.#readOffset - readOffsetState;
-
-    this.#readOffset = readOffsetState;
-
-    return {
-      data: map,
-      length: totalLength,
-    };
-  }
-
-  #parseAttribute(): SolidisParsed {
-    const parsed = this.#parseMap();
-
-    if (!parsed) {
-      return null;
-    }
-
-    return {
-      data: null,
-      length: parsed.length,
-      ignore: true,
-    };
-  }
-
   #parseSequence<T extends SolidisData>(
     type: SolidisRespLengthType,
     transform?: (items: SolidisData[]) => T,
+    pairsPerEntry = false,
   ): SolidisParsed {
     const lengthObject = this.#parseLength(type);
 
@@ -575,13 +519,14 @@ export class SolidisParser {
       return this.#nullLengthResult(lengthLength);
     }
 
-    const items = new Array<SolidisData>(lengthData);
+    const totalItems = pairsPerEntry ? lengthData * 2 : lengthData;
+    const items = new Array<SolidisData>(totalItems);
 
     const readOffsetState = this.#readOffset;
 
     this.#readOffset += 1 + lengthLength;
 
-    for (let index = 0; index < lengthData; index += 1) {
+    for (let index = 0; index < totalItems; index += 1) {
       if (this.#readOffset >= this.#writeOffset) {
         this.#readOffset = readOffsetState;
 
@@ -650,7 +595,7 @@ export class SolidisParser {
         character > SolidisSymbolBytes.ZERO + 9
       ) {
         throw new SolidisParserError(
-          `${type} parse error: non-digit byte 0x${character.toString(16)}`,
+          `${type}: non-digit 0x${character.toString(16)}`,
         );
       }
 
@@ -749,7 +694,7 @@ export class SolidisParser {
       this.#buffer[position] !== SolidisSymbolBytes.CR ||
       this.#buffer[position + 1] !== SolidisSymbolBytes.LF
     ) {
-      throw new SolidisParserError(`${type} parse error: missing CRLF`);
+      throw new SolidisParserError(`${type}: missing CRLF`);
     }
 
     return true;

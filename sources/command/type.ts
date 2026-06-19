@@ -22,7 +22,7 @@ export async function type<T>(
       }
 
       const matched = Object.values(RespDataTypes).find(
-        (v) => v === typeString,
+        (value) => value === typeString,
       );
 
       if (matched !== undefined) {

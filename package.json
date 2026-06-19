@@ -26,6 +26,10 @@
     "test:commands": "node --import=./scripts/esm/register.js --test ./scripts/tests/commands/*.test.ts",
     "test:client": "node --import=./scripts/esm/register.js --test --test-concurrency=1 ./scripts/tests/client/**/*.test.ts",
     "test:coverage": "npm run node:ts ./scripts/tests/coverage.ts",
+    "bundle": "npm run node:ts ./scripts/bundle/bundle.ts",
+    "bundle:graph": "npm run node:ts ./scripts/bundle/graph.ts",
+    "bundle:update": "npm run node:ts ./scripts/bundle/update.ts",
+    "bundle:all": "npm run bundle && npm run bundle:graph && npm run bundle:update",
     "web:dev": "cd ./website && npm run dev",
     "web:build": "cd ./website && npm run build",
     "web:start": "cd ./website && npm run start"
@@ -79,6 +83,7 @@
   ],
   "devDependencies": {
     "@biomejs/biome": "2.5.0",
+    "@napi-rs/canvas": "^1.0.0",
     "@types/node": "^22.19.21",
     "c8": "^11.0.0",
     "chalk": "^5.6.2",

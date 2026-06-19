@@ -1,0 +1,77 @@
+name: Bundle Size
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'sources/**'
+      - 'scripts/bundle/**'
+      - '.github/workflows/bundle.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/bundle/**'
+      - '.github/workflows/bundle.yml'
+
+concurrency:
+  group: bundle-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bundle:
+    name: Measure & Compare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - run: npm ci
+
+      - name: Bundle all targets
+        run: npm run bundle
+
+      - name: Generate comparison graph
+        run: npm run bundle:graph
+
+      - name: Update size references
+        run: npm run bundle:update
+
+      - name: Check if PR should be created
+        id: check
+        run: |
+          if [ "${{ github.event_name }}" != "push" ]; then
+            echo "pr=false" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only HEAD~1 HEAD | grep -qE '^(sources/|scripts/bundle/|\.github/workflows/bundle\.yml)'; then
+            echo "pr=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "pr=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create pull request
+        if: steps.check.outputs.pr == 'true'
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'docs: update bundle size comparison'
+          branch: bundle/update
+          delete-branch: true
+          title: 'docs: update bundle size comparison'
+          body: |
+            Automated bundle size update triggered by source changes on `main`.
+
+            - Bundled **solidis**, **ioredis**, and **node-redis** with esbuild
+            - Generated comparison graph (`assets/bundle.png`)
+            - Updated all bundle size references in README and website
+          labels: bundle,automated
+          add-paths: |
+            assets/bundle.png
+            README.md
+            README.ko.md
+            website/app/benchmarks/page.tsx

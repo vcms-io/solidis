@@ -1,9 +1,6 @@
-import { executeCommand, tryReplyOK } from './utils/index.ts';
+import { buildWithoutArgumentsOKExecutor } from './utils/index.ts';
 
-export function createCommand() {
-  return ['CLIENT', 'UNPAUSE'];
-}
-
-export async function clientUnpause<T>(this: T) {
-  return await executeCommand(this, createCommand(), tryReplyOK);
-}
+export const clientUnpause = buildWithoutArgumentsOKExecutor(
+  'CLIENT',
+  'UNPAUSE',
+);

@@ -1,8 +1,12 @@
 import {
   escapeReply,
   newCommandError,
+  tryReplyNumber,
+  tryReplyOK,
   tryReplyToScan,
+  tryReplyToString,
   tryReplyToStringArray,
+  tryReplyToStringOrNull,
 } from './index.ts';
 
 import type {
@@ -20,6 +24,7 @@ import type {
   CommandZInterOptions,
   CommandZRangeOptions,
   CommandZRangeStoreOptions,
+  RespOK,
   SolidisClient,
   SolidisData,
   StringOrBuffer,
@@ -30,7 +35,7 @@ export function guard(
   command?: StringOrBuffer[],
 ): client is SolidisClient {
   if (typeof client !== 'object' || client === null) {
-    throw newCommandError('This is not a valid solidis client', command);
+    throw newCommandError('Invalid client', command);
   }
 
   if (!('send' in client) || typeof client.send !== 'function') {
@@ -387,6 +392,76 @@ export function buildPubSubExecutor(commandName: string) {
     }
 
     await this.send([[commandName, ...channels]]);
+  };
+}
+
+export function buildKeyNumberExecutor(...commandParts: string[]) {
+  return async function <T>(this: T, key: string): Promise<number> {
+    return await executeCommand(this, [...commandParts, key], tryReplyNumber);
+  };
+}
+
+export function buildWithoutArgumentsNumberExecutor(...commandParts: string[]) {
+  return async function <T>(this: T): Promise<number> {
+    return await executeCommand(this, commandParts, tryReplyNumber);
+  };
+}
+
+export function buildKeyStringOrNullExecutor(...commandParts: string[]) {
+  return async function <T>(this: T, key: string): Promise<string | null> {
+    return await executeCommand(
+      this,
+      [...commandParts, key],
+      tryReplyToStringOrNull,
+    );
+  };
+}
+
+export function buildKeysNumberExecutor(...commandParts: string[]) {
+  return async function <T>(this: T, ...keys: string[]): Promise<number> {
+    return await executeCommand(
+      this,
+      [...commandParts, ...keys],
+      tryReplyNumber,
+    );
+  };
+}
+
+export function buildWithoutArgumentsOKExecutor(...commandParts: string[]) {
+  return async function <T>(this: T): Promise<RespOK> {
+    return await executeCommand(this, commandParts, tryReplyOK);
+  };
+}
+
+export function buildWithoutArgumentsStringExecutor(...commandParts: string[]) {
+  return async function <T>(this: T): Promise<string> {
+    return await executeCommand(this, commandParts, tryReplyToString);
+  };
+}
+
+export function buildWithoutArgumentsStringOrNullExecutor(
+  ...commandParts: string[]
+) {
+  return async function <T>(this: T): Promise<string | null> {
+    return await executeCommand(this, commandParts, tryReplyToStringOrNull);
+  };
+}
+
+export function buildWithoutArgumentsStringArrayExecutor(
+  ...commandParts: string[]
+) {
+  return async function <T>(this: T): Promise<string[]> {
+    return await executeCommand(this, commandParts, tryReplyToStringArray);
+  };
+}
+
+export function buildKeyStringArrayExecutor(...commandParts: string[]) {
+  return async function <T>(this: T, key: string): Promise<string[]> {
+    return await executeCommand(
+      this,
+      [...commandParts, key],
+      tryReplyToStringArray,
+    );
   };
 }
 

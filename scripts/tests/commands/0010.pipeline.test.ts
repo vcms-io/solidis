@@ -138,7 +138,7 @@ describe('pipeline', () => {
     const { guard } = await import('../../../sources/command/utils/command.ts');
 
     assert.throws(() => guard(null, ['TEST']), {
-      message: '[TEST] This is not a valid solidis client',
+      message: '[TEST] Invalid client',
     });
 
     assert.throws(() => guard({}, ['TEST']), {

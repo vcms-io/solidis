@@ -1,4 +1,4 @@
-<h1 align="center"><img src="https://resources.vcms.io/assets/solidis.png" alt="Solidis" width="50"/></h1>
+<h1 align="center"><img src="./assets/solidis.png" alt="Solidis" width="50"/></h1>
 
 <p align="center">
   <b>Zero-dependency RESP client for Redis. Fastest by design.</b>
@@ -8,7 +8,7 @@
   <a href="https://www.npmjs.com/package/@vcms-io/solidis"><img src="https://img.shields.io/npm/v/@vcms-io/solidis.svg?style=flat-square&labelColor=000&color=f5a623" alt="npm"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/coverage-98%25-brightgreen?style=flat-square&labelColor=000" alt="coverage"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square&labelColor=000" alt="deps"></a>
-  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/bundle-<30KB-blue?style=flat-square&labelColor=000" alt="bundle"></a>
+  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/bundle-<29KB-blue?style=flat-square&labelColor=000" alt="bundle"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/RESP2%2FRESP3-full-orange?style=flat-square&labelColor=000" alt="RESP"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/ESM%2FCJS-dual-yellow?style=flat-square&labelColor=000" alt="modules"></a>
 </p>
@@ -20,7 +20,7 @@
 <br/>
 
 <p align="center">
-  <img src="https://resources.vcms.io/assets/bundle-graph.png" alt="Bundle size comparison" width="580"/>
+  <img src="./assets/bundle.png" alt="Bundle size comparison" width="640"/>
 </p>
 
 <table align="center">
@@ -28,7 +28,7 @@
 <td align="center">🚀<br/><strong>0 deps</strong><br/><sub>zero dependencies</sub></td>
 <td align="center">📦<br/><strong>383</strong><br/><sub>commands</sub></td>
 <td align="center">🧪<br/><strong>19K+</strong><br/><sub>lines of tests</sub></td>
-<td align="center">🪶<br/><strong>&lt; 30KB</strong><br/><sub>min bundle</sub></td>
+<td align="center">🪶<br/><strong>&lt; 29KB</strong><br/><sub>min bundle</sub></td>
 </tr>
 </table>
 
@@ -51,7 +51,7 @@ const value = await client.get('key');
 
 > [!TIP]
 > **Need a smaller bundle?** Use `SolidisClient` with `.extend()` to import only the commands you use.
-> Minimum bundle drops to **< 30KB** with tree-shaking.
+> Minimum bundle drops to **< 29KB** with tree-shaking.
 
 <details>
 <summary>&nbsp;&nbsp;<b>Tree-shakable client</b></summary>

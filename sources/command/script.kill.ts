@@ -1,9 +1,3 @@
-import { executeCommand, tryReplyOK } from './utils/index.ts';
+import { buildWithoutArgumentsOKExecutor } from './utils/index.ts';
 
-export function createCommand() {
-  return ['SCRIPT', 'KILL'];
-}
-
-export async function scriptKill<T>(this: T) {
-  return await executeCommand(this, createCommand(), tryReplyOK);
-}
+export const scriptKill = buildWithoutArgumentsOKExecutor('SCRIPT', 'KILL');
