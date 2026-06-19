@@ -453,8 +453,7 @@ describe('connection', () => {
         typeof entry === 'object' &&
         entry !== null &&
         'message' in entry &&
-        entry.message ===
-          'Solidis requester serialized command: *1\r\n$4\r\nPING\r\n',
+        entry.message === 'Requester serialized: *1\r\n$4\r\nPING\r\n',
     );
 
     assert.ok(

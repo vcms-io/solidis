@@ -1,9 +1,3 @@
-import { executeCommand, tryReplyToString } from './utils/index.ts';
+import { buildWithoutArgumentsStringExecutor } from './utils/index.ts';
 
-export function createCommand() {
-  return ['CLIENT', 'INFO'];
-}
-
-export async function clientInfo<T>(this: T): Promise<string> {
-  return await executeCommand(this, createCommand(), tryReplyToString);
-}
+export const clientInfo = buildWithoutArgumentsStringExecutor('CLIENT', 'INFO');

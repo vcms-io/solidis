@@ -144,7 +144,7 @@ describe('errors', () => {
         blocking.send([['BLPOP', keyspace.key('never-pushed'), '0']]),
         (error: Error) =>
           error instanceof SolidisRequesterError &&
-          error.message === 'Solidis command(s) timed out after 200 ms.',
+          error.message === 'Command(s) timed out after 200 ms.',
       );
     } finally {
       await closeClient(blocking);

@@ -86,7 +86,7 @@ describe('fragility', () => {
         () => client.send([[]]),
         (error: Error) =>
           error instanceof SolidisRequesterError &&
-          error.message === 'Solidis command(s) timed out after 300 ms.',
+          error.message === 'Command(s) timed out after 300 ms.',
       );
 
       await assertStillHealthy('empty-frame');
@@ -1045,7 +1045,7 @@ describe('fragility', () => {
       assert.ok(resultA.error instanceof SolidisRequesterError);
       assert.strictEqual(
         resultA.error.message,
-        'Solidis command(s) timed out after 200 ms.',
+        'Command(s) timed out after 200 ms.',
       );
 
       assert.ok(
@@ -1058,7 +1058,7 @@ describe('fragility', () => {
       assert.ok(resultB.error instanceof SolidisRequesterError);
       assert.strictEqual(
         resultB.error.message,
-        'Solidis command(s) timed out after 200 ms.',
+        'Command(s) timed out after 200 ms.',
       );
 
       assert.ok(
@@ -3174,10 +3174,7 @@ describe('fragility', () => {
         .catch((error: Error) => error);
 
       assert.ok(result instanceof SolidisRequesterError);
-      assert.strictEqual(
-        result.message,
-        'Solidis command(s) timed out after 200 ms.',
-      );
+      assert.strictEqual(result.message, 'Command(s) timed out after 200 ms.');
     });
 
     it('rejects with connection error when the server drops during a backpressured write', async () => {
@@ -3350,7 +3347,7 @@ describe('fragility', () => {
       assert.ok(firstResult.error instanceof SolidisRequesterError);
       assert.strictEqual(
         firstResult.error.message,
-        'Solidis command(s) timed out after 500 ms.',
+        'Command(s) timed out after 500 ms.',
       );
 
       const second = await client.send([['FAST']]);
@@ -3398,7 +3395,7 @@ describe('fragility', () => {
       assert.ok(timedOut.error instanceof SolidisRequesterError);
       assert.strictEqual(
         timedOut.error.message,
-        'Solidis command(s) timed out after 100 ms.',
+        'Command(s) timed out after 100 ms.',
       );
 
       server.send(Buffer.from('+A\r\n+B\r\n+C\r\n', 'latin1'));
@@ -3561,7 +3558,7 @@ describe('fragility', () => {
       assert.ok(timedOutResult.error instanceof SolidisRequesterError);
       assert.strictEqual(
         timedOutResult.error.message,
-        'Solidis command(s) timed out after 200 ms.',
+        'Command(s) timed out after 200 ms.',
       );
 
       server.send(Buffer.from('+LATE-1\r\n+LATE-2\r\n', 'latin1'));

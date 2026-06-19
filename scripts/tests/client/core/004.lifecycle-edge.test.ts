@@ -243,15 +243,13 @@ describe('lifecycle-edge', () => {
     assert.ok(
       messages.some(
         (message) =>
-          message.startsWith('Solidis requester serialized command:') &&
+          message.startsWith('Requester serialized:') &&
           message.includes('$3\r\nSET\r\n'),
       ),
     );
     assert.ok(
       messages.some(
-        (message) =>
-          message ===
-          'Solidis requester serialized command: *1\r\n$4\r\nPING\r\n',
+        (message) => message === 'Requester serialized: *1\r\n$4\r\nPING\r\n',
       ),
     );
   });

@@ -74,13 +74,3 @@ export function commandsToBuffer(commands: StringOrBuffer[][]): Buffer {
 
   return result;
 }
-
-export function extractNextChunkToWrite(
-  buffer: Buffer,
-  offset: number,
-  maxSize: number,
-): Buffer {
-  const endOffset = Math.min(offset + maxSize, buffer.length);
-
-  return buffer.subarray(offset, endOffset);
-}

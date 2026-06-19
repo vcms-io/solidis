@@ -3,6 +3,7 @@ import { SolidisPubSubError } from '../index.ts';
 import type {
   SolidisClientEventHandlers,
   SolidisData,
+  SolidisSubscribeEvents,
   SolidisTranslatedPubSubReplies,
 } from '../index.ts';
 
@@ -10,6 +11,15 @@ export class SolidisPubSub {
   #subscribedChannels: Set<string> = new Set();
   #subscribedShardChannels: Set<string> = new Set();
   #psubscribedPatterns: Set<string> = new Set();
+
+  #subscriptionChannelMap: Record<string, Set<string>> = {
+    subscribe: this.#subscribedChannels,
+    ssubscribe: this.#subscribedShardChannels,
+    psubscribe: this.#psubscribedPatterns,
+    unsubscribe: this.#subscribedChannels,
+    sunsubscribe: this.#subscribedShardChannels,
+    punsubscribe: this.#psubscribedPatterns,
+  };
 
   public get subscribedChannels(): ReadonlySet<string> {
     return this.#subscribedChannels;
@@ -21,6 +31,18 @@ export class SolidisPubSub {
 
   public get subscribedPatterns(): ReadonlySet<string> {
     return this.#psubscribedPatterns;
+  }
+
+  public getChannelsForUnsubscribeCommand(
+    commandName: string,
+  ): ReadonlySet<string> | undefined {
+    const lower = commandName.toLowerCase();
+
+    if (!lower.includes('unsubscribe')) {
+      return undefined;
+    }
+
+    return this.#subscriptionChannelMap[lower];
   }
 
   public clearSubscribedChannels() {
@@ -143,6 +165,10 @@ export class SolidisPubSub {
     emit('pmessage', pattern, channel, message);
   }
 
+  #isSubscriptionEvent(event: string): event is keyof SolidisSubscribeEvents {
+    return event in this.#subscriptionChannelMap;
+  }
+
   #dispatchSubscriptionChange(
     pubSubReply: SolidisTranslatedPubSubReplies,
     emit: SolidisClientEventHandlers['emit'],
@@ -151,54 +177,24 @@ export class SolidisPubSub {
     const channel = pubSubReply[1];
     const count = pubSubReply[2];
 
-    if (!channel || typeof count !== 'number') {
+    if (!event || !channel || typeof count !== 'number') {
       this.#dispatchPubSubError(`${event}:type`, pubSubReply, emit);
 
       return;
     }
 
-    switch (event) {
-      case 'subscribe': {
-        this.#subscribedChannels.add(channel);
+    if (!this.#isSubscriptionEvent(event)) {
+      this.#dispatchPubSubError(`${event}:event`, pubSubReply, emit);
 
-        break;
-      }
+      return;
+    }
 
-      case 'ssubscribe': {
-        this.#subscribedShardChannels.add(channel);
+    const channelSet = this.#subscriptionChannelMap[event];
 
-        break;
-      }
-
-      case 'psubscribe': {
-        this.#psubscribedPatterns.add(channel);
-
-        break;
-      }
-
-      case 'unsubscribe': {
-        this.#subscribedChannels.delete(channel);
-
-        break;
-      }
-
-      case 'sunsubscribe': {
-        this.#subscribedShardChannels.delete(channel);
-
-        break;
-      }
-
-      case 'punsubscribe': {
-        this.#psubscribedPatterns.delete(channel);
-
-        break;
-      }
-
-      default: {
-        this.#dispatchPubSubError(`${event}:event`, pubSubReply, emit);
-
-        return;
-      }
+    if (event.includes('unsubscribe')) {
+      channelSet.delete(channel);
+    } else {
+      channelSet.add(channel);
     }
 
     emit(event, channel, count);

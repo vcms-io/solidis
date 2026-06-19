@@ -1,10 +1,9 @@
-import {
-  RespError,
-  SolidisMessageEventNameSet,
-  SolidisPubSubEventNameSet,
-} from '../../index.ts';
+import { RespError, SolidisPubSubEventNames } from '../../index.ts';
 
 import type { SolidisData } from '../../index.ts';
+
+const SolidisPubSubEventNameSet = new Set(SolidisPubSubEventNames);
+const SolidisMessageEventNameSet = new Set(SolidisPubSubEventNames.slice(0, 3));
 
 export function findErrorInReplies(replies: SolidisData): false | RespError {
   if (replies instanceof RespError) {
@@ -38,7 +37,7 @@ export function checkReplyIsArray(reply: SolidisData): reply is SolidisData[] {
 
 function checkReplyEventName(
   reply: SolidisData[],
-  nameSet: ReadonlySet<string>,
+  nameSet: ReadonlySet<string> = SolidisPubSubEventNameSet,
 ): boolean {
   const eventName = reply[0];
 
@@ -50,7 +49,7 @@ function checkReplyEventName(
 }
 
 export function checkReplyIsPubSubEvent(reply: SolidisData[]): boolean {
-  return checkReplyEventName(reply, SolidisPubSubEventNameSet);
+  return checkReplyEventName(reply);
 }
 
 export function checkReplyIsMessageEvent(reply: SolidisData[]): boolean {

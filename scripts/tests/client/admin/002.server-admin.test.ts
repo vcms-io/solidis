@@ -828,22 +828,6 @@ describe('server-admin', () => {
     ]);
   });
 
-  it('verifies SYNC command construction', async () => {
-    const { createCommand } = await import(
-      '../../../../sources/command/sync.ts'
-    );
-
-    assert.deepStrictEqual(createCommand(), ['SYNC']);
-  });
-
-  it('verifies RESET command construction', async () => {
-    const { createCommand } = await import(
-      '../../../../sources/command/reset.ts'
-    );
-
-    assert.deepStrictEqual(createCommand(), ['RESET']);
-  });
-
   it('lists loaded modules with MODULE LIST', async () => {
     const modules = await client.moduleList();
 

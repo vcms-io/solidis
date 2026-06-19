@@ -1,8 +1,6 @@
 import { stdout } from 'node:process';
 import { pipeline, Transform, Writable } from 'node:stream';
 
-import { SolidisStringSymbols } from '../common/constants.ts';
-
 import type {
   SolidisDebugLog,
   SolidisDebugMemoryEventHandlers,
@@ -18,11 +16,12 @@ export class SolidisDebugTransform extends Transform {
     _encoding: BufferEncoding,
     callback: (error?: Error | null, data?: string) => void,
   ) {
-    const formattedMessage = `[Solidis ${entry.type}] ${entry.message}${
-      entry.data ? ` ${JSON.stringify(entry.data)}` : ''
-    }${SolidisStringSymbols.NL}`;
-
-    callback(null, formattedMessage);
+    callback(
+      null,
+      `[Solidis ${entry.type}] ${entry.message}${
+        entry.data ? ` ${JSON.stringify(entry.data)}` : ''
+      }\r\n`,
+    );
   }
 }
 

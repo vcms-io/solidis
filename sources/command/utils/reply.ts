@@ -85,19 +85,12 @@ export function tryReplyToString(
   return reply.toString();
 }
 
-function withNullReply<T>(
-  parser: (reply: unknown, commandName?: CommandName) => T,
-): (reply: unknown, commandName?: CommandName) => T | null {
-  return (reply, commandName) => {
-    if (reply === null) {
-      return null;
-    }
-
-    return parser(reply, commandName);
-  };
+export function tryReplyToStringOrNull(
+  reply: unknown,
+  commandName?: CommandName,
+): string | null {
+  return reply === null ? null : tryReplyToString(reply, commandName);
 }
-
-export const tryReplyToStringOrNull = withNullReply(tryReplyToString);
 
 export function tryReplyToBinaryString(
   reply: unknown,
@@ -114,9 +107,12 @@ export function tryReplyToBinaryString(
   throw newCommandError(`${InvalidReplyPrefix}: ${reply}`, commandName);
 }
 
-export const tryReplyToBinaryStringOrNull = withNullReply(
-  tryReplyToBinaryString,
-);
+export function tryReplyToBinaryStringOrNull(
+  reply: unknown,
+  commandName?: CommandName,
+): string | null {
+  return reply === null ? null : tryReplyToBinaryString(reply, commandName);
+}
 
 export function tryReplyNumber(
   reply: unknown,
@@ -129,7 +125,12 @@ export function tryReplyNumber(
   throw newCommandError(`${InvalidReplyPrefix}: ${reply}`, commandName);
 }
 
-export const tryReplyNumberOrNull = withNullReply(tryReplyNumber);
+export function tryReplyNumberOrNull(
+  reply: unknown,
+  commandName?: CommandName,
+): number | null {
+  return reply === null ? null : tryReplyNumber(reply, commandName);
+}
 
 export function tryReplyToNumber(
   reply: unknown,
@@ -148,7 +149,12 @@ export function tryReplyToNumber(
   return numberValue;
 }
 
-export const tryReplyToNumberOrNull = withNullReply(tryReplyToNumber);
+export function tryReplyToNumberOrNull(
+  reply: unknown,
+  commandName?: CommandName,
+): number | null {
+  return reply === null ? null : tryReplyToNumber(reply, commandName);
+}
 
 export function processPairedArray(
   array: unknown,
@@ -288,9 +294,12 @@ export function tryReplyToSortedSetMembers(
   return result;
 }
 
-export const tryReplyToSortedSetMembersOrNull = withNullReply(
-  tryReplyToSortedSetMembers,
-);
+export function tryReplyToSortedSetMembersOrNull(
+  reply: unknown,
+  commandName?: CommandName,
+): RespSortedSetMember[] | null {
+  return reply === null ? null : tryReplyToSortedSetMembers(reply, commandName);
+}
 
 export function tryReplyToStringsOrSortedSetMembers(
   reply: unknown,
@@ -621,9 +630,14 @@ export function tryReplyToStreamReadResults(
   });
 }
 
-export const tryReplyToStreamReadResultsOrNull = withNullReply(
-  tryReplyToStreamReadResults,
-);
+export function tryReplyToStreamReadResultsOrNull(
+  reply: unknown,
+  commandName?: CommandName,
+): RespStreamReadResult[] | null {
+  return reply === null
+    ? null
+    : tryReplyToStreamReadResults(reply, commandName);
+}
 
 export function tryReplyToStreamEntries(
   reply: unknown,

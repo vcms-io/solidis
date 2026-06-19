@@ -86,34 +86,15 @@ export const SolidisStringSymbols = {
 } as const;
 
 export const SolidisPubSubEventNames = [
-  ...[
-    'message',
-    'pmessage',
-    'smessage',
-    'subscribe',
-    'ssubscribe',
-    'psubscribe',
-    'unsubscribe',
-    'sunsubscribe',
-    'punsubscribe',
-  ].map((name) => Buffer.from(name).toString('latin1')),
-] as const;
-
-export const SolidisPubSubEventNameSet = new Set(SolidisPubSubEventNames);
-
-export const SolidisMessageEventNameSet = new Set([
   'message',
   'pmessage',
   'smessage',
-]);
-
-export const SolidisSubscribeCommandNameSet = new Set([
-  'SUBSCRIBE',
-  'SSUBSCRIBE',
-  'PSUBSCRIBE',
-  'UNSUBSCRIBE',
-  'SUNSUBSCRIBE',
-  'PUNSUBSCRIBE',
-]);
+  'subscribe',
+  'ssubscribe',
+  'psubscribe',
+  'unsubscribe',
+  'sunsubscribe',
+  'punsubscribe',
+] as const;
 
 export const SolidisCredentialCommandNameSet = new Set(['AUTH', 'HELLO']);
