@@ -285,7 +285,7 @@ export class SolidisParser {
 
       default: {
         throw new SolidisParserError(
-          `Unknown prefix '${String.fromCharCode(prefixByte)}' in Solidis response`,
+          `Unknown prefix '${String.fromCharCode(prefixByte)}'`,
         );
       }
     }
@@ -332,7 +332,7 @@ export class SolidisParser {
       }
 
       return {
-        data: new RespError(`Integer parse error: '${line.data}'`),
+        data: new RespError(`Integer: '${line.data}'`),
         length: line.length + 1,
       };
     }
@@ -424,7 +424,7 @@ export class SolidisParser {
       boolByte !== SolidisSymbolBytes.LOWER_F
     ) {
       throw new SolidisParserError(
-        `Boolean parse error: invalid value byte 0x${boolByte.toString(16)}`,
+        `Boolean: invalid byte 0x${boolByte.toString(16)}`,
       );
     }
 
@@ -472,7 +472,7 @@ export class SolidisParser {
 
     return {
       data: Number.isNaN(parsedNumber)
-        ? new RespError(`Double parse error: '${parsed.data}'`)
+        ? new RespError(`Double: '${parsed.data}'`)
         : parsedNumber,
       length: parsed.length,
     };
@@ -492,7 +492,7 @@ export class SolidisParser {
       };
     } catch {
       return {
-        data: new RespError(`BigNumber parse error: '${parsed.data}'`),
+        data: new RespError(`BigNumber: '${parsed.data}'`),
         length: parsed.length,
       };
     }
@@ -595,7 +595,7 @@ export class SolidisParser {
         character > SolidisSymbolBytes.ZERO + 9
       ) {
         throw new SolidisParserError(
-          `${type} parse error: non-digit byte 0x${character.toString(16)}`,
+          `${type}: non-digit 0x${character.toString(16)}`,
         );
       }
 
@@ -694,7 +694,7 @@ export class SolidisParser {
       this.#buffer[position] !== SolidisSymbolBytes.CR ||
       this.#buffer[position + 1] !== SolidisSymbolBytes.LF
     ) {
-      throw new SolidisParserError(`${type} parse error: missing CRLF`);
+      throw new SolidisParserError(`${type}: missing CRLF`);
     }
 
     return true;

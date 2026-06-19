@@ -308,7 +308,7 @@ describe('fragility', () => {
         () => client.ping(),
         (error: Error) =>
           error instanceof SolidisParserError &&
-          error.message === "Unknown prefix '@' in Solidis response",
+          error.message === "Unknown prefix '@'",
       );
 
       await waitFor(() => parserErrors.length > 0, {
@@ -316,10 +316,7 @@ describe('fragility', () => {
         description: 'parser error surfaced',
       });
 
-      assert.strictEqual(
-        parserErrors[0].message,
-        "Unknown prefix '@' in Solidis response",
-      );
+      assert.strictEqual(parserErrors[0].message, "Unknown prefix '@'");
     });
 
     it('discards unsolicited replies without desynchronising correlation', async () => {
@@ -478,8 +475,7 @@ describe('fragility', () => {
         () => client.get(keyspace.key('vanish')),
         (error: Error) =>
           error instanceof SolidisClientError &&
-          error.message ===
-            'SolidisConnectionError: Solidis connection closed.',
+          error.message === 'SolidisConnectionError: Connection closed.',
       );
     });
 
@@ -518,7 +514,7 @@ describe('fragility', () => {
         client.send([['PING']]),
         (error: Error) =>
           error instanceof SolidisParserError &&
-          error.message === "Unknown prefix '\x01' in Solidis response",
+          error.message === "Unknown prefix '\x01'",
       );
 
       const elapsed = Date.now() - startTime;
@@ -577,7 +573,7 @@ describe('fragility', () => {
 
       assert.strictEqual(
         blockOutcome.error.message,
-        'SolidisConnectionError: Solidis connection closed.',
+        'SolidisConnectionError: Connection closed.',
       );
 
       await waitFor(
@@ -1193,7 +1189,7 @@ describe('fragility', () => {
         () => client.send([['PING']]),
         (error: Error) =>
           error instanceof SolidisParserError &&
-          error.message === "Unknown prefix '\xff' in Solidis response",
+          error.message === "Unknown prefix '\xff'",
       );
 
       await waitFor(() => parserErrors.length > 0, {
@@ -1201,10 +1197,7 @@ describe('fragility', () => {
         description: 'parser error surfaced from corrupt bytes in onData',
       });
 
-      assert.strictEqual(
-        parserErrors[0].message,
-        "Unknown prefix '\xff' in Solidis response",
-      );
+      assert.strictEqual(parserErrors[0].message, "Unknown prefix '\xff'");
     });
   });
 
@@ -3211,7 +3204,7 @@ describe('fragility', () => {
       assert.ok(result instanceof SolidisClientError);
       assert.strictEqual(
         result.message,
-        'SolidisConnectionError: Solidis connection closed.',
+        'SolidisConnectionError: Connection closed.',
       );
     });
   });
@@ -3512,7 +3505,7 @@ describe('fragility', () => {
       assert.ok(result instanceof SolidisClientError);
       assert.strictEqual(
         result.message,
-        'SolidisConnectionError: Solidis connection closed.',
+        'SolidisConnectionError: Connection closed.',
       );
       assert.ok(
         elapsed < 3000,

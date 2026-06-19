@@ -639,7 +639,7 @@ describe('debug-requester', () => {
 
       assert.strictEqual(
         settlement.error.message,
-        'SolidisConnectionError: Solidis connection closed.',
+        'SolidisConnectionError: Connection closed.',
       );
 
       await waitFor(

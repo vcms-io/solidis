@@ -31,6 +31,7 @@ import type {
 const SolidisSubscribeCommandNameSet = new Set(
   SolidisPubSubEventNames.slice(3).map((name) => name.toUpperCase()),
 );
+const SocketIsNotConnected = 'Socket is not connected';
 
 export class SolidisRequester {
   #options: SolidisRequesterOptions;
@@ -219,13 +220,13 @@ export class SolidisRequester {
         }
 
         if (this.#isOnRecovery) {
-          throw new SolidisRequesterError('Stale request: old session.');
+          throw new SolidisRequesterError('Stale request');
         }
 
         const socket = this.#options.connection.socket;
 
         if (!socket) {
-          throw new SolidisRequesterError('Socket is not connected');
+          throw new SolidisRequesterError(SocketIsNotConnected);
         }
 
         isWritable = socket.write(chunk);
@@ -250,7 +251,7 @@ export class SolidisRequester {
     const socket = this.#options.connection.socket;
 
     if (!socket) {
-      throw new SolidisRequesterError('Socket is not connected');
+      throw new SolidisRequesterError(SocketIsNotConnected);
     }
     const { socketWriteTimeout } = this.#options;
 

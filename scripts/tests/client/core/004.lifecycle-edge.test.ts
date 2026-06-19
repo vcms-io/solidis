@@ -64,14 +64,12 @@ describe('lifecycle-edge', () => {
       () => client.connect(),
       (error: Error) => {
         if (error instanceof SolidisClientError) {
-          if (
-            error.message === 'SolidisClient connection failed after 0 retries.'
-          ) {
+          if (error.message === 'Connection failed after 0 retries.') {
             const original = error.getOriginalError();
 
             return (
               original instanceof SolidisConnectionError &&
-              original.message === 'SolidisClient connection timeout (500 ms).'
+              original.message === 'Connection timeout (500 ms).'
             );
           }
 
@@ -80,7 +78,7 @@ describe('lifecycle-edge', () => {
 
         return (
           error instanceof SolidisConnectionError &&
-          error.message === 'SolidisClient connection failed after 0 retries.'
+          error.message === 'Connection failed after 0 retries.'
         );
       },
     );

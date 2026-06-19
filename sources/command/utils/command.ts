@@ -35,7 +35,7 @@ export function guard(
   command?: StringOrBuffer[],
 ): client is SolidisClient {
   if (typeof client !== 'object' || client === null) {
-    throw newCommandError('This is not a valid solidis client', command);
+    throw newCommandError('Invalid client', command);
   }
 
   if (!('send' in client) || typeof client.send !== 'function') {

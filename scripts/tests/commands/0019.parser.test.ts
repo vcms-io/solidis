@@ -244,25 +244,25 @@ describe('parser', () => {
 
   it('rejects an unknown type prefix', async () => {
     await assert.rejects(parseOnce(bytes('@bogus\r\n')), {
-      message: "Unknown prefix '@' in Solidis response",
+      message: "Unknown prefix '@'",
     });
   });
 
   it('rejects an integer with a missing LF', async () => {
     await assert.rejects(parseOnce(bytes(':12\r3\r\n')), {
-      message: 'Integer parse error: missing CRLF',
+      message: 'Integer: missing CRLF',
     });
   });
 
   it('rejects a simple string with a bare CR', async () => {
     await assert.rejects(parseOnce(bytes('+OK\rX\r\n')), {
-      message: 'SimpleString parse error: missing CRLF',
+      message: 'SimpleString: missing CRLF',
     });
   });
 
   it('discards a valid reply when a later frame is corrupt', async () => {
     await assert.rejects(parseOnce(bytes('+good\r\n@evil\r\n')), {
-      message: "Unknown prefix '@' in Solidis response",
+      message: "Unknown prefix '@'",
     });
   });
 

@@ -53,7 +53,7 @@ export class SolidisConnection extends EventEmitter {
   public async connect() {
     if (this.#isQuitted) {
       throw new SolidisConnectionError(
-        'Cannot connect because user quit the connection.',
+        'Cannot connect: user quit the connection.',
       );
     }
 
@@ -124,7 +124,7 @@ export class SolidisConnection extends EventEmitter {
     }
 
     void this.#tryBackgroundReconnect().catch((error) => {
-      this.#debug?.('debug', 'Solidis connection failed to reset reconnect.', {
+      this.#debug?.('debug', 'Failed to reset reconnect.', {
         error,
       });
     });
@@ -148,7 +148,7 @@ export class SolidisConnection extends EventEmitter {
 
         if (attemptIndex > maxConnectionRetries) {
           throw new SolidisConnectionError(
-            `SolidisClient connection failed after ${maxConnectionRetries} retries.`,
+            `Connection failed after ${maxConnectionRetries} retries.`,
             error,
           );
         }
@@ -280,13 +280,10 @@ export class SolidisConnection extends EventEmitter {
           return;
         }
 
-        this.#debug?.('debug', 'Solidis connection closed.');
+        this.#debug?.('debug', 'Connection closed.');
 
         this.cleanup();
-        this.emit(
-          'closed',
-          new SolidisConnectionError('Solidis connection closed.'),
-        );
+        this.emit('closed', new SolidisConnectionError('Connection closed.'));
 
         if (this.#isQuitted) {
           return;
@@ -297,11 +294,7 @@ export class SolidisConnection extends EventEmitter {
         }
 
         this.#tryBackgroundReconnect().catch((error) => {
-          this.#debug?.(
-            'debug',
-            'Solidis connection failed to background reconnect.',
-            { error },
-          );
+          this.#debug?.('debug', 'Failed to background reconnect.', { error });
 
           emitFail(error);
         });
@@ -321,7 +314,7 @@ export class SolidisConnection extends EventEmitter {
       this.cleanup();
 
       const timeoutError = new SolidisConnectionError(
-        `SolidisClient connection timeout (${connectionTimeout} ms).`,
+        `Connection timeout (${connectionTimeout} ms).`,
       );
 
       onTimeout(timeoutError);
