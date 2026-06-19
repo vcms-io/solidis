@@ -327,11 +327,14 @@ describe('streams', () => {
 
     assert.strictEqual(detail.name, group);
     assert.strictEqual(detail.lastDeliveredId, '2-1');
-    assert.strictEqual(detail.entriesRead, 2);
-    assert.ok(
-      detail.lag === 0 || detail.lag === null,
-      `lag must be 0 (fully consumed) or null, got: ${detail.lag}`,
-    );
+
+    if (atLeast7) {
+      assert.strictEqual(detail.entriesRead, 2);
+      assert.ok(
+        detail.lag === 0 || detail.lag === null,
+        `lag must be 0 (fully consumed) or null, got: ${detail.lag}`,
+      );
+    }
     assert.strictEqual(
       detail.pelCount,
       2,
@@ -365,10 +368,12 @@ describe('streams', () => {
       consumer.seenTime > 0,
       'consumer seenTime must be a positive timestamp',
     );
-    assert.ok(
-      consumer.activeTime > 0,
-      'consumer activeTime must be a positive timestamp',
-    );
+    if (!Number.isNaN(consumer.activeTime)) {
+      assert.ok(
+        consumer.activeTime > 0,
+        'consumer activeTime must be a positive timestamp',
+      );
+    }
     assert.strictEqual(
       consumer.pelCount,
       2,

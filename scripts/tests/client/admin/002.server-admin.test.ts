@@ -764,14 +764,21 @@ describe('server-admin', () => {
       return;
     }
 
+    const before = await client.latencyHistogram('ping');
+    const callsBefore = 'ping' in before ? before.ping.calls : 0;
+
     for (let index = 0; index < 10; index += 1) {
       await client.ping();
     }
 
-    const histograms = await client.latencyHistogram('ping');
+    const after = await client.latencyHistogram('ping');
 
-    assert.ok('ping' in histograms, 'expected a ping histogram entry');
-    assert.strictEqual(histograms.ping.calls, 10);
+    assert.ok('ping' in after, 'expected a ping histogram entry');
+    assert.strictEqual(
+      after.ping.calls - callsBefore,
+      10,
+      `expected exactly 10 additional ping calls, got ${after.ping.calls - callsBefore} (before: ${callsBefore}, after: ${after.ping.calls})`,
+    );
   });
 
   it('kills a running function (none running)', async (context) => {

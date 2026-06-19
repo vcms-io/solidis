@@ -1082,6 +1082,91 @@ describe('debug-requester', () => {
         `error message must indicate socket closure, got: ${sendError.message}`,
       );
     });
+
+    it('resolves the drain wait and continues writing when socket drains after backpressure', async () => {
+      const { SolidisRequester } = await import(
+        '../../../../sources/modules/requester.ts'
+      );
+      const { SolidisPubSub } = await import(
+        '../../../../sources/modules/pubsub.ts'
+      );
+      const { SolidisDefaultOptions } = await import(
+        '../../../../sources/common/constants.ts'
+      );
+
+      const emitter = new EventEmitter();
+      const originalOnce = emitter.once.bind(emitter);
+      const originalRemoveListener = emitter.removeListener.bind(emitter);
+      const socket = emitter as import('node:net').Socket;
+
+      let writeCallCount = 0;
+
+      socket.write = () => {
+        writeCallCount += 1;
+
+        if (writeCallCount === 1) {
+          setImmediate(() => {
+            emitter.emit('drain');
+          });
+
+          return false;
+        }
+
+        return true;
+      };
+
+      socket.once = ((
+        event: string,
+        listener: (...arguments_: unknown[]) => void,
+      ) => {
+        originalOnce(event, listener);
+
+        return socket;
+      }) as typeof socket.once;
+
+      socket.removeListener = ((
+        event: string,
+        listener: (...arguments_: unknown[]) => void,
+      ) => {
+        originalRemoveListener(event, listener);
+
+        return socket;
+      }) as typeof socket.removeListener;
+
+      const requester = new SolidisRequester({
+        ...SolidisDefaultOptions,
+        commandTimeout: 2000,
+        maxSocketWriteSizePerOnce: 16,
+        connection: { socket, reset() {} } as never,
+        pubSub: new SolidisPubSub(),
+        autoReconnect: false,
+      });
+
+      const sendPromise = requester
+        .send([['ECHO', 'x'.repeat(100)]])
+        .then(() => null)
+        .catch((error: Error) => error);
+
+      for (let tick = 0; tick < 10; tick += 1) {
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
+
+      requester.recoveryFromFault(
+        new SolidisRequesterError('mock: socket closed after drain'),
+      );
+
+      const sendError = await sendPromise;
+
+      assert.ok(
+        sendError instanceof SolidisRequesterError,
+        'command must reject after fault recovery',
+      );
+
+      assert.ok(
+        writeCallCount > 1,
+        `socket.write must be called more than once after drain, got: ${writeCallCount}`,
+      );
+    });
   });
 
   describe('requester non-standard socket write error wrapping', () => {
