@@ -56,7 +56,9 @@ jobs:
           cache: npm
       - run: npm install
       - name: Run coverage
-        run: npm run test:coverage 2>&1 | tee /tmp/coverage.txt
+        run: |
+          set -o pipefail
+          npm run test:coverage 2>&1 | tee /tmp/coverage.txt
         env:
           SOLIDIS_TEST_HOST: 127.0.0.1
           SOLIDIS_TEST_PORT: 6379
