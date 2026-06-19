@@ -1,7 +1,6 @@
 import {
   executeCommand,
-  tryReplyToKeyElementsOrNull,
-  tryReplyToStringArray,
+  tryReplyToKeyStringElementsOrNull,
 } from './utils/index.ts';
 
 import type { CommandLeftOrRightOption, RespLmpop } from '../index.ts';
@@ -29,7 +28,6 @@ export async function lmpop<T>(
   return await executeCommand(
     this,
     createCommand(keys, direction, count),
-    (reply, command) =>
-      tryReplyToKeyElementsOrNull(reply, command, tryReplyToStringArray),
+    tryReplyToKeyStringElementsOrNull,
   );
 }

@@ -1,4 +1,4 @@
-import { executeCommand, tryReplyOK } from './utils/index.ts';
+import { executeCommand, tryReplyOKOrNull } from './utils/index.ts';
 
 import type { CommandJsonSetOptions, RespOK } from '../index.ts';
 
@@ -33,12 +33,6 @@ export async function jsonSet<T>(
   return await executeCommand(
     this,
     createCommand(key, path, value, options),
-    (reply, command) => {
-      if (reply === null) {
-        return null;
-      }
-
-      return tryReplyOK(reply, command);
-    },
+    tryReplyOKOrNull,
   );
 }

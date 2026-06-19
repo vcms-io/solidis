@@ -1,4 +1,5 @@
 import {
+  buildSortCommand,
   executeCommand,
   tryReplyToNumber,
   tryReplyToStringArray,
@@ -10,38 +11,10 @@ export function createCommand(
   key: string,
   options?: CommandSortOptions | CommandSortStoreOptions,
 ) {
-  const command = ['SORT', key];
+  const command = buildSortCommand('SORT', key, options);
 
-  if (options) {
-    if (options.by !== undefined) {
-      command.push('BY', options.by);
-    }
-
-    if (options.limit) {
-      command.push(
-        'LIMIT',
-        `${options.limit.offset}`,
-        `${options.limit.count}`,
-      );
-    }
-
-    if (options.get) {
-      for (const pattern of options.get) {
-        command.push('GET', pattern);
-      }
-    }
-
-    if (options.order) {
-      command.push(options.order);
-    }
-
-    if (options.alpha) {
-      command.push('ALPHA');
-    }
-
-    if ('store' in options) {
-      command.push('STORE', options.store);
-    }
+  if (options && 'store' in options) {
+    command.push('STORE', options.store);
   }
 
   return command;

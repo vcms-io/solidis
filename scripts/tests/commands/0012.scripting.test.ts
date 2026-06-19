@@ -1,8 +1,10 @@
 /** Lua scripting: EVAL/EVAL_RO, SCRIPT LOAD/EVALSHA, SCRIPT EXISTS. */
 
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { after, before, describe, it } from 'node:test';
 
+import { RespError, SolidisCommandError } from '../../../sources/index.ts';
 import {
   closeClient,
   createClient,
@@ -10,16 +12,18 @@ import {
   detectServerCapabilities,
 } from '../utils/index.ts';
 
-import type { FeaturedClient } from '../utils/index.ts';
+import type { FeaturedClient, ServerCapabilities } from '../utils/index.ts';
 
 describe('scripting', () => {
   let client: FeaturedClient;
+  let capabilities: ServerCapabilities;
   let atLeast7 = false;
   const keyspace = createKeyspace('scripting');
 
   before(async () => {
     client = await createClient();
-    atLeast7 = (await detectServerCapabilities(client)).atLeast(7, 0);
+    capabilities = await detectServerCapabilities(client);
+    atLeast7 = capabilities.atLeast(7, 0);
   });
 
   after(async () => {
@@ -39,16 +43,11 @@ describe('scripting', () => {
       ['first', 'second'],
     );
 
-    assert.ok(Array.isArray(result));
-
-    if (!Array.isArray(result)) {
-      return;
-    }
-
-    assert.deepStrictEqual(
-      result.map((item) => `${item}`),
-      [key, 'first', 'second'],
-    );
+    assert.deepStrictEqual(result, [
+      Buffer.from(key),
+      Buffer.from('first'),
+      Buffer.from('second'),
+    ]);
   });
 
   it('mutates state through redis.call', async () => {
@@ -66,10 +65,11 @@ describe('scripting', () => {
   it('loads and executes a cached script with EVALSHA', async () => {
     const script = "return redis.call('INCR', KEYS[1])";
     const key = keyspace.key('evalsha');
+    const expectedSha1 = createHash('sha1').update(script).digest('hex');
 
     const sha1 = await client.scriptLoad(script);
 
-    assert.match(sha1, /^[0-9a-f]{40}$/);
+    assert.strictEqual(sha1, expectedSha1);
     assert.strictEqual(await client.evalsha(sha1, [key], []), 1);
     assert.strictEqual(await client.evalsha(sha1, [key], []), 2);
   });
@@ -89,8 +89,15 @@ describe('scripting', () => {
      */
     const result = await client.evalsha('0'.repeat(40), [], []);
 
-    assert.ok(result instanceof Error);
-    assert.match(`${result.message}`, /NOSCRIPT/i);
+    assert.ok(result instanceof RespError);
+    if (capabilities.isValkey && capabilities.atLeast(8, 0)) {
+      assert.strictEqual(result.message, 'NOSCRIPT No matching script.');
+    } else {
+      assert.strictEqual(
+        result.message,
+        'NOSCRIPT No matching script. Please use EVAL.',
+      );
+    }
   });
 
   it('reads with EVAL_RO', async (context) => {
@@ -110,7 +117,7 @@ describe('scripting', () => {
       [],
     );
 
-    assert.strictEqual(`${result}`, 'value');
+    assert.deepStrictEqual(result, Buffer.from('value'));
   });
 
   it('reads with EVALSHA_RO', async (context) => {
@@ -127,7 +134,7 @@ describe('scripting', () => {
     const sha1 = await client.scriptLoad(script);
     const result = await client.evalshaRo(sha1, [key], []);
 
-    assert.strictEqual(`${result}`, 'frozen');
+    assert.deepStrictEqual(result, Buffer.from('frozen'));
   });
 
   it('flushes the script cache with SCRIPT FLUSH', async () => {
@@ -139,21 +146,26 @@ describe('scripting', () => {
   });
 
   it('flushes with SCRIPT FLUSH SYNC', async () => {
-    await client.scriptLoad('return 1');
+    const sha1 = await client.scriptLoad('return 1');
 
     assert.strictEqual(await client.scriptFlush({ sync: true }), 'OK');
+    assert.deepStrictEqual(await client.scriptExists([sha1]), [0]);
   });
 
   it('flushes with SCRIPT FLUSH ASYNC', async () => {
-    await client.scriptLoad('return 1');
+    const sha1 = await client.scriptLoad('return 1');
 
     assert.strictEqual(await client.scriptFlush({ async: true }), 'OK');
+    assert.deepStrictEqual(await client.scriptExists([sha1]), [0]);
   });
 
   it('kills a running script with SCRIPT KILL (error when none running)', async () => {
-    const result = await client.scriptKill().catch((error: Error) => error);
+    const result = await client.scriptKill().catch((error: unknown) => error);
 
-    assert.ok(result instanceof Error);
-    assert.match(result.message, /NOTBUSY/i);
+    assert.ok(result instanceof SolidisCommandError);
+    assert.strictEqual(
+      result.message,
+      '[SCRIPT KILL] Invalid reply: RespError: NOTBUSY No scripts in execution right now.',
+    );
   });
 });

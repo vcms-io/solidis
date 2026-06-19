@@ -1,7 +1,6 @@
 import {
   executeCommand,
-  tryReplyToKeyElementsOrNull,
-  tryReplyToStringArray,
+  tryReplyToKeyStringElementsOrNull,
 } from './utils/index.ts';
 
 import type { CommandLeftOrRightOption, RespListMember } from '../index.ts';
@@ -34,7 +33,6 @@ export async function blmpop<T>(
   return await executeCommand(
     this,
     createCommand(timeout, keys, where, count),
-    (reply, command) =>
-      tryReplyToKeyElementsOrNull(reply, command, tryReplyToStringArray),
+    tryReplyToKeyStringElementsOrNull,
   );
 }

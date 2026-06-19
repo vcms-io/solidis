@@ -1,5 +1,6 @@
 /** Cleanup race: deferred end-callback in cleanup() targets the wrong socket during reconnection. */
 
+import assert from 'node:assert/strict';
 import { afterEach, describe, it } from 'node:test';
 
 import { SolidisFeaturedClient } from '../../../../sources/client/featured.ts';
@@ -70,6 +71,18 @@ describe('cleanup-race', () => {
       interval: 50,
       description: 'reconnect after abrupt mock disconnect',
     });
+
+    assert.strictEqual(
+      reconnected,
+      true,
+      'client must emit a second ready event after reconnection',
+    );
+
+    assert.strictEqual(
+      server.connectionCount,
+      1,
+      'mock server must accept exactly one new socket after reconnection',
+    );
   });
 
   it('reconnects after a forced CLIENT KILL with no retries', async () => {
@@ -97,6 +110,13 @@ describe('cleanup-race', () => {
         interval: 50,
         description: 'reconnect after CLIENT KILL',
       });
+
+      assert.strictEqual(
+        reconnected,
+        true,
+        'client must emit a second ready event after reconnection',
+      );
+      assert.strictEqual(await client.ping(), 'PONG');
     } finally {
       await closeClient(killer);
       await closeClient(client);

@@ -7,11 +7,10 @@ import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
 import {
-  assertCloseTo,
   closeClient,
   createClient,
   createKeyspace,
-  delay,
+  waitFor,
 } from '../utils/index.ts';
 
 import type { FeaturedClient } from '../utils/index.ts';
@@ -46,8 +45,7 @@ describe('strings', () => {
 
     const value = await client.getBuffer(key);
 
-    assert.ok(value instanceof Buffer);
-    assert.strictEqual(value.toString(), 'raw-bytes');
+    assert.deepStrictEqual(value, Buffer.from('raw-bytes'));
   });
 
   it('appends and reports the resulting length', async () => {
@@ -84,9 +82,9 @@ describe('strings', () => {
   it('increments floating point counters precisely', async () => {
     const key = keyspace.key('float');
 
-    assertCloseTo(await client.incrbyfloat(key, 3.0), 3, 5);
-    assertCloseTo(await client.incrbyfloat(key, 0.1), 3.1, 5);
-    assertCloseTo(await client.incrbyfloat(key, -1.1), 2, 5);
+    assert.strictEqual(await client.incrbyfloat(key, 3.0), 3);
+    assert.strictEqual(await client.incrbyfloat(key, 0.1), 3.1);
+    assert.strictEqual(await client.incrbyfloat(key, -1.1), 2);
   });
 
   it('rejects INCR on a non-integer value', async () => {
@@ -94,7 +92,16 @@ describe('strings', () => {
 
     await client.set(key, 'abc');
 
-    await assert.rejects(() => client.incr(key));
+    await assert.rejects(
+      () => client.incr(key),
+      (error: Error) => {
+        assert.strictEqual(
+          error.message,
+          `[INCR ${key}] Invalid reply: RespError: ERR value is not an integer or out of range`,
+        );
+        return true;
+      },
+    );
   });
 
   it('handles MSET and MGET together', async () => {
@@ -141,10 +148,14 @@ describe('strings', () => {
     const millisKey = keyspace.key('psetex');
 
     assert.strictEqual(await client.setex(secondsKey, 100, 'value'), 'OK');
-    assert.ok((await client.ttl(secondsKey)) > 90);
+    const secondsTtl = await client.ttl(secondsKey);
+    assert.ok(secondsTtl >= 99 && secondsTtl <= 100);
+    assert.strictEqual(await client.get(secondsKey), 'value');
 
     assert.strictEqual(await client.psetex(millisKey, 100000, 'value'), 'OK');
-    assert.ok((await client.pttl(millisKey)) > 90000);
+    const millisPttl = await client.pttl(millisKey);
+    assert.ok(millisPttl >= 99000 && millisPttl <= 100000);
+    assert.strictEqual(await client.get(millisKey), 'value');
   });
 
   it('respects SETNX semantics', async () => {
@@ -173,13 +184,15 @@ describe('strings', () => {
       await client.getex(key, { expireInSeconds: 100 }),
       'value',
     );
-    assert.ok((await client.ttl(key)) > 90);
+    const getexSecondsTtl = await client.ttl(key);
+    assert.ok(getexSecondsTtl >= 99 && getexSecondsTtl <= 100);
 
     assert.strictEqual(
       await client.getex(key, { expireInMilliseconds: 50000 }),
       'value',
     );
-    assert.ok((await client.pttl(key)) > 40000);
+    const getexMillisPttl = await client.pttl(key);
+    assert.ok(getexMillisPttl >= 49000 && getexMillisPttl <= 50000);
 
     const futureSeconds = Math.floor(Date.now() / 1000) + 3600;
 
@@ -187,7 +200,8 @@ describe('strings', () => {
       await client.getex(key, { expireAtSeconds: futureSeconds }),
       'value',
     );
-    assert.ok((await client.ttl(key)) > 3500);
+    const getexFutureSecondsTtl = await client.ttl(key);
+    assert.ok(getexFutureSecondsTtl >= 3599 && getexFutureSecondsTtl <= 3600);
 
     const futureMilliseconds = Date.now() + 7200000;
 
@@ -195,7 +209,10 @@ describe('strings', () => {
       await client.getex(key, { expireAtMilliseconds: futureMilliseconds }),
       'value',
     );
-    assert.ok((await client.pttl(key)) > 7100000);
+    const getexFutureMillisPttl = await client.pttl(key);
+    assert.ok(
+      getexFutureMillisPttl >= 7199000 && getexFutureMillisPttl <= 7200000,
+    );
 
     assert.strictEqual(await client.getex(key, { persist: true }), 'value');
     assert.strictEqual(await client.ttl(key), -1);
@@ -208,7 +225,9 @@ describe('strings', () => {
       await client.set(key, 'value', { expireInSeconds: 100 }),
       'OK',
     );
-    assert.ok((await client.ttl(key)) > 90);
+    const setExOptionTtl = await client.ttl(key);
+    assert.ok(setExOptionTtl >= 99 && setExOptionTtl <= 100);
+    assert.strictEqual(await client.get(key), 'value');
   });
 
   it('SET honours setIfKeyNotExists / setIfKeyExists guards', async () => {
@@ -255,8 +274,7 @@ describe('strings', () => {
       returnOldValueAsBuffer: true,
     });
 
-    assert.ok(previous instanceof Buffer);
-    assert.strictEqual(previous.toString(), 'old');
+    assert.deepStrictEqual(previous, Buffer.from('old'));
   });
 
   it('SET keepOriginalTimeToLive preserves the TTL', async () => {
@@ -265,7 +283,9 @@ describe('strings', () => {
     await client.set(key, 'value', { expireInSeconds: 100 });
     await client.set(key, 'changed', { keepOriginalTimeToLive: true });
 
-    assert.ok((await client.ttl(key)) > 90);
+    assert.strictEqual(await client.get(key), 'changed');
+    const keepTtlValue = await client.ttl(key);
+    assert.ok(keepTtlValue >= 99 && keepTtlValue <= 100);
   });
 
   it('SET with expireInMilliseconds expires the key', async () => {
@@ -275,9 +295,11 @@ describe('strings', () => {
 
     assert.strictEqual(await client.get(key), 'value');
 
-    await delay(120);
-
-    assert.strictEqual(await client.get(key), null);
+    await waitFor(async () => (await client.get(key)) === null, {
+      timeout: 2000,
+      interval: 20,
+      description: 'key expired',
+    });
   });
 
   it('preserves binary payloads round-trip', async () => {
@@ -288,13 +310,7 @@ describe('strings', () => {
 
     const value = await client.getBuffer(key);
 
-    assert.ok(Buffer.isBuffer(value));
-
-    if (!Buffer.isBuffer(value)) {
-      return;
-    }
-
-    assert.ok(value.equals(payload));
+    assert.deepStrictEqual(value, payload);
   });
 
   it('builds SET with EXAT option', async () => {
@@ -306,7 +322,13 @@ describe('strings', () => {
       expireAtSeconds: 9999999999,
     });
 
-    assert.ok(command.includes('EXAT'));
+    assert.deepStrictEqual(command, [
+      'SET',
+      'key',
+      'val',
+      'EXAT',
+      '9999999999',
+    ]);
   });
 
   it('builds SET with PXAT option', async () => {
@@ -318,7 +340,13 @@ describe('strings', () => {
       expireAtMilliseconds: 9999999999999,
     });
 
-    assert.ok(command.includes('PXAT'));
+    assert.deepStrictEqual(command, [
+      'SET',
+      'key',
+      'val',
+      'PXAT',
+      '9999999999999',
+    ]);
   });
 
   it('builds SET with KEEPTTL and GET options', async () => {
@@ -331,7 +359,6 @@ describe('strings', () => {
       returnOldValue: true,
     });
 
-    assert.ok(command.includes('KEEPTTL'));
-    assert.ok(command.includes('GET'));
+    assert.deepStrictEqual(command, ['SET', 'key', 'val', 'KEEPTTL', 'GET']);
   });
 });

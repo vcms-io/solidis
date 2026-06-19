@@ -45,12 +45,19 @@ describe('scenarios', () => {
       verdicts.push(await allow());
     }
 
-    assert.strictEqual(verdicts.filter(Boolean).length, limit);
-    assert.strictEqual(
-      verdicts.slice(limit).every((value) => value === false),
+    assert.deepStrictEqual(verdicts, [
       true,
-    );
-    assert.ok((await client.ttl(key)) > 0);
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+    ]);
+
+    const ttl = await client.ttl(key);
+
+    assert.ok(ttl >= 59 && ttl <= 60);
   });
 
   it('maintains a leaderboard with sorted sets', async () => {
@@ -69,10 +76,14 @@ describe('scenarios', () => {
       withScores: true,
     });
 
-    assert.ok(Array.isArray(top));
-    assert.deepStrictEqual(top[0], { member: 'alice', score: 300 });
-    assert.deepStrictEqual(top[1], { member: 'bob', score: 250 });
+    assert.deepStrictEqual(top, [
+      { member: 'alice', score: 300 },
+      { member: 'bob', score: 250 },
+      { member: 'carol', score: 175 },
+    ]);
     assert.strictEqual(await client.zrevrank(board, 'alice'), 0);
+    assert.strictEqual(await client.zrevrank(board, 'bob'), 1);
+    assert.strictEqual(await client.zrevrank(board, 'carol'), 2);
   });
 
   it('implements a producer/consumer work queue', async () => {
@@ -99,15 +110,24 @@ describe('scenarios', () => {
 
     assert.strictEqual(await client.llen(queue), 0);
     assert.strictEqual(await client.scard(processed), 20);
+    assert.deepStrictEqual(
+      [...(await client.smembers(processed))].sort(
+        (left, right) =>
+          Number(left.replace('job-', '')) - Number(right.replace('job-', '')),
+      ),
+      range(20).map((index) => `job-${index}`),
+    );
   });
 
   it('stores and expires a session as a hash', async () => {
     const session = keyspace.key('session', 'token-123');
 
+    const lastSeen = `${Date.now()}`;
+
     await client.hmset(session, {
       userId: '42',
       role: 'admin',
-      lastSeen: `${Date.now()}`,
+      lastSeen,
     });
     await client.expire(session, 30);
 
@@ -115,11 +135,19 @@ describe('scenarios', () => {
 
     assert.strictEqual(stored.userId, '42');
     assert.strictEqual(stored.role, 'admin');
-    assert.ok((await client.ttl(session)) > 0);
+    assert.strictEqual(stored.lastSeen, lastSeen);
+
+    const sessionTtl = await client.ttl(session);
+
+    assert.ok(sessionTtl >= 29 && sessionTtl <= 30);
 
     await client.hdel(session, 'role');
 
     assert.strictEqual(await client.hexists(session, 'role'), 0);
+    assert.deepStrictEqual(await client.hgetall(session), {
+      userId: '42',
+      lastSeen,
+    });
   });
 
   it('implements cache-aside with a backing loader', async () => {
@@ -153,7 +181,7 @@ describe('scenarios', () => {
 
     assert.strictEqual(first, second);
     assert.strictEqual(loaderCalls, 1);
-    assert.strictEqual(JSON.parse(first).name, 'widget');
+    assert.deepStrictEqual(JSON.parse(first), { id: 1, name: 'widget' });
   });
 
   it('builds a tag index with set intersections', async () => {
@@ -217,7 +245,13 @@ describe('scenarios', () => {
 
     const estimate = await client.pfcount([visitors]);
 
-    assert.ok(estimate > 950);
-    assert.ok(estimate < 1050);
+    /**
+     * HyperLogLog cardinality is approximate; standard error is ~0.81% for
+     * Redis/Valkey PFCOUNT, so 1000 unique inserts should land near 1000.
+     */
+    assert.ok(
+      estimate >= 990 && estimate <= 1010,
+      `expected ~1000 unique visitors but got ${estimate}`,
+    );
   });
 });

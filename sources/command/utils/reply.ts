@@ -26,7 +26,7 @@ export function newCommandError(message: string, prefix?: CommandName) {
 }
 
 export function escapeReply(reply: SolidisData[][]): SolidisData {
-  return reply[0][0];
+  return reply[0]?.[0];
 }
 
 export function tryReplyOK(reply: unknown, commandName?: CommandName): RespOK {
@@ -35,6 +35,17 @@ export function tryReplyOK(reply: unknown, commandName?: CommandName): RespOK {
   }
 
   throw newCommandError(`${InvalidReplyPrefix}: ${reply}`, commandName);
+}
+
+export function tryReplyOKOrNull(
+  reply: unknown,
+  commandName?: CommandName,
+): RespOK | null {
+  if (reply === null) {
+    return null;
+  }
+
+  return tryReplyOK(reply, commandName);
 }
 
 export function tryReplyToBoolean(
@@ -74,16 +85,19 @@ export function tryReplyToString(
   return reply.toString();
 }
 
-export function tryReplyToStringOrNull(
-  reply: unknown,
-  commandName?: CommandName,
-): string | null {
-  if (reply === null) {
-    return null;
-  }
+function withNullReply<T>(
+  parser: (reply: unknown, commandName?: CommandName) => T,
+): (reply: unknown, commandName?: CommandName) => T | null {
+  return (reply, commandName) => {
+    if (reply === null) {
+      return null;
+    }
 
-  return tryReplyToString(reply, commandName);
+    return parser(reply, commandName);
+  };
 }
+
+export const tryReplyToStringOrNull = withNullReply(tryReplyToString);
 
 export function tryReplyToBinaryString(
   reply: unknown,
@@ -100,16 +114,9 @@ export function tryReplyToBinaryString(
   throw newCommandError(`${InvalidReplyPrefix}: ${reply}`, commandName);
 }
 
-export function tryReplyToBinaryStringOrNull(
-  reply: unknown,
-  commandName?: CommandName,
-): string | null {
-  if (reply === null) {
-    return null;
-  }
-
-  return tryReplyToBinaryString(reply, commandName);
-}
+export const tryReplyToBinaryStringOrNull = withNullReply(
+  tryReplyToBinaryString,
+);
 
 export function tryReplyNumber(
   reply: unknown,
@@ -122,16 +129,7 @@ export function tryReplyNumber(
   throw newCommandError(`${InvalidReplyPrefix}: ${reply}`, commandName);
 }
 
-export function tryReplyNumberOrNull(
-  reply: unknown,
-  commandName?: CommandName,
-): number | null {
-  if (reply === null) {
-    return null;
-  }
-
-  return tryReplyNumber(reply, commandName);
-}
+export const tryReplyNumberOrNull = withNullReply(tryReplyNumber);
 
 export function tryReplyToNumber(
   reply: unknown,
@@ -150,16 +148,7 @@ export function tryReplyToNumber(
   return numberValue;
 }
 
-export function tryReplyToNumberOrNull(
-  reply: unknown,
-  commandName?: CommandName,
-): number | null {
-  if (reply === null) {
-    return null;
-  }
-
-  return tryReplyToNumber(reply, commandName);
-}
+export const tryReplyToNumberOrNull = withNullReply(tryReplyToNumber);
 
 export function processPairedArray(
   array: unknown,
@@ -171,6 +160,13 @@ export function processPairedArray(
   }
 
   const targetArray = Array.isArray(array) ? array : Array.from(array).flat();
+
+  if (targetArray.length % 2 !== 0) {
+    throw newCommandError(
+      `${InvalidReplyPrefix}: expected even-length array, got ${targetArray.length}`,
+      commandName,
+    );
+  }
 
   for (let index = 0; index < targetArray.length; index += 2) {
     const key = targetArray[index];
@@ -292,16 +288,9 @@ export function tryReplyToSortedSetMembers(
   return result;
 }
 
-export function tryReplyToSortedSetMembersOrNull(
-  reply: unknown,
-  commandName?: CommandName,
-): RespSortedSetMember[] | null {
-  if (reply === null) {
-    return null;
-  }
-
-  return tryReplyToSortedSetMembers(reply, commandName);
-}
+export const tryReplyToSortedSetMembersOrNull = withNullReply(
+  tryReplyToSortedSetMembers,
+);
 
 export function tryReplyToStringsOrSortedSetMembers(
   reply: unknown,
@@ -632,16 +621,9 @@ export function tryReplyToStreamReadResults(
   });
 }
 
-export function tryReplyToStreamReadResultsOrNull(
-  reply: unknown,
-  commandName?: CommandName,
-): RespStreamReadResult[] | null {
-  if (reply === null) {
-    return null;
-  }
-
-  return tryReplyToStreamReadResults(reply, commandName);
-}
+export const tryReplyToStreamReadResultsOrNull = withNullReply(
+  tryReplyToStreamReadResults,
+);
 
 export function tryReplyToStreamEntries(
   reply: unknown,
@@ -821,4 +803,34 @@ export function tryReplyToScanDump(
   }
 
   throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, commandName);
+}
+
+export function tryReplyToKeyStringElementsOrNull(
+  reply: unknown,
+  commandName: CommandName,
+) {
+  return tryReplyToKeyElementsOrNull(reply, commandName, tryReplyToStringArray);
+}
+
+export function tryReplyToKeySortedSetMembersOrNull(
+  reply: unknown,
+  commandName: CommandName,
+) {
+  return tryReplyToKeyElementsOrNull(
+    reply,
+    commandName,
+    tryReplyToSortedSetMembers,
+  );
+}
+
+export function tryReplyToGeoRadiusOrStoreCount(
+  reply: unknown,
+  commandName: CommandName,
+  options?: CommandGeoRadiusOptions,
+): RespGeoRadius[] | number {
+  if (typeof reply === 'number') {
+    return reply;
+  }
+
+  return tryReplyToGeoRadius(reply, commandName, options);
 }

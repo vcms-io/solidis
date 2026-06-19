@@ -112,7 +112,13 @@ describe('stress-correlation', () => {
           case 4: {
             const key = keyspace.key('setget', tag);
             const value = `v-${tag}`;
-            await client.set(key, value);
+            const setReply = await client.set(key, value);
+
+            if (setReply !== 'OK') {
+              mismatches += 1;
+              recordSample(`set -> ${setReply}`);
+            }
+
             const reply = await client.get(key);
 
             if (reply !== value) {
@@ -147,9 +153,9 @@ describe('stress-correlation', () => {
       } catch (error) {
         errors += 1;
         if (sample.length < 5) {
-          sample.push(
-            `THROW#${index}: ${(error as Error).message.slice(0, 60)}`,
-          );
+          const message =
+            error instanceof Error ? error.message : String(error);
+          sample.push(`THROW#${index}: ${message.slice(0, 60)}`);
         }
       }
     });

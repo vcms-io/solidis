@@ -8,7 +8,6 @@ import {
   closeClient,
   createClient,
   createKeyspace,
-  delay,
   range,
   waitFor,
 } from '../../utils/index.ts';
@@ -71,19 +70,33 @@ describe('stress-recovery', () => {
           .then(() => {
             resolved += 1;
           })
-          .catch(() => {
+          .catch((error: unknown) => {
+            assert.ok(
+              error instanceof Error,
+              `rejection must be an Error instance but got: ${typeof error}`,
+            );
             rejected += 1;
           });
       });
 
-      await delay(5);
-      await killer.clientKill(clientId).catch(() => {});
+      const firstKeyOfRound = keyspace.key('loss', round, 0);
+
+      await waitFor(async () => (await killer.exists(firstKeyOfRound)) === 1, {
+        timeout: 3000,
+        interval: 5,
+        description: 'at least one command reached server before kill',
+      });
+
+      await killer.clientKill(clientId);
 
       await Promise.all(outcomes);
     }
 
     await waitUntilReady(client);
 
+    // Stress test limitation: only keys that both resolved and match the expected
+    // round:index value are counted. Partial writes with stale values are not
+    // verified individually because the volume makes full auditing impractical.
     let persisted = 0;
     const batchSize = 100;
 
@@ -91,8 +104,14 @@ describe('stress-recovery', () => {
       const batch = keys.slice(index, index + batchSize);
       const values = await client.mget(...batch);
 
-      for (const value of values) {
-        if (value !== null) {
+      for (let batchIndex = 0; batchIndex < values.length; batchIndex += 1) {
+        const value = values[batchIndex];
+        const keyIndex = index + batchIndex;
+        const round = Math.floor(keyIndex / perRound);
+        const position = keyIndex % perRound;
+        const expectedValue = `${round}:${position}`;
+
+        if (value === expectedValue) {
           persisted += 1;
         }
       }
@@ -112,6 +131,12 @@ describe('stress-recovery', () => {
       resolved + rejected,
       total,
       'every issued command must settle exactly once',
+    );
+
+    assert.ok(
+      resolved > 0,
+      'expected at least some commands to resolve successfully, ' +
+        `but all ${total} were rejected`,
     );
 
     assert.ok(
@@ -158,7 +183,11 @@ describe('stress-recovery', () => {
               }
             }
           })
-          .catch(() => {
+          .catch((error: unknown) => {
+            assert.ok(
+              error instanceof Error,
+              `rejection must be an Error instance but got: ${typeof error}`,
+            );
             rejected += 1;
           });
       }),
@@ -210,14 +239,21 @@ describe('stress-recovery', () => {
       .then(() => 'resolved' as const)
       .catch(() => 'rejected' as const);
 
-    await delay(2);
-    await killer.clientKill(clientId).catch(() => {});
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    await killer.clientKill(clientId);
 
     const outcome = await settled;
 
     console.log(`[stress-recovery] giant-pipeline kill outcome=${outcome}`);
 
-    assert.ok(outcome === 'resolved' || outcome === 'rejected');
+    // Stress test limitation: partial pipeline write state on the server is not
+    // verified here; only full rejection of the in-flight batch is required.
+
+    assert.strictEqual(
+      outcome,
+      'rejected',
+      'a pipeline killed mid-flight must be rejected',
+    );
 
     await waitUntilReady(client);
     assert.strictEqual(
@@ -247,21 +283,30 @@ describe('stress-recovery', () => {
         .then(() => 'resolved')
         .catch(() => 'rejected');
 
-      await delay(120);
+      await waitFor(
+        async () => {
+          try {
+            await victim.echo('probe');
+            return false;
+          } catch {
+            return true;
+          }
+        },
+        { timeout: 3000, interval: 10, description: 'blpop command timeout' },
+      );
 
       const echoPromise = victim
         .echo('FRESH')
         .then((value) => value)
         .catch((error: Error) => `THREW:${error.message}`);
 
-      await delay(20);
+      await new Promise<void>((resolve) => setImmediate(resolve));
 
       await pusher.rpush(key, 'STALE-PAYLOAD');
 
       const echoed = await echoPromise;
 
-      await blocked;
-
+      assert.strictEqual(await blocked, 'rejected');
       assert.strictEqual(echoed, 'FRESH');
     } finally {
       await closeClient(pusher);

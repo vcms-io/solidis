@@ -7,8 +7,8 @@ import {
   closeClient,
   createClient,
   createKeyspace,
-  delay,
   detectServerCapabilities,
+  waitFor,
 } from '../utils/index.ts';
 
 import type { FeaturedClient } from '../utils/index.ts';
@@ -87,10 +87,12 @@ describe('keys-generic', () => {
     await client.set(occupied, 'taken');
 
     assert.strictEqual(await client.renamenx(source, occupied), 0);
-    assert.strictEqual(
-      await client.renamenx(source, keyspace.key('rename', 'free')),
-      1,
-    );
+    assert.strictEqual(await client.get(source), 'again');
+    assert.strictEqual(await client.get(occupied), 'taken');
+    const freeKey = keyspace.key('rename', 'free');
+    assert.strictEqual(await client.renamenx(source, freeKey), 1);
+    assert.strictEqual(await client.get(freeKey), 'again');
+    assert.strictEqual(await client.exists(source), 0);
   });
 
   it('copies keys with and without REPLACE', async () => {
@@ -116,6 +118,12 @@ describe('keys-generic', () => {
     assert.strictEqual(
       await client.copy(source, crossDbDestination, { destinationDatabase: 0 }),
       1,
+    );
+
+    assert.strictEqual(
+      await client.get(crossDbDestination),
+      'updated',
+      'COPY with destinationDatabase must preserve the source value',
     );
   });
 
@@ -143,18 +151,20 @@ describe('keys-generic', () => {
 
     await client.set(source, 'serialized-value');
 
-    const serialized = (await client.send([['DUMP', source]]))[0][0];
+    const rawReply = (await client.send([['DUMP', source]]))[0][0];
 
-    assert.ok(Buffer.isBuffer(serialized));
-
-    if (!Buffer.isBuffer(serialized)) {
-      return;
+    if (!Buffer.isBuffer(rawReply)) {
+      assert.fail('expected DUMP to return a Buffer');
     }
 
-    assert.strictEqual(await client.restore(destination, 0, serialized), 'OK');
+    assert.strictEqual(await client.restore(destination, 0, rawReply), 'OK');
     assert.strictEqual(await client.get(destination), 'serialized-value');
 
-    assert.strictEqual(typeof (await client.dump(source)), 'string');
+    const dumpResult = await client.dump(source);
+    if (dumpResult === null) {
+      assert.fail('expected non-null dump result');
+    }
+    assert.deepStrictEqual(Buffer.from(dumpResult, 'latin1'), rawReply);
   });
 
   it('TOUCH updates access without removing keys', async () => {
@@ -164,6 +174,8 @@ describe('keys-generic', () => {
     await client.mset({ [first]: '1', [second]: '2' });
 
     assert.strictEqual(await client.touch([first, second]), 2);
+    assert.strictEqual(await client.get(first), '1');
+    assert.strictEqual(await client.get(second), '2');
   });
 
   it('lists keys matching a pattern', async () => {
@@ -175,16 +187,32 @@ describe('keys-generic', () => {
 
     const found = await client.keys(`${matchKeyspace.namespace}:*`);
 
-    assert.strictEqual(found.length, 2);
-    assert.ok(found.includes(alpha));
-    assert.ok(found.includes(beta));
+    assert.deepStrictEqual([...found].sort(), [alpha, beta].sort());
   });
 
   it('returns a key from RANDOMKEY and a size from DBSIZE', async () => {
     await client.set(keyspace.key('randomkey'), 'value');
 
-    assert.notStrictEqual(await client.randomkey(), undefined);
-    assert.ok((await client.dbsize()) > 0);
+    const randomKeyResult = await client.randomkey();
+    if (randomKeyResult === null) {
+      assert.fail('expected non-null randomkey result');
+    }
+    assert.ok(
+      randomKeyResult.length > 0,
+      'RANDOMKEY must return a non-empty key name',
+    );
+
+    const databaseSize = await client.dbsize();
+    assert.ok(
+      databaseSize >= 1,
+      `DBSIZE must be at least 1 after inserting a key, got ${databaseSize}`,
+    );
+
+    assert.strictEqual(
+      await client.exists(keyspace.key('randomkey')),
+      1,
+      'the key inserted for RANDOMKEY testing must exist',
+    );
   });
 
   it('reports an object encoding', async () => {
@@ -194,7 +222,7 @@ describe('keys-generic', () => {
 
     const encoding = await client.objectEncoding(integerKey);
 
-    assert.ok(typeof encoding === 'string' && encoding.length > 0);
+    assert.strictEqual(encoding, 'int');
   });
 
   it('applies and inspects EXPIRE / TTL', async () => {
@@ -203,8 +231,8 @@ describe('keys-generic', () => {
     await client.set(key, 'value');
 
     assert.strictEqual(await client.expire(key, 100), 1);
-    assert.ok((await client.ttl(key)) > 90);
-    assert.ok((await client.ttl(key)) <= 100);
+    const expireTtl = await client.ttl(key);
+    assert.ok(expireTtl >= 99 && expireTtl <= 100);
 
     assert.strictEqual(await client.persist(key), 1);
     assert.strictEqual(await client.ttl(key), -1);
@@ -216,7 +244,8 @@ describe('keys-generic', () => {
     await client.set(key, 'value');
 
     assert.strictEqual(await client.pexpire(key, 100000), 1);
-    assert.ok((await client.pttl(key)) > 90000);
+    const pexpirePttl = await client.pttl(key);
+    assert.ok(pexpirePttl >= 99000 && pexpirePttl <= 100000);
   });
 
   it('supports EXPIREAT and EXPIRETIME', async () => {
@@ -226,7 +255,8 @@ describe('keys-generic', () => {
     await client.set(key, 'value');
 
     assert.strictEqual(await client.expireat(key, futureSeconds), 1);
-    assert.ok((await client.ttl(key)) > 900);
+    const expireatTtl = await client.ttl(key);
+    assert.ok(expireatTtl >= 999 && expireatTtl <= 1000);
 
     /** EXPIRETIME was introduced in Redis 7.0. */
     if (atLeast7) {
@@ -241,7 +271,8 @@ describe('keys-generic', () => {
     await client.set(key, 'value');
 
     assert.strictEqual(await client.pexpireat(key, futureMilliseconds), 1);
-    assert.ok((await client.pttl(key)) > 900000);
+    const pexpireatPttl = await client.pttl(key);
+    assert.ok(pexpireatPttl >= 999000 && pexpireatPttl <= 1000000);
 
     /** PEXPIRETIME was introduced in Redis 7.0. */
     if (atLeast7) {
@@ -259,9 +290,11 @@ describe('keys-generic', () => {
     await client.set(key, 'value');
     await client.pexpire(key, 50);
 
-    await delay(110);
-
-    assert.strictEqual(await client.exists(key), 0);
+    await waitFor(async () => (await client.exists(key)) === 0, {
+      timeout: 2000,
+      interval: 20,
+      description: 'key expired after pexpire',
+    });
   });
 
   it('uses EXPIREAT with NX option', async (context) => {
@@ -279,10 +312,15 @@ describe('keys-generic', () => {
       await client.expireat(key, future, { notExists: true }),
       1,
     );
+    const expireatNxTtl = await client.ttl(key);
+    assert.ok(expireatNxTtl >= 3599 && expireatNxTtl <= 3600);
+
     assert.strictEqual(
       await client.expireat(key, future + 100, { notExists: true }),
       0,
     );
+    const expireatNxUnchangedTtl = await client.ttl(key);
+    assert.ok(expireatNxUnchangedTtl >= 3599 && expireatNxUnchangedTtl <= 3600);
   });
 
   it('uses PEXPIRE with GT mode', async (context) => {
@@ -297,7 +335,16 @@ describe('keys-generic', () => {
     await client.pexpire(key, 100000);
 
     assert.strictEqual(await client.pexpire(key, 50000, 'GT'), 0);
+    const pexpireGtUnchangedPttl = await client.pttl(key);
+    assert.ok(
+      pexpireGtUnchangedPttl >= 99000 && pexpireGtUnchangedPttl <= 100000,
+    );
+
     assert.strictEqual(await client.pexpire(key, 200000, 'GT'), 1);
+    const pexpireGtExtendedPttl = await client.pttl(key);
+    assert.ok(
+      pexpireGtExtendedPttl >= 199000 && pexpireGtExtendedPttl <= 200000,
+    );
   });
 
   it('uses PEXPIRE with LT mode', async (context) => {
@@ -312,7 +359,16 @@ describe('keys-generic', () => {
     await client.pexpire(key, 100000);
 
     assert.strictEqual(await client.pexpire(key, 200000, 'LT'), 0);
+    const pexpireLtUnchangedPttl = await client.pttl(key);
+    assert.ok(
+      pexpireLtUnchangedPttl >= 99000 && pexpireLtUnchangedPttl <= 100000,
+    );
+
     assert.strictEqual(await client.pexpire(key, 50000, 'LT'), 1);
+    const pexpireLtShortenedPttl = await client.pttl(key);
+    assert.ok(
+      pexpireLtShortenedPttl >= 49000 && pexpireLtShortenedPttl <= 50000,
+    );
   });
 
   it('restores a key with REPLACE option', async () => {
@@ -323,7 +379,9 @@ describe('keys-generic', () => {
 
     const serialized = await client.dump(source);
 
-    assert.ok(serialized !== null);
+    if (serialized === null) {
+      assert.fail('expected non-null dump result');
+    }
 
     await client.set(destination, 'existing');
 
@@ -342,7 +400,9 @@ describe('keys-generic', () => {
 
     const serialized = await client.dump(source);
 
-    assert.ok(serialized !== null);
+    if (serialized === null) {
+      assert.fail('expected non-null dump result');
+    }
 
     const futureMs = Date.now() + 60000;
 
@@ -354,7 +414,9 @@ describe('keys-generic', () => {
       'OK',
     );
 
-    assert.ok((await client.pttl(destination)) > 50000);
+    const absttlPttl = await client.pttl(destination);
+    assert.ok(absttlPttl >= 59500 && absttlPttl <= 60000);
+    assert.strictEqual(await client.get(destination), 'data');
   });
 
   it('restores a key with IDLETIME option', async () => {
@@ -365,7 +427,9 @@ describe('keys-generic', () => {
 
     const serialized = await client.dump(source);
 
-    assert.ok(serialized !== null);
+    if (serialized === null) {
+      assert.fail('expected non-null dump result');
+    }
 
     assert.strictEqual(
       await client.restore(destination, 0, serialized, {
@@ -379,10 +443,10 @@ describe('keys-generic', () => {
   });
 
   it('uses LOLWUT with VERSION and optional arguments', async () => {
-    const result = await client.lolwut(5, '10', '20');
+    const lolwutResult = await client.lolwut(5, '10', '20');
 
-    assert.strictEqual(typeof result, 'string');
-    assert.ok(result.length > 0);
+    assert.strictEqual(typeof lolwutResult, 'string');
+    assert.ok(lolwutResult.length > 0, 'LOLWUT must return non-empty string');
   });
 
   it('returns null from GETBUFFER on missing key', async () => {
@@ -403,7 +467,14 @@ describe('keys-generic', () => {
     await client.set(key, 'val');
 
     assert.strictEqual(await client.pexpireat(key, futureMs, 'NX'), 1);
+    const pexpireatNxPttl = await client.pttl(key);
+    assert.ok(pexpireatNxPttl >= 59500 && pexpireatNxPttl <= 60000);
+
     assert.strictEqual(await client.pexpireat(key, futureMs + 1000, 'NX'), 0);
+    const pexpireatNxUnchangedPttl = await client.pttl(key);
+    assert.ok(
+      pexpireatNxUnchangedPttl >= 59000 && pexpireatNxUnchangedPttl <= 60000,
+    );
   });
 
   it('returns null from OBJECT FREQ on missing key', async () => {

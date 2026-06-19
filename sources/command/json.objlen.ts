@@ -1,16 +1,11 @@
 import {
+  buildJsonKeyPathCommand,
   executeCommand,
   tryReplyToNumberScalarOrArray,
 } from './utils/index.ts';
 
 export function createCommand(key: string, path?: string) {
-  const command = ['JSON.OBJLEN', key];
-
-  if (path !== undefined) {
-    command.push(path);
-  }
-
-  return command;
+  return buildJsonKeyPathCommand('JSON.OBJLEN', key, path);
 }
 
 export async function jsonObjlen<T>(

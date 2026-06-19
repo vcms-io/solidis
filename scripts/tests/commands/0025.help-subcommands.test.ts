@@ -30,29 +30,45 @@ describe('help-subcommands', () => {
   it('returns help for ACL', async () => {
     const help = await client.aclHelp();
 
-    assert.ok(Array.isArray(help));
-    assert.ok(help.length > 0);
+    assert.ok(help.length >= 2, 'ACL HELP must return multiple lines');
+    assert.ok(
+      help.every((line) => typeof line === 'string'),
+      'every ACL HELP line must be a string',
+    );
+    assert.ok(
+      help.some((line) => line.toUpperCase().includes('CAT')),
+      'ACL HELP must mention the CAT subcommand',
+    );
   });
 
   it('returns help for CLIENT', async () => {
     const help = await client.clientHelp();
 
-    assert.ok(Array.isArray(help));
-    assert.ok(help.length > 0);
+    assert.ok(help.length >= 2, 'CLIENT HELP must return multiple lines');
+    assert.ok(
+      help.some((line) => line.toUpperCase().includes('SETNAME')),
+      'CLIENT HELP must mention the SETNAME subcommand',
+    );
   });
 
   it('returns help for COMMAND', async () => {
     const help = await client.commandHelp();
 
-    assert.ok(Array.isArray(help));
-    assert.ok(help.length > 0);
+    assert.ok(help.length >= 2, 'COMMAND HELP must return multiple lines');
+    assert.ok(
+      help.some((line) => line.toUpperCase().includes('COUNT')),
+      'COMMAND HELP must mention the COUNT subcommand',
+    );
   });
 
   it('returns help for CONFIG', async () => {
     const help = await client.configHelp();
 
-    assert.ok(Array.isArray(help));
-    assert.ok(help.length > 0);
+    assert.ok(help.length >= 2, 'CONFIG HELP must return multiple lines');
+    assert.ok(
+      help.some((line) => line.toUpperCase().includes('GET')),
+      'CONFIG HELP must mention the GET subcommand',
+    );
   });
 
   it('returns help for FUNCTION', async (context) => {
@@ -63,70 +79,100 @@ describe('help-subcommands', () => {
 
     const help = await client.functionHelp();
 
-    assert.ok(Array.isArray(help));
-    assert.ok(help.length > 0);
+    assert.ok(help.length >= 2, 'FUNCTION HELP must return multiple lines');
+    assert.ok(
+      help.some((line) => line.toUpperCase().includes('LOAD')),
+      'FUNCTION HELP must mention the LOAD subcommand',
+    );
   });
 
   it('returns help for LATENCY', async () => {
     const help = await client.latencyHelp();
 
-    assert.ok(Array.isArray(help));
-    assert.ok(help.length > 0);
+    assert.ok(help.length >= 2, 'LATENCY HELP must return multiple lines');
+    assert.ok(
+      help.some((line) => line.toUpperCase().includes('LATEST')),
+      'LATENCY HELP must mention the LATEST subcommand',
+    );
   });
 
   it('returns help for MEMORY', async () => {
     const help = await client.memoryHelp();
 
-    assert.ok(Array.isArray(help));
-    assert.ok(help.length > 0);
+    assert.ok(help.length >= 2, 'MEMORY HELP must return multiple lines');
+    assert.ok(
+      help.some((line) => line.toUpperCase().includes('USAGE')),
+      'MEMORY HELP must mention the USAGE subcommand',
+    );
   });
 
   it('returns help for MODULE', async () => {
     const help = await client.moduleHelp();
 
-    assert.ok(Array.isArray(help));
-    assert.ok(help.length > 0);
+    assert.ok(help.length >= 2, 'MODULE HELP must return multiple lines');
+    assert.ok(
+      help.some((line) => line.toUpperCase().includes('LIST')),
+      'MODULE HELP must mention the LIST subcommand',
+    );
   });
 
   it('returns help for OBJECT', async () => {
     const help = await client.objectHelp();
 
-    assert.ok(Array.isArray(help));
-    assert.ok(help.length > 0);
+    assert.ok(help.length >= 2, 'OBJECT HELP must return multiple lines');
+    assert.ok(
+      help.some((line) => line.toUpperCase().includes('ENCODING')),
+      'OBJECT HELP must mention the ENCODING subcommand',
+    );
   });
 
   it('returns help for PUBSUB', async () => {
     const help = await client.pubsubHelp();
 
-    assert.ok(Array.isArray(help));
-    assert.ok(help.length > 0);
+    assert.ok(help.length >= 2, 'PUBSUB HELP must return multiple lines');
+    assert.ok(
+      help.some((line) => line.toUpperCase().includes('CHANNELS')),
+      'PUBSUB HELP must mention the CHANNELS subcommand',
+    );
   });
 
   it('returns help for SCRIPT', async () => {
     const help = await client.scriptHelp();
 
-    assert.ok(Array.isArray(help));
-    assert.ok(help.length > 0);
+    assert.ok(help.length >= 2, 'SCRIPT HELP must return multiple lines');
+    assert.ok(
+      help.some((line) => line.toUpperCase().includes('LOAD')),
+      'SCRIPT HELP must mention the LOAD subcommand',
+    );
   });
 
   it('returns help for SLOWLOG', async () => {
     const help = await client.slowlogHelp();
 
-    assert.ok(Array.isArray(help));
-    assert.ok(help.length > 0);
+    assert.ok(help.length >= 2, 'SLOWLOG HELP must return multiple lines');
+    assert.ok(
+      help.some((line) => line.toUpperCase().includes('GET')),
+      'SLOWLOG HELP must mention the GET subcommand',
+    );
   });
 
   it('returns help for XGROUP', async () => {
     const help = await client.xgroupHelp();
 
-    assert.ok(Array.isArray(help));
-    assert.ok(help.length > 0);
+    assert.ok(help.length >= 2, 'XGROUP HELP must return multiple lines');
+    assert.ok(
+      help.some((line) => line.toUpperCase().includes('CREATE')),
+      'XGROUP HELP must mention the CREATE subcommand',
+    );
   });
 
   it('returns help for XINFO', async () => {
     const help = await client.xinfoHelp();
 
-    assert.ok(Array.isArray(help));
-    assert.ok(help.length > 0);
+    assert.ok(help.length >= 2, 'XINFO HELP must return multiple lines');
+    assert.ok(
+      help.some((line) => line.toUpperCase().includes('STREAM')),
+      'XINFO HELP must mention the STREAM subcommand',
+    );
   });
 });

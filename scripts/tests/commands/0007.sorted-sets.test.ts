@@ -73,9 +73,13 @@ describe('sorted-sets', () => {
     ]);
 
     assert.strictEqual(await client.zrank(key, 'a'), 0);
+    assert.strictEqual(await client.zrank(key, 'b'), 1);
     assert.strictEqual(await client.zrank(key, 'c'), 2);
     assert.strictEqual(await client.zrank(key, 'absent'), null);
     assert.strictEqual(await client.zrevrank(key, 'a'), 2);
+    assert.strictEqual(await client.zrevrank(key, 'b'), 1);
+    assert.strictEqual(await client.zrevrank(key, 'c'), 0);
+    assert.strictEqual(await client.zrevrank(key, 'absent'), null);
   });
 
   it('queries by index range with and without scores', async () => {
@@ -254,18 +258,43 @@ describe('sorted-sets', () => {
 
     const single = await client.zrandmember(key);
 
-    assert.ok(typeof single === 'string');
+    if (single === null || typeof single !== 'string') {
+      assert.fail('expected non-null string from zrandmember');
+    }
     assert.ok(['a', 'b', 'c'].includes(single));
 
     const several = await client.zrandmember(key, 2);
 
-    assert.ok(Array.isArray(several));
+    if (several === null || !Array.isArray(several)) {
+      assert.fail('expected non-null array from zrandmember');
+    }
     assert.strictEqual(several.length, 2);
+    for (const member of several) {
+      if (typeof member !== 'string') {
+        assert.fail(
+          'expected string members from zrandmember without WITHSCORES',
+        );
+      }
+      assert.ok(['a', 'b', 'c'].includes(member));
+    }
+    assert.notStrictEqual(several[0], several[1]);
 
     const withScores = await client.zrandmember(key, 3, true);
 
-    assert.ok(Array.isArray(withScores));
-    assert.strictEqual(withScores.length, 3);
+    if (withScores === null || !Array.isArray(withScores)) {
+      assert.fail('expected non-null array from zrandmember with scores');
+    }
+    const sortedScores = [...withScores].sort((entryA, entryB) => {
+      if (typeof entryA === 'string' || typeof entryB === 'string') {
+        assert.fail('expected scored entries, not strings');
+      }
+      return entryA.member.localeCompare(entryB.member);
+    });
+    assert.deepStrictEqual(sortedScores, [
+      { member: 'a', score: 1 },
+      { member: 'b', score: 2 },
+      { member: 'c', score: 3 },
+    ]);
   });
 
   it('removes members and ranges', async () => {
@@ -313,44 +342,35 @@ describe('sorted-sets', () => {
     ]);
 
     assert.deepStrictEqual(await client.zdiff([first, second]), ['a']);
-    assert.deepStrictEqual([...(await client.zinter([first, second]))].sort(), [
-      'b',
-      'c',
-    ]);
-    assert.deepStrictEqual([...(await client.zunion([first, second]))].sort(), [
+    assert.deepStrictEqual(await client.zinter([first, second]), ['b', 'c']);
+    assert.deepStrictEqual(await client.zunion([first, second]), [
       'a',
+      'd',
       'b',
       'c',
-      'd',
     ]);
 
-    const diffScores = await client.zdiff([first, second], true);
+    assert.deepStrictEqual(await client.zdiff([first, second], true), [
+      { member: 'a', score: 1 },
+    ]);
 
-    assert.ok(Array.isArray(diffScores));
-    assert.ok(diffScores.length >= 1);
-    assert.ok(typeof diffScores[0] === 'object' && 'member' in diffScores[0]);
-    assert.strictEqual(typeof diffScores[0].member, 'string');
-    assert.strictEqual(typeof diffScores[0].score, 'number');
+    assert.deepStrictEqual(
+      await client.zinter([first, second], { withScores: true }),
+      [
+        { member: 'b', score: 3 },
+        { member: 'c', score: 4 },
+      ],
+    );
 
-    const interScores = await client.zinter([first, second], {
-      withScores: true,
-    });
-
-    assert.ok(Array.isArray(interScores));
-    assert.ok(interScores.length >= 1);
-    assert.ok(typeof interScores[0] === 'object' && 'member' in interScores[0]);
-    assert.strictEqual(typeof interScores[0].member, 'string');
-    assert.strictEqual(typeof interScores[0].score, 'number');
-
-    const unionScores = await client.zunion([first, second], {
-      withScores: true,
-    });
-
-    assert.ok(Array.isArray(unionScores));
-    assert.ok(unionScores.length >= 1);
-    assert.ok(typeof unionScores[0] === 'object' && 'member' in unionScores[0]);
-    assert.strictEqual(typeof unionScores[0].member, 'string');
-    assert.strictEqual(typeof unionScores[0].score, 'number');
+    assert.deepStrictEqual(
+      await client.zunion([first, second], { withScores: true }),
+      [
+        { member: 'a', score: 1 },
+        { member: 'd', score: 1 },
+        { member: 'b', score: 3 },
+        { member: 'c', score: 4 },
+      ],
+    );
   });
 
   it('computes intersection cardinality with ZINTERCARD', async (context) => {
@@ -392,36 +412,53 @@ describe('sorted-sets', () => {
       [1, 'c'],
     ]);
 
+    const diffKey = keyspace.key('algebra-store', 'diff');
+    const interKey = keyspace.key('algebra-store', 'inter');
+    const unionKey = keyspace.key('algebra-store', 'union');
+    const weightedKey = keyspace.key('algebra-store', 'weighted');
+
+    assert.strictEqual(await client.zdiffstore(diffKey, [first, second]), 1);
+    assert.deepStrictEqual(await client.zrange(diffKey, '0', '-1'), ['a']);
+    assert.strictEqual(await client.zscore(diffKey, 'a'), 1);
+
+    assert.strictEqual(await client.zinterstore(interKey, [first, second]), 2);
+    assert.deepStrictEqual(await client.zrange(interKey, '0', '-1'), [
+      'b',
+      'c',
+    ]);
+    assert.strictEqual(await client.zscore(interKey, 'b'), 3);
+    assert.strictEqual(await client.zscore(interKey, 'c'), 4);
+
     assert.strictEqual(
-      await client.zdiffstore(keyspace.key('algebra-store', 'diff'), [
-        first,
-        second,
-      ]),
-      1,
-    );
-    assert.strictEqual(
-      await client.zinterstore(keyspace.key('algebra-store', 'inter'), [
-        first,
-        second,
-      ]),
-      2,
-    );
-    assert.strictEqual(
-      await client.zunionstore(
-        keyspace.key('algebra-store', 'union'),
-        [first, second],
-        { aggregate: 'MAX' },
-      ),
+      await client.zunionstore(unionKey, [first, second], {
+        aggregate: 'MAX',
+      }),
       3,
     );
+    assert.deepStrictEqual(await client.zrange(unionKey, '0', '-1'), [
+      'a',
+      'b',
+      'c',
+    ]);
+    assert.strictEqual(await client.zscore(unionKey, 'a'), 1);
+    assert.strictEqual(await client.zscore(unionKey, 'b'), 2);
+    assert.strictEqual(await client.zscore(unionKey, 'c'), 3);
+
     assert.strictEqual(
-      await client.zunionstore(
-        keyspace.key('algebra-store', 'weighted'),
-        [first, second],
-        { weights: [2, 1], aggregate: 'SUM' },
-      ),
+      await client.zunionstore(weightedKey, [first, second], {
+        weights: [2, 1],
+        aggregate: 'SUM',
+      }),
       3,
     );
+    assert.deepStrictEqual(await client.zrange(weightedKey, '0', '-1'), [
+      'a',
+      'b',
+      'c',
+    ]);
+    assert.strictEqual(await client.zscore(weightedKey, 'a'), 2);
+    assert.strictEqual(await client.zscore(weightedKey, 'b'), 5);
+    assert.strictEqual(await client.zscore(weightedKey, 'c'), 7);
   });
 
   it('stores a range by lex with ZRANGESTORE BYLEX', async () => {
@@ -441,6 +478,10 @@ describe('sorted-sets', () => {
     );
 
     assert.strictEqual(count, 2);
+    assert.deepStrictEqual(await client.zrange(destination, '0', '-1'), [
+      'alpha',
+      'beta',
+    ]);
   });
 
   it('iterates a large sorted set with ZSCAN', async () => {
@@ -458,8 +499,13 @@ describe('sorted-sets', () => {
       }
     }
 
-    assert.strictEqual(seen.size, 400);
-    assert.strictEqual(seen.get('member-123'), 123);
+    const expectedScanMap = new Map<string, number>();
+
+    for (let index = 0; index < 400; index += 1) {
+      expectedScanMap.set(`member-${index}`, index);
+    }
+
+    assert.deepStrictEqual(seen, expectedScanMap);
   });
 
   it('returns members in reverse order with ZREVRANGE', async () => {
@@ -528,9 +574,7 @@ describe('sorted-sets', () => {
 
     const scores = await client.zmscore(key, ['a', 'missing', 'b']);
 
-    assert.strictEqual(scores[0], 1);
-    assert.strictEqual(scores[1], null);
-    assert.strictEqual(scores[2], 2);
+    assert.deepStrictEqual(scores, [1, null, 2]);
   });
 
   it('returns null from ZMPOP on empty keys', async (context) => {
@@ -558,13 +602,14 @@ describe('sorted-sets', () => {
 
     const result = await client.zmpop([key], 'MIN', 2);
 
-    assert.ok(result !== null);
-    assert.strictEqual(result.key, key);
     /** MIN pops the two lowest-scored members in ascending order. */
-    assert.deepStrictEqual(result.elements, [
-      { member: 'a', score: 1 },
-      { member: 'b', score: 2 },
-    ]);
+    assert.deepStrictEqual(result, {
+      key,
+      elements: [
+        { member: 'a', score: 1 },
+        { member: 'b', score: 2 },
+      ],
+    });
   });
 
   it('pops with ZPOPMIN count argument', async () => {
@@ -575,7 +620,6 @@ describe('sorted-sets', () => {
 
     const result = await client.zpopmin(key, 2);
 
-    assert.ok(result !== null);
     assert.deepStrictEqual(result, [
       { member: 'x', score: 1 },
       { member: 'y', score: 2 },

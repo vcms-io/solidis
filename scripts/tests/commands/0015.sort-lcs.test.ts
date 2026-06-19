@@ -145,19 +145,14 @@ describe('sort-lcs', () => {
       withmatchlen: true,
     });
 
-    assert.ok(
-      typeof result === 'object' && result !== null && 'length' in result,
-    );
-
-    if (
-      typeof result !== 'object' ||
-      result === null ||
-      !('length' in result)
-    ) {
-      return;
+    if (typeof result === 'string' || typeof result === 'number') {
+      assert.fail('expected LCS match result with idx, not simple reply');
     }
-
     assert.strictEqual(result.length, 6);
-    assert.ok(result.matches.length > 0);
+    assert.strictEqual(result.matches.length, 2);
+    assert.deepStrictEqual(result.matches, [
+      { a: [4, 7], b: [5, 8], length: 4 },
+      { a: [2, 3], b: [0, 1], length: 2 },
+    ]);
   });
 });

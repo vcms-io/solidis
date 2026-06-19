@@ -5,10 +5,10 @@ import { describe, it } from 'node:test';
 
 import {
   RespError,
-  RespPush,
   SolidisDefaultOptions,
   SolidisParser,
 } from '../../../sources/index.ts';
+import { RespPush } from '../../../sources/types/resp.ts';
 
 import type { SolidisData } from '../../../sources/index.ts';
 
@@ -33,7 +33,9 @@ describe('parser', () => {
   it('parses an error into a RespError', async () => {
     const [reply] = await parseOnce(bytes('-ERR something failed\r\n'));
 
-    assert.ok(reply instanceof RespError);
+    if (!(reply instanceof RespError)) {
+      assert.fail('expected a RespError for error reply');
+    }
     assert.strictEqual(reply.message, 'ERR something failed');
   });
 
@@ -46,8 +48,7 @@ describe('parser', () => {
   it('parses a bulk string into a Buffer', async () => {
     const [reply] = await parseOnce(bytes('$5\r\nhello\r\n'));
 
-    assert.ok(Buffer.isBuffer(reply));
-    assert.strictEqual(reply.toString(), 'hello');
+    assert.deepStrictEqual(reply, bytes('hello'));
   });
 
   it('keeps CRLF inside a bulk payload (binary safe)', async () => {
@@ -56,8 +57,7 @@ describe('parser', () => {
 
     const [reply] = await parseOnce(frame);
 
-    assert.ok(Buffer.isBuffer(reply));
-    assert.strictEqual(reply.equals(payload), true);
+    assert.deepStrictEqual(reply, payload);
   });
 
   it('parses every byte value inside a bulk payload', async () => {
@@ -72,8 +72,7 @@ describe('parser', () => {
 
     const [reply] = await parseOnce(frame);
 
-    assert.ok(Buffer.isBuffer(reply));
-    assert.strictEqual(reply.equals(payload), true);
+    assert.deepStrictEqual(reply, payload);
   });
 
   it('parses null and empty bulk strings', async () => {
@@ -81,8 +80,7 @@ describe('parser', () => {
 
     const [empty] = await parseOnce(bytes('$0\r\n\r\n'));
 
-    assert.ok(Buffer.isBuffer(empty));
-    assert.strictEqual(empty.length, 0);
+    assert.deepStrictEqual(empty, Buffer.alloc(0));
   });
 
   it('parses flat and nested arrays', async () => {
@@ -94,20 +92,7 @@ describe('parser', () => {
       bytes('*2\r\n*2\r\n:1\r\n:2\r\n$3\r\nfoo\r\n'),
     );
 
-    assert.ok(Array.isArray(nested));
-
-    if (!Array.isArray(nested)) {
-      return;
-    }
-
-    assert.deepStrictEqual(nested[0], [1, 2]);
-    assert.ok(Buffer.isBuffer(nested[1]));
-
-    if (!Buffer.isBuffer(nested[1])) {
-      return;
-    }
-
-    assert.strictEqual(nested[1].toString(), 'foo');
+    assert.deepStrictEqual(nested, [[1, 2], bytes('foo')]);
   });
 
   it('parses null and empty arrays', async () => {
@@ -137,7 +122,6 @@ describe('parser', () => {
       bytes('(3492890328409238509324850943850943825024385\r\n'),
     );
 
-    assert.strictEqual(typeof reply, 'bigint');
     assert.strictEqual(reply, 3492890328409238509324850943850943825024385n);
   });
 
@@ -150,23 +134,36 @@ describe('parser', () => {
   it('parses a RESP3 map into a Map', async () => {
     const [reply] = await parseOnce(bytes('%2\r\n+a\r\n:1\r\n+b\r\n:2\r\n'));
 
-    assert.ok(reply instanceof Map);
-    assert.strictEqual(reply.get('a'), 1);
-    assert.strictEqual(reply.get('b'), 2);
+    if (!(reply instanceof Map)) {
+      assert.fail('expected a Map for RESP3 map reply');
+    }
+    assert.deepStrictEqual(
+      [...reply],
+      [
+        ['a', 1],
+        ['b', 2],
+      ],
+    );
   });
 
   it('parses a RESP3 set into a Set', async () => {
     const [reply] = await parseOnce(bytes('~3\r\n:1\r\n:2\r\n:3\r\n'));
 
-    assert.ok(reply instanceof Set);
-    assert.strictEqual(reply.size, 3);
+    if (!(reply instanceof Set)) {
+      assert.fail('expected a Set for RESP3 set reply');
+    }
+    assert.deepStrictEqual([...reply].sort(), [1, 2, 3]);
   });
 
   it('parses a RESP3 push message', async () => {
     const [reply] = await parseOnce(bytes('>2\r\n+pubsub\r\n+hello\r\n'));
 
-    assert.ok(reply instanceof RespPush);
+    if (!(reply instanceof RespPush)) {
+      assert.fail('expected a RespPush instance for RESP3 push reply');
+    }
     assert.strictEqual(reply.length, 2);
+    assert.strictEqual(reply[0], 'pubsub');
+    assert.strictEqual(reply[1], 'hello');
   });
 
   it('ignores attributes and surfaces the following reply', async () => {
@@ -192,8 +189,7 @@ describe('parser', () => {
 
     const [reply] = await parser.queueParse(bytes('lo\r\n'));
 
-    assert.ok(Buffer.isBuffer(reply));
-    assert.strictEqual(reply.toString(), 'hello');
+    assert.deepStrictEqual(reply, bytes('hello'));
   });
 
   it('reassembles a frame delivered one byte at a time', async () => {
@@ -207,20 +203,7 @@ describe('parser', () => {
     }
 
     assert.strictEqual(collected.length, 1);
-    assert.ok(Array.isArray(collected[0]));
-
-    if (!Array.isArray(collected[0])) {
-      return;
-    }
-
-    assert.ok(Buffer.isBuffer(collected[0][0]));
-
-    if (!Buffer.isBuffer(collected[0][0])) {
-      return;
-    }
-
-    assert.strictEqual(collected[0][0].toString(), 'foo');
-    assert.strictEqual(collected[0][1], 42);
+    assert.deepStrictEqual(collected[0], [bytes('foo'), 42]);
   });
 
   it('grows its internal buffer for a multi-megabyte bulk', async () => {
@@ -234,9 +217,7 @@ describe('parser', () => {
 
     const [reply] = await parseOnce(frame);
 
-    assert.ok(Buffer.isBuffer(reply));
-    assert.strictEqual(reply.length, size);
-    assert.strictEqual(reply.equals(payload), true);
+    assert.deepStrictEqual(reply, payload);
   });
 
   it('parses a deeply nested array without overflowing', async () => {
@@ -255,10 +236,6 @@ describe('parser', () => {
     for (let level = 0; level < depth; level += 1) {
       assert.ok(Array.isArray(cursor));
 
-      if (!Array.isArray(cursor)) {
-        return;
-      }
-
       cursor = cursor[0];
     }
 
@@ -266,22 +243,27 @@ describe('parser', () => {
   });
 
   it('rejects an unknown type prefix', async () => {
-    await assert.rejects(parseOnce(bytes('@bogus\r\n')), /Unknown prefix/i);
+    await assert.rejects(parseOnce(bytes('@bogus\r\n')), {
+      message: "Unknown prefix '@' in Solidis response",
+    });
   });
 
   it('rejects an integer with a missing LF', async () => {
-    await assert.rejects(parseOnce(bytes(':12\r3\r\n')), /CRLF/i);
+    await assert.rejects(parseOnce(bytes(':12\r3\r\n')), {
+      message: 'Integer parse error: missing CRLF',
+    });
   });
 
   it('rejects a simple string with a bare CR', async () => {
-    await assert.rejects(parseOnce(bytes('+OK\rX\r\n')), /CRLF/i);
+    await assert.rejects(parseOnce(bytes('+OK\rX\r\n')), {
+      message: 'SimpleString parse error: missing CRLF',
+    });
   });
 
   it('discards a valid reply when a later frame is corrupt', async () => {
-    await assert.rejects(
-      parseOnce(bytes('+good\r\n@evil\r\n')),
-      /Unknown prefix/i,
-    );
+    await assert.rejects(parseOnce(bytes('+good\r\n@evil\r\n')), {
+      message: "Unknown prefix '@' in Solidis response",
+    });
   });
 
   it('waits for more data on an incomplete frame', async () => {

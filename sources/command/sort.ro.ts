@@ -1,4 +1,5 @@
 import {
+  buildSortCommand,
   executeCommand,
   tryReplyToNullableStringArray,
 } from './utils/index.ts';
@@ -6,37 +7,7 @@ import {
 import type { CommandSortOptions } from '../index.ts';
 
 export function createCommand(key: string, options?: CommandSortOptions) {
-  const command = ['SORT_RO', key];
-
-  if (options) {
-    if (options.by !== undefined) {
-      command.push('BY', options.by);
-    }
-
-    if (options.limit) {
-      command.push(
-        'LIMIT',
-        `${options.limit.offset}`,
-        `${options.limit.count}`,
-      );
-    }
-
-    if (options.get) {
-      for (const pattern of options.get) {
-        command.push('GET', pattern);
-      }
-    }
-
-    if (options.order) {
-      command.push(options.order);
-    }
-
-    if (options.alpha) {
-      command.push('ALPHA');
-    }
-  }
-
-  return command;
+  return buildSortCommand('SORT_RO', key, options);
 }
 
 export async function sortRo<T>(

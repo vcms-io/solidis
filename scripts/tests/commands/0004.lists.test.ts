@@ -40,6 +40,7 @@ describe('lists', () => {
     assert.strictEqual(await client.lpop(key), 'a');
     assert.strictEqual(await client.rpop(key), 'c');
     assert.strictEqual(await client.llen(key), 1);
+    assert.deepStrictEqual(await client.lrange(key, 0, -1), ['b']);
   });
 
   it('only pushes onto existing lists with *PUSHX', async () => {
@@ -128,6 +129,7 @@ describe('lists', () => {
     await client.rpush(source, 'a', 'b', 'c');
 
     assert.strictEqual(await client.rpoplpush(source, destination), 'c');
+    assert.deepStrictEqual(await client.lrange(source, 0, -1), ['a', 'b']);
     assert.deepStrictEqual(await client.lrange(destination, 0, -1), ['c']);
   });
 
@@ -141,10 +143,14 @@ describe('lists', () => {
       await client.lmove(source, destination, 'LEFT', 'RIGHT'),
       'a',
     );
+    assert.deepStrictEqual(await client.lrange(source, 0, -1), ['b', 'c']);
+    assert.deepStrictEqual(await client.lrange(destination, 0, -1), ['a']);
+
     assert.strictEqual(
       await client.lmove(source, destination, 'RIGHT', 'LEFT'),
       'c',
     );
+    assert.deepStrictEqual(await client.lrange(source, 0, -1), ['b']);
     assert.deepStrictEqual(await client.lrange(destination, 0, -1), ['c', 'a']);
   });
 

@@ -1,7 +1,6 @@
 import {
   executeCommand,
-  tryReplyToKeyElementsOrNull,
-  tryReplyToSortedSetMembers,
+  tryReplyToKeySortedSetMembersOrNull,
 } from './utils/index.ts';
 
 import type { CommandMinOrMaxOption, RespSortedSetMember } from '../index.ts';
@@ -34,7 +33,6 @@ export async function bzmpop<T>(
   return await executeCommand(
     this,
     createCommand(timeout, keys, where, count),
-    (reply, command) =>
-      tryReplyToKeyElementsOrNull(reply, command, tryReplyToSortedSetMembers),
+    tryReplyToKeySortedSetMembersOrNull,
   );
 }

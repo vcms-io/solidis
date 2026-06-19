@@ -51,6 +51,15 @@ describe('geo', () => {
     };
 
     assert.strictEqual(await client.geoadd(key, [updated], { nx: true }), 0);
+
+    const positions = await client.geopos(key, ['Palermo']);
+
+    assert.ok(positions[0] !== null, 'Palermo must still exist after NX no-op');
+
+    assert.ok(
+      Math.abs(positions[0].longitude - palermo.longitude) < 0.01,
+      `NX must not change existing coordinates; longitude=${positions[0].longitude}`,
+    );
   });
 
   it('adds members with XX option (only update existing)', async () => {
@@ -65,6 +74,14 @@ describe('geo', () => {
     };
 
     assert.strictEqual(await client.geoadd(key, [newMember], { xx: true }), 0);
+
+    const romePosition = await client.geopos(key, ['Rome']);
+
+    assert.strictEqual(
+      romePosition[0],
+      null,
+      'XX must not add a new member that did not exist before',
+    );
   });
 
   it('adds members with CH option (return changed count)', async () => {
@@ -92,9 +109,11 @@ describe('geo', () => {
     const positions = await client.geopos(key, ['Palermo', 'Missing']);
 
     assert.strictEqual(positions.length, 2);
-    assert.notStrictEqual(positions[0], undefined);
-    assertCloseTo(positions[0]?.longitude ?? 0, palermo.longitude, 3);
-    assertCloseTo(positions[0]?.latitude ?? 0, palermo.latitude, 3);
+    if (positions[0] === null) {
+      assert.fail('expected non-null position for Palermo');
+    }
+    assertCloseTo(positions[0].longitude, palermo.longitude, 3);
+    assertCloseTo(positions[0].latitude, palermo.latitude, 3);
     assert.strictEqual(positions[1], null);
   });
 
@@ -104,14 +123,16 @@ describe('geo', () => {
     await seed(key);
 
     const meters = await client.geodist(key, 'Palermo', 'Catania');
-
-    assert.ok(meters !== null && meters > 160000);
-    assert.ok(meters !== null && meters < 170000);
+    if (meters === null) {
+      assert.fail('expected non-null distance in meters');
+    }
+    assertCloseTo(meters, 166274.1516, 0);
 
     const kilometers = await client.geodist(key, 'Palermo', 'Catania', 'KM');
-
-    assert.ok(kilometers !== null && kilometers > 160);
-    assert.ok(kilometers !== null && kilometers < 170);
+    if (kilometers === null) {
+      assert.fail('expected non-null distance in kilometers');
+    }
+    assertCloseTo(kilometers, 166.2742, 1);
 
     assert.strictEqual(await client.geodist(key, 'Palermo', 'Missing'), null);
   });
@@ -124,7 +145,8 @@ describe('geo', () => {
     const hashes = await client.geohash(key, ['Palermo', 'Catania']);
 
     assert.strictEqual(hashes.length, 2);
-    assert.ok(hashes[0] !== null && /^[0-9a-z]+$/.test(hashes[0]));
+    assert.strictEqual(hashes[0], 'sqc8b49rny0');
+    assert.strictEqual(hashes[1], 'sqdtr74hyu0');
   });
 
   it('searches within a radius', async () => {
@@ -140,8 +162,7 @@ describe('geo', () => {
 
     const members = results.map((entry) => entry.member);
 
-    assert.ok(members.includes('Catania'));
-    assert.ok(members.includes('Palermo'));
+    assert.deepStrictEqual([...members].sort(), ['Catania', 'Palermo']);
   });
 
   it('searches within a bounding box with projections', async () => {
@@ -156,14 +177,29 @@ describe('geo', () => {
       { withCoord: true, withDist: true, asc: true },
     );
 
-    assert.ok(results.length > 0);
+    assert.strictEqual(results.length, 2);
+
     assert.strictEqual(results[0].member, 'Catania');
-    assert.strictEqual(typeof results[0].distance, 'number');
-    assert.ok(
-      typeof results[0].distance === 'number' && results[0].distance > 0,
-    );
-    assertCloseTo(results[0].position?.longitude ?? 0, catania.longitude, 2);
-    assertCloseTo(results[0].position?.latitude ?? 0, catania.latitude, 2);
+    if (results[0].distance === undefined) {
+      assert.fail('expected distance for Catania');
+    }
+    assertCloseTo(results[0].distance, 56.4413, 1);
+    if (results[0].position === undefined) {
+      assert.fail('expected position for Catania');
+    }
+    assertCloseTo(results[0].position.longitude, catania.longitude, 2);
+    assertCloseTo(results[0].position.latitude, catania.latitude, 2);
+
+    assert.strictEqual(results[1].member, 'Palermo');
+    if (results[1].distance === undefined) {
+      assert.fail('expected distance for Palermo');
+    }
+    assertCloseTo(results[1].distance, 190.4424, 1);
+    if (results[1].position === undefined) {
+      assert.fail('expected position for Palermo');
+    }
+    assertCloseTo(results[1].position.longitude, palermo.longitude, 2);
+    assertCloseTo(results[1].position.latitude, palermo.latitude, 2);
   });
 
   it('searches from an existing member', async () => {
@@ -177,7 +213,10 @@ describe('geo', () => {
       { byradius: { radius: 200, unit: 'KM' } },
     );
 
-    assert.ok(results.map((entry) => entry.member).includes('Palermo'));
+    assert.deepStrictEqual([...results.map((entry) => entry.member)].sort(), [
+      'Catania',
+      'Palermo',
+    ]);
   });
 
   it('queries with GEORADIUS', async () => {
@@ -186,17 +225,12 @@ describe('geo', () => {
     await seed(key);
 
     const results = await client.georadius(key, 15, 37, 200, 'KM');
-
-    assert.ok(Array.isArray(results));
-
-    if (!Array.isArray(results)) {
-      return;
+    if (typeof results === 'number') {
+      assert.fail('expected an array of geo entries, not a STORE count');
     }
-
     const members = results.map((entry) => entry.member);
 
-    assert.ok(members.includes('Catania'));
-    assert.ok(members.includes('Palermo'));
+    assert.deepStrictEqual([...members].sort(), ['Catania', 'Palermo']);
   });
 
   it('queries with GEORADIUSBYMEMBER', async () => {
@@ -205,17 +239,14 @@ describe('geo', () => {
     await seed(key);
 
     const results = await client.georadiusbymember(key, 'Palermo', 200, 'KM');
-
-    assert.ok(Array.isArray(results));
-
-    if (!Array.isArray(results)) {
-      return;
+    if (typeof results === 'number') {
+      assert.fail('expected an array of geo entries, not a STORE count');
     }
 
-    const members = results.map((entry) => entry.member);
-
-    assert.ok(members.includes('Palermo'));
-    assert.ok(members.includes('Catania'));
+    assert.deepStrictEqual([...results.map((entry) => entry.member)].sort(), [
+      'Catania',
+      'Palermo',
+    ]);
   });
 
   it('stores results with GEOSEARCHSTORE', async () => {
@@ -231,12 +262,20 @@ describe('geo', () => {
       { byradius: { radius: 200, unit: 'KM' } },
     );
 
-    assert.ok(stored >= 2);
+    assert.strictEqual(stored, 2);
 
     const positions = await client.geopos(destination, ['Palermo', 'Catania']);
 
-    assert.notStrictEqual(positions[0], null);
-    assert.notStrictEqual(positions[1], null);
+    if (positions[0] === null) {
+      assert.fail('expected non-null position for Palermo');
+    }
+    assertCloseTo(positions[0].longitude, palermo.longitude, 3);
+    assertCloseTo(positions[0].latitude, palermo.latitude, 3);
+    if (positions[1] === null) {
+      assert.fail('expected non-null position for Catania');
+    }
+    assertCloseTo(positions[1].longitude, catania.longitude, 3);
+    assertCloseTo(positions[1].latitude, catania.latitude, 3);
   });
 
   it('queries read-only with GEORADIUS_RO', async () => {
@@ -246,7 +285,6 @@ describe('geo', () => {
 
     const results = await client.georadiusRo(key, 15, 37, 200, 'KM');
 
-    assert.ok(Array.isArray(results));
     assert.deepStrictEqual(results.map((entry) => entry.member).sort(), [
       'Catania',
       'Palermo',
@@ -260,7 +298,6 @@ describe('geo', () => {
 
     const results = await client.georadiusbymemberRo(key, 'Palermo', 200, 'KM');
 
-    assert.ok(Array.isArray(results));
     assert.deepStrictEqual(results.map((entry) => entry.member).sort(), [
       'Catania',
       'Palermo',
@@ -279,7 +316,10 @@ describe('geo', () => {
 
     /** Both seeded cities fall within 200km of (15, 37). */
     assert.strictEqual(result, 2);
-    assert.strictEqual(await client.zcard(destination), 2);
+    assert.deepStrictEqual(
+      [...(await client.zrange(destination, '0', '-1'))].sort(),
+      ['Catania', 'Palermo'],
+    );
   });
 
   it('stores GEORADIUSBYMEMBER results with STOREDIST option', async () => {
@@ -294,7 +334,15 @@ describe('geo', () => {
 
     /** Catania is ~166km from Palermo, so both land in the destination set. */
     assert.strictEqual(result, 2);
-    assert.strictEqual(await client.zcard(destination), 2);
+    assert.deepStrictEqual(
+      await client.zrange(destination, '0', '-1', {
+        withScores: true,
+      }),
+      [
+        { member: 'Palermo', score: 0 },
+        { member: 'Catania', score: 166.27415156960032 },
+      ],
+    );
   });
 
   it('returns null for missing member in GEOHASH', async () => {
@@ -305,7 +353,7 @@ describe('geo', () => {
     const hashes = await client.geohash(key, ['Palermo', 'NonExistent']);
 
     assert.strictEqual(hashes.length, 2);
-    assert.strictEqual(typeof hashes[0], 'string');
+    assert.strictEqual(hashes[0], 'sqc8b49rny0');
     assert.strictEqual(hashes[1], null);
   });
 
@@ -324,23 +372,32 @@ describe('geo', () => {
       { withCoord: true, withDist: true, withHash: true, asc: true },
     );
 
-    assert.ok(Array.isArray(results));
     assert.strictEqual(results.length, 2);
 
-    /** asc orders by distance; Catania (~56km) is nearer than Palermo (~166km). */
-    const [entry] = results;
+    /** asc orders by distance; Catania (~56km) is nearer than Palermo (~190km). */
+    assert.strictEqual(results[0].member, 'Catania');
+    if (results[0].distance === undefined) {
+      assert.fail('expected distance for Catania');
+    }
+    assertCloseTo(results[0].distance, 56.4413, 1);
+    assert.strictEqual(results[0].hash, 3479447370796909);
+    if (results[0].position === undefined) {
+      assert.fail('expected position for Catania');
+    }
+    assertCloseTo(results[0].position.longitude, 15.087269, 2);
+    assertCloseTo(results[0].position.latitude, 37.502669, 2);
 
-    assert.strictEqual(entry.member, 'Catania');
-    assert.strictEqual(typeof entry.distance, 'number');
-    assert.ok(
-      entry.distance !== undefined &&
-        entry.distance > 40 &&
-        entry.distance < 80,
-    );
-    assert.strictEqual(typeof entry.hash, 'number');
-    assert.ok(entry.position !== undefined);
-    assertCloseTo(entry.position?.longitude ?? 0, 15.087269, 2);
-    assertCloseTo(entry.position?.latitude ?? 0, 37.502669, 2);
+    assert.strictEqual(results[1].member, 'Palermo');
+    if (results[1].distance === undefined) {
+      assert.fail('expected distance for Palermo');
+    }
+    assertCloseTo(results[1].distance, 190.4424, 1);
+    assert.strictEqual(results[1].hash, 3479099956230698);
+    if (results[1].position === undefined) {
+      assert.fail('expected position for Palermo');
+    }
+    assertCloseTo(results[1].position.longitude, 13.361389, 2);
+    assertCloseTo(results[1].position.latitude, 38.115556, 2);
   });
 
   it('builds GEORADIUS with COUNT/ANY/ASC options', async () => {
@@ -357,12 +414,21 @@ describe('geo', () => {
       withHash: true,
     });
 
-    assert.ok(command.includes('COUNT'));
-    assert.ok(command.includes('ANY'));
-    assert.ok(command.includes('ASC'));
-    assert.ok(command.includes('WITHCOORD'));
-    assert.ok(command.includes('WITHDIST'));
-    assert.ok(command.includes('WITHHASH'));
+    assert.deepStrictEqual(command, [
+      'GEORADIUS',
+      'key',
+      '15',
+      '37',
+      '200',
+      'km',
+      'WITHCOORD',
+      'WITHDIST',
+      'WITHHASH',
+      'COUNT',
+      '5',
+      'ANY',
+      'ASC',
+    ]);
   });
 
   it('builds GEORADIUS with DESC and STOREDIST options', async () => {
@@ -375,8 +441,17 @@ describe('geo', () => {
       storedist: 'destination',
     });
 
-    assert.ok(command.includes('DESC'));
-    assert.ok(command.includes('STOREDIST'));
+    assert.deepStrictEqual(command, [
+      'GEORADIUS',
+      'key',
+      '15',
+      '37',
+      '200',
+      'km',
+      'DESC',
+      'STOREDIST',
+      'destination',
+    ]);
   });
 
   it('builds GEOSEARCH with all projections and COUNT/ANY/DESC', async () => {
@@ -398,12 +473,23 @@ describe('geo', () => {
       },
     );
 
-    assert.ok(command.includes('WITHCOORD'));
-    assert.ok(command.includes('WITHDIST'));
-    assert.ok(command.includes('WITHHASH'));
-    assert.ok(command.includes('COUNT'));
-    assert.ok(command.includes('ANY'));
-    assert.ok(command.includes('DESC'));
+    assert.deepStrictEqual(command, [
+      'GEOSEARCH',
+      'key',
+      'FROMLONLAT',
+      '15',
+      '37',
+      'BYRADIUS',
+      '100',
+      'km',
+      'WITHCOORD',
+      'WITHDIST',
+      'WITHHASH',
+      'COUNT',
+      '10',
+      'ANY',
+      'DESC',
+    ]);
   });
 
   it('builds GEOSEARCH with ASC and BYBOX options', async () => {
@@ -418,9 +504,17 @@ describe('geo', () => {
       { asc: true },
     );
 
-    assert.ok(command.includes('ASC'));
-    assert.ok(command.includes('FROMMEMBER'));
-    assert.ok(command.includes('BYBOX'));
+    assert.deepStrictEqual(command, [
+      'GEOSEARCH',
+      'key',
+      'FROMMEMBER',
+      'origin',
+      'BYBOX',
+      '200',
+      '100',
+      'km',
+      'ASC',
+    ]);
   });
 
   it('parses GeoRadius reply with dist/hash/coord projections', async () => {
@@ -435,11 +529,13 @@ describe('geo', () => {
     );
 
     assert.strictEqual(result[0].member, 'Palermo');
-    assert.ok(typeof result[0].distance === 'number');
-    assert.ok(typeof result[0].hash === 'number');
-    assert.ok(result[0].position !== undefined);
-    assert.ok(typeof result[0].position?.longitude === 'number');
-    assert.ok(typeof result[0].position?.latitude === 'number');
+    assert.strictEqual(result[0].distance, 190.44);
+    assert.strictEqual(result[0].hash, 3479099956230698);
+    if (result[0].position === undefined) {
+      assert.fail('expected position for Palermo');
+    }
+    assertCloseTo(result[0].position.longitude, 13.361389, 3);
+    assertCloseTo(result[0].position.latitude, 38.115556, 3);
   });
 
   it('parses GeoRadius reply as simple member list without options', async () => {

@@ -18,6 +18,14 @@ const parseSelector = (
   selector: SolidisData,
   command: StringOrBuffer[],
 ): RespAclSelector => {
+  if (selector instanceof Map) {
+    return {
+      commands: String(selector.get('commands') ?? ''),
+      keys: String(selector.get('keys') ?? ''),
+      channels: String(selector.get('channels') ?? ''),
+    };
+  }
+
   if (!Array.isArray(selector)) {
     throw newCommandError(`${InvalidReplyPrefix}: ${selector}`, command);
   }

@@ -1,7 +1,6 @@
 import {
   executeCommand,
-  tryReplyToKeyElementsOrNull,
-  tryReplyToSortedSetMembers,
+  tryReplyToKeySortedSetMembersOrNull,
 } from './utils/index.ts';
 
 import type { CommandMinOrMaxOption, RespSortedSetMember } from '../index.ts';
@@ -32,7 +31,6 @@ export async function zmpop<T>(
   return await executeCommand(
     this,
     createCommand(keys, where, count),
-    (reply, command) =>
-      tryReplyToKeyElementsOrNull(reply, command, tryReplyToSortedSetMembers),
+    tryReplyToKeySortedSetMembersOrNull,
   );
 }

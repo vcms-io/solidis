@@ -6,7 +6,7 @@ const MB = 1048576 as const;
 const NL = '\r\n' as const;
 
 export const SolidisDefaultOptions: SolidisClientFrozenOptions = {
-  authentication: {},
+  authentication: { username: '', password: '' },
   autoReconnect: true,
   autoRecovery: {
     database: true,
@@ -37,13 +37,14 @@ export const SolidisDefaultOptions: SolidisClientFrozenOptions = {
       initial: MB * 4,
       shiftThreshold: MB * 2,
     },
+    maxBulkStringLength: MB * 512,
   },
   port: 6379,
   protocol: 'RESP2',
   readyCheckInterval: 100,
+  maxReadyCheckRetries: 100,
   rejectOnPartialPipelineError: false,
   socketWriteTimeout: 1000,
-  useTLS: false,
 } as const;
 
 export const SolidisSymbolBytes = {
@@ -53,6 +54,7 @@ export const SolidisSymbolBytes = {
   LF: 10,
   ZERO: 48,
   LOWER_T: 116,
+  LOWER_F: 102,
 } as const;
 
 export const SolidisReplyBytes = {
@@ -113,3 +115,5 @@ export const SolidisSubscribeCommandNameSet = new Set([
   'SUNSUBSCRIBE',
   'PUNSUBSCRIBE',
 ]);
+
+export const SolidisCredentialCommandNameSet = new Set(['AUTH', 'HELLO']);

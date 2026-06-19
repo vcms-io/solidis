@@ -4,7 +4,6 @@ import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
 import {
-  assertCloseTo,
   closeClient,
   createClient,
   createKeyspace,
@@ -33,8 +32,7 @@ describe('binary-resp3', () => {
 
     const value = await client.getBuffer(key);
 
-    assert.ok(Buffer.isBuffer(value));
-    assert.strictEqual(value.equals(payload), true);
+    assert.deepStrictEqual(value, payload);
   });
 
   it('preserves embedded NUL bytes and length', async () => {
@@ -47,8 +45,7 @@ describe('binary-resp3', () => {
 
     const retrieved = await client.getBuffer(key);
 
-    assert.ok(Buffer.isBuffer(retrieved));
-    assert.strictEqual(retrieved.equals(payload), true);
+    assert.deepStrictEqual(retrieved, payload);
   });
 
   it('preserves multi-byte UTF-8 strings', async () => {
@@ -69,9 +66,7 @@ describe('binary-resp3', () => {
 
     const value = await client.getBuffer(key);
 
-    assert.ok(Buffer.isBuffer(value));
-    assert.strictEqual(value.length, 1024 * 1024);
-    assert.strictEqual(value.equals(payload), true);
+    assert.deepStrictEqual(value, payload);
   });
 
   it('stores binary field names and values in hashes', async () => {
@@ -83,8 +78,7 @@ describe('binary-resp3', () => {
 
     const reply = await client.send([['HGET', key, field]]);
 
-    assert.ok(Buffer.isBuffer(reply[0][0]));
-    assert.strictEqual(reply[0][0].equals(payload), true);
+    assert.deepStrictEqual(reply, [[payload]]);
   });
 
   it('runs core string commands under RESP3', async () => {
@@ -141,7 +135,7 @@ describe('binary-resp3', () => {
 
       await resp3.zadd(key, 3.14, 'pi');
 
-      assertCloseTo((await resp3.zscore(key, 'pi')) ?? 0, 3.14, 5);
+      assert.strictEqual(await resp3.zscore(key, 'pi'), 3.14);
     } finally {
       await closeClient(resp3);
     }

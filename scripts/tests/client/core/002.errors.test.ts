@@ -8,6 +8,8 @@ import { after, before, describe, it } from 'node:test';
 
 import { SolidisFeaturedClient } from '../../../../sources/client/featured.ts';
 import {
+  checkReplyIsMessageEvent,
+  checkReplyIsPubSubEvent,
   RespError,
   SolidisClientError,
   SolidisCommandError,
@@ -27,16 +29,19 @@ import {
   closeClient,
   createClient,
   createKeyspace,
+  detectServerCapabilities,
 } from '../../utils/index.ts';
 
-import type { FeaturedClient } from '../../utils/index.ts';
+import type { FeaturedClient, ServerCapabilities } from '../../utils/index.ts';
 
 describe('errors', () => {
   let client: FeaturedClient;
+  let capabilities: ServerCapabilities;
   const keyspace = createKeyspace('errors');
 
   before(async () => {
     client = await createClient();
+    capabilities = await detectServerCapabilities(client);
   });
 
   after(async () => {
@@ -56,9 +61,13 @@ describe('errors', () => {
       caught = error;
     }
 
-    assert.ok(caught instanceof SolidisCommandError);
-    assert.ok(caught instanceof SolidisError);
-    assert.match(`${caught.message}`, /WRONGTYPE/i);
+    if (!(caught instanceof SolidisCommandError)) {
+      assert.fail('expected SolidisCommandError for wrong-type operation');
+    }
+    assert.strictEqual(
+      caught.message,
+      `[LPUSH ${key} x] Invalid reply: RespError: WRONGTYPE Operation against a key holding the wrong kind of value`,
+    );
   });
 
   it('rejects INCR against a non-integer string', async () => {
@@ -66,13 +75,25 @@ describe('errors', () => {
 
     await client.set(key, 'not-a-number');
 
-    await assert.rejects(client.incr(key), /not an integer/i);
+    await assert.rejects(
+      client.incr(key),
+      (error: Error) =>
+        error instanceof SolidisCommandError &&
+        error.message ===
+          `[INCR ${key}] Invalid reply: RespError: ERR value is not an integer or out of range`,
+    );
   });
 
   it('surfaces raw error replies as RespError values', async () => {
     const replies = await client.send([['SUBSCRIBE']]);
 
-    assert.ok(replies[0][0] instanceof RespError);
+    if (!(replies[0][0] instanceof RespError)) {
+      assert.fail('expected RespError for SUBSCRIBE without arguments');
+    }
+    assert.strictEqual(
+      replies[0][0].message,
+      "ERR wrong number of arguments for 'subscribe' command",
+    );
   });
 
   it('isolates errors per command within a pipeline', async () => {
@@ -85,16 +106,34 @@ describe('errors', () => {
     ]);
 
     assert.strictEqual(replies[0][0], 'OK');
-    assert.ok(replies[1][0] instanceof RespError);
-    assert.strictEqual(`${replies[2][0]}`, 'value');
+    if (!(replies[1][0] instanceof RespError)) {
+      assert.fail('expected RespError for INCR on non-integer value');
+    }
+    assert.strictEqual(
+      replies[1][0].message,
+      'ERR value is not an integer or out of range',
+    );
+    assert.deepStrictEqual(replies[2][0], Buffer.from('value'));
   });
 
   it('reports unknown commands as errors', async () => {
     const replies = await client.send([['NOTACOMMAND', 'arg']]);
     const reply = replies[0][0];
 
-    assert.ok(reply instanceof RespError);
-    assert.match(`${reply.message}`, /unknown command/i);
+    if (!(reply instanceof RespError)) {
+      assert.fail('expected RespError for unknown command NOTACOMMAND');
+    }
+    if (capabilities.atLeast(7, 0)) {
+      assert.strictEqual(
+        reply.message,
+        "ERR unknown command 'NOTACOMMAND', with args beginning with: 'arg' ",
+      );
+    } else {
+      assert.strictEqual(
+        reply.message,
+        'ERR unknown command `NOTACOMMAND`, with args beginning with: `arg`, ',
+      );
+    }
   });
 
   it('times out a blocking command past commandTimeout', async () => {
@@ -105,7 +144,7 @@ describe('errors', () => {
         blocking.send([['BLPOP', keyspace.key('never-pushed'), '0']]),
         (error: Error) =>
           error instanceof SolidisRequesterError &&
-          /timed out/i.test(error.message),
+          error.message === 'Solidis command(s) timed out after 200 ms.',
       );
     } finally {
       await closeClient(blocking);
@@ -133,7 +172,13 @@ describe('errors', () => {
       caught = error;
     }
 
-    assert.ok(caught instanceof SolidisClientError);
+    if (!(caught instanceof SolidisClientError)) {
+      assert.fail('expected SolidisClientError for connection refusal');
+    }
+    assert.strictEqual(
+      caught.message,
+      'SolidisConnectionError: Error: connect ECONNREFUSED 127.0.0.1:1',
+    );
 
     failing.quit();
   });
@@ -144,10 +189,30 @@ describe('errors', () => {
 
     const chain = unwrapSolidisError(wrapped);
 
-    assert.ok(chain.length >= 2);
+    assert.deepStrictEqual(
+      chain.map((entry) => entry.message),
+      ['outer failure', 'root cause'],
+    );
+  });
+
+  it('does not produce duplicate entries when unwrapping deeply nested errors', () => {
+    const root = new Error('root cause');
+    const middle = new SolidisClientError('middle layer', root);
+    const outer = new SolidisClientError('outer layer', middle);
+
+    const chain = unwrapSolidisError(outer);
+
+    assert.deepStrictEqual(
+      chain.map((entry) => entry.message),
+      ['outer layer', 'middle layer', 'root cause'],
+    );
+
+    const uniqueMessages = new Set(chain.map((entry) => entry.message));
+
     assert.strictEqual(
-      chain.some((error) => error.message === 'root cause'),
-      true,
+      uniqueMessages.size,
+      chain.length,
+      'unwrapped chain must not contain duplicate entries',
     );
   });
 
@@ -164,7 +229,10 @@ describe('errors', () => {
       message = error instanceof Error ? error.message : `${error}`;
     }
 
-    assert.match(message, /LPUSH/);
+    assert.strictEqual(
+      message,
+      `[LPUSH ${key} x] Invalid reply: RespError: WRONGTYPE Operation against a key holding the wrong kind of value`,
+    );
   });
 
   it('creates RespError without stack', () => {
@@ -194,7 +262,6 @@ describe('errors', () => {
   it('wraps non-Error with wrapWithError', () => {
     const wrapped = wrapWithError('string error');
 
-    assert.ok(wrapped instanceof Error);
     assert.strictEqual(wrapped.message, 'string error');
 
     const passthrough = new Error('already error');
@@ -206,7 +273,11 @@ describe('errors', () => {
     const clientError = new SolidisClientError('existing');
 
     assert.strictEqual(wrapWithSolidisClientError(clientError), clientError);
-    assert.ok(wrapWithSolidisClientError('raw') instanceof SolidisClientError);
+
+    const wrappedClientError = wrapWithSolidisClientError('raw');
+
+    assert.strictEqual(wrappedClientError.message, 'raw');
+    assert.strictEqual(wrappedClientError.name, 'SolidisClientError');
 
     const connectionError = new SolidisConnectionError('existing');
 
@@ -214,14 +285,20 @@ describe('errors', () => {
       wrapWithSolidisConnectionError(connectionError),
       connectionError,
     );
-    assert.ok(
-      wrapWithSolidisConnectionError('raw') instanceof SolidisConnectionError,
-    );
+
+    const wrappedConnectionError = wrapWithSolidisConnectionError('raw');
+
+    assert.strictEqual(wrappedConnectionError.message, 'raw');
+    assert.strictEqual(wrappedConnectionError.name, 'SolidisConnectionError');
 
     const parserError = new SolidisParserError('existing');
 
     assert.strictEqual(wrapWithParserError(parserError), parserError);
-    assert.ok(wrapWithParserError('raw') instanceof SolidisParserError);
+
+    const wrappedParserError = wrapWithParserError('raw');
+
+    assert.strictEqual(wrappedParserError.message, 'raw');
+    assert.strictEqual(wrappedParserError.name, 'SolidisParserError');
 
     const requesterError = new SolidisRequesterError('existing');
 
@@ -229,14 +306,200 @@ describe('errors', () => {
       wrapWithSolidisRequesterError(requesterError),
       requesterError,
     );
-    assert.ok(
-      wrapWithSolidisRequesterError('raw') instanceof SolidisRequesterError,
-    );
+
+    const wrappedRequesterError = wrapWithSolidisRequesterError('raw');
+
+    assert.strictEqual(wrappedRequesterError.message, 'raw');
+    assert.strictEqual(wrappedRequesterError.name, 'SolidisRequesterError');
   });
 
   it('unwraps non-Error value gracefully', () => {
     const result = unwrapSolidisError('not an error');
 
     assert.deepStrictEqual(result, []);
+  });
+
+  it('rejects odd-length arrays in processPairedArray', async () => {
+    const { processPairedArray } = await import(
+      '../../../../sources/command/utils/reply.ts'
+    );
+
+    assert.throws(
+      () => processPairedArray(['key1', 'val1', 'key2'], () => {}),
+      (error: Error) =>
+        error.message === 'Invalid reply: expected even-length array, got 3',
+    );
+  });
+
+  it('does not throw a raw TypeError when escapeReply receives an empty array', async () => {
+    const { escapeReply } = await import(
+      '../../../../sources/command/utils/reply.ts'
+    );
+
+    assert.doesNotThrow(() => escapeReply([]));
+    assert.strictEqual(escapeReply([]), undefined);
+  });
+
+  it('returns false for pubsub event checks with non-buffer event names', () => {
+    assert.strictEqual(
+      checkReplyIsPubSubEvent([
+        'message',
+        Buffer.from('ch'),
+        Buffer.from('data'),
+      ]),
+      false,
+    );
+
+    assert.strictEqual(
+      checkReplyIsMessageEvent([
+        'message',
+        Buffer.from('ch'),
+        Buffer.from('data'),
+      ]),
+      false,
+    );
+  });
+
+  it('throws on invalid input to tryReplyToBoolean', async () => {
+    const { tryReplyToBoolean } = await import(
+      '../../../../sources/command/utils/reply.ts'
+    );
+
+    assert.throws(
+      () => tryReplyToBoolean('yes'),
+      (error: Error) => error.message === 'Invalid reply: yes',
+    );
+    assert.throws(
+      () => tryReplyToBoolean(42),
+      (error: Error) => error.message === 'Invalid reply: 42',
+    );
+  });
+
+  it('throws on non-array input to tryReplyToBooleanArray', async () => {
+    const { tryReplyToBooleanArray } = await import(
+      '../../../../sources/command/utils/reply.ts'
+    );
+
+    assert.throws(
+      () => tryReplyToBooleanArray('not-an-array'),
+      (error: Error) => error.message === 'Invalid reply: not-an-array',
+    );
+  });
+
+  it('handles string input and throws on invalid input for tryReplyToBinaryString', async () => {
+    const { tryReplyToBinaryString } = await import(
+      '../../../../sources/command/utils/reply.ts'
+    );
+
+    assert.strictEqual(tryReplyToBinaryString('hello'), 'hello');
+    assert.throws(
+      () => tryReplyToBinaryString(42),
+      (error: Error) => error.message === 'Invalid reply: 42',
+    );
+  });
+
+  it('throws on NaN input to tryReplyToNumber', async () => {
+    const { tryReplyToNumber } = await import(
+      '../../../../sources/command/utils/reply.ts'
+    );
+
+    assert.throws(
+      () => tryReplyToNumber('not-a-number'),
+      (error: Error) => error.message === 'Invalid reply: not-a-number',
+    );
+    assert.throws(
+      () => tryReplyToNumber({}),
+      (error: Error) => error.message === 'Invalid reply: [object Object]',
+    );
+  });
+
+  it('throws on non-array non-Map input to processPairedArray', async () => {
+    const { processPairedArray } = await import(
+      '../../../../sources/command/utils/reply.ts'
+    );
+
+    assert.throws(
+      () => processPairedArray(42, () => {}),
+      (error: Error) => error.message === 'Invalid reply: 42',
+    );
+  });
+
+  it('throws on non-array input to tryReplyArray', async () => {
+    const { tryReplyArray } = await import(
+      '../../../../sources/command/utils/reply.ts'
+    );
+
+    assert.throws(
+      () => tryReplyArray('not-an-array'),
+      (error: Error) => error.message === 'Invalid reply: not-an-array',
+    );
+    assert.throws(
+      () => tryReplyArray(42),
+      (error: Error) => error.message === 'Invalid reply: 42',
+    );
+  });
+
+  it('throws on non-array non-Set input to tryReplyToStringArray', async () => {
+    const { tryReplyToStringArray } = await import(
+      '../../../../sources/command/utils/reply.ts'
+    );
+
+    assert.throws(
+      () => tryReplyToStringArray(42),
+      (error: Error) => error.message === 'Invalid reply: 42',
+    );
+  });
+
+  it('throws on non-array input to tryReplyToSortedSetMembers', async () => {
+    const { tryReplyToSortedSetMembers } = await import(
+      '../../../../sources/command/utils/reply.ts'
+    );
+
+    assert.throws(
+      () => tryReplyToSortedSetMembers('bad'),
+      (error: Error) => error.message === 'Unexpected reply: bad',
+    );
+  });
+
+  it('throws on non-array input to tryReplyToStringsOrSortedSetMembers', async () => {
+    const { tryReplyToStringsOrSortedSetMembers } = await import(
+      '../../../../sources/command/utils/reply.ts'
+    );
+
+    assert.throws(
+      () => tryReplyToStringsOrSortedSetMembers('bad', 'ZRANGE', true),
+      (error: Error) => error.message === '[ZRANGE] Unexpected reply: bad',
+    );
+  });
+
+  it('throws on malformed BZPOPMIN tuple in tryReplyToKeyMemberScoreOrNull', async () => {
+    const { tryReplyToKeyMemberScoreOrNull } = await import(
+      '../../../../sources/command/utils/reply.ts'
+    );
+
+    assert.throws(
+      () => tryReplyToKeyMemberScoreOrNull([1, 2, 3], 'BZPOPMIN'),
+      (error: Error) => error.message === '[BZPOPMIN] Unexpected reply: 1,2,3',
+    );
+  });
+
+  it('returns true for pubsub event checks with buffer event names', () => {
+    assert.strictEqual(
+      checkReplyIsPubSubEvent([
+        Buffer.from('message'),
+        Buffer.from('ch'),
+        Buffer.from('data'),
+      ]),
+      true,
+    );
+
+    assert.strictEqual(
+      checkReplyIsMessageEvent([
+        Buffer.from('message'),
+        Buffer.from('ch'),
+        Buffer.from('data'),
+      ]),
+      true,
+    );
   });
 });

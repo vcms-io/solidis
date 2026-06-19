@@ -38,6 +38,7 @@ export class SolidisClient extends EventEmitter {
   #requester: SolidisRequester;
 
   #connectLock: Promise<unknown> | null = null;
+  #hasConnectedBefore = false;
 
   #debug?: (type: SolidisDebugLogType, message: string, data?: unknown) => void;
   #debugMemory?: SolidisDebugMemory;
@@ -56,6 +57,22 @@ export class SolidisClient extends EventEmitter {
       ...Object.fromEntries(
         Object.entries(options).filter(([_, value]) => value !== undefined),
       ),
+      authentication: {
+        ...SolidisDefaultOptions.authentication,
+        ...options.authentication,
+      },
+      autoRecovery: {
+        ...SolidisDefaultOptions.autoRecovery,
+        ...options.autoRecovery,
+      },
+      parser: {
+        ...SolidisDefaultOptions.parser,
+        ...options.parser,
+        buffer: {
+          ...SolidisDefaultOptions.parser.buffer,
+          ...options.parser?.buffer,
+        },
+      },
     };
 
     this.#setupDebug();
@@ -108,8 +125,6 @@ export class SolidisClient extends EventEmitter {
       const username = this.#options.authentication.username || url.username;
       const password = this.#options.authentication.password || url.password;
 
-      const useTLS = this.#options.useTLS || url.protocol === 'rediss:';
-
       this.#options = {
         ...this.#options,
         host,
@@ -118,7 +133,7 @@ export class SolidisClient extends EventEmitter {
           username,
           password,
         },
-        useTLS,
+        tls: this.#options.tls ?? (url.protocol === 'rediss:' ? {} : undefined),
       };
     }
 
@@ -130,20 +145,22 @@ export class SolidisClient extends EventEmitter {
 
   public get uri() {
     const { username, password } = this.#options.authentication;
-    const prefix = this.#options.useTLS ? 'rediss' : 'redis';
+    const prefix = this.#options.tls ? 'rediss' : 'redis';
 
     if (username && password) {
-      return `${prefix}://${username}:${password}@${this.#options.host}:${this.#options.port}`;
+      return `${prefix}://${username}:***@${this.#options.host}:${this.#options.port}`;
     }
 
     return `${prefix}://${this.#options.host}:${this.#options.port}`;
   }
 
   public async send(commands: StringOrBuffer[][]): Promise<SolidisData[][]> {
-    try {
-      await this.connect();
-    } catch (error) {
-      throw new SolidisClientError('Not connected with redis server.', error);
+    if (!this.#connection.isConnected || this.#connection.isQuitted) {
+      try {
+        await this.connect();
+      } catch (error) {
+        throw new SolidisClientError('Not connected with redis server.', error);
+      }
     }
 
     return await this.#requester.send(commands);
@@ -168,10 +185,13 @@ export class SolidisClient extends EventEmitter {
 
     const initializeLock = this.#setupInitializeListeners();
 
-    this.#connectLock = this.#connection.connect();
+    this.#connectLock = Promise.all([
+      initializeLock,
+      this.#connection.connect(),
+    ]);
 
     try {
-      return await Promise.all([initializeLock, this.#connectLock]);
+      return await this.#connectLock;
     } finally {
       this.#connectLock = null;
     }
@@ -252,6 +272,12 @@ export class SolidisClient extends EventEmitter {
       this.#debug?.('info', 'Solidis client initialization completed');
 
       this.emit('ready');
+
+      if (this.#hasConnectedBefore) {
+        this.emit('reconnected');
+      }
+
+      this.#hasConnectedBefore = true;
     } catch (error) {
       this.#onInitializeError(error);
     }
@@ -373,8 +399,9 @@ export class SolidisClient extends EventEmitter {
     }
   }
 
-  async #readyCheck() {
-    const { enableReadyCheck, readyCheckInterval } = this.#options;
+  async #readyCheck(attempt = 0) {
+    const { enableReadyCheck, readyCheckInterval, maxReadyCheckRetries } =
+      this.#options;
 
     if (!enableReadyCheck) {
       this.#debug?.('info', 'Skipping ready check: ready check is disabled.');
@@ -391,11 +418,19 @@ export class SolidisClient extends EventEmitter {
         return;
       }
 
+      if (attempt >= maxReadyCheckRetries) {
+        throw new SolidisClientError(
+          `Ready check failed: server still loading after ${maxReadyCheckRetries} attempts`,
+        );
+      }
+
       await new Promise((resolve) => setTimeout(resolve, readyCheckInterval));
 
-      await this.#readyCheck();
+      await this.#readyCheck(attempt + 1);
     } catch (error) {
       this.#debug?.('error', 'Ready check failed with error', error);
+
+      throw new SolidisClientError('Ready check failed', error);
     }
   }
 
@@ -433,6 +468,18 @@ export class SolidisClient extends EventEmitter {
         parameters: Array.from(pubSub.subscribedPatterns),
       }),
     ]);
+
+    if (!subscribe) {
+      pubSub.clearSubscribedChannels();
+    }
+
+    if (!ssubscribe) {
+      pubSub.clearSubscribedShardChannels();
+    }
+
+    if (!psubscribe) {
+      pubSub.clearSubscribedPatterns();
+    }
   }
 
   async #recoveryStep<

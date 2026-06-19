@@ -146,76 +146,76 @@ export default function HomePage() {
                 <tr className="border-b border-gray-700">
                   <th className="py-3 px-4 text-left">Benchmark</th>
                   <th className="py-3 px-4 text-center">Solidis</th>
-                  <th className="py-3 px-4 text-center">IoRedis</th>
+                  <th className="py-3 px-4 text-center">ioredis</th>
                   <th className="py-3 px-4 text-center">Speed Boost</th>
                 </tr>
               </thead>
               <tbody>
                 <tr className="border-b border-gray-800 hover:bg-gray-800/50">
                   <td className="py-3 px-4">
-                    <div className="font-medium">Hash</div>
-                    <div className="text-xs text-gray-400">
-                      HSET + HGET + HGETALL
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-center font-mono text-yellow-400">
-                    248.82ms
-                  </td>
-                  <td className="py-3 px-4 text-center font-mono">446.03ms</td>
-                  <td className="py-3 px-4 text-center">
-                    <span className="bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded text-sm font-medium">
-                      79% FASTER 🔥🔥
-                    </span>
-                  </td>
-                </tr>
-                <tr className="border-b border-gray-800 hover:bg-gray-800/50">
-                  <td className="py-3 px-4">
-                    <div className="font-medium">Set Operations</div>
+                    <div className="font-medium">Set Mutation</div>
                     <div className="text-xs text-gray-400">
                       SADD + SISMEMBER + SREM
                     </div>
                   </td>
                   <td className="py-3 px-4 text-center font-mono text-yellow-400">
-                    257.35ms
+                    1772ms
                   </td>
-                  <td className="py-3 px-4 text-center font-mono">444.08ms</td>
+                  <td className="py-3 px-4 text-center font-mono">3617ms</td>
                   <td className="py-3 px-4 text-center">
                     <span className="bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded text-sm font-medium">
-                      73% FASTER 🔥🔥
+                      2.0x FASTER 🔥🔥
                     </span>
                   </td>
                 </tr>
                 <tr className="border-b border-gray-800 hover:bg-gray-800/50">
                   <td className="py-3 px-4">
-                    <div className="font-medium">Expire</div>
+                    <div className="font-medium">List Range</div>
                     <div className="text-xs text-gray-400">
-                      SET + EXPIRE + TTL
+                      LPUSH + RPUSH + LRANGE
                     </div>
                   </td>
                   <td className="py-3 px-4 text-center font-mono text-yellow-400">
-                    198.11ms
+                    1854ms
                   </td>
-                  <td className="py-3 px-4 text-center font-mono">339.78ms</td>
+                  <td className="py-3 px-4 text-center font-mono">3701ms</td>
                   <td className="py-3 px-4 text-center">
                     <span className="bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded text-sm font-medium">
-                      72% FASTER 🔥🔥
+                      2.0x FASTER 🔥🔥
                     </span>
                   </td>
                 </tr>
                 <tr className="border-b border-gray-800 hover:bg-gray-800/50">
                   <td className="py-3 px-4">
-                    <div className="font-medium">Non-Transaction</div>
+                    <div className="font-medium">Hash Mutation</div>
                     <div className="text-xs text-gray-400">
-                      SET with EXPIRE + GET
+                      HMSET + HMGET + HDEL
                     </div>
                   </td>
                   <td className="py-3 px-4 text-center font-mono text-yellow-400">
-                    259.69ms
+                    1522ms
                   </td>
-                  <td className="py-3 px-4 text-center font-mono">394.34ms</td>
+                  <td className="py-3 px-4 text-center font-mono">2837ms</td>
                   <td className="py-3 px-4 text-center">
                     <span className="bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded text-sm font-medium">
-                      52% FASTER 🔥
+                      1.9x FASTER 🔥🔥
+                    </span>
+                  </td>
+                </tr>
+                <tr className="border-b border-gray-800 hover:bg-gray-800/50">
+                  <td className="py-3 px-4">
+                    <div className="font-medium">Set</div>
+                    <div className="text-xs text-gray-400">
+                      SET (1 KB payload)
+                    </div>
+                  </td>
+                  <td className="py-3 px-4 text-center font-mono text-yellow-400">
+                    746ms
+                  </td>
+                  <td className="py-3 px-4 text-center font-mono">1365ms</td>
+                  <td className="py-3 px-4 text-center">
+                    <span className="bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded text-sm font-medium">
+                      1.8x FASTER 🔥🔥
                     </span>
                   </td>
                 </tr>

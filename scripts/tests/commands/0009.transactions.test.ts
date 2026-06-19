@@ -45,7 +45,7 @@ describe('transactions', () => {
     assert.strictEqual(results[0], 'OK');
     assert.strictEqual(results[1], 1);
     assert.strictEqual(results[2], 2);
-    assert.strictEqual(`${results[3]}`, 'hello');
+    assert.deepStrictEqual(results[3], Buffer.from('hello'));
     assert.strictEqual(await client.get(counter), '2');
     assert.strictEqual(await client.get(value), 'hello');
   });
@@ -113,7 +113,7 @@ describe('transactions', () => {
 
       const results = await transaction.exec();
 
-      assert.strictEqual(results.length, 1);
+      assert.deepStrictEqual(results, [2]);
       assert.strictEqual(await client.get(key), '2');
     } finally {
       await closeClient(lockClient);
@@ -138,7 +138,7 @@ describe('transactions', () => {
 
       const results = await transaction.exec();
 
-      assert.strictEqual(results.length, 1);
+      assert.deepStrictEqual(results, ['OK']);
       assert.strictEqual(await client.get(key), 'committed');
     } finally {
       await closeClient(lockClient);
@@ -165,7 +165,7 @@ describe('transactions', () => {
          * Success yields the per-command reply list; a WATCH abort yields a
          * single null entry, in which case we retry the read-modify-write.
          */
-        if (results.length > 0 && results[0] !== null) {
+        if (results.length === 1 && results[0] === 'OK') {
           return;
         }
 
@@ -189,9 +189,37 @@ describe('transactions', () => {
   it('multi guard rejects on object without extend method', async () => {
     const { multi } = await import('../../../sources/command/multi.ts');
 
-    assert.throws(
-      () => multi.call({}),
-      (error: Error) => error.message.includes('Extend'),
-    );
+    assert.throws(() => multi.call({}), {
+      message: '[MULTI] Extend method is not implemented',
+    });
+  });
+
+  it('propagates command-building errors from the transaction proxy to exec', async () => {
+    const key = keyspace.key('propagate');
+    const transaction = client.multi();
+
+    transaction.set(key, 'value');
+    transaction.xread(['stream-a', 'stream-b'], ['0-0']);
+
+    await assert.rejects(transaction.exec(), {
+      message: '[XREAD] Keys and IDs must have the same length',
+    });
+
+    assert.strictEqual(await client.get(key), null);
+  });
+
+  it('handles discard on an empty pipeline gracefully', async () => {
+    const transaction = client.multi();
+
+    transaction.discard();
+
+    assert.deepStrictEqual(await transaction.exec(), []);
+  });
+
+  it('returns undefined when accessing a non-function property through the transaction proxy', () => {
+    const transaction = client.multi();
+    const value = (transaction as Record<string, unknown>).nonExistentProperty;
+
+    assert.strictEqual(value, undefined);
   });
 });

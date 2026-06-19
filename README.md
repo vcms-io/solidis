@@ -1,52 +1,113 @@
-<p align="center" width="100%">
-  <img src="https://resources.vcms.io/assets/solidis.png" alt="Solidis" width="300"/>
-</p>
-
-<h1 align="center">@vcms-io/solidis</h1>
+<h1 align="center"><img src="https://resources.vcms.io/assets/solidis.png" alt="Solidis" width="50"/></h1>
 
 <p align="center">
-  <b>High-performance, SOLID-structured RESP client for Redis and other RESP-compatible servers</b>
+  <b>Zero-dependency RESP client for Redis. Fastest by design.</b>
 </p>
 
 <p align="center">
-  <a href="#-overview">Overview</a> •
-  <a href="#-benchmarks">Benchmarks</a> •
-  <a href="#-key-features">Features</a> •
-  <a href="#-installation">Installation</a> •
-  <a href="#-usage">Usage</a> •
-  <a href="#%EF%B8%8F-configuration">Configuration</a> •
-  <a href="#-advanced-features">Advanced</a><br/>
-  <a href="#-extensions">Extensions</a> •
-  <a href="#%EF%B8%8F-error-handling">Errors</a> •
-  <a href="#-contributing">Contributing</a> •
-  <a href="#-license">License</a>
+  <a href="https://www.npmjs.com/package/@vcms-io/solidis"><img src="https://img.shields.io/npm/v/@vcms-io/solidis.svg?style=flat-square&labelColor=000&color=f5a623" alt="npm"></a>
+  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/coverage-98%25-brightgreen?style=flat-square&labelColor=000" alt="coverage"></a>
+  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square&labelColor=000" alt="deps"></a>
+  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/bundle-<30KB-blue?style=flat-square&labelColor=000" alt="bundle"></a>
+  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/RESP2%2FRESP3-full-orange?style=flat-square&labelColor=000" alt="RESP"></a>
+  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/ESM%2FCJS-dual-yellow?style=flat-square&labelColor=000" alt="modules"></a>
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@vcms-io/solidis"><img src="https://img.shields.io/npm/v/@vcms-io/solidis.svg" alt="npm version"></a>
-  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/TypeScript-✓-blue" alt="TypeScript"></a>
-  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/ESM/CJS-✓-yellow" alt="ESM/CJS"></a>
-  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/RESP2/RESP3-✓-orange" alt="RESP2/RESP3"></a>
-  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/Zero_Dependencies-✓-green" alt="Zero Dependencies"></a>
-  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/Min_Bundle_Size-<30KB-brightgreen" alt="Bundle Size"></a>
+  <a href="#quick-start">Quick Start</a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="#features">Features</a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="#configuration">Configuration</a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="#architecture">Architecture</a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="#extensions">Extensions</a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="./README.ko.md">한국어</a>
 </p>
 
-> **English** | [한국어](./README.ko.md)
+<br/>
 
-## 🔍 Overview
-
-<p align="center" width="100%">
-  <img src="https://resources.vcms.io/assets/bundle-graph.png" alt="Bundle size comparison" width="600"/>
+<p align="center">
+  <img src="https://resources.vcms.io/assets/bundle-graph.png" alt="Bundle size comparison" width="580"/>
 </p>
 
-Solidis is a modern RESP client built with SOLID principles, zero dependencies, and enterprise-grade performance in mind. It supports both RESP2 and RESP3 protocols and is optimized for modern JavaScript/TypeScript applications.
+<table align="center">
+<tr>
+<td align="center">🚀<br/><strong>0 deps</strong><br/><sub>zero dependencies</sub></td>
+<td align="center">📦<br/><strong>383</strong><br/><sub>commands</sub></td>
+<td align="center">🧪<br/><strong>19K+</strong><br/><sub>lines of tests</sub></td>
+<td align="center">🪶<br/><strong>&lt; 30KB</strong><br/><sub>min bundle</sub></td>
+</tr>
+</table>
 
-The library is designed for minimal bundle size with maximum type safety and performance:
+<br/>
 
-- **Pure ESM/CJS** - Support for both module systems
-- **Tree-shakable** - Import only what you need
-- **Type-safe** - Extensive TypeScript definitions for all commands
-- **Dependency-free** - Absolutely zero runtime dependencies
+## Quick Start
+
+```bash
+npm install @vcms-io/solidis
+```
+
+```typescript
+import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
+
+const client = new SolidisFeaturedClient({ host: '127.0.0.1', port: 6379 });
+
+await client.set('key', 'value');
+const value = await client.get('key');
+```
+
+> [!TIP]
+> **Need a smaller bundle?** Use `SolidisClient` with `.extend()` to import only the commands you use.
+> Minimum bundle drops to **< 30KB** with tree-shaking.
+
+<details>
+<summary>&nbsp;&nbsp;<b>Tree-shakable client</b></summary>
+
+<br/>
+
+```typescript
+import { SolidisClient } from '@vcms-io/solidis';
+import { get } from '@vcms-io/solidis/command/get';
+import { set } from '@vcms-io/solidis/command/set';
+
+import type { SolidisClientExtensions } from '@vcms-io/solidis';
+
+const extensions = { get, set } satisfies SolidisClientExtensions;
+const client = new SolidisClient({ host: '127.0.0.1', port: 6379 }).extend(extensions);
+```
+
+</details>
+
+<details>
+<summary>&nbsp;&nbsp;<b>Transactions & Pipelines</b></summary>
+
+<br/>
+
+```typescript
+// Transaction (MULTI/EXEC)
+const tx = client.multi();
+tx.set('key', 'value');
+tx.incr('counter');
+const results = await tx.exec();
+
+// Pipeline (raw)
+const results = await client.send([
+  ['set', 'a', '1'],
+  ['incr', 'counter'],
+  ['get', 'a']
+]);
+```
+
+</details>
+
+<details>
+<summary>&nbsp;&nbsp;<b>Pub/Sub</b></summary>
+
+<br/>
+
+```typescript
+client.on('message', (channel, message) => {
+  console.log(`${channel}: ${message}`);
+});
+await client.subscribe('events');
+```
+
+</details>
+
+<br/>
 
 <div id="benchmark">
 
@@ -180,210 +241,80 @@ The library is designed for minimal bundle size with maximum type safety and per
 
 </div>
 
-## ✨ Key Features
+## Features
 
-- **Lightweight**
-  - Zero dependencies
-  - Minimum bundle size < 30KB
-  - Full bundle size (with all commands) < 105KB
+<table>
+<tr>
+<td width="50%" valign="top">
 
-- **High Performance**
-  - Efficient pipeline & batch processing
-  - Minimal memory footprint (custom optimized parser)
-  - Zero-copy buffer operations
-  - Intelligent buffer management
+### ⚡ Performance
 
-- **Protocol Support**
-  - RESP2 & RESP3 protocols support
-  - Automatic protocol negotiation
-  - Binary-safe operations
-  - Full multi-byte character support
+- `setImmediate` pipeline coalescing
+- Zero-copy RESP parser (borrowed buffer slices)
+- Chunked socket writes with backpressure
+- Configurable event-loop yield points
 
-- **Advanced Features**
-  - Transaction support (MULTI/EXEC)
-  - Pipeline operations
-  - Pub/Sub functionality
-  - Automatic reconnection
-  - Command timeout handling
+</td>
+<td width="50%" valign="top">
 
-- **Type Safety**
-  - Robust TypeScript support
-  - Comprehensive type definitions
-  - Command-specific type guards
-  - Runtime reply type checking
+### 🔌 Protocol
 
-- **Extensibility**
-  - Easy to extend client with internal & external commands
-  - Customizable transaction handling
-  - Plugin architecture support
+- Full RESP2 + RESP3 wire-level implementation
+- All 17 RESP3 data types (Map, Set, Push, BigNumber, ...)
+- Automatic BigInt promotion for unsafe integers
+- Binary-safe, multi-byte character support
 
-## 📋 Requirements
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
 
-- **Runtime**: Node.js 14 or higher
-- **Development**: Node.js 22 LTS recommended for optimal stability
+### 🛡️ Reliability
 
-## 📥 Installation
+- Auto-reconnect with configurable backoff
+- Auto-recovery: SELECT, Pub/Sub subscriptions
+- Per-pipeline command timeout
+- Ready check (waits for server loading)
+- Deterministic in-flight rejection on fault
 
-```bash
-# Using npm
-npm install @vcms-io/solidis
+</td>
+<td width="50%" valign="top">
 
-# Using yarn
-yarn add @vcms-io/solidis
+### 🔒 Security
 
-# Using pnpm
-pnpm add @vcms-io/solidis
-```
+- TLS/SSL (`rediss://` or explicit `tls` option)
+- ACL username/password authentication
+- Credential masking in debug output
+- `maxBulkStringLength` oversized reply guard
 
-## 💻 Usage
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
 
-### 📦 Client Types
+### 🎯 Type Safety
 
-Solidis offers two client implementations:
+- TypeScript `strict` with per-command I/O types
+- Runtime reply guards (`tryReplyToString`, ...)
+- Structured error hierarchy + causal chain
 
-#### 1. Basic Client (SolidisClient)
+</td>
+<td width="50%" valign="top">
 
-The basic client contains minimal functionality to reduce bundle size. You need to extend it with specific commands:
+### 🧩 Extensibility
 
-```typescript
-import { SolidisClient } from '@vcms-io/solidis';
-import { get } from '@vcms-io/solidis/command/get';
-import { set } from '@vcms-io/solidis/command/set';
-import { multi } from '@vcms-io/solidis/command/multi';
+- `.extend()` for tree-shakable command composition
+- Custom commands with full client `this` binding
+- MULTI/EXEC proxy with banned-method enforcement
 
-import type { SolidisClientExtensions } from '@vcms-io/solidis';
+</td>
+</tr>
+</table>
 
-// Define extensions with type safety
-const extensions = {
-  get,
-  set,
-  multi
-} satisfies SolidisClientExtensions;
+## Configuration
 
-// Initialize client with extensions
-const client = new SolidisClient({
-  host: '127.0.0.1',
-  port: 6379
-}).extend(extensions);
-
-// Use commands
-await client.set('key', 'value');
-
-const value = await client.get('key');
-```
-
-#### 2. Featured Client (SolidisFeaturedClient)
-
-A convenience client with all RESP commands pre-loaded:
-
-```typescript
-import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
-
-// All RESP commands are pre-loaded
-const client = new SolidisFeaturedClient({
-  host: '127.0.0.1',
-  port: 6379
-});
-
-// Use any RESP command directly
-await client.set('key', 'value');
-await client.hset('hash', 'field', 'value');
-await client.lpush('list', 'item-1', 'item-2');
-```
-
-### 🔌 Connection Management
-
-```typescript
-// Create client (with lazy connect)
-const client = new SolidisClient({
-  uri: 'redis://127.0.0.1:6379',
-  lazyConnect: true
-}).extend({ get, set });
-
-// Explicitly connect when needed
-await client.connect();
-
-// Handle connection events
-client.on('connect', () => console.log('Connected to server'));
-client.on('ready', () => console.log('Client is ready for commands'));
-client.on('error', (err) => console.error('Error occurred:', err));
-client.on('end', () => console.log('Connection closed'));
-
-// Close connection when done
-client.quit();
-```
-
-### ⚙️ Basic Operations
-
-```typescript
-// Set a key
-await client.set('key', 'value');
-
-// Get a key
-const value = await client.get('key');
-
-console.log(value); // 'value'
-
-// Delete a key
-await client.del('key');
-```
-
-### 💱 Transactions
-
-```typescript
-// Start a transaction
-const transaction = client.multi();
-
-// Queue commands (no await needed)
-transaction.set('key', 'value');
-transaction.incr('counter');
-transaction.get('key');
-
-// Execute transaction
-const results = await transaction.exec();
-
-console.log(results); // [[ 'OK' ], [ 1 ], [ <Buffer 76 61 6c 75 65> ]]
-
-// Or discard a transaction if needed
-const transaction = client.multi();
-
-transaction.set('key', 'value');
-transaction.discard(); // Cancel transaction
-```
-
-### ⏩ Pipelines
-
-```typescript
-// Create commands for a pipeline
-const commands = [
-  ['set', 'pipeline', 'value'],
-  ['incr', 'counter'],
-  ['get', 'pipeline']
-];
-
-// Send commands as a pipeline
-const results = await client.send(commands);
-
-console.log(results); // [[ 'OK' ], [ 1 ], [ <Buffer 76 61 6c 75 65> ]]
-```
-
-### 📡 Pub/Sub
-
-```typescript
-// Subscribe to channels
-client.on('message', (channel, message) => {
-  console.log(`Received ${message} from ${channel}`);
-});
-
-await client.subscribe('news');
-
-// Publish from another client
-await client.publish('news', 'Hello world!');
-```
-
-## ⚙️ Configuration
-
-Solidis provides extensive configuration options:
+<details>
+<summary><b>Full options reference</b></summary>
 
 ```typescript
 const client = new SolidisClient({
@@ -391,286 +322,156 @@ const client = new SolidisClient({
   uri: 'redis://localhost:6379',
   host: '127.0.0.1',
   port: 6379,
-  useTLS: false,
+  tls: { /* tls.ConnectionOptions */ },
   lazyConnect: false,
 
-  // Authentication
-  authentication: {
-    username: 'user',
-    password: 'password'
-  },
+  // Auth
+  authentication: { username: 'user', password: 'pass' },
   database: 0,
 
   // Protocol & Recovery
   clientName: 'solidis',
-  protocol: 'RESP2',                    // 'RESP2' or 'RESP3'
+  protocol: 'RESP2',                      // 'RESP2' | 'RESP3'
   autoReconnect: true,
   enableReadyCheck: true,
+  maxReadyCheckRetries: 100,
+  readyCheckInterval: 100,
   maxConnectionRetries: 20,
   connectionRetryDelay: 100,
   autoRecovery: {
-    database: true,                     // Auto-select DB after reconnect
-    subscribe: true,                    // Auto-resubscribe to channels
-    ssubscribe: true,                   // Auto-resubscribe to shard channels
-    psubscribe: true,                   // Auto-resubscribe to patterns
+    database: true,
+    subscribe: true,
+    ssubscribe: true,
+    psubscribe: true,
   },
 
-  // Timeouts (milliseconds)
+  // Timeouts (ms)
   commandTimeout: 5000,
   connectionTimeout: 2000,
   socketWriteTimeout: 1000,
-  readyCheckInterval: 100,
 
-  // Performance Tuning
+  // Performance
   maxCommandsPerPipeline: 300,
-  maxProcessRepliesPerChunk: 4 * 1024,  // 4KB
-  maxSocketWriteSizePerOnce: 64 * 1024, // 64KB
+  maxProcessRepliesPerChunk: 4096,
+  maxProcessReplyBytesPerChunk: 8_388_608,  // 8MB
+  maxSocketWriteSizePerOnce: 65_536,        // 64KB
   rejectOnPartialPipelineError: false,
 
-  // Parser Configuration
+  // Parser
   parser: {
-    buffer: {
-      initial: 4 * 1024 * 1024,         // 4MB
-      shiftThreshold: 2 * 1024 * 1024,  // 2MB
-    },
+    buffer: { initial: 4_194_304, shiftThreshold: 2_097_152 },
+    maxBulkStringLength: 536_870_912,       // 512MB
   },
 
-  // Event Listeners
-  maxEventListenersForClient: 10 * 1024,
-  maxEventListenersForSocket: 10 * 1024,
-
-  // Debug Options
+  // Misc
+  maxEventListenersForClient: 10_240,
+  maxEventListenersForSocket: 10_240,
   debug: false,
-  debugMaxEntries: 10 * 1024,
+  debugMaxEntries: 10_240,
 });
 ```
 
-## 🚀 Advanced Features
+</details>
 
-### 🛠️ Custom Commands
+## Architecture
 
-```typescript
-import { SolidisClient } from '@vcms-io/solidis';
-import { get, set } from '@vcms-io/solidis/command';
+```mermaid
+graph TD
+  subgraph SolidisClient
+    direction LR
+    Conn[Connection<br/><sub>TCP · TLS · Reconnect</sub>]
+    Req[Requester<br/><sub>Queue · Pipeline · Timeout</sub>]
+    Parse[Parser<br/><sub>RESP2 · RESP3 · Zero-copy</sub>]
+    PS[PubSub<br/><sub>Channel · Pattern · Shard</sub>]
+    DM[Debug Memory<br/><sub>Ring buffer · Sanitized</sub>]
+  end
 
-import type { SolidisClientExtensions } from '@vcms-io/solidis';
+  Conn -->|socket data| Req
+  Req -->|raw bytes| Parse
+  Req -->|push messages| PS
+  DM -.->|injected| Conn
+  DM -.->|injected| Req
 
-// Define extensions with custom commands
-const extensions = {
-  get,
-  set,
-  // Custom command implementation
-  fill: async function(this: typeof client, keys: string[], value: string) {
-    return await Promise.all(keys.map((key) => this.set(key, value)));
-  },
-} satisfies SolidisClientExtensions;
-
-const client = new SolidisClient({
-  host: '127.0.0.1',
-  port: 6379
-}).extend(extensions);
-
-// Use custom command
-await client.fill(['key1', 'key2', 'key3'], 'value');
+  style Conn fill:#1a1a2e,stroke:#f5a623,color:#fff
+  style Req fill:#1a1a2e,stroke:#f5a623,color:#fff
+  style Parse fill:#1a1a2e,stroke:#f5a623,color:#fff
+  style PS fill:#1a1a2e,stroke:#f5a623,color:#fff
+  style DM fill:#16213e,stroke:#555,color:#aaa
 ```
 
-### ⚡ Raw Commands
+```mermaid
+sequenceDiagram
+  participant App
+  participant Client as SolidisClient
+  participant Req as Requester
+  participant Socket as TCP Socket
 
-When you need to use a command that's not yet implemented:
-
-```typescript
-// Using raw commands with send()
-const result = await client.send([['command', 'some', 'options']]);
+  App->>Client: await client.set('key', 'value')
+  Client->>Req: enqueue command
+  Note over Req: setImmediate batching
+  Req->>Socket: write pipeline chunk
+  Socket-->>Req: RESP reply bytes
+  Req-->>Client: parsed reply
+  Client-->>App: 'OK'
 ```
 
-### 🐛 Debugging
-
-Enable detailed debug logging:
+## Events
 
 ```typescript
-// Enable debug mode
-const client = new SolidisClient({
-  debug: true
-});
-
-// Listen for debug events
-client.on('debug', (entry) => {
-  console.log(`[${entry.type}] ${entry.message}`, entry.data);
-});
-
-// Alternative: environment variable
-// DEBUG=solidis node app.js
+client.on('connect', () => {});         // TCP connected
+client.on('ready', () => {});           // Auth done, ready for commands
+client.on('reconnected', () => {});     // Re-established after disconnect
+client.on('end', () => {});             // Connection closed
+client.on('error', (err) => {});        // Non-fatal error
+client.on('message', (ch, msg) => {});  // Pub/Sub message
+client.on('pmessage', (pat, ch, msg) => {});
+client.on('smessage', (ch, msg) => {}); // Shard channel
+client.on('debug', (entry) => {});      // Debug log entry
 ```
 
-## 🧩 Extensions
-
-The `@vcms-io/solidis-extensions` package provides additional functionality and utilities for Solidis clients. It includes pre-built extensions to enhance your Redis operations.
-
-### 📥 Installation
-
-```bash
-# Using npm
-npm install @vcms-io/solidis-extensions
-
-# Using yarn
-yarn add @vcms-io/solidis-extensions
-
-# Using pnpm
-pnpm add @vcms-io/solidis-extensions
-```
-
-### 📚 Available Extensions
-
-- [**SpinLock**](https://github.com/vcms-io/solidis-extensions/blob/main/sources/domains/spinlock/README.md) - A lightweight mutex implemented as a Solidis command extension
-- [**RedLock**](https://github.com/vcms-io/solidis-extensions/blob/main/sources/domains/redlock/README.md) - Fault-tolerant distributed mutex based on the Redlock algorithm
-
-Check the [extensions documentation](https://github.com/vcms-io/solidis-extensions) for detailed usage examples.
-
-## ⚠️ Error Handling
-
-Solidis provides detailed error classes for different failure modes:
+## Error Handling
 
 ```typescript
-import {
-  SolidisClientError,
-  SolidisConnectionError,
-  SolidisParserError,
-  SolidisPubSubError,
-  SolidisRequesterError,
-  unwrapSolidisError,
-} from '@vcms-io/solidis';
+import { unwrapSolidisError, SolidisConnectionError, SolidisRequesterError } from '@vcms-io/solidis';
 
 try {
   await client.set('key', 'value');
 } catch (error) {
-  // Get the root cause with stack trace
-  console.error(unwrapSolidisError(error));
-
-  // Handle specific error types
-  if (error instanceof SolidisConnectionError) {
-    console.error('Connection error:', error.message);
-  } else if (error instanceof SolidisParserError) {
-    console.error('Parser error:', error.message);
-  } else if (error instanceof SolidisClientError) {
-    console.error('Client error:', error.message);
-  }
+  const root = unwrapSolidisError(error); // full causal chain
 }
 ```
 
-## 🏗️ Structure
+> [!NOTE]
+> Every error thrown by Solidis is an instance of `SolidisError`.
+> Use `unwrapSolidisError()` to traverse the full causal chain to the root cause.
 
-```
-┌─────────────────────────────────────────────────┐
-│                  SolidisClient                  │
-│                                                 │
-│      Creates & coordinates all components       │
-│                                                 │
-│     ┌────────────────────────────────────┐      │
-│     │             Debug Memory           │      │
-│     └───────┬───────────────────┬────────┘      │
-│             ▼                   ▼               │
-│     ┌────────────────┐  ┌────────────────┐      │
-│     │   Connection   │─►│   Requester    │─┐    │
-│     └────────────────┘  └────────────────┘ │    │
-│                         ┌────────────────┐ │    │
-│                         │     Parser     │◄┤    │
-│                         └────────────────┘ │    │
-│                         ┌────────────────┐ │    │
-│                         │     PubSub     │◄┘    │
-│                         └────────────────┘      │
-│                                                 │
-└─────────────────────────────────────────────────┘
-         ┌──────────────┴─────────────┐
-         ▼                            ▼
-┌─────────────────┐       ┌───────────────────────┐
-│ SolidisClient   │       │ SolidisFeaturedClient │
-│ (needs extend)  │       │ (all commands)        │
-└─────────────────┘       └───────────────────────┘
-```
+| Error Class | When |
+|:------------|:-----|
+| `SolidisConnectionError` | TCP/TLS connect failure, timeout, reset |
+| `SolidisRequesterError` | Command timeout, pipeline rejection, write failure |
+| `SolidisParserError` | Malformed RESP, oversized bulk string |
+| `SolidisPubSubError` | Subscription lifecycle error |
 
-The Solidis structure follows a clear component separation:
-
-- **SolidisClient**: Core entry point that creates and coordinates all components
-- **Debug Memory**: Created in the client and injected into other components
-- **Connection**: Manages TCP/TLS socket connections, reconnection and recovery
-- **Requester**: Handles command pipelining & request states
-- **Parser**: Processes RESP2/RESP3 protocol with optimized buffer handling
-- **PubSub**: Maintains subscription state and is used by Requester for pub/sub events
-
-## 🔔 Event System
-
-Solidis emits the following events:
-
-```typescript
-// Connection events
-client.on('connect', () => console.log('Connected to server'));
-client.on('ready', () => console.log('Client is ready'));
-client.on('end', () => console.log('Connection closed'));
-client.on('error', (err) => console.error('Error:', err));
-
-// Pub/Sub events
-client.on('message', (channel, message) => console.log(`${channel}: ${message}`));
-client.on('pmessage', (pattern, channel, message) => console.log(`${pattern} ${channel}: ${message}`));
-client.on('subscribe', (channel, count) => console.log(`Subscribed to ${channel}`));
-client.on('unsubscribe', (channel, count) => console.log(`Unsubscribed from ${channel}`));
-
-// Debug events
-client.on('debug', (entry) => console.log(`[${entry.type}] ${entry.message}`));
-```
-
-## 🤝 Contributing
-
-Solidis is an open-source project and we welcome contributions from the community. Here's how you can contribute:
-
-### 💻 Development Setup
+## Extensions
 
 ```bash
-# Clone the repository
-git clone https://github.com/vcms-io/solidis.git
-cd solidis
-
-# Install dependencies
-npm install
-
-# Build the project
-npm run build
-
-# Run tests
-npm test
+npm install @vcms-io/solidis-extensions
 ```
 
-### 📜 Contribution Guidelines
+| Extension | Description |
+|:----------|:------------|
+| [**SpinLock**](https://github.com/vcms-io/solidis-extensions/blob/main/sources/domains/spinlock/README.md) | Lightweight Redis-backed mutex (single instance) |
+| [**RedLock**](https://github.com/vcms-io/solidis-extensions/blob/main/sources/domains/redlock/README.md) | Fault-tolerant distributed lock (Redlock algorithm) |
 
-1. **Fork the Repository**: Start by forking the repository and then clone your fork.
+## Contributing
 
-2. **Create a Branch**: Create a branch for your feature or bugfix:
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
+```bash
+git clone https://github.com/vcms-io/solidis.git && cd solidis
+npm install && npm run build && npm test
+```
 
-3. **Follow Code Style**:
-   - Use TypeScript strict mode
-   - Follow existing patterns and naming conventions
+<sub>TypeScript strict · zero new deps · minimal bundle impact · SemVer</sub>
 
-4. **Submit Pull Request**: Push your changes to your fork and submit a pull request.
-   - Provide a clear description of the changes
-   - Reference any related issues
-   - Add appropriate documentation
+## License
 
-### ✅ Code Quality Guidelines
-
-- **TypeScript**: Use strict typing and avoid `any` types and `as` cast where possible
-- **Dependencies**: Avoid adding new dependencies unless absolutely necessary
-- **Performance**: Consider performance implications of your changes
-- **Bundle Size**: Keep the bundle size minimal
-
-### 🚀 Release Process
-
-Solidis follows semantic versioning (SemVer):
-- **Patch (0.0.x)**: Bug fixes and minor changes that don't affect the API
-- **Minor (0.x.0)**: New features added in a backward compatible manner
-- **Major (x.0.0)**: Breaking changes to the public API
-
-## 📄 License
-
-Licensed under the MIT. See [LICENSE](/LICENSE) for more information.
+MIT · See [LICENSE](/LICENSE)

@@ -11,6 +11,7 @@ import {
   SolidisProtocols,
   SolidisRequesterError,
   SolidisSubscribeCommandNameSet,
+  sanitizeCommandsBufferForDebug,
   wrapWithParserError,
   wrapWithSolidisRequesterError,
 } from '../index.ts';
@@ -114,7 +115,7 @@ export class SolidisRequester {
 
       this.#debug?.(
         'debug',
-        `Solidis requester serialized command: ${commandsBuffer.toString()}`,
+        `Solidis requester serialized command: ${sanitizeCommandsBufferForDebug(commandsBuffer, pipelineChunk.pipelinedCommands)}`,
       );
 
       const pipelineRequest: SolidisPipelineRequest = {
@@ -156,7 +157,7 @@ export class SolidisRequester {
 
       this.#debug?.(
         'debug',
-        `Solidis requester will write pipeline: ${request.commandsBuffer}`,
+        `Solidis requester will write pipeline: ${request.commandsBuffer.length} bytes`,
       );
 
       try {
@@ -171,11 +172,22 @@ export class SolidisRequester {
   #setRequestTimeout(request: SolidisPipelineRequest, action: 'set' | 'clear') {
     if (action === 'set' && this.#options.commandTimeout > 0) {
       request.timeoutId = setTimeout(() => {
-        this.recoveryFromFault(
-          new SolidisRequesterError(
-            `Solidis command(s) timed out after ${this.#options.commandTimeout} ms.`,
-          ),
+        request.isTimedOut = true;
+
+        const timeoutError = new SolidisRequesterError(
+          `Solidis command(s) timed out after ${this.#options.commandTimeout} ms.`,
         );
+
+        this.#setRequestTimeout(request, 'clear');
+        this.#rejectSubRequests(request, timeoutError);
+
+        if (
+          this.#inflightQueue.length > 0 &&
+          this.#inflightQueue.every((inflight) => inflight.isTimedOut) &&
+          this.#requestQueue.length === 0
+        ) {
+          this.recoveryFromFault(timeoutError);
+        }
       }, this.#options.commandTimeout);
     }
 
@@ -243,19 +255,32 @@ export class SolidisRequester {
 
     return new Promise<void>((resolve) => {
       const drainTimeoutId = setTimeout(() => {
-        socket.removeListener('drain', onDrain);
-
+        cleanup();
         resolve();
       }, this.#options.socketWriteTimeout);
+
+      const cleanup = () => {
+        socket.removeListener('drain', onDrain);
+        socket.removeListener('error', onSocketFault);
+        socket.removeListener('close', onSocketFault);
+      };
 
       const onDrain = () => {
         clearTimeout(drainTimeoutId);
         clearTimeout(connectionTimeoutId);
+        cleanup();
+        resolve();
+      };
 
+      const onSocketFault = () => {
+        clearTimeout(drainTimeoutId);
+        cleanup();
         resolve();
       };
 
       socket.once('drain', onDrain);
+      socket.once('error', onSocketFault);
+      socket.once('close', onSocketFault);
     });
   }
 
@@ -267,6 +292,14 @@ export class SolidisRequester {
       handlers.error = new SolidisRequesterError('Socket timed out');
     }, this.#options.socketWriteTimeout);
 
+    const onClose = (hadError: boolean) => {
+      handlers.onError(
+        new SolidisRequesterError(
+          `Socket closed${hadError ? ' due to a transmission error' : ''}`,
+        ),
+      );
+    };
+
     const handlers: SolidisSocketWriteEventHandlers = {
       onError: (error: Error) => {
         handlers.isError = true;
@@ -277,7 +310,7 @@ export class SolidisRequester {
       waitForDrain: () => this.#waitForSocketDrain(timeoutId),
       removeEventListeners: () => {
         socket.removeListener('error', handlers.onError);
-        socket.removeListener('close', handlers.onError);
+        socket.removeListener('close', onClose);
 
         clearTimeout(timeoutId);
       },
@@ -286,9 +319,9 @@ export class SolidisRequester {
     };
 
     socket.once('error', handlers.onError);
-    socket.once('close', handlers.onError);
+    socket.once('close', onClose);
 
-    return { ...handlers, socket };
+    return handlers;
   }
 
   #writeChunkToSocket(chunk: Buffer) {
@@ -397,7 +430,7 @@ export class SolidisRequester {
 
   #getUnsubscribeChannelSet(
     commandName: StringOrBuffer,
-  ): Set<string> | undefined {
+  ): ReadonlySet<string> | undefined {
     const name = (
       typeof commandName === 'string' ? commandName : commandName.toString()
     ).toUpperCase();
@@ -454,7 +487,11 @@ export class SolidisRequester {
 
   #scheduleReplies(emit: SolidisClientEventHandlers['emit']) {
     this.#replyLock = this.#replyLock.then(async () => {
-      await this.#processReplies(emit);
+      try {
+        await this.#processReplies(emit);
+      } catch (error: unknown) {
+        emit('error', wrapWithSolidisRequesterError(error));
+      }
     });
   }
 
@@ -473,6 +510,8 @@ export class SolidisRequester {
         parsedReplies = await this.#parser.queueParse(...replyBuffers);
       } catch (parserError: unknown) {
         emit('error', wrapWithParserError(parserError));
+
+        this.recoveryFromFault(wrapWithParserError(parserError));
 
         return;
       }
@@ -565,6 +604,13 @@ export class SolidisRequester {
       }
 
       if (this.#inflightQueue.length < 1) {
+        emit(
+          'error',
+          wrapWithSolidisRequesterError(
+            'Received reply with no pending request',
+          ),
+        );
+
         continue;
       }
 
@@ -619,13 +665,21 @@ export class SolidisRequester {
       return;
     }
 
+    request.receivedReplyCount += 1;
+
+    if (request.isTimedOut) {
+      if (request.receivedReplyCount === request.expectedReplyCount) {
+        this.#resolvePipelineRequest(request);
+      }
+
+      return;
+    }
+
     const subRequest = request.subRequests[request.subRequestIndex];
 
     if (!subRequest) {
       return;
     }
-
-    request.receivedReplyCount += 1;
 
     this.#processSubRequest(request, reply);
 
@@ -721,7 +775,6 @@ export class SolidisRequester {
 
     for (const request of requests) {
       this.#setRequestTimeout(request, 'clear');
-      this.#rejectSubRequests(request, error);
 
       request.reject(error);
     }
@@ -747,6 +800,14 @@ export class SolidisRequester {
 
     this.#requests = [];
     this.#replyBuffers = [];
+
+    if (this.#scheduledReplies) {
+      clearImmediate(this.#scheduledReplies);
+    }
+
+    if (this.#scheduledRequests) {
+      clearImmediate(this.#scheduledRequests);
+    }
 
     this.#scheduledReplies = undefined;
     this.#scheduledRequests = undefined;

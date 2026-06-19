@@ -50,12 +50,12 @@ describe('pubsub', () => {
 
     assert.strictEqual(await publisher.publish(channel, 'hello'), 1);
 
-    await waitFor(() => received.length > 0, {
+    await waitFor(() => received.length === 1, {
       description: 'message delivered',
     });
 
     assert.strictEqual(received[0].channel, channel);
-    assert.strictEqual(`${received[0].message}`, 'hello');
+    assert.deepStrictEqual(received[0].message, Buffer.from('hello'));
   });
 
   it('preserves binary message payloads', async () => {
@@ -78,11 +78,10 @@ describe('pubsub', () => {
 
     await publisher.send([['PUBLISH', channel, payload]]);
 
-    await waitFor(() => received.length > 0, {
+    await waitFor(() => received.length === 1, {
       description: 'binary message delivered',
     });
 
-    assert.ok(Buffer.isBuffer(received[0]));
     assert.deepStrictEqual(received[0], payload);
   });
 
@@ -101,6 +100,13 @@ describe('pubsub', () => {
       async () =>
         (await publisher.pubsubChannels(`${keyspace.namespace}:multi:*`))
           .length === 2,
+    );
+
+    assert.deepStrictEqual(
+      [
+        ...(await publisher.pubsubChannels(`${keyspace.namespace}:multi:*`)),
+      ].sort(),
+      [first, second].sort(),
     );
 
     await publisher.publish(first, 'one');
@@ -128,11 +134,11 @@ describe('pubsub', () => {
 
     await subscriber.psubscribe(pattern);
 
-    await waitFor(async () => (await publisher.pubsubNumpat()) >= 1);
+    await waitFor(async () => (await publisher.pubsubNumpat()) === 1);
 
     await publisher.publish(channel, '21.5');
 
-    await waitFor(() => received.length > 0);
+    await waitFor(() => received.length === 1);
 
     assert.strictEqual(received[0].pattern, pattern);
     assert.strictEqual(received[0].channel, channel);
@@ -156,7 +162,7 @@ describe('pubsub', () => {
 
     await subscriber.subscribe(channel);
 
-    await waitFor(() => events.length >= 1);
+    await waitFor(() => events.length === 1);
 
     assert.deepStrictEqual(events[0], {
       type: 'subscribe',
@@ -166,10 +172,13 @@ describe('pubsub', () => {
 
     await subscriber.unsubscribe(channel);
 
-    await waitFor(() => events.length >= 2);
+    await waitFor(() => events.length === 2);
 
-    assert.strictEqual(events[1].type, 'unsubscribe');
-    assert.strictEqual(events[1].channel, channel);
+    assert.deepStrictEqual(events[1], {
+      type: 'unsubscribe',
+      channel,
+      count: 0,
+    });
   });
 
   it('does not deliver after unsubscribe', async () => {
@@ -188,6 +197,10 @@ describe('pubsub', () => {
     );
 
     await publisher.publish(channel, 'ignored');
+
+    for (let tick = 0; tick < 20; tick += 1) {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
 
     assert.strictEqual(messageCount, 0);
   });
@@ -208,13 +221,14 @@ describe('pubsub', () => {
 
     await subscriber.ssubscribe(channel);
 
-    await waitFor(async () =>
-      (await publisher.pubsubShardchannels()).includes(channel),
-    );
+    await waitFor(async () => {
+      const channels = await publisher.pubsubShardchannels();
+      return channels.length === 1 && channels[0] === channel;
+    });
 
     assert.strictEqual(await publisher.spublish(channel, 'shard-message'), 1);
 
-    await waitFor(() => received.length > 0);
+    await waitFor(() => received.length === 1);
 
     assert.strictEqual(received[0], 'shard-message');
   });
@@ -230,13 +244,17 @@ describe('pubsub', () => {
 
     await subscriber.psubscribe(pattern);
 
-    await waitFor(async () => (await publisher.pubsubNumpat()) >= 1);
+    await waitFor(async () => (await publisher.pubsubNumpat()) === 1);
 
     await subscriber.punsubscribe(pattern);
 
     await waitFor(async () => (await publisher.pubsubNumpat()) === 0);
 
     await publisher.publish(channel, 'ignored');
+
+    for (let tick = 0; tick < 20; tick += 1) {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
 
     assert.strictEqual(messageCount, 0);
   });
@@ -256,17 +274,23 @@ describe('pubsub', () => {
 
     await subscriber.ssubscribe(channel);
 
-    await waitFor(async () =>
-      (await publisher.pubsubShardchannels()).includes(channel),
-    );
+    await waitFor(async () => {
+      const channels = await publisher.pubsubShardchannels();
+      return channels.length === 1 && channels[0] === channel;
+    });
 
     await subscriber.sunsubscribe(channel);
 
-    await waitFor(
-      async () => !(await publisher.pubsubShardchannels()).includes(channel),
-    );
+    await waitFor(async () => {
+      const channels = await publisher.pubsubShardchannels();
+      return channels.length === 0;
+    });
 
     await publisher.spublish(channel, 'ignored');
+
+    for (let tick = 0; tick < 20; tick += 1) {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
 
     assert.strictEqual(messageCount, 0);
   });
@@ -281,9 +305,10 @@ describe('pubsub', () => {
 
     await subscriber.ssubscribe(channel);
 
-    await waitFor(async () =>
-      (await publisher.pubsubShardchannels()).includes(channel),
-    );
+    await waitFor(async () => {
+      const channels = await publisher.pubsubShardchannels();
+      return channels.length === 1 && channels[0] === channel;
+    });
 
     const counts = await publisher.pubsubShardnumsub([channel]);
 
@@ -357,14 +382,14 @@ describe('pubsub', () => {
       emit,
     );
 
-    assert.ok(pubsub.subscribedChannels.has('news'));
+    assert.strictEqual(pubsub.subscribedChannels.has('news'), true);
 
     pubsub.dispatchPubSubEvent(
       [Buffer.from('unsubscribe'), Buffer.from('news'), 0],
       emit,
     );
 
-    assert.ok(!pubsub.subscribedChannels.has('news'));
+    assert.strictEqual(pubsub.subscribedChannels.has('news'), false);
   });
 
   it('tracks ssubscribe/sunsubscribe state in SolidisPubSub', async () => {
@@ -380,14 +405,14 @@ describe('pubsub', () => {
       emit,
     );
 
-    assert.ok(pubsub.subscribedShardChannels.has('shard-ch'));
+    assert.strictEqual(pubsub.subscribedShardChannels.has('shard-ch'), true);
 
     pubsub.dispatchPubSubEvent(
       [Buffer.from('sunsubscribe'), Buffer.from('shard-ch'), 0],
       emit,
     );
 
-    assert.ok(!pubsub.subscribedShardChannels.has('shard-ch'));
+    assert.strictEqual(pubsub.subscribedShardChannels.has('shard-ch'), false);
   });
 
   it('tracks psubscribe/punsubscribe state in SolidisPubSub', async () => {
@@ -403,14 +428,14 @@ describe('pubsub', () => {
       emit,
     );
 
-    assert.ok(pubsub.subscribedPatterns.has('user:*'));
+    assert.strictEqual(pubsub.subscribedPatterns.has('user:*'), true);
 
     pubsub.dispatchPubSubEvent(
       [Buffer.from('punsubscribe'), Buffer.from('user:*'), 0],
       emit,
     );
 
-    assert.ok(!pubsub.subscribedPatterns.has('user:*'));
+    assert.strictEqual(pubsub.subscribedPatterns.has('user:*'), false);
   });
 
   it('reports hasActiveSubscriptions correctly in SolidisPubSub', async () => {
@@ -448,6 +473,12 @@ describe('pubsub', () => {
     pubsub.dispatchPubSubEvent([Buffer.from('message'), null, null], emit);
 
     assert.strictEqual(errors.length, 1);
+
+    if (!(errors[0] instanceof Error)) {
+      assert.fail('expected an Error instance for message:type');
+    }
+
+    assert.strictEqual(errors[0].message, 'message:type');
   });
 
   it('emits error on unknown subscription event in SolidisPubSub', async () => {
@@ -471,6 +502,12 @@ describe('pubsub', () => {
     );
 
     assert.strictEqual(errors.length, 1);
+
+    if (!(errors[0] instanceof Error)) {
+      assert.fail('expected an Error instance for unknownevent:event');
+    }
+
+    assert.strictEqual(errors[0].message, 'unknownevent:event');
   });
 
   it('emits error on malformed subscription (non-number count)', async () => {
@@ -494,6 +531,12 @@ describe('pubsub', () => {
     );
 
     assert.strictEqual(errors.length, 1);
+
+    if (!(errors[0] instanceof Error)) {
+      assert.fail('expected an Error instance for subscribe:type');
+    }
+
+    assert.strictEqual(errors[0].message, 'subscribe:type');
   });
 
   it('emits error on pmessage with invalid types', async () => {
@@ -517,6 +560,72 @@ describe('pubsub', () => {
     );
 
     assert.strictEqual(errors.length, 1);
+
+    if (!(errors[0] instanceof Error)) {
+      assert.fail('expected an Error instance for pmessage:type');
+    }
+
+    assert.strictEqual(errors[0].message, 'pmessage:type');
+  });
+
+  it('does not allow external mutation of subscribedChannels to corrupt state', async () => {
+    const { SolidisPubSub } = await import(
+      '../../../sources/modules/pubsub.ts'
+    );
+
+    const pubsub = new SolidisPubSub();
+    const emit = () => true;
+
+    pubsub.dispatchPubSubEvent(
+      [Buffer.from('subscribe'), Buffer.from('real-channel'), 1],
+      emit,
+    );
+
+    const exposedSet = pubsub.subscribedChannels;
+
+    assert.strictEqual(exposedSet.has('real-channel'), true);
+
+    if (!(exposedSet instanceof Set)) {
+      assert.fail('expected subscribedChannels to be a Set instance');
+    }
+
+    /** Mutate the returned copy to verify it does not affect the internal set. */
+    const mutableCopy = new Set(exposedSet);
+    mutableCopy.add('phantom-channel');
+    mutableCopy.delete('real-channel');
+
+    const internalSet = pubsub.subscribedChannels;
+
+    assert.strictEqual(internalSet.has('real-channel'), true);
+    assert.strictEqual(internalSet.has('phantom-channel'), false);
+    assert.strictEqual(mutableCopy.has('phantom-channel'), true);
+    assert.strictEqual(mutableCopy.has('real-channel'), false);
+  });
+
+  it('returns the same Set reference from subscribedChannels on consecutive accesses', async () => {
+    const { SolidisPubSub } = await import(
+      '../../../sources/modules/pubsub.ts'
+    );
+
+    const pubsub = new SolidisPubSub();
+    const emit = () => true;
+
+    pubsub.dispatchPubSubEvent(
+      [Buffer.from('subscribe'), Buffer.from('identity-channel'), 1],
+      emit,
+    );
+
+    const firstAccess = pubsub.subscribedChannels;
+    const secondAccess = pubsub.subscribedChannels;
+
+    assert.strictEqual(
+      firstAccess,
+      secondAccess,
+      'consecutive accesses to subscribedChannels must return the same ' +
+        'Set reference — the current implementation creates a new Set ' +
+        'copy on every property access, which wastes allocations during ' +
+        'recovery when the getter is called twice in sequence',
+    );
   });
 
   it('handles PSUBSCRIBE and PUNSUBSCRIBE for pattern channels', async () => {
@@ -530,9 +639,9 @@ describe('pubsub', () => {
 
     await publisher.publish(keyspace.key('pattern:foo'), 'pattern-msg');
 
-    await waitFor(() => messages.length > 0, { timeout: 1000 });
+    await waitFor(() => messages.length === 1, { timeout: 1000 });
 
-    assert.ok(messages.includes('pattern-msg'));
+    assert.deepStrictEqual(messages, ['pattern-msg']);
 
     await subscriber.punsubscribe(keyspace.key('pattern:*'));
   });

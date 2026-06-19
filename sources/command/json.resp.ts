@@ -1,15 +1,9 @@
-import { executeCommand } from './utils/index.ts';
+import { buildJsonKeyPathCommand, executeCommand } from './utils/index.ts';
 
 import type { SolidisData } from '../index.ts';
 
 export function createCommand(key: string, path?: string) {
-  const command = ['JSON.RESP', key];
-
-  if (path !== undefined) {
-    command.push(path);
-  }
-
-  return command;
+  return buildJsonKeyPathCommand('JSON.RESP', key, path);
 }
 
 export async function jsonResp<T>(

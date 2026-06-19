@@ -30,6 +30,12 @@ export const SolidisProtocols = {
 } as const;
 export type SolidisProtocols = keyof typeof SolidisProtocols;
 
+type DeepRequired<T> = {
+  [P in keyof T]-?: NonNullable<T[P]> extends object
+    ? DeepRequired<NonNullable<T[P]>>
+    : NonNullable<T[P]>;
+};
+
 export interface SolidisClientOptions {
   authentication?: {
     username?: string;
@@ -61,21 +67,25 @@ export interface SolidisClientOptions {
   maxProcessRepliesPerChunk?: number;
   maxSocketWriteSizePerOnce?: number;
   parser?: {
-    buffer: {
-      initial: number;
-      shiftThreshold: number;
+    buffer?: {
+      initial?: number;
+      shiftThreshold?: number;
     };
+    maxBulkStringLength?: number;
   };
   port?: number;
   protocol?: SolidisProtocols;
   readyCheckInterval?: number;
+  maxReadyCheckRetries?: number;
   rejectOnPartialPipelineError?: boolean;
   socketWriteTimeout?: number;
-  useTLS?: boolean;
+  tls?: tls.ConnectionOptions;
 }
 
 export type SolidisClientFrozenOptions = Readonly<
-  Required<SolidisClientOptions>
+  DeepRequired<Omit<SolidisClientOptions, 'tls'>> & {
+    tls?: tls.ConnectionOptions;
+  }
 >;
 
 export type SolidisConnectionOptions = SolidisClientFrozenOptions & {
@@ -148,6 +158,7 @@ export interface SolidisPipelineRequest {
   subRequests: SolidisPipelineSubRequest[];
   subscribeCommandCount: number;
   timeoutId?: NodeJS.Timeout;
+  isTimedOut?: boolean;
 }
 
 export interface SolidisPipelineRequestChunk {
@@ -190,6 +201,7 @@ export type SolidisTranslatedPubSubReplies = [
 export interface SolidisClientEvents extends SolidisPubSubEvents {
   connect: () => void;
   ready: () => void;
+  reconnected: () => void;
   error: (error: Error) => void;
   end: () => void;
   drain: () => void;

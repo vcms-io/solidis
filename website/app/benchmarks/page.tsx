@@ -17,100 +17,124 @@ export default function BenchmarksPage() {
 
   const benchmarkData = [
     {
-      name: 'Hash',
-      description: 'HSET + HGET + HGETALL',
-      solidis: '248.82ms',
-      ioredis: '446.03ms',
-      improvement: '79% FASTER',
+      name: 'Set Mutation',
+      description: 'SADD + SISMEMBER + SREM',
+      solidis: '1772ms',
+      ioredis: '3617ms',
+      improvement: '2.0x FASTER',
       level: '🔥🔥',
     },
     {
-      name: 'Set Operations',
-      description: 'SADD + SISMEMBER + SREM',
-      solidis: '257.35ms',
-      ioredis: '444.08ms',
-      improvement: '73% FASTER',
+      name: 'List Range',
+      description: 'LPUSH + RPUSH + LRANGE',
+      solidis: '1854ms',
+      ioredis: '3701ms',
+      improvement: '2.0x FASTER',
+      level: '🔥🔥',
+    },
+    {
+      name: 'List Mutation',
+      description: 'LPUSH + RPUSH + LPOP + RPOP + LLEN',
+      solidis: '2567ms',
+      ioredis: '5002ms',
+      improvement: '1.9x FASTER',
+      level: '🔥🔥',
+    },
+    {
+      name: 'Sorted Set',
+      description: 'ZADD + ZRANGE + ZREM',
+      solidis: '1692ms',
+      ioredis: '3278ms',
+      improvement: '1.9x FASTER',
+      level: '🔥🔥',
+    },
+    {
+      name: 'Multi-Key',
+      description: 'MSET + MGET',
+      solidis: '1602ms',
+      ioredis: '3049ms',
+      improvement: '1.9x FASTER',
+      level: '🔥🔥',
+    },
+    {
+      name: 'Hash Mutation',
+      description: 'HMSET + HMGET + HDEL',
+      solidis: '1522ms',
+      ioredis: '2837ms',
+      improvement: '1.9x FASTER',
+      level: '🔥🔥',
+    },
+    {
+      name: 'Set',
+      description: 'SET',
+      solidis: '746ms',
+      ioredis: '1365ms',
+      improvement: '1.8x FASTER',
+      level: '🔥🔥',
+    },
+    {
+      name: 'Set Read',
+      description: 'SADD + SISMEMBER + SMEMBERS',
+      solidis: '1799ms',
+      ioredis: '3295ms',
+      improvement: '1.8x FASTER',
       level: '🔥🔥',
     },
     {
       name: 'Expire',
       description: 'SET + EXPIRE + TTL',
-      solidis: '198.11ms',
-      ioredis: '339.78ms',
-      improvement: '72% FASTER',
+      solidis: '1445ms',
+      ioredis: '2559ms',
+      improvement: '1.8x FASTER',
+      level: '🔥🔥',
+    },
+    {
+      name: 'Stream',
+      description: 'XADD + XRANGE + XLEN',
+      solidis: '1496ms',
+      ioredis: '2622ms',
+      improvement: '1.8x FASTER',
       level: '🔥🔥',
     },
     {
       name: 'Non-Transaction',
-      description: 'SET with EXPIRE + GET',
-      solidis: '259.69ms',
-      ioredis: '394.34ms',
-      improvement: '52% FASTER',
-      level: '🔥',
+      description: 'SET with PX + GET',
+      solidis: '1255ms',
+      ioredis: '2141ms',
+      improvement: '1.7x FASTER',
+      level: '🔥🔥',
     },
     {
-      name: 'List',
-      description: 'LPUSH + RPUSH + LRANGE',
-      solidis: '219.76ms',
-      ioredis: '345.48ms',
-      improvement: '57% FASTER',
-      level: '🔥',
+      name: 'Pipeline Mixed',
+      description: 'SET + INCR + GET',
+      solidis: '1616ms',
+      ioredis: '2631ms',
+      improvement: '1.6x FASTER',
+      level: '🔥🔥',
     },
     {
       name: 'Counter',
       description: 'INCR + DECR',
-      solidis: '174.04ms',
-      ioredis: '258.71ms',
-      improvement: '49% FASTER',
+      solidis: '922ms',
+      ioredis: '1415ms',
+      improvement: '1.5x FASTER',
       level: '🔥',
     },
     {
-      name: 'List operations',
-      description: 'LPUSH + RPUSH + LPOP + RPOP + LLEN',
-      solidis: '396.67ms',
-      ioredis: '587.16ms',
-      improvement: '48% FASTER',
+      name: 'Hash Round-Trip',
+      description: 'HSET + HGET + HGETALL',
+      solidis: '1810ms',
+      ioredis: '2734ms',
+      improvement: '1.5x FASTER',
       level: '🔥',
     },
     {
-      name: 'Transaction + Non-Transaction',
-      description: 'SET + GET',
-      solidis: '435.46ms',
-      ioredis: '574.26ms',
-      improvement: '32% FASTER',
-      level: '⚡️',
-    },
-    {
-      name: 'Multi-key',
-      description: 'MSET + MGET',
-      solidis: '393.87ms',
-      ioredis: '437.45ms',
-      improvement: '11% FASTER',
-      level: '⚡️',
-    },
-    {
-      name: 'Transaction',
-      description: 'SET with EXPIRE + GET',
-      solidis: '286.75ms',
-      ioredis: '328.00ms',
-      improvement: '14% FASTER',
-      level: '⚡️',
-    },
-    {
-      name: 'Set',
-      description: 'SADD + SISMEMBER + SMEMBERS',
-      solidis: '260.66ms',
-      ioredis: '275.27ms',
-      improvement: '6% FASTER',
-      level: '⚡️',
-    },
-    {
-      name: 'Hash operations',
-      description: 'HMSET + HMGET + HDEL',
-      solidis: '360.69ms',
-      ioredis: '377.32ms',
-      improvement: '5% FASTER',
-      level: '⚡️',
+      name: 'Get Buffer',
+      description: 'GETBUFFER',
+      solidis: '618ms',
+      ioredis: '916ms',
+      improvement: '1.5x FASTER',
+      level: '🔥',
     },
   ];
 
@@ -129,8 +153,8 @@ export default function BenchmarksPage() {
             Benchmark Methodology
           </CardTitle>
           <CardDescription>
-            1000 concurrent commands × 10 iterations, 1 KB random-string payload
-            per request
+            100,000 iterations × 10,000 concurrent commands × 10 repeats, 1 KB
+            payload per request, autopipeline mode
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -138,9 +162,9 @@ export default function BenchmarksPage() {
             <div className="flex items-center gap-3">
               <Clock className="h-8 w-8 text-blue-500" />
               <div>
-                <div className="font-semibold">Test Duration</div>
+                <div className="font-semibold">Repeats</div>
                 <div className="text-sm text-gray-600">
-                  10 iterations per benchmark
+                  10 repeats per benchmark, median elapsed
                 </div>
               </div>
             </div>
@@ -149,16 +173,16 @@ export default function BenchmarksPage() {
               <div>
                 <div className="font-semibold">Concurrency</div>
                 <div className="text-sm text-gray-600">
-                  1000 concurrent commands
+                  10,000 concurrent commands
                 </div>
               </div>
             </div>
             <div className="flex items-center gap-3">
               <Zap className="h-8 w-8 text-yellow-500" />
               <div>
-                <div className="font-semibold">Payload Size</div>
+                <div className="font-semibold">Iterations</div>
                 <div className="text-sm text-gray-600">
-                  1 KB random string data
+                  100,000 iterations per benchmark
                 </div>
               </div>
             </div>
@@ -177,9 +201,13 @@ export default function BenchmarksPage() {
         <CardContent>
           <div className="grid md:grid-cols-3 gap-6">
             <div className="text-center">
-              <div className="text-3xl font-bold text-yellow-600 mb-2">79%</div>
+              <div className="text-3xl font-bold text-yellow-600 mb-2">
+                2.0x
+              </div>
               <div className="text-sm font-medium">Maximum Speed Boost</div>
-              <div className="text-xs text-gray-600">Hash operations</div>
+              <div className="text-xs text-gray-600">
+                Set Mutation / List Range
+              </div>
             </div>
             <div className="text-center">
               <div className="text-3xl font-bold text-yellow-600 mb-2">0</div>
@@ -202,7 +230,7 @@ export default function BenchmarksPage() {
         <CardHeader>
           <CardTitle>Detailed Benchmark Results</CardTitle>
           <CardDescription>
-            Solidis vs IoRedis performance comparison across different Redis
+            Solidis vs ioredis performance comparison across different Redis
             operations
           </CardDescription>
         </CardHeader>
@@ -218,7 +246,7 @@ export default function BenchmarksPage() {
                     Solidis
                   </th>
                   <th className="py-3 px-4 text-center font-semibold">
-                    IoRedis
+                    ioredis
                   </th>
                   <th className="py-3 px-4 text-center font-semibold">
                     Performance
@@ -276,34 +304,37 @@ export default function BenchmarksPage() {
                 <div>
                   <div className="font-medium">Zero Dependencies</div>
                   <div className="text-sm text-gray-600">
-                    No overhead from external libraries
+                    No overhead from external libraries, pure Node.js
+                    implementation
                   </div>
                 </div>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-yellow-600 mt-1">•</span>
                 <div>
-                  <div className="font-medium">Optimized Parser</div>
+                  <div className="font-medium">Zero-Copy RESP Parser</div>
                   <div className="text-sm text-gray-600">
-                    Custom RESP protocol implementation
+                    Buffer slices without copying, intelligent shift thresholds
                   </div>
                 </div>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-yellow-600 mt-1">•</span>
                 <div>
-                  <div className="font-medium">Efficient Memory Management</div>
+                  <div className="font-medium">
+                    setImmediate Pipeline Coalescing
+                  </div>
                   <div className="text-sm text-gray-600">
-                    Zero-copy buffer operations
+                    Commands batched within the same tick for fewer round trips
                   </div>
                 </div>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-yellow-600 mt-1">•</span>
                 <div>
-                  <div className="font-medium">Automatic Pipeline Batching</div>
+                  <div className="font-medium">Chunked Socket Writes</div>
                   <div className="text-sm text-gray-600">
-                    Commands automatically batched for fewer round trips
+                    Backpressure-aware writes with configurable chunk sizes
                   </div>
                 </div>
               </li>
@@ -319,23 +350,23 @@ export default function BenchmarksPage() {
             <ul className="space-y-3">
               <li className="flex justify-between">
                 <span className="text-gray-600">Node.js Version:</span>
-                <span className="font-mono">v22.0.0</span>
+                <span className="font-mono">v22.22.3</span>
               </li>
               <li className="flex justify-between">
                 <span className="text-gray-600">Redis Version:</span>
-                <span className="font-mono">7.0.11</span>
+                <span className="font-mono">7.0+</span>
               </li>
               <li className="flex justify-between">
                 <span className="text-gray-600">Platform:</span>
                 <span className="font-mono">Linux x64</span>
               </li>
               <li className="flex justify-between">
-                <span className="text-gray-600">CPU:</span>
-                <span className="font-mono">Intel Xeon</span>
+                <span className="text-gray-600">Mode:</span>
+                <span className="font-mono">autopipeline</span>
               </li>
               <li className="flex justify-between">
-                <span className="text-gray-600">Memory:</span>
-                <span className="font-mono">16GB RAM</span>
+                <span className="text-gray-600">Isolation:</span>
+                <span className="font-mono">Worker threads</span>
               </li>
               <li className="flex justify-between">
                 <span className="text-gray-600">Network:</span>

@@ -24,7 +24,7 @@
     "typescriptFirst": "TypeScript First",
     "typescriptFirstDesc": "Full TypeScript support with comprehensive type definitions and IntelliSense",
     "blazingFast": "Blazing Fast Performance",
-    "blazingFastDesc": "Solidis delivers up to 79% faster performance than IoRedis with zero dependencies",
+    "blazingFastDesc": "Solidis delivers up to 2x faster performance than ioredis with zero dependencies",
     "viewBenchmarks": "View All Benchmarks",
     "getStartedMinutes": "Get Started in Minutes",
     "getStartedDesc": "Install Solidis and start building high-performance Redis applications with just a few lines of code.",
@@ -141,7 +141,7 @@
   },
   "benchmarks": {
     "title": "Performance Benchmarks",
-    "subtitle": "Real-world performance comparisons between Solidis and IoRedis.",
+    "subtitle": "Real-world performance comparisons between Solidis and ioredis.",
     "testEnvironment": "Test Environment",
     "benchmarkResults": "Benchmark Results",
     "howToRun": "How to Run Benchmarks",

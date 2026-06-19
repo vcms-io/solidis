@@ -69,20 +69,37 @@ describe('sets', () => {
 
     await client.sadd(key, 'a', 'b', 'c', 'd', 'e');
 
+    const allMembers = ['a', 'b', 'c', 'd', 'e'];
     const popped = await client.spop(key);
 
-    assert.ok(typeof popped === 'string');
-    assert.ok(['a', 'b', 'c', 'd', 'e'].includes(popped));
+    if (popped === null) {
+      assert.fail('expected non-null spop result');
+    }
+    assert.ok(allMembers.includes(popped));
     assert.strictEqual(await client.scard(key), 4);
+
+    const remaining = allMembers.filter((member) => member !== popped);
 
     const sample = await client.srandmember(key, 2);
 
-    assert.ok(Array.isArray(sample));
+    if (sample === null || !Array.isArray(sample)) {
+      assert.fail('expected non-null array from srandmember');
+    }
     assert.strictEqual(sample.length, 2);
+    for (const member of sample) {
+      assert.ok(remaining.includes(member));
+    }
+    assert.notStrictEqual(sample[0], sample[1]);
+
+    const remainingMembers = await client.smembers(key);
+    assert.deepStrictEqual([...remainingMembers].sort(), [...remaining].sort());
 
     const single = await client.srandmember(key);
 
-    assert.strictEqual(typeof single, 'string');
+    if (single === null || typeof single !== 'string') {
+      assert.fail('expected non-null string from srandmember');
+    }
+    assert.ok(remaining.includes(single));
   });
 
   it('moves a member between sets', async () => {
@@ -92,8 +109,10 @@ describe('sets', () => {
     await client.sadd(source, 'a', 'b');
 
     assert.strictEqual(await client.smove(source, destination, 'a'), 1);
-    assert.strictEqual(await client.sismember(destination, 'a'), 1);
-    assert.strictEqual(await client.sismember(source, 'a'), 0);
+    assert.deepStrictEqual([...(await client.smembers(source))].sort(), ['b']);
+    assert.deepStrictEqual([...(await client.smembers(destination))].sort(), [
+      'a',
+    ]);
     assert.strictEqual(await client.smove(source, destination, 'absent'), 0);
   });
 
@@ -145,18 +164,30 @@ describe('sets', () => {
     await client.sadd(first, 'a', 'b', 'c', 'd');
     await client.sadd(second, 'c', 'd', 'e');
 
-    assert.strictEqual(
-      await client.sdiffstore(keyspace.key('store', 'diff'), [first, second]),
-      2,
-    );
-    assert.strictEqual(
-      await client.sinterstore(keyspace.key('store', 'inter'), [first, second]),
-      2,
-    );
-    assert.strictEqual(
-      await client.sunionstore(keyspace.key('store', 'union'), [first, second]),
-      5,
-    );
+    const diffKey = keyspace.key('store', 'diff');
+    const interKey = keyspace.key('store', 'inter');
+    const unionKey = keyspace.key('store', 'union');
+
+    assert.strictEqual(await client.sdiffstore(diffKey, [first, second]), 2);
+    assert.deepStrictEqual([...(await client.smembers(diffKey))].sort(), [
+      'a',
+      'b',
+    ]);
+
+    assert.strictEqual(await client.sinterstore(interKey, [first, second]), 2);
+    assert.deepStrictEqual([...(await client.smembers(interKey))].sort(), [
+      'c',
+      'd',
+    ]);
+
+    assert.strictEqual(await client.sunionstore(unionKey, [first, second]), 5);
+    assert.deepStrictEqual([...(await client.smembers(unionKey))].sort(), [
+      'a',
+      'b',
+      'c',
+      'd',
+      'e',
+    ]);
   });
 
   it('iterates a large set with SSCAN', async () => {
@@ -177,5 +208,8 @@ describe('sets', () => {
     }
 
     assert.strictEqual(seen.size, 500);
+    for (const member of members) {
+      assert.strictEqual(seen.has(member), true);
+    }
   });
 });

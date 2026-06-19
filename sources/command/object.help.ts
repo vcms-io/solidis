@@ -1,9 +1,7 @@
-import { executeCommand, tryReplyToStringArray } from './utils/index.ts';
+import { buildHelpExecutor } from './utils/index.ts';
 
 export function createCommand() {
   return ['OBJECT', 'HELP'];
 }
 
-export async function objectHelp<T>(this: T): Promise<string[]> {
-  return await executeCommand(this, createCommand(), tryReplyToStringArray);
-}
+export const objectHelp = buildHelpExecutor('OBJECT');

@@ -199,8 +199,13 @@ describe('consistency', () => {
 
             const [[reply]] = await target.send([['LPUSH', key, 'x']]);
 
-            assert.ok(reply instanceof RespError);
-            assert.match(`${reply.message}`, /WRONGTYPE/i);
+            if (!(reply instanceof RespError)) {
+              assert.fail('expected RespError for LPUSH on a string key');
+            }
+            assert.strictEqual(
+              reply.message,
+              'WRONGTYPE Operation against a key holding the wrong kind of value',
+            );
           },
         };
       }
@@ -244,11 +249,11 @@ describe('consistency', () => {
 
     const failures = settled
       .map((result, index) => ({ result, label: operations[index].label }))
-      .filter((entry) => entry.result.status === 'rejected')
-      .map(
-        (entry) =>
-          `${entry.label}: ${(entry.result as PromiseRejectedResult).reason}`,
-      );
+      .filter(
+        (entry): entry is { result: PromiseRejectedResult; label: string } =>
+          entry.result.status === 'rejected',
+      )
+      .map((entry) => `${entry.label}: ${entry.result.reason}`);
 
     assert.deepStrictEqual(
       failures,
@@ -312,9 +317,7 @@ describe('consistency', () => {
 
       const popped = await blocked;
 
-      assert.ok(popped !== null);
-      assert.strictEqual(popped[0], blockKey);
-      assert.strictEqual(popped[1], 'released');
+      assert.deepStrictEqual(popped, [blockKey, 'released']);
     } finally {
       await closeClient(blockingClient);
       await closeClient(pusher);

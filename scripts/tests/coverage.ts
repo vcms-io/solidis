@@ -85,7 +85,8 @@ await report();
 
 rmSync(coverageDirectory, { recursive: true });
 
-const allClientCodes = [adminCode, ...restCodes];
+const allCodes = [commandsCode, adminCode, ...restCodes];
 
-process.exitCode =
-  commandsCode === 0 && allClientCodes.every((code) => code === 0) ? 0 : 1;
+if (allCodes.some((code) => code !== 0)) {
+  process.exit(1);
+}

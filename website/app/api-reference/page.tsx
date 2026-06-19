@@ -389,7 +389,7 @@ await client.publish('news', 'Hello world!');`}
   uri: 'redis://localhost:6379',
   host: '127.0.0.1',
   port: 6379,
-  useTLS: false,
+  tls: { /* tls.ConnectionOptions */ },
   lazyConnect: false,
   authentication: {
     username: 'user',

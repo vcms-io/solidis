@@ -24,6 +24,7 @@ export class SolidisParser {
   #bufferIsExternal = false;
   #initialBufferSize: number;
   #shiftThreshold: number;
+  #maxBulkStringLength: number;
 
   #readOffset = 0;
   #writeOffset = 0;
@@ -32,12 +33,14 @@ export class SolidisParser {
     const {
       parser: {
         buffer: { initial, shiftThreshold },
+        maxBulkStringLength,
       },
     } = options;
 
     this.#buffer = Buffer.allocUnsafe(initial);
     this.#initialBufferSize = initial;
     this.#shiftThreshold = shiftThreshold;
+    this.#maxBulkStringLength = maxBulkStringLength;
   }
 
   public async queueParse(...buffers: Buffer[]): Promise<SolidisData[]> {
@@ -277,16 +280,42 @@ export class SolidisParser {
   }
 
   #parseInteger(): SolidisParsed {
-    const parsed = this.#parseNumeric('Integer');
+    try {
+      const parsed = this.#parseNumeric('Integer');
 
-    if (parsed === null) {
-      return null;
+      if (parsed === null) {
+        return null;
+      }
+
+      if (parsed.digitCount > 15 && !Number.isSafeInteger(parsed.data)) {
+        const numString = this.#buffer.toString(
+          'ascii',
+          this.#readOffset + 1,
+          this.#readOffset + parsed.length - 2,
+        );
+
+        return {
+          data: BigInt(numString),
+          length: parsed.length,
+        };
+      }
+
+      return {
+        data: parsed.data,
+        length: parsed.length,
+      };
+    } catch {
+      const line = this.#parseLine(this.#readOffset + 1, 'Integer');
+
+      if (line === null) {
+        return null;
+      }
+
+      return {
+        data: new RespError(`Integer parse error: '${line.data}'`),
+        length: line.length + 1,
+      };
     }
-
-    return {
-      data: parsed.data,
-      length: parsed.length,
-    };
   }
 
   #parseBulkString(type: SolidisRespLengthType): SolidisParsed {
@@ -370,6 +399,15 @@ export class SolidisParser {
 
     const boolByte = this.#buffer[startPosition];
 
+    if (
+      boolByte !== SolidisSymbolBytes.LOWER_T &&
+      boolByte !== SolidisSymbolBytes.LOWER_F
+    ) {
+      throw new SolidisParserError(
+        `Boolean parse error: invalid value byte 0x${boolByte.toString(16)}`,
+      );
+    }
+
     return {
       data: boolByte === SolidisSymbolBytes.LOWER_T,
       length: 4,
@@ -440,6 +478,10 @@ export class SolidisParser {
     }
   }
 
+  #nullLengthResult(lengthLength: number) {
+    return { data: null, length: 1 + lengthLength } as const;
+  }
+
   #parseMap(): SolidisParsed {
     const lengthObject = this.#parseLength('Map');
 
@@ -450,10 +492,7 @@ export class SolidisParser {
     const { data: lengthData, length: lengthLength } = lengthObject;
 
     if (lengthData < 0) {
-      return {
-        data: null,
-        length: 1 + lengthLength,
-      };
+      return this.#nullLengthResult(lengthLength);
     }
 
     const map = new Map<string, SolidisData>();
@@ -491,7 +530,7 @@ export class SolidisParser {
         return null;
       }
 
-      if (key.data) {
+      if (key.data !== null) {
         map.set(key.data.toString(), value.data);
       }
     }
@@ -533,10 +572,7 @@ export class SolidisParser {
     const { data: lengthData, length: lengthLength } = lengthObject;
 
     if (lengthData < 0) {
-      return {
-        data: null,
-        length: 1 + lengthLength,
-      };
+      return this.#nullLengthResult(lengthLength);
     }
 
     const items = new Array<SolidisData>(lengthData);
@@ -583,6 +619,7 @@ export class SolidisParser {
 
     let signIndicator = 1;
     let number = 0;
+    let digitCount = 0;
 
     let position = startPosition;
 
@@ -604,10 +641,21 @@ export class SolidisParser {
         return {
           data: signIndicator * number,
           length: position - this.#readOffset + 1,
+          digitCount,
         };
       }
 
+      if (
+        character < SolidisSymbolBytes.ZERO ||
+        character > SolidisSymbolBytes.ZERO + 9
+      ) {
+        throw new SolidisParserError(
+          `${type} parse error: non-digit byte 0x${character.toString(16)}`,
+        );
+      }
+
       number = number * 10 + (character - SolidisSymbolBytes.ZERO);
+      digitCount += 1;
     }
 
     return null;
@@ -638,10 +686,13 @@ export class SolidisParser {
     const { data: lengthData, length: lengthLength } = lengthObject;
 
     if (lengthData < 0) {
-      return {
-        data: null,
-        length: 1 + lengthLength,
-      };
+      return this.#nullLengthResult(lengthLength);
+    }
+
+    if (lengthData > this.#maxBulkStringLength) {
+      throw new SolidisParserError(
+        `${type} length ${lengthData} exceeds maximum allowed ${this.#maxBulkStringLength}`,
+      );
     }
 
     const startPosition = this.#readOffset + 1 + lengthLength;
@@ -660,7 +711,7 @@ export class SolidisParser {
     };
   }
 
-  #parseLine(startPosition: number, type: SolidisRespSimpleLineType) {
+  #parseLine(startPosition: number, type: SolidisRespType) {
     const endPosition = this.#writeOffset;
 
     if (startPosition >= endPosition) {

@@ -43,7 +43,7 @@ describe('scan', () => {
       }
     }
 
-    assert.strictEqual(seen.size, 200);
+    assert.deepStrictEqual([...seen].sort(), Object.keys(mapping).sort());
   });
 
   it('filters by value type', async () => {
@@ -65,8 +65,8 @@ describe('scan', () => {
       }
     }
 
-    assert.strictEqual(listsOnly.has(listKey), true);
-    assert.strictEqual(listsOnly.has(stringKey), false);
+    assert.strictEqual(listsOnly.size, 1);
+    assert.deepStrictEqual([...listsOnly], [listKey]);
   });
 
   it('returns nothing for a non-matching pattern', async () => {

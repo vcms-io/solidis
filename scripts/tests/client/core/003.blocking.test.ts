@@ -34,6 +34,7 @@ describe('blocking', () => {
     const result = await client.blpop([key], 0);
 
     assert.deepStrictEqual(result, [key, 'a']);
+    assert.deepStrictEqual(await client.lrange(key, 0, -1), ['b', 'c']);
   });
 
   it('returns null from BLPOP on timeout', async () => {
@@ -52,6 +53,7 @@ describe('blocking', () => {
     const result = await client.brpop([key], 0);
 
     assert.deepStrictEqual(result, [key, 'c']);
+    assert.deepStrictEqual(await client.lrange(key, 0, -1), ['a', 'b']);
   });
 
   it('returns null from BRPOP on timeout', async () => {
@@ -71,6 +73,7 @@ describe('blocking', () => {
     const moved = await client.blmove(source, destination, 'LEFT', 'RIGHT', 0);
 
     assert.strictEqual(moved, 'x');
+    assert.deepStrictEqual(await client.lrange(source, 0, -1), ['y', 'z']);
     assert.deepStrictEqual(await client.lrange(destination, 0, -1), ['x']);
   });
 
@@ -101,14 +104,8 @@ describe('blocking', () => {
 
     const result = await client.blmpop(0, [key], 'LEFT', 2);
 
-    assert.notStrictEqual(result, null);
-
-    if (result === null) {
-      return;
-    }
-
-    assert.strictEqual(result.key, key);
-    assert.deepStrictEqual(result.elements, ['a', 'b']);
+    assert.deepStrictEqual(result, { key, elements: ['a', 'b'] });
+    assert.deepStrictEqual(await client.lrange(key, 0, -1), ['c', 'd']);
   });
 
   it('returns null from BLMPOP on timeout', async (context) => {
@@ -133,6 +130,7 @@ describe('blocking', () => {
     const moved = await client.brpoplpush(source, destination, 0);
 
     assert.strictEqual(moved, 'second');
+    assert.deepStrictEqual(await client.lrange(source, 0, -1), ['first']);
     assert.deepStrictEqual(await client.lrange(destination, 0, -1), ['second']);
   });
 
@@ -161,15 +159,11 @@ describe('blocking', () => {
 
     const result = await client.bzpopmin([key], 0);
 
-    assert.notStrictEqual(result, null);
-
-    if (result === null) {
-      return;
-    }
-
-    assert.strictEqual(result[0], key);
-    assert.strictEqual(result[1], 'low');
-    assert.strictEqual(result[2], '1');
+    assert.deepStrictEqual(result, [key, 'low', '1']);
+    assert.deepStrictEqual(await client.zrange(key, '0', '-1'), [
+      'mid',
+      'high',
+    ]);
   });
 
   it('pops the maximum scored member with BZPOPMAX', async () => {
@@ -181,15 +175,8 @@ describe('blocking', () => {
 
     const result = await client.bzpopmax([key], 0);
 
-    assert.notStrictEqual(result, null);
-
-    if (result === null) {
-      return;
-    }
-
-    assert.strictEqual(result[0], key);
-    assert.strictEqual(result[1], 'high');
-    assert.strictEqual(result[2], '10');
+    assert.deepStrictEqual(result, [key, 'high', '10']);
+    assert.deepStrictEqual(await client.zrange(key, '0', '-1'), ['low', 'mid']);
   });
 
   it('pops from sorted sets with BZMPOP', async (context) => {
@@ -206,16 +193,14 @@ describe('blocking', () => {
 
     const result = await client.bzmpop(0, [key], 'MIN', 2);
 
-    assert.notStrictEqual(result, null);
-
-    if (result === null) {
-      return;
-    }
-
-    assert.strictEqual(result.key, key);
-    assert.strictEqual(result.elements.length, 2);
-    assert.strictEqual(result.elements[0].member, 'a');
-    assert.strictEqual(result.elements[0].score, 1);
+    assert.deepStrictEqual(result, {
+      key,
+      elements: [
+        { member: 'a', score: 1 },
+        { member: 'b', score: 2 },
+      ],
+    });
+    assert.deepStrictEqual(await client.zrange(key, '0', '-1'), ['c']);
   });
 
   it('returns null from BZMPOP on timeout', async (context) => {

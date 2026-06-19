@@ -24,6 +24,25 @@ describe('recovery-state', () => {
     await closeClient(killer);
   });
 
+  const parseClientInfoField = (
+    clientInfo: string,
+    fieldName: string,
+  ): string | undefined => {
+    for (const token of clientInfo.split(' ')) {
+      const separatorIndex = token.indexOf('=');
+
+      if (separatorIndex === -1) {
+        continue;
+      }
+
+      if (token.slice(0, separatorIndex) === fieldName) {
+        return token.slice(separatorIndex + 1);
+      }
+    }
+
+    return undefined;
+  };
+
   const forceReconnect = async (
     target: FeaturedClient,
     clientId: number,
@@ -50,18 +69,24 @@ describe('recovery-state', () => {
     try {
       const key = keyspace.key('db', 'before');
 
-      await client.set(key, 'on-db-3');
+      assert.strictEqual(await client.set(key, 'on-db-3'), 'OK');
 
       assert.strictEqual(await probe.get(key), null);
-      assert.match(await client.clientInfo(), /\bdb=3\b/);
+      assert.strictEqual(
+        parseClientInfoField(await client.clientInfo(), 'db'),
+        '3',
+      );
 
       await forceReconnect(client, await client.clientId());
 
-      assert.match(await client.clientInfo(), /\bdb=3\b/);
+      assert.strictEqual(
+        parseClientInfoField(await client.clientInfo(), 'db'),
+        '3',
+      );
 
       const afterKey = keyspace.key('db', 'after');
 
-      await client.set(afterKey, 'still-db-3');
+      assert.strictEqual(await client.set(afterKey, 'still-db-3'), 'OK');
 
       assert.strictEqual(await probe.get(afterKey), null);
       assert.strictEqual(await client.get(afterKey), 'still-db-3');
@@ -115,20 +140,19 @@ describe('recovery-state', () => {
         { timeout: 3000, description: 'subscription restored' },
       );
 
-      await waitFor(
-        async () => {
-          await publisher.publish(channel, 'after');
-
-          return received.includes('after');
-        },
-        {
-          timeout: 3000,
-          interval: 100,
-          description: 'post-reconnect delivery',
-        },
+      assert.strictEqual(
+        await publisher.publish(channel, 'after'),
+        1,
+        'PUBLISH must reach exactly 1 subscriber after subscription restoration',
       );
 
-      assert.ok(received.includes('after'));
+      await waitFor(() => received.includes('after'), {
+        timeout: 3000,
+        interval: 50,
+        description: 'post-reconnect delivery',
+      });
+
+      assert.deepStrictEqual(received, ['before', 'after']);
     } finally {
       await closeClient(publisher);
       await closeClient(subscriber);
@@ -182,6 +206,7 @@ describe('recovery-state', () => {
       );
 
       assert.strictEqual((await publisher.pubsubNumsub([channel]))[channel], 0);
+      assert.strictEqual(await publisher.publish(channel, 'after-disabled'), 0);
     } finally {
       await closeClient(publisher);
       await closeClient(subscriber);

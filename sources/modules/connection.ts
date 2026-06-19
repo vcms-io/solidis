@@ -61,17 +61,7 @@ export class SolidisConnection extends EventEmitter {
       return;
     }
 
-    if (this.#connectLock) {
-      return await this.#connectLock;
-    }
-
-    this.#connectLock = this.#tryConnectWithRetry();
-
-    try {
-      await this.#connectLock;
-    } finally {
-      this.#connectLock = null;
-    }
+    await this.#acquireConnectLock();
   }
 
   public cleanup() {
@@ -89,6 +79,13 @@ export class SolidisConnection extends EventEmitter {
     }
 
     this.#socket = null;
+
+    if (socket.destroyed) {
+      socket.removeAllListeners();
+      socket.unref();
+
+      return;
+    }
 
     socket.end(() => {
       socket.removeAllListeners();
@@ -205,12 +202,11 @@ export class SolidisConnection extends EventEmitter {
         this.emit('connect');
       };
 
-      const { host, port, useTLS } = this.#options;
+      const { host, port } = this.#options;
 
       const socket = this.#createSocket({
         host,
         port,
-        useTLS,
         onConnect,
       });
 
@@ -229,6 +225,10 @@ export class SolidisConnection extends EventEmitter {
       return;
     }
 
+    await this.#acquireConnectLock();
+  }
+
+  async #acquireConnectLock(): Promise<void> {
     if (this.#connectLock) {
       return await this.#connectLock;
     }
@@ -245,16 +245,14 @@ export class SolidisConnection extends EventEmitter {
   #createSocket({
     host,
     port,
-    useTLS,
     onConnect,
   }: {
     host: string;
     port: number;
-    useTLS: boolean;
     onConnect: () => void;
   }): SolidisSocket {
-    if (useTLS) {
-      return tls.connect({ host, port }, onConnect);
+    if (this.#options.tls) {
+      return tls.connect({ ...this.#options.tls, host, port }, onConnect);
     }
 
     return net.connect({ host, port }, onConnect);
