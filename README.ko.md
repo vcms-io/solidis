@@ -8,7 +8,7 @@
   <a href="https://www.npmjs.com/package/@vcms-io/solidis"><img src="https://img.shields.io/npm/v/@vcms-io/solidis.svg?style=flat-square&labelColor=000&color=f5a623" alt="npm"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/coverage-98%25-brightgreen?style=flat-square&labelColor=000" alt="coverage"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square&labelColor=000" alt="deps"></a>
-  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/min_bundle-<30KB-blue?style=flat-square&labelColor=000" alt="bundle"></a>
+  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/min_bundle-<29KB-blue?style=flat-square&labelColor=000" alt="bundle"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/RESP2%2FRESP3-full-orange?style=flat-square&labelColor=000" alt="RESP"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/ESM%2FCJS-dual-yellow?style=flat-square&labelColor=000" alt="modules"></a>
 </p>
@@ -20,7 +20,7 @@
 <br/>
 
 <p align="center">
-  <img src="https://resources.vcms.io/assets/bundle-graph.png" alt="번들 크기 비교" width="580"/>
+  <img src="./assets/bundle.png" alt="번들 크기 비교" width="640"/>
 </p>
 
 <table align="center">
@@ -28,7 +28,7 @@
 <td align="center">🚀<br/><strong>0 deps</strong><br/><sub>제로 의존성</sub></td>
 <td align="center">📦<br/><strong>383</strong><br/><sub>커맨드</sub></td>
 <td align="center">🧪<br/><strong>19K+</strong><br/><sub>테스트 라인</sub></td>
-<td align="center">🪶<br/><strong>&lt; 30KB</strong><br/><sub>최소 번들</sub></td>
+<td align="center">🪶<br/><strong>&lt; 29KB</strong><br/><sub>최소 번들</sub></td>
 </tr>
 </table>
 
@@ -51,7 +51,7 @@ const value = await client.get('key');
 
 > [!TIP]
 > **번들 크기가 중요하다면?** `SolidisClient` + `.extend()`로 쓰는 커맨드만 가져오세요.
-> 트리 쉐이킹 적용 시 **< 30KB**까지 줄일 수 있습니다.
+> 트리 쉐이킹 적용 시 **< 29KB**까지 줄일 수 있습니다.
 
 <details>
 <summary>&nbsp;&nbsp;<b>트리 쉐이킹 클라이언트</b></summary>

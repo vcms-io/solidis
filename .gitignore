@@ -34,3 +34,6 @@ node_modules
 # Benchmark reports
 benchmark*.md
 *.benchmark
+
+# Bundle
+.bundle
