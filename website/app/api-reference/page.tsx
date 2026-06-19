@@ -26,111 +26,107 @@ export default function ApiReferencePage() {
   const { t } = useI18n();
 
   return (
-    <div className="container mx-auto max-w-6xl py-12 px-4">
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold mb-4">{t('apiReference.title')}</h1>
-        <p className="text-xl text-gray-600">{t('apiReference.subtitle')}</p>
+    <div className="content-container pt-20 sm:pt-24 pb-10 sm:pb-16">
+      <div className="mb-10">
+        <h1 className="text-3xl font-bold tracking-tight text-foreground mb-3">
+          {t('apiReference.title')}
+        </h1>
+        <p className="text-lg text-muted-foreground">
+          {t('apiReference.subtitle')}
+        </p>
       </div>
 
-      <div className="grid lg:grid-cols-4 gap-8">
-        {/* Sidebar Navigation */}
+      <div className="grid lg:grid-cols-4 gap-4 lg:gap-8">
         <div className="lg:col-span-1">
-          <Card className="sticky top-24">
-            <CardHeader>
-              <CardTitle className="text-lg">Quick Navigation</CardTitle>
+          <Card className="lg:sticky lg:top-20">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">
+                {t('apiReference.quickNavigation')}
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <nav className="space-y-2">
-                <a
-                  href="#solidisclient"
-                  className="block text-sm hover:text-yellow-600"
-                >
-                  SolidisClient
-                </a>
-                <a
-                  href="#connection"
-                  className="block text-sm hover:text-yellow-600 ml-4"
-                >
-                  Connection
-                </a>
-                <a
-                  href="#basic-operations"
-                  className="block text-sm hover:text-yellow-600 ml-4"
-                >
-                  Basic Operations
-                </a>
-                <a
-                  href="#advanced-operations"
-                  className="block text-sm hover:text-yellow-600 ml-4"
-                >
-                  Advanced Operations
-                </a>
-                <a
-                  href="#configuration"
-                  className="block text-sm hover:text-yellow-600"
-                >
-                  Configuration
-                </a>
-                <a
-                  href="#advanced-features"
-                  className="block text-sm hover:text-yellow-600"
-                >
-                  Advanced Features
-                </a>
-                <a
-                  href="#error-handling"
-                  className="block text-sm hover:text-yellow-600"
-                >
-                  Error Handling
-                </a>
-                <a
-                  href="#events"
-                  className="block text-sm hover:text-yellow-600"
-                >
-                  Events
-                </a>
+              <nav className="space-y-1.5">
+                {[
+                  { href: '#solidisclient', label: 'SolidisClient' },
+                  {
+                    href: '#connection',
+                    label: t('apiReference.connectionMethods'),
+                    indent: true,
+                  },
+                  {
+                    href: '#basic-operations',
+                    label: t('apiReference.basicOperations'),
+                    indent: true,
+                  },
+                  {
+                    href: '#advanced-operations',
+                    label: t('apiReference.advancedOperations'),
+                    indent: true,
+                  },
+                  {
+                    href: '#configuration',
+                    label: t('apiReference.configuration'),
+                  },
+                  {
+                    href: '#advanced-features',
+                    label: t('apiReference.advancedFeatures'),
+                  },
+                  {
+                    href: '#error-handling',
+                    label: t('apiReference.errorHandling'),
+                  },
+                  { href: '#events', label: t('apiReference.events') },
+                ].map((item) => (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    className={`block text-xs text-muted-foreground hover:text-foreground transition-colors ${item.indent ? 'ml-3' : ''}`}
+                  >
+                    {item.label}
+                  </a>
+                ))}
               </nav>
             </CardContent>
           </Card>
         </div>
 
-        {/* Main Content */}
-        <div className="lg:col-span-3 space-y-8">
-          {/* SolidisClient */}
+        <div className="lg:col-span-3 space-y-6">
           <section id="solidisclient">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Code className="h-5 w-5 text-yellow-600" />
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Code className="h-4 w-4 text-amber-500" />
                   SolidisClient
                 </CardTitle>
                 <CardDescription>
-                  The main client class for interacting with Redis servers
+                  {t('apiReference.mainClassDesc')}
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-6">
+                <div className="space-y-4">
                   <div>
-                    <h3 className="text-lg font-semibold mb-3">Constructor</h3>
+                    <h3 className="text-sm font-semibold text-foreground mb-2">
+                      {t('apiReference.constructor')}
+                    </h3>
                     <CodeBlock
                       code={'new SolidisClient(options?: SolidisClientOptions)'}
                       language="typescript"
-                      showLineNumbers={true}
                     />
                   </div>
-
                   <div>
-                    <h3 className="text-lg font-semibold mb-3">Parameters</h3>
-                    <div className="space-y-2">
-                      <div className="flex items-start gap-3">
-                        <Badge variant="outline">options</Badge>
-                        <div>
-                          <div className="font-medium">
-                            SolidisClientOptions
-                          </div>
-                          <div className="text-sm text-gray-600">
-                            Optional configuration object
-                          </div>
+                    <h3 className="text-sm font-semibold text-foreground mb-2">
+                      {t('apiReference.parameters')}
+                    </h3>
+                    <div className="flex items-start gap-3">
+                      <Badge variant="outline" className="text-xs">
+                        options
+                      </Badge>
+                      <div>
+                        <div className="text-sm font-medium text-foreground">
+                          SolidisClientOptions
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {t('apiReference.optionalConfig')}
                         </div>
                       </div>
                     </div>
@@ -140,13 +136,12 @@ export default function ApiReferencePage() {
             </Card>
           </section>
 
-          {/* Connection Methods */}
           <section id="connection">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Zap className="h-5 w-5 text-yellow-600" />
-                  Connection Methods
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Zap className="h-4 w-4 text-amber-500" />
+                  {t('apiReference.connectionMethods')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -155,34 +150,26 @@ export default function ApiReferencePage() {
                     <TabsTrigger value="connect">connect()</TabsTrigger>
                     <TabsTrigger value="quit">quit()</TabsTrigger>
                   </TabsList>
-
-                  <TabsContent value="connect" className="space-y-4">
-                    <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm">
-                      <div className="text-blue-400">async</div> connect():
+                  <TabsContent value="connect" className="space-y-3">
+                    <div className="rounded-md bg-secondary/50 px-3 py-2 font-mono text-sm text-foreground">
+                      <span className="text-blue-600">async</span> connect():
                       Promise{'<void>'}
                     </div>
-                    <p className="text-sm text-gray-600">
-                      Establishes a connection to the Redis server. Must be
-                      called before performing any operations.
+                    <p className="text-xs text-muted-foreground">
+                      {t('apiReference.connectDesc')}
                     </p>
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <div className="text-sm font-medium mb-2">Example:</div>
-                      <CodeBlock
-                        code={`const client = new SolidisClient();
+                    <CodeBlock
+                      code={`const client = new SolidisClient();
 await client.connect();`}
-                        language="typescript"
-                        showLineNumbers={true}
-                      />
-                    </div>
+                      language="typescript"
+                    />
                   </TabsContent>
-
-                  <TabsContent value="quit" className="space-y-4">
-                    <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm">
+                  <TabsContent value="quit" className="space-y-3">
+                    <div className="rounded-md bg-secondary/50 px-3 py-2 font-mono text-sm text-foreground">
                       quit(): void
                     </div>
-                    <p className="text-sm text-gray-600">
-                      Closes the connection to the Redis server and cleans up
-                      resources.
+                    <p className="text-xs text-muted-foreground">
+                      {t('apiReference.disconnectDesc')}
                     </p>
                   </TabsContent>
                 </Tabs>
@@ -190,158 +177,117 @@ await client.connect();`}
             </Card>
           </section>
 
-          {/* Basic Operations */}
           <section id="basic-operations">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Book className="h-5 w-5 text-yellow-600" />
-                  Basic Operations
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Book className="h-4 w-4 text-amber-500" />
+                  {t('apiReference.basicOperations')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-6">
-                  <div>
-                    <h3 className="text-lg font-semibold mb-3">
-                      String Operations
-                    </h3>
-                    <div className="space-y-4">
-                      <div className="bg-gray-50 p-4 rounded-lg">
-                        <div className="bg-gray-900 text-gray-100 p-3 rounded font-mono text-sm mb-3">
-                          <div className="text-blue-400">async</div> set(key:
-                          string, value: StringOrBuffer, options?:
-                          CommandSetOptions): Promise
-                          {'<StringOrBuffer | RespOK | null>'}
+                <div className="space-y-4">
+                  <div className="space-y-3">
+                    {[
+                      {
+                        signature:
+                          'async set(key: string, value: StringOrBuffer, options?: CommandSetOptions): Promise<StringOrBuffer | RespOK | null>',
+                        descriptionKey: 'apiReference.setDesc',
+                      },
+                      {
+                        signature:
+                          'async get(key: string): Promise<string | null>',
+                        descriptionKey: 'apiReference.getDesc',
+                      },
+                      {
+                        signature:
+                          'async del(...keys: string[]): Promise<number>',
+                        descriptionKey: 'apiReference.delDesc',
+                      },
+                    ].map((method) => (
+                      <div key={method.signature} className="card-base p-3">
+                        <div className="font-mono text-xs text-foreground mb-1 overflow-x-auto">
+                          {method.signature}
                         </div>
-                        <p className="text-sm text-gray-600">
-                          Sets a key to hold the string value.
+                        <p className="text-xs text-muted-foreground">
+                          {t(method.descriptionKey)}
                         </p>
                       </div>
-
-                      <div className="bg-gray-50 p-4 rounded-lg">
-                        <div className="bg-gray-900 text-gray-100 p-3 rounded font-mono text-sm mb-3">
-                          <div className="text-blue-400">async</div> get(key:
-                          string): Promise{'<string | null>'}
-                        </div>
-                        <p className="text-sm text-gray-600">
-                          Gets the value of a key.
-                        </p>
-                      </div>
-
-                      <div className="bg-gray-50 p-4 rounded-lg">
-                        <div className="bg-gray-900 text-gray-100 p-3 rounded font-mono text-sm mb-3">
-                          <div className="text-blue-400">async</div>{' '}
-                          del(...keys: string[]): Promise{'<number>'}
-                        </div>
-                        <p className="text-sm text-gray-600">
-                          Deletes one or more keys.
-                        </p>
-                      </div>
-                    </div>
+                    ))}
                   </div>
-
                   <div>
-                    <h3 className="text-lg font-semibold mb-3">
-                      Example Usage
+                    <h3 className="text-sm font-semibold text-foreground mb-2">
+                      {t('apiReference.example')}
                     </h3>
-                    <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm">
-                      <CodeBlock
-                        code={`// Set a value
-await client.set('user:123', 'John Doe');
+                    <CodeBlock
+                      code={`await client.set('user:123', 'John Doe');
 
-// Get a value
 const user = await client.get('user:123');
 console.log(user); // 'John Doe'
 
-// Delete a key
 await client.del('user:123');`}
-                        language="typescript"
-                        showLineNumbers={true}
-                      />
-                    </div>
+                      language="typescript"
+                    />
                   </div>
                 </div>
               </CardContent>
             </Card>
           </section>
 
-          {/* Advanced Operations */}
           <section id="advanced-operations">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Layers className="h-5 w-5 text-yellow-600" />
-                  Advanced Operations
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Layers className="h-4 w-4 text-amber-500" />
+                  {t('apiReference.advancedOperations')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <Tabs defaultValue="transactions" className="w-full">
                   <TabsList>
-                    <TabsTrigger value="transactions">Transactions</TabsTrigger>
-                    <TabsTrigger value="pipelines">Pipelines</TabsTrigger>
+                    <TabsTrigger value="transactions">
+                      {t('apiReference.transactions')}
+                    </TabsTrigger>
+                    <TabsTrigger value="pipelines">
+                      {t('apiReference.pipelines')}
+                    </TabsTrigger>
                     <TabsTrigger value="pubsub">Pub/Sub</TabsTrigger>
                   </TabsList>
+                  <TabsContent value="transactions" className="space-y-3">
+                    <CodeBlock
+                      code={`const transaction = client.multi();
 
-                  <TabsContent value="transactions" className="space-y-4">
-                    <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-                      <CodeBlock
-                        code={`// Start a transaction
-const transaction = client.multi();
-
-// Queue commands (no await needed)
 transaction.set('key', 'value');
 transaction.incr('counter');
 transaction.get('key');
 
-// Execute transaction
 const results = await transaction.exec();
-
 console.log(results); // ['OK', 1, <Buffer 'value'>]`}
-                        language="typescript"
-                        showLineNumbers={true}
-                      />
-                    </div>
-                    <p className="text-sm text-gray-600">
-                      Redis transactions allow the execution of a group of
-                      commands in a single step, with two important guarantees:
-                      all the commands in a transaction are serialized and
-                      executed sequentially, and either all or none of the
-                      commands are processed.
+                      language="typescript"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {t('apiReference.transactionsDesc')}
                     </p>
                   </TabsContent>
-
-                  <TabsContent value="pipelines" className="space-y-4">
-                    <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-                      <CodeBlock
-                        code={`// Create commands for a pipeline
-const commands = [
+                  <TabsContent value="pipelines" className="space-y-3">
+                    <CodeBlock
+                      code={`const commands = [
   ['SET', 'key', 'value'],
   ['INCR', 'counter'],
   ['GET', 'key']
 ];
 
-// Send commands as a pipeline (returns raw RESP replies)
 const results = await client.send(commands);
-
 console.log(results); // [['OK'], [1], [<Buffer>]]`}
-                        language="typescript"
-                        showLineNumbers={true}
-                      />
-                    </div>
-                    <p className="text-sm text-gray-600">
-                      Pipelining is a technique to improve performance by
-                      sending multiple commands to the server without waiting
-                      for the replies, and then reading all the replies in a
-                      single step. This reduces the round-trip time for multiple
-                      commands.
+                      language="typescript"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {t('apiReference.pipelinesDesc')}
                     </p>
                   </TabsContent>
-
-                  <TabsContent value="pubsub" className="space-y-4">
-                    <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-                      <CodeBlock
-                        code={`// Subscribe to channels
-client.on('message', (channel, message) => {
+                  <TabsContent value="pubsub" className="space-y-3">
+                    <CodeBlock
+                      code={`client.on('message', (channel, message) => {
   console.log(\`Received \${message} from \${channel}\`);
 });
 
@@ -350,22 +296,10 @@ client.on('smessage', (channel, message) => {
 });
 
 await client.subscribe('news');`}
-                        language="typescript"
-                        showLineNumbers={true}
-                      />
-                      <CodeBlock
-                        code={`// Publish from another client
-await client.publish('news', 'Hello world!');`}
-                        language="typescript"
-                        showLineNumbers={true}
-                      />
-                    </div>
-                    <p className="text-sm text-gray-600">
-                      Redis Pub/Sub implements the messaging paradigm where
-                      senders (publishers) send messages to a channel, without
-                      knowledge of what subscribers (if any) there may be.
-                      Subscribers express interest in one or more channels and
-                      only receive messages that are of interest.
+                      language="typescript"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {t('apiReference.pubsubDesc')}
                     </p>
                   </TabsContent>
                 </Tabs>
@@ -373,19 +307,17 @@ await client.publish('news', 'Hello world!');`}
             </Card>
           </section>
 
-          {/* Configuration */}
           <section id="configuration">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Settings className="h-5 w-5 text-yellow-600" />
-                  Configuration Options
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Settings className="h-4 w-4 text-amber-500" />
+                  {t('apiReference.configOptions')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-a uto">
-                  <CodeBlock
-                    code={`const client = new SolidisClient({
+                <CodeBlock
+                  code={`const client = new SolidisClient({
   uri: 'redis://localhost:6379',
   host: '127.0.0.1',
   port: 6379,
@@ -427,103 +359,82 @@ await client.publish('news', 'Hello world!');`}
   debug: false,
   debugMaxEntries: 10240,
 });`}
-                    language="typescript"
-                    showLineNumbers={true}
-                  />
-                </div>
+                  language="typescript"
+                  showLineNumbers={true}
+                />
               </CardContent>
             </Card>
           </section>
 
-          {/* Advanced Features */}
           <section id="advanced-features">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Terminal className="h-5 w-5 text-yellow-600" />
-                  Advanced Features
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Terminal className="h-4 w-4 text-amber-500" />
+                  {t('apiReference.advancedFeatures')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <Tabs defaultValue="custom-commands" className="w-full">
                   <TabsList>
                     <TabsTrigger value="custom-commands">
-                      Custom Commands
+                      {t('apiReference.customCommands')}
                     </TabsTrigger>
-                    <TabsTrigger value="raw-commands">Raw Commands</TabsTrigger>
-                    <TabsTrigger value="debugging">Debugging</TabsTrigger>
+                    <TabsTrigger value="raw-commands">
+                      {t('apiReference.rawCommands')}
+                    </TabsTrigger>
+                    <TabsTrigger value="debugging">
+                      {t('apiReference.debugging')}
+                    </TabsTrigger>
                   </TabsList>
-
-                  <TabsContent value="custom-commands" className="space-y-4">
+                  <TabsContent value="custom-commands" className="space-y-3">
                     <CodeBlock
-                      code={`// Import the client and commands
-import { SolidisClient } from '@vcms-io/solidis';
+                      code={`import { SolidisClient } from '@vcms-io/solidis';
 import { get, set } from '@vcms-io/solidis/command';
 import type { SolidisClientExtensions } from '@vcms-io/solidis';
 
-// Define extensions with custom commands
 const extensions = {
   get,
   set,
-  // Custom command implementation
   fill: async function(this: typeof client, keys: string[], value: string) {
     return await Promise.all(keys.map((key) => this.set(key, value)));
   },
 } satisfies SolidisClientExtensions;
 
-// Initialize client with extensions
 const client = new SolidisClient({
   host: '127.0.0.1',
   port: 6379,
 }).extend(extensions);
 
-// Use custom command
 await client.fill(['key1', 'key2', 'key3'], 'value');`}
                       language="typescript"
-                      showLineNumbers={true}
                     />
-                    <p className="text-sm text-gray-600">
-                      You can extend Solidis with custom commands to create
-                      higher-level abstractions or implement specialized
-                      functionality for your application.
+                    <p className="text-xs text-muted-foreground">
+                      {t('apiReference.customCommandsDesc')}
                     </p>
                   </TabsContent>
-
-                  <TabsContent value="raw-commands" className="space-y-4">
+                  <TabsContent value="raw-commands" className="space-y-3">
                     <CodeBlock
-                      code={`// Using raw commands with send()
-const result = await client.send([['COMMAND', 'SOME', 'OPTIONS']]);`}
+                      code={`const result = await client.send([['COMMAND', 'SOME', 'OPTIONS']]);`}
                       language="typescript"
-                      showLineNumbers={true}
                     />
-                    <p className="text-sm text-gray-600">
-                      When you need to use a command that's not yet implemented
-                      or for more direct control, you can use the raw send
-                      method to execute any Redis command.
+                    <p className="text-xs text-muted-foreground">
+                      {t('apiReference.rawCommandsDesc')}
                     </p>
                   </TabsContent>
-
-                  <TabsContent value="debugging" className="space-y-4">
+                  <TabsContent value="debugging" className="space-y-3">
                     <CodeBlock
-                      code={`// Enable debug mode
-const client = new SolidisClient({
+                      code={`const client = new SolidisClient({
   debug: true,
 });
 
-// Listen for debug events
 client.on('debug', (entry) => {
   console.log(\`[\${entry.type}] \${entry.message}\`, entry.data);
-});
-
-// Alternative: environment variable
-// DEBUG=solidis node app.js`}
+});`}
                       language="typescript"
-                      showLineNumbers={true}
                     />
-                    <p className="text-sm text-gray-600">
-                      Solidis provides detailed debugging capabilities to help
-                      you troubleshoot issues and understand the internal
-                      workings of the client.
+                    <p className="text-xs text-muted-foreground">
+                      {t('apiReference.debuggingDesc')}
                     </p>
                   </TabsContent>
                 </Tabs>
@@ -531,19 +442,17 @@ client.on('debug', (entry) => {
             </Card>
           </section>
 
-          {/* Error Handling */}
           <section id="error-handling">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-yellow-600" />
-                  Error Handling
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <AlertTriangle className="h-4 w-4 text-amber-500" />
+                  {t('apiReference.errorHandling')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <CodeBlock
-                  code={`// Import error classes
-import {
+                  code={`import {
   SolidisError,
   SolidisClientError,
   SolidisCommandError,
@@ -554,177 +463,142 @@ import {
   unwrapSolidisError,
 } from '@vcms-io/solidis';
 
-// Error handling example
 try {
   await client.set('key', 'value');
 } catch (error) {
-  // Get the root cause with stack trace
   console.error(unwrapSolidisError(error));
 
-  // Handle specific error types
   if (error instanceof SolidisConnectionError) {
     console.error('Connection error:', error.message);
   } else if (error instanceof SolidisParserError) {
     console.error('Parser error:', error.message);
   } else if (error instanceof SolidisCommandError) {
     console.error('Command error:', error.message);
-  } else if (error instanceof SolidisClientError) {
-    console.error('Client error:', error.message);
   }
 }`}
                   language="typescript"
-                  showLineNumbers={true}
                 />
-                <div className="mt-4">
-                  <h3 className="text-lg font-semibold mb-3">Error Types</h3>
-                  <ul className="space-y-2">
-                    <li className="flex items-start gap-2">
-                      <Badge variant="outline">SolidisError</Badge>
-                      <span className="text-sm text-gray-600">
-                        Base error class for all Solidis errors
+                <div className="mt-4 space-y-1.5">
+                  <h3 className="text-sm font-semibold text-foreground mb-2">
+                    {t('apiReference.errorTypes')}
+                  </h3>
+                  {[
+                    {
+                      name: 'SolidisError',
+                      descriptionKey: 'apiReference.errorBase',
+                    },
+                    {
+                      name: 'SolidisClientError',
+                      descriptionKey: 'apiReference.errorClient',
+                    },
+                    {
+                      name: 'SolidisCommandError',
+                      descriptionKey: 'apiReference.errorCommand',
+                    },
+                    {
+                      name: 'SolidisConnectionError',
+                      descriptionKey: 'apiReference.errorConnection',
+                    },
+                    {
+                      name: 'SolidisParserError',
+                      descriptionKey: 'apiReference.errorParser',
+                    },
+                    {
+                      name: 'SolidisPubSubError',
+                      descriptionKey: 'apiReference.errorPubsub',
+                    },
+                    {
+                      name: 'SolidisRequesterError',
+                      descriptionKey: 'apiReference.errorExecution',
+                    },
+                  ].map((errorType) => (
+                    <div
+                      key={errorType.name}
+                      className="flex items-start gap-2"
+                    >
+                      <Badge variant="outline" className="text-xs shrink-0">
+                        {errorType.name}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {t(errorType.descriptionKey)}
                       </span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Badge variant="outline">SolidisClientError</Badge>
-                      <span className="text-sm text-gray-600">
-                        Subclass of SolidisError for client-level errors
-                      </span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Badge variant="outline">SolidisCommandError</Badge>
-                      <span className="text-sm text-gray-600">
-                        Errors during command execution or reply handling
-                      </span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Badge variant="outline">SolidisConnectionError</Badge>
-                      <span className="text-sm text-gray-600">
-                        Errors related to connection issues
-                      </span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Badge variant="outline">SolidisParserError</Badge>
-                      <span className="text-sm text-gray-600">
-                        Errors during RESP protocol parsing
-                      </span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Badge variant="outline">SolidisPubSubError</Badge>
-                      <span className="text-sm text-gray-600">
-                        Errors related to Pub/Sub operations
-                      </span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Badge variant="outline">SolidisRequesterError</Badge>
-                      <span className="text-sm text-gray-600">
-                        Errors during command execution
-                      </span>
-                    </li>
-                  </ul>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
           </section>
 
-          {/* Events */}
           <section id="events">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Zap className="h-5 w-5 text-yellow-600" />
-                  Events
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Zap className="h-4 w-4 text-amber-500" />
+                  {t('apiReference.events')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <CodeBlock
-                  code={`// Connection events
-client.on('connect', () => console.log('Connected to server'));
+                  code={`client.on('connect', () => console.log('Connected to server'));
 client.on('ready', () => console.log('Client is ready'));
 client.on('end', () => console.log('Connection closed'));
 client.on('close', () => console.log('Connection closed'));
 client.on('drain', () => console.log('Socket drain occurred'));
 client.on('error', (err) => console.error('Error:', err));
 
-// Pub/Sub events
 client.on('message', (channel, message) => console.log(\`\${channel}: \${message}\`));
 client.on('smessage', (channel, message) => console.log(\`\${channel}: \${message}\`));
 client.on('pmessage', (pattern, channel, message) => console.log(\`\${pattern} \${channel}: \${message}\`));
-client.on('subscribe', (channel, count) => console.log(\`Subscribed to \${channel}\`));
-client.on('ssubscribe', (channel, count) => console.log(\`Subscribed to shard channel \${channel}\`));
-client.on('unsubscribe', (channel, count) => console.log(\`Unsubscribed from \${channel}\`));
-client.on('sunsubscribe', (channel, count) => console.log(\`Unsubscribed from shard channel \${channel}\`));
 
-// Debug events
 client.on('debug', (entry) => console.log(\`[\${entry.type}] \${entry.message}\`));`}
                   language="typescript"
-                  showLineNumbers={true}
                 />
-                <div className="mt-4">
-                  <h3 className="text-lg font-semibold mb-3">Event Types</h3>
-                  <ul className="space-y-2">
-                    <li className="flex items-start gap-2">
-                      <Badge variant="outline">connect</Badge>
-                      <span className="text-sm text-gray-600">
-                        Emitted when the client connects to the server
+                <div className="mt-4 space-y-1.5">
+                  <h3 className="text-sm font-semibold text-foreground mb-2">
+                    {t('apiReference.eventTypes')}
+                  </h3>
+                  {[
+                    {
+                      name: 'connect',
+                      descriptionKey: 'apiReference.eventConnect',
+                    },
+                    {
+                      name: 'ready',
+                      descriptionKey: 'apiReference.eventReady',
+                    },
+                    {
+                      name: 'end',
+                      descriptionKey: 'apiReference.eventClose',
+                    },
+                    {
+                      name: 'error',
+                      descriptionKey: 'apiReference.eventError',
+                    },
+                    {
+                      name: 'message',
+                      descriptionKey: 'apiReference.eventMessage',
+                    },
+                    {
+                      name: 'smessage',
+                      descriptionKey: 'apiReference.eventShardMessage',
+                    },
+                    {
+                      name: 'debug',
+                      descriptionKey: 'apiReference.eventDebug',
+                    },
+                  ].map((event) => (
+                    <div key={event.name} className="flex items-start gap-2">
+                      <Badge
+                        variant="outline"
+                        className="text-xs shrink-0 font-mono"
+                      >
+                        {event.name}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {t(event.descriptionKey)}
                       </span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Badge variant="outline">ready</Badge>
-                      <span className="text-sm text-gray-600">
-                        Emitted when the client is ready to send commands
-                      </span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Badge variant="outline">end</Badge>
-                      <span className="text-sm text-gray-600">
-                        Emitted when the connection is closed
-                      </span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Badge variant="outline">close</Badge>
-                      <span className="text-sm text-gray-600">
-                        Emitted when the connection is closed
-                      </span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Badge variant="outline">drain</Badge>
-                      <span className="text-sm text-gray-600">
-                        Emitted when the socket drain occurs
-                      </span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Badge variant="outline">error</Badge>
-                      <span className="text-sm text-gray-600">
-                        Emitted when an error occurs
-                      </span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Badge variant="outline">message</Badge>
-                      <span className="text-sm text-gray-600">
-                        Emitted when a message is received on a subscribed
-                        channel
-                      </span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Badge variant="outline">smessage</Badge>
-                      <span className="text-sm text-gray-600">
-                        Emitted when a message is received on a subscribed shard
-                        channel
-                      </span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Badge variant="outline">ssubscribe</Badge>
-                      <span className="text-sm text-gray-600">
-                        Emitted when subscribed to a shard channel
-                      </span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Badge variant="outline">sunsubscribe</Badge>
-                      <span className="text-sm text-gray-600">
-                        Emitted when unsubscribed from a shard channel
-                      </span>
-                    </li>
-                  </ul>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>

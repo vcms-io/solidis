@@ -1,3 +1,5 @@
+'use client';
+
 import { ArrowRight, CheckCircle, Clock, Lock } from 'lucide-react';
 import Link from 'next/link';
 
@@ -10,54 +12,61 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { useI18n } from '@/lib/i18n-context';
+
+const PACKAGE_NAME = '@vcms-io/solidis-extensions';
 
 export default function DistributedLockingTutorial() {
+  const { t } = useI18n();
+  const redlockNoteParts = t('tutorialLocking.redlockNote').split(PACKAGE_NAME);
+
   return (
-    <div className="container mx-auto max-w-4xl py-12 px-4">
+    <div className="content-container pt-20 sm:pt-24 pb-10 sm:pb-16">
       <div className="mb-8">
         <Link
           href="/tutorials"
-          className="text-yellow-600 hover:underline text-sm mb-4 inline-block"
+          className="text-amber-500 hover:underline text-sm mb-4 inline-block"
         >
-          ← Back to Tutorials
+          {t('tutorialLocking.backToTutorials')}
         </Link>
-        <div className="flex items-center gap-4 mb-4">
-          <Badge className="bg-red-100 text-red-800">Advanced</Badge>
-          <div className="flex items-center gap-1 text-gray-500">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4">
+          <Badge className="bg-red-500/10 text-red-500">
+            {t('tutorialLocking.level')}
+          </Badge>
+          <div className="flex items-center gap-1 text-muted-foreground">
             <Clock className="h-4 w-4" />
-            <span className="text-sm">30 min</span>
+            <span className="text-sm">{t('tutorialLocking.duration')}</span>
           </div>
         </div>
-        <h1 className="text-4xl font-bold mb-4">
-          Distributed Locking with Redis
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4">
+          {t('tutorialLocking.title')}
         </h1>
-        <p className="text-xl text-gray-600">
-          Learn how to implement distributed locks to coordinate operations
-          across multiple processes and servers.
+        <p className="text-xl text-muted-foreground">
+          {t('tutorialLocking.description')}
         </p>
       </div>
 
       <Card className="mb-8">
         <CardHeader>
-          <CardTitle>What You'll Learn</CardTitle>
+          <CardTitle>{t('tutorialLocking.whatYoullLearn')}</CardTitle>
         </CardHeader>
         <CardContent>
           <ul className="space-y-2">
             <li className="flex items-start gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-              <span>Simple distributed lock implementation</span>
+              <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+              <span>{t('tutorialLocking.learn1')}</span>
             </li>
             <li className="flex items-start gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-              <span>RedLock algorithm for fault tolerance</span>
+              <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+              <span>{t('tutorialLocking.learn2')}</span>
             </li>
             <li className="flex items-start gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-              <span>Lock renewal and automatic release</span>
+              <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+              <span>{t('tutorialLocking.learn3')}</span>
             </li>
             <li className="flex items-start gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-              <span>Preventing race conditions</span>
+              <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+              <span>{t('tutorialLocking.learn4')}</span>
             </li>
           </ul>
         </CardContent>
@@ -66,14 +75,14 @@ export default function DistributedLockingTutorial() {
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold">
+            <div className="w-8 h-8 bg-amber-500/10 rounded-full flex items-center justify-center text-amber-500 font-semibold">
               1
             </div>
-            Simple Distributed Lock
+            {t('tutorialLocking.simpleLock')}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
+          <div className="rounded-lg text-sm overflow-x-auto">
             <CodeBlock
               code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
 import { randomUUID } from 'crypto';
@@ -209,14 +218,14 @@ export class DistributedLock {
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold">
+            <div className="w-8 h-8 bg-amber-500/10 rounded-full flex items-center justify-center text-amber-500 font-semibold">
               2
             </div>
-            Usage Examples
+            {t('tutorialLocking.usageExamples')}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
+          <div className="rounded-lg text-sm overflow-x-auto">
             <CodeBlock
               code={`import { DistributedLock } from './distributed-lock';
 
@@ -279,25 +288,29 @@ async function updateUserProfile(userId: string, data: any) {
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Lock className="h-5 w-5 text-yellow-600" />
-            RedLock Algorithm (Using Extensions)
+            <Lock className="h-5 w-5 text-amber-500" />
+            {t('tutorialLocking.redlock')}
           </CardTitle>
-          <CardDescription>
-            For production-grade distributed locking
-          </CardDescription>
+          <CardDescription>{t('tutorialLocking.redlockDesc')}</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-gray-600 mb-4">
-            For production use, consider using the{' '}
-            <a
-              href="https://github.com/vcms-io/solidis-extensions"
-              className="text-yellow-600 hover:underline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              @vcms-io/solidis-extensions
-            </a>{' '}
-            package which includes a battle-tested RedLock implementation.
+          <p className="text-sm text-muted-foreground mb-4">
+            {redlockNoteParts.length === 2 ? (
+              <>
+                {redlockNoteParts[0]}
+                <a
+                  href="https://github.com/vcms-io/solidis-extensions"
+                  className="text-amber-500 hover:underline"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {PACKAGE_NAME}
+                </a>
+                {redlockNoteParts[1]}
+              </>
+            ) : (
+              t('tutorialLocking.redlockNote')
+            )}
           </p>
           <CodeBlock
             code="npm install @vcms-io/solidis-extensions"
@@ -308,36 +321,40 @@ async function updateUserProfile(userId: string, data: any) {
 
       <Card className="mb-8">
         <CardHeader>
-          <CardTitle>Best Practices</CardTitle>
+          <CardTitle>{t('tutorialLocking.bestPractices')}</CardTitle>
         </CardHeader>
         <CardContent>
           <ul className="space-y-3">
             <li className="flex items-start gap-2">
-              <span className="text-green-600 mt-1">✓</span>
-              <div>
-                <div className="font-medium">Always set appropriate TTL</div>
-                <div className="text-sm text-gray-600">
-                  Prevent deadlocks from crashed processes
-                </div>
-              </div>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-green-600 mt-1">✓</span>
-              <div>
-                <div className="font-medium">Use unique lock tokens</div>
-                <div className="text-sm text-gray-600">
-                  Prevent accidental lock release by other processes
-                </div>
-              </div>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-green-600 mt-1">✓</span>
+              <span className="text-emerald-600 mt-1">✓</span>
               <div>
                 <div className="font-medium">
-                  Implement lock renewal for long operations
+                  {t('tutorialLocking.tip1Title')}
                 </div>
-                <div className="text-sm text-gray-600">
-                  Extend TTL while work is in progress
+                <div className="text-sm text-muted-foreground">
+                  {t('tutorialLocking.tip1Desc')}
+                </div>
+              </div>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-emerald-600 mt-1">✓</span>
+              <div>
+                <div className="font-medium">
+                  {t('tutorialLocking.tip2Title')}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {t('tutorialLocking.tip2Desc')}
+                </div>
+              </div>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-emerald-600 mt-1">✓</span>
+              <div>
+                <div className="font-medium">
+                  {t('tutorialLocking.tip3Title')}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {t('tutorialLocking.tip3Desc')}
                 </div>
               </div>
             </li>
@@ -348,28 +365,32 @@ async function updateUserProfile(userId: string, data: any) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <ArrowRight className="h-5 w-5 text-yellow-600" />
-            Next Steps
+            <ArrowRight className="h-5 w-5 text-amber-500" />
+            {t('tutorialLocking.nextSteps')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid md:grid-cols-2 gap-4">
             <Link
               href="/tutorials/job-queue"
-              className="p-4 border rounded-lg hover:shadow-lg transition-shadow"
+              className="card-base card-interactive p-4 block"
             >
-              <h3 className="font-semibold mb-2">Job Queue</h3>
-              <p className="text-sm text-gray-600">
-                Build a background job processing system
+              <h3 className="font-semibold mb-2">
+                {t('tutorialLocking.nextJobQueue')}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                {t('tutorialLocking.nextJobQueueDesc')}
               </p>
             </Link>
             <Link
               href="/tutorials/cache-layer"
-              className="p-4 border rounded-lg hover:shadow-lg transition-shadow"
+              className="card-base card-interactive p-4 block"
             >
-              <h3 className="font-semibold mb-2">Cache Layer</h3>
-              <p className="text-sm text-gray-600">
-                Implement caching strategies
+              <h3 className="font-semibold mb-2">
+                {t('tutorialLocking.nextCache')}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                {t('tutorialLocking.nextCacheDesc')}
               </p>
             </Link>
           </div>

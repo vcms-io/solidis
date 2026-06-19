@@ -1,6 +1,5 @@
 'use client';
 
-import { Mail } from 'lucide-react';
 import Link from 'next/link';
 
 import { useI18n } from '@/lib/i18n-context';
@@ -18,7 +17,7 @@ function GithubIcon({ className }: { className?: string }) {
   );
 }
 
-function XIcon({ className }: { className?: string }) {
+function NpmIcon({ className }: { className?: string }) {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -26,7 +25,7 @@ function XIcon({ className }: { className?: string }) {
       className={className}
       aria-hidden="true"
     >
-      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+      <path d="M1.763 0C.786 0 0 .786 0 1.763v20.474C0 23.214.786 24 1.763 24h20.474c.977 0 1.763-.786 1.763-1.763V1.763C24 .786 23.214 0 22.237 0zM5.13 5.323l13.837.019-.009 13.836h-3.464l.01-10.382h-3.456L12.04 19.17H5.113z" />
     </svg>
   );
 }
@@ -34,140 +33,131 @@ function XIcon({ className }: { className?: string }) {
 export function Footer() {
   const { t } = useI18n();
 
+  const documentationLinks = [
+    { label: t('nav.gettingStarted'), href: '/getting-started' },
+    { label: t('nav.apiReference'), href: '/api-reference' },
+    { label: t('nav.benchmarks'), href: '/benchmarks' },
+    { label: t('nav.tutorials'), href: '/tutorials' },
+  ];
+
+  const resourceLinks = [
+    { label: t('nav.architecture'), href: '/architecture' },
+    { label: t('nav.contributing'), href: '/contributing' },
+    { label: t('nav.faq'), href: '/faq' },
+    { label: t('nav.updates'), href: '/updates' },
+  ];
+
+  const communityLinks = [
+    {
+      label: 'GitHub',
+      href: 'https://github.com/vcms-io/solidis',
+      icon: <GithubIcon className="h-3.5 w-3.5" />,
+    },
+    {
+      label: 'npm',
+      href: 'https://www.npmjs.com/package/@vcms-io/solidis',
+      icon: <NpmIcon className="h-3.5 w-3.5" />,
+    },
+    {
+      label: t('footer.issues'),
+      href: 'https://github.com/vcms-io/solidis/issues',
+    },
+    {
+      label: t('footer.discussions'),
+      href: 'https://github.com/vcms-io/solidis/discussions',
+    },
+  ];
+
   return (
-    <footer className="bg-gray-900 text-white py-12 px-4">
-      <div className="container mx-auto max-w-6xl">
-        <div className="grid md:grid-cols-4 gap-8">
-          <div>
-            <div className="flex items-center space-x-2 mb-4">
+    <footer className="border-t border-border bg-background">
+      <div className="content-container py-12">
+        <div className="flex flex-col md:flex-row gap-10 md:gap-16">
+          <div className="md:max-w-[260px] shrink-0">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-1 mb-3 transition-opacity hover:opacity-70"
+            >
               <img
                 src="https://resources.vcms.io/assets/solidis.png"
-                alt="Solidis Logo"
-                className="h-8 w-8"
+                alt="Solidis"
+                className="h-5 w-5"
               />
-              <span className="font-bold text-xl">Solidis</span>
+              <span className="text-[15px] font-semibold text-foreground">
+                Solidis
+              </span>
+            </Link>
+            <p className="text-[13px] leading-relaxed text-muted-foreground">
+              {t('footer.description')}
+            </p>
+          </div>
+
+          <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 gap-8 md:justify-items-end">
+            <div className="md:text-right">
+              <h4 className="text-[13px] font-medium text-foreground mb-3">
+                {t('footer.documentation')}
+              </h4>
+              <ul className="space-y-2">
+                {documentationLinks.map((link) => (
+                  <li key={link.href}>
+                    <Link
+                      href={link.href}
+                      className="text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
             </div>
-            <p className="text-gray-400 text-sm">{t('footer.description')}</p>
-          </div>
 
-          <div>
-            <h3 className="font-semibold mb-4">{t('footer.documentation')}</h3>
-            <ul className="space-y-2 text-sm">
-              <li>
-                <Link
-                  href="/getting-started"
-                  className="text-gray-400 hover:text-white"
-                >
-                  {t('nav.gettingStarted')}
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/architecture"
-                  className="text-gray-400 hover:text-white"
-                >
-                  {t('nav.architecture')}
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/api-reference"
-                  className="text-gray-400 hover:text-white"
-                >
-                  {t('nav.apiReference')}
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/benchmarks"
-                  className="text-gray-400 hover:text-white"
-                >
-                  {t('nav.benchmarks')}
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/tutorials"
-                  className="text-gray-400 hover:text-white"
-                >
-                  {t('nav.tutorials')}
-                </Link>
-              </li>
-              <li>
-                <Link href="/faq" className="text-gray-400 hover:text-white">
-                  {t('nav.faq')}
-                </Link>
-              </li>
-            </ul>
-          </div>
+            <div className="md:text-right">
+              <h4 className="text-[13px] font-medium text-foreground mb-3">
+                {t('footer.resources')}
+              </h4>
+              <ul className="space-y-2">
+                {resourceLinks.map((link) => (
+                  <li key={link.href}>
+                    <Link
+                      href={link.href}
+                      className="text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
 
-          <div>
-            <h3 className="font-semibold mb-4">{t('footer.community')}</h3>
-            <ul className="space-y-2 text-sm">
-              <li>
-                <Link
-                  href="https://github.com/vcms-io/solidis"
-                  className="text-gray-400 hover:text-white"
-                >
-                  {t('nav.github')}
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="https://github.com/vcms-io/solidis/issues"
-                  className="text-gray-400 hover:text-white"
-                >
-                  Issues
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="https://github.com/vcms-io/solidis/discussions"
-                  className="text-gray-400 hover:text-white"
-                >
-                  Discussions
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/contributing"
-                  className="text-gray-400 hover:text-white"
-                >
-                  {t('nav.contributing')}
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/updates"
-                  className="text-gray-400 hover:text-white"
-                >
-                  {t('nav.updates')}
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          <div>
-            <h3 className="font-semibold mb-4">{t('footer.connect')}</h3>
-            <div className="flex space-x-4">
-              <Link
-                href="https://github.com/vcms-io/solidis"
-                className="text-gray-400 hover:text-white"
-              >
-                <GithubIcon className="h-5 w-5" />
-              </Link>
-              <Link href="#" className="text-gray-400 hover:text-white">
-                <XIcon className="h-5 w-5" />
-              </Link>
-              <Link href="#" className="text-gray-400 hover:text-white">
-                <Mail className="h-5 w-5" />
-              </Link>
+            <div className="md:text-right">
+              <h4 className="text-[13px] font-medium text-foreground mb-3">
+                {t('footer.community')}
+              </h4>
+              <ul className="space-y-2">
+                {communityLinks.map((link) => (
+                  <li key={link.href}>
+                    <Link
+                      href={link.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground md:flex-row-reverse"
+                    >
+                      {link.icon}
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
         </div>
 
-        <div className="border-t border-gray-800 mt-8 pt-8 text-center text-sm text-gray-400">
-          <p>&copy; 2026 VCMS.io. {t('footer.rights')}</p>
+        <div className="mt-10 pt-6 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground">
+            &copy; {new Date().getFullYear()} VCMS.io. {t('footer.rights')}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {t('footer.mitLicense')}
+          </p>
         </div>
       </div>
     </footer>

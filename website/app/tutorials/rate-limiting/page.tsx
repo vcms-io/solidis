@@ -1,3 +1,5 @@
+'use client';
+
 import { ArrowRight, CheckCircle, Clock, Shield } from 'lucide-react';
 import Link from 'next/link';
 
@@ -10,54 +12,60 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { useI18n } from '@/lib/i18n-context';
 
 export default function RateLimitingTutorial() {
+  const { t } = useI18n();
+
   return (
-    <div className="container mx-auto max-w-4xl py-12 px-4">
+    <div className="content-container pt-20 sm:pt-24 pb-10 sm:pb-16">
       {/* Header */}
       <div className="mb-8">
         <Link
           href="/tutorials"
-          className="text-yellow-600 hover:underline text-sm mb-4 inline-block"
+          className="text-amber-500 hover:underline text-sm mb-4 inline-block"
         >
-          ← Back to Tutorials
+          {t('tutorialRate.backToTutorials')}
         </Link>
-        <div className="flex items-center gap-4 mb-4">
-          <Badge className="bg-yellow-100 text-yellow-800">Intermediate</Badge>
-          <div className="flex items-center gap-1 text-gray-500">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4">
+          <Badge className="bg-amber-500/10 text-amber-600">
+            {t('tutorialRate.level')}
+          </Badge>
+          <div className="flex items-center gap-1 text-muted-foreground">
             <Clock className="h-4 w-4" />
-            <span className="text-sm">20 min</span>
+            <span className="text-sm">{t('tutorialRate.duration')}</span>
           </div>
         </div>
-        <h1 className="text-4xl font-bold mb-4">Rate Limiting with Redis</h1>
-        <p className="text-xl text-gray-600">
-          Protect your APIs from abuse and ensure fair resource allocation using
-          Redis-based rate limiting strategies.
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4">
+          {t('tutorialRate.title')}
+        </h1>
+        <p className="text-xl text-muted-foreground">
+          {t('tutorialRate.description')}
         </p>
       </div>
 
       {/* What You'll Learn */}
       <Card className="mb-8">
         <CardHeader>
-          <CardTitle>What You'll Learn</CardTitle>
+          <CardTitle>{t('tutorialRate.whatYoullLearn')}</CardTitle>
         </CardHeader>
         <CardContent>
           <ul className="space-y-2">
             <li className="flex items-start gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-              <span>Fixed window rate limiting</span>
+              <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+              <span>{t('tutorialRate.learn1')}</span>
             </li>
             <li className="flex items-start gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-              <span>Sliding window rate limiting</span>
+              <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+              <span>{t('tutorialRate.learn2')}</span>
             </li>
             <li className="flex items-start gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-              <span>Token bucket algorithm</span>
+              <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+              <span>{t('tutorialRate.learn3')}</span>
             </li>
             <li className="flex items-start gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-              <span>Express middleware integration</span>
+              <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+              <span>{t('tutorialRate.learn4')}</span>
             </li>
           </ul>
         </CardContent>
@@ -67,17 +75,15 @@ export default function RateLimitingTutorial() {
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold">
+            <div className="w-8 h-8 bg-amber-500/10 rounded-full flex items-center justify-center text-amber-500 font-semibold">
               1
             </div>
-            Fixed Window Rate Limiter
+            {t('tutorialRate.fixedWindow')}
           </CardTitle>
-          <CardDescription>
-            Simple and efficient rate limiting strategy
-          </CardDescription>
+          <CardDescription>{t('tutorialRate.fixedWindowDesc')}</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
+          <div className="rounded-lg text-sm overflow-x-auto">
             <CodeBlock
               code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
 
@@ -138,17 +144,17 @@ export class FixedWindowRateLimiter {
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold">
+            <div className="w-8 h-8 bg-amber-500/10 rounded-full flex items-center justify-center text-amber-500 font-semibold">
               2
             </div>
-            Sliding Window Rate Limiter
+            {t('tutorialRate.slidingWindow')}
           </CardTitle>
           <CardDescription>
-            More accurate rate limiting with smooth distribution
+            {t('tutorialRate.slidingWindowDesc')}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
+          <div className="rounded-lg text-sm overflow-x-auto">
             <CodeBlock
               code={`export class SlidingWindowRateLimiter {
   private client: SolidisFeaturedClient;
@@ -219,17 +225,15 @@ export class FixedWindowRateLimiter {
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold">
+            <div className="w-8 h-8 bg-amber-500/10 rounded-full flex items-center justify-center text-amber-500 font-semibold">
               3
             </div>
-            Token Bucket Rate Limiter
+            {t('tutorialRate.tokenBucket')}
           </CardTitle>
-          <CardDescription>
-            Allow burst traffic while maintaining average rate
-          </CardDescription>
+          <CardDescription>{t('tutorialRate.tokenBucketDesc')}</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
+          <div className="rounded-lg text-sm overflow-x-auto">
             <CodeBlock
               code={`export class TokenBucketRateLimiter {
   private client: SolidisFeaturedClient;
@@ -301,17 +305,17 @@ export class FixedWindowRateLimiter {
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold">
+            <div className="w-8 h-8 bg-amber-500/10 rounded-full flex items-center justify-center text-amber-500 font-semibold">
               4
             </div>
-            Express Middleware Integration
+            {t('tutorialRate.expressMiddleware')}
           </CardTitle>
           <CardDescription>
-            Easy-to-use middleware for your Express application
+            {t('tutorialRate.expressMiddlewareDesc')}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
+          <div className="rounded-lg text-sm overflow-x-auto">
             <CodeBlock
               code={`import { Request, Response, NextFunction } from 'express';
 import { SlidingWindowRateLimiter } from './sliding-window-limiter';
@@ -415,12 +419,12 @@ export function createLoginRateLimiter(limiter: SlidingWindowRateLimiter) {
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-yellow-600" />
-            Complete Usage Example
+            <Shield className="h-5 w-5 text-amber-500" />
+            {t('tutorialRate.completeExample')}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
+          <div className="rounded-lg text-sm overflow-x-auto">
             <CodeBlock
               code={`import express from 'express';
 import { SlidingWindowRateLimiter } from './sliding-window-limiter';
@@ -473,48 +477,43 @@ start().catch(console.error);`}
       {/* Best Practices */}
       <Card className="mb-8">
         <CardHeader>
-          <CardTitle>Best Practices</CardTitle>
+          <CardTitle>{t('tutorialRate.bestPractices')}</CardTitle>
         </CardHeader>
         <CardContent>
           <ul className="space-y-3">
             <li className="flex items-start gap-2">
-              <span className="text-green-600 mt-1">✓</span>
+              <span className="text-emerald-600 mt-1">✓</span>
               <div>
-                <div className="font-medium">Choose the right algorithm</div>
-                <div className="text-sm text-gray-600">
-                  Fixed window for simplicity, sliding window for accuracy,
-                  token bucket for burst traffic
+                <div className="font-medium">{t('tutorialRate.tip1Title')}</div>
+                <div className="text-sm text-muted-foreground">
+                  {t('tutorialRate.tip1Desc')}
                 </div>
               </div>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-green-600 mt-1">✓</span>
+              <span className="text-emerald-600 mt-1">✓</span>
               <div>
-                <div className="font-medium">
-                  Always include rate limit headers
-                </div>
-                <div className="text-sm text-gray-600">
-                  Help clients understand and respect rate limits
+                <div className="font-medium">{t('tutorialRate.tip2Title')}</div>
+                <div className="text-sm text-muted-foreground">
+                  {t('tutorialRate.tip2Desc')}
                 </div>
               </div>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-green-600 mt-1">✓</span>
+              <span className="text-emerald-600 mt-1">✓</span>
               <div>
-                <div className="font-medium">Fail open on errors</div>
-                <div className="text-sm text-gray-600">
-                  Don't block all traffic if Redis is down
+                <div className="font-medium">{t('tutorialRate.tip3Title')}</div>
+                <div className="text-sm text-muted-foreground">
+                  {t('tutorialRate.tip3Desc')}
                 </div>
               </div>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-green-600 mt-1">✓</span>
+              <span className="text-emerald-600 mt-1">✓</span>
               <div>
-                <div className="font-medium">
-                  Use different limits for different endpoints
-                </div>
-                <div className="text-sm text-gray-600">
-                  More restrictive for expensive operations
+                <div className="font-medium">{t('tutorialRate.tip4Title')}</div>
+                <div className="text-sm text-muted-foreground">
+                  {t('tutorialRate.tip4Desc')}
                 </div>
               </div>
             </li>
@@ -526,28 +525,32 @@ start().catch(console.error);`}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <ArrowRight className="h-5 w-5 text-yellow-600" />
-            Next Steps
+            <ArrowRight className="h-5 w-5 text-amber-500" />
+            {t('tutorialRate.nextSteps')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid md:grid-cols-2 gap-4">
             <Link
               href="/tutorials/distributed-locking"
-              className="p-4 border rounded-lg hover:shadow-lg transition-shadow"
+              className="card-base card-interactive p-4 block"
             >
-              <h3 className="font-semibold mb-2">Distributed Locking</h3>
-              <p className="text-sm text-gray-600">
-                Coordinate actions across multiple servers
+              <h3 className="font-semibold mb-2">
+                {t('tutorialRate.nextLocking')}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                {t('tutorialRate.nextLockingDesc')}
               </p>
             </Link>
             <Link
               href="/tutorials/cache-layer"
-              className="p-4 border rounded-lg hover:shadow-lg transition-shadow"
+              className="card-base card-interactive p-4 block"
             >
-              <h3 className="font-semibold mb-2">Cache Layer</h3>
-              <p className="text-sm text-gray-600">
-                Improve performance with caching strategies
+              <h3 className="font-semibold mb-2">
+                {t('tutorialRate.nextCache')}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                {t('tutorialRate.nextCacheDesc')}
               </p>
             </Link>
           </div>

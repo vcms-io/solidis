@@ -4,7 +4,6 @@ import {
   Calendar,
   Clock,
   ExternalLink,
-  Star,
   Tag,
   User,
   Wifi,
@@ -29,35 +28,27 @@ export default function UpdatesPage() {
 
   const upcomingFeatures = [
     {
-      title: 'Redis Modules Support',
-      description:
-        'Native support for popular Redis modules like RedisJSON, RedisSearch, and RedisTimeSeries',
-      status: 'In Development',
+      titleKey: 'metrics',
+      descriptionKey: 'metricsDesc',
+      statusKey: 'statusPlanned',
     },
     {
-      title: 'Metrics and Monitoring',
-      description:
-        'Built-in metrics collection and monitoring capabilities for production deployments',
-      status: 'Planned',
-    },
-    {
-      title: 'Advanced Caching Patterns',
-      description:
-        'Higher-level abstractions for common caching patterns and strategies',
-      status: 'Research',
+      titleKey: 'advancedCaching',
+      descriptionKey: 'advancedCachingDesc',
+      statusKey: 'statusResearch',
     },
   ];
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'In Development':
-        return 'bg-blue-100 text-blue-800';
-      case 'Planned':
-        return 'bg-purple-100 text-purple-800';
-      case 'Research':
-        return 'bg-gray-100 text-gray-800';
+  const getStatusColor = (statusKey: string) => {
+    switch (statusKey) {
+      case 'statusInDev':
+        return 'bg-blue-500/10 text-blue-600 border-blue-500/20';
+      case 'statusPlanned':
+        return 'bg-purple-500/10 text-purple-600 border-purple-500/20';
+      case 'statusResearch':
+        return 'bg-muted text-muted-foreground';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-muted text-muted-foreground';
     }
   };
 
@@ -70,7 +61,6 @@ export default function UpdatesPage() {
   };
 
   const parseChangelog = (body: string) => {
-    // Extract bullet points from markdown
     const lines = body.split('\n');
     const changes: string[] = [];
 
@@ -83,55 +73,56 @@ export default function UpdatesPage() {
       }
     }
 
-    return changes.slice(0, 5); // Limit to 5 changes
+    return changes.slice(0, 5);
   };
 
   return (
-    <div className="container mx-auto max-w-4xl py-12 px-4">
-      <div className="mb-12">
-        <div className="flex items-center gap-2 mb-4">
-          <h1 className="text-4xl font-bold">{t('updates.title')}</h1>
+    <div className="content-container pt-20 sm:pt-24 pb-10 sm:pb-16">
+      <div className="mb-10">
+        <div className="flex items-center gap-2 mb-3">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">
+            {t('updates.title')}
+          </h1>
           {fallback && (
-            <div className="flex items-center gap-1 text-xs text-amber-600">
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <WifiOff className="h-3 w-3" />
               <span>{t('updates.cachedData')}</span>
             </div>
           )}
           {!fallback && !loading && (
-            <div className="flex items-center gap-1 text-xs text-yellow-600">
+            <div className="flex items-center gap-1 text-xs text-amber-500">
               <Wifi className="h-3 w-3" />
               <span>{t('updates.liveFromGitHub')}</span>
             </div>
           )}
         </div>
-        <p className="text-xl text-gray-600">{t('updates.subtitle')}</p>
+        <p className="text-lg text-muted-foreground">{t('updates.subtitle')}</p>
       </div>
 
-      {/* Latest Release Highlight */}
       {releases.length > 0 && (
-        <Card className="mb-8 border-green-200 bg-green-50">
+        <Card className="mb-8 border-emerald-500/20">
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Star className="h-5 w-5 text-yellow-600" />
-                <CardTitle className="text-green-800">Latest Release</CardTitle>
-              </div>
-              <Badge className="bg-green-100 text-green-800">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle className="text-base">
+                {t('updates.latestRelease')}
+              </CardTitle>
+              <Badge
+                variant="outline"
+                className="text-emerald-600 border-emerald-500/30"
+              >
                 {releases[0].tag_name}
               </Badge>
             </div>
-            <CardDescription className="text-green-700">
-              The newest version of Solidis is now available.
-            </CardDescription>
+            <CardDescription>{t('updates.latestReleaseDesc')}</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-4 text-sm text-green-700">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
               <div className="flex items-center gap-1">
-                <Calendar className="h-4 w-4" />
+                <Calendar className="h-3 w-3" />
                 Released {formatDate(releases[0].published_at)}
               </div>
               <div className="flex items-center gap-1">
-                <User className="h-4 w-4" />
+                <User className="h-3 w-3" />
                 by {releases[0].author.login}
               </div>
             </div>
@@ -139,83 +130,77 @@ export default function UpdatesPage() {
         </Card>
       )}
 
-      {/* Loading State */}
       {loading && (
         <div className="text-center py-12">
-          <div className="inline-flex items-center gap-2 text-gray-500">
+          <div className="inline-flex items-center gap-2 text-muted-foreground text-sm">
             <Clock className="h-4 w-4 animate-spin" />
-            Loading releases...
+            {t('updates.loadingReleases')}
           </div>
         </div>
       )}
 
-      {/* Release History */}
-      <div className="mb-12">
-        <h2 className="text-2xl font-bold mb-6">Release History</h2>
-        <div className="space-y-6">
+      <div className="mb-10">
+        <h2 className="text-xl font-bold text-foreground mb-6">
+          {t('updates.releaseHistory')}
+        </h2>
+        <div className="space-y-4">
           {releases.map((release, index) => {
             const changes = parseChangelog(release.body);
             const isLatest = index === 0;
 
             return (
               <Card key={release.tag_name}>
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <CardTitle className="flex items-center gap-2">
-                          <Tag className="h-4 w-4 text-yellow-600" />
-                          {release.tag_name}
-                        </CardTitle>
-                        {isLatest && (
-                          <Badge className="bg-green-100 text-green-800">
-                            Latest
-                          </Badge>
-                        )}
-                      </div>
-                      <CardTitle className="text-lg">{release.name}</CardTitle>
-                      <div className="flex items-center gap-4 text-sm text-gray-500 mt-2">
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-4 w-4" />
-                          {formatDate(release.published_at)}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <User className="h-4 w-4" />
-                          {release.author.login}
-                        </div>
-                        <a
-                          href={release.html_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-yellow-600 hover:text-yellow-800"
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                          View on GitHub
-                        </a>
-                      </div>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Tag className="h-3.5 w-3.5 text-amber-500" />
+                    <CardTitle className="text-sm font-mono">
+                      {release.tag_name}
+                    </CardTitle>
+                    {isLatest && (
+                      <Badge
+                        variant="outline"
+                        className="text-emerald-600 border-emerald-500/30 text-[10px]"
+                      >
+                        {t('updates.latestBadge')}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      {formatDate(release.published_at)}
                     </div>
+                    <div className="flex items-center gap-1">
+                      <User className="h-3 w-3" />
+                      {release.author.login}
+                    </div>
+                    <a
+                      href={release.html_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-amber-500 hover:text-amber-600"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      {t('updates.viewOnGitHubLink')}
+                    </a>
                   </div>
                 </CardHeader>
                 <CardContent>
                   {changes.length > 0 && (
-                    <div>
-                      <h4 className="font-semibold mb-2">What's Changed:</h4>
-                      <ul className="space-y-1">
-                        {changes.map((change, changeIndex) => (
-                          <li
-                            key={changeIndex}
-                            className="text-sm text-gray-600 flex items-start gap-2"
-                          >
-                            <span className="text-green-600 mt-1">•</span>
-                            {change}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+                    <ul className="space-y-1">
+                      {changes.map((change, changeIndex) => (
+                        <li
+                          key={changeIndex}
+                          className="flex items-start gap-2 text-xs text-muted-foreground"
+                        >
+                          <span className="text-emerald-600 mt-0.5">·</span>
+                          {change}
+                        </li>
+                      ))}
+                    </ul>
                   )}
-
                   {changes.length === 0 && release.body && (
-                    <div className="prose prose-sm max-w-none">
+                    <div className="prose prose-sm prose-neutral max-w-none text-xs text-muted-foreground">
                       <ReactMarkdown>{`${release.body.slice(0, 300)}...`}</ReactMarkdown>
                     </div>
                   )}
@@ -226,34 +211,36 @@ export default function UpdatesPage() {
         </div>
       </div>
 
-      {/* Error State */}
       {error && fallback && (
-        <Card className="mb-8 border-amber-200 bg-amber-50">
+        <Card className="mb-8 border-amber-500/20">
           <CardContent className="p-4">
-            <div className="flex items-center gap-2 text-amber-700">
-              <WifiOff className="h-4 w-4" />
-              <span className="text-sm">
-                Showing cached release data • GitHub API temporarily unavailable
-              </span>
+            <div className="flex items-center gap-2 text-xs text-amber-500">
+              <WifiOff className="h-3 w-3" />
+              {t('updates.cachedWarning')}
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Upcoming Features */}
-      <div>
-        <h2 className="text-2xl font-bold mb-6">Upcoming Features</h2>
-        <div className="space-y-4">
-          {upcomingFeatures.map((feature, index) => (
-            <Card key={index}>
-              <CardHeader>
-                <div className="flex items-start justify-between">
+      <div className="mb-10">
+        <h2 className="text-xl font-bold text-foreground mb-6">
+          {t('updates.upcomingFeatures')}
+        </h2>
+        <div className="space-y-3">
+          {upcomingFeatures.map((feature) => (
+            <Card key={feature.titleKey}>
+              <CardHeader className="pb-0">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <CardTitle className="text-lg">{feature.title}</CardTitle>
-                    <CardDescription>{feature.description}</CardDescription>
+                    <CardTitle className="text-sm">
+                      {t(`updates.${feature.titleKey}`)}
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      {t(`updates.${feature.descriptionKey}`)}
+                    </CardDescription>
                   </div>
-                  <Badge className={getStatusColor(feature.status)}>
-                    {feature.status}
+                  <Badge className={getStatusColor(feature.statusKey)}>
+                    {t(`updates.${feature.statusKey}`)}
                   </Badge>
                 </div>
               </CardHeader>
@@ -262,44 +249,47 @@ export default function UpdatesPage() {
         </div>
       </div>
 
-      {/* Subscribe Section */}
-      <Card className="mt-12">
+      <Card>
         <CardHeader>
-          <CardTitle>Stay Updated</CardTitle>
-          <CardDescription>
-            Get notified about new releases and important updates
-          </CardDescription>
+          <CardTitle className="text-base">
+            {t('updates.stayUpdated')}
+          </CardTitle>
+          <CardDescription>{t('updates.stayUpdatedDesc')}</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="p-4 border rounded-lg">
-              <h3 className="font-semibold mb-2">GitHub Releases</h3>
-              <p className="text-sm text-gray-600 mb-3">
-                Watch the repository to get notified about new releases
+          <div className="grid md:grid-cols-2 gap-3">
+            <a
+              href="https://github.com/vcms-io/solidis/releases"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="card-base card-interactive p-4 block"
+            >
+              <h3 className="text-sm font-semibold text-foreground mb-1">
+                {t('updates.githubReleases')}
+              </h3>
+              <p className="text-xs text-muted-foreground mb-2">
+                {t('updates.githubReleasesDesc')}
               </p>
-              <a
-                href="https://github.com/vcms-io/solidis/releases"
-                className="text-yellow-600 hover:underline text-sm"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                View on GitHub →
-              </a>
-            </div>
-            <div className="p-4 border rounded-lg">
-              <h3 className="font-semibold mb-2">npm Updates</h3>
-              <p className="text-sm text-gray-600 mb-3">
-                Follow the package on npm to track new versions
+              <span className="text-xs text-amber-500">
+                {t('updates.viewOnGitHub')}
+              </span>
+            </a>
+            <a
+              href="https://www.npmjs.com/package/@vcms-io/solidis"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="card-base card-interactive p-4 block"
+            >
+              <h3 className="text-sm font-semibold text-foreground mb-1">
+                {t('updates.npmUpdates')}
+              </h3>
+              <p className="text-xs text-muted-foreground mb-2">
+                {t('updates.npmUpdatesDesc')}
               </p>
-              <a
-                href="https://www.npmjs.com/package/@vcms-io/solidis"
-                className="text-yellow-600 hover:underline text-sm"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                View on npm →
-              </a>
-            </div>
+              <span className="text-xs text-amber-500">
+                {t('updates.viewOnNpm')}
+              </span>
+            </a>
           </div>
         </CardContent>
       </Card>

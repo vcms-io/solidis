@@ -1,3 +1,5 @@
+'use client';
+
 import { ArrowRight, CheckCircle, Clock, Code, User } from 'lucide-react';
 import Link from 'next/link';
 
@@ -11,61 +13,64 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useI18n } from '@/lib/i18n-context';
 
 export default function SessionStoreTutorial() {
+  const { t } = useI18n();
+
   return (
-    <div className="container mx-auto max-w-4xl py-12 px-4">
+    <div className="content-container pt-20 sm:pt-24 pb-10 sm:pb-16">
       {/* Header */}
       <div className="mb-8">
         <Link
           href="/tutorials"
-          className="text-yellow-600 hover:underline text-sm mb-4 inline-block"
+          className="text-amber-500 hover:underline text-sm mb-4 inline-block"
         >
-          ← Back to Tutorials
+          {t('tutorialSession.backToTutorials')}
         </Link>
-        <div className="flex items-center gap-4 mb-4">
-          <Badge className="bg-green-100 text-green-800">Beginner</Badge>
-          <div className="flex items-center gap-1 text-gray-500">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4">
+          <Badge className="bg-emerald-500/10 text-emerald-600">
+            {t('tutorialSession.level')}
+          </Badge>
+          <div className="flex items-center gap-1 text-muted-foreground">
             <Clock className="h-4 w-4" />
-            <span className="text-sm">15 min</span>
+            <span className="text-sm">{t('tutorialSession.duration')}</span>
           </div>
-          <div className="flex items-center gap-1 text-gray-500">
+          <div className="flex items-center gap-1 text-muted-foreground">
             <User className="h-4 w-4" />
-            <span className="text-sm">Beginner friendly</span>
+            <span className="text-sm">{t('tutorialSession.levelDesc')}</span>
           </div>
         </div>
-        <h1 className="text-4xl font-bold mb-4">
-          Building a Session Store with Redis
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4">
+          {t('tutorialSession.title')}
         </h1>
-        <p className="text-xl text-gray-600">
-          Learn how to implement a Redis-based session store for web
-          applications using Solidis. Perfect for authentication and user state
-          management.
+        <p className="text-xl text-muted-foreground">
+          {t('tutorialSession.description')}
         </p>
       </div>
 
       {/* What You'll Learn */}
       <Card className="mb-8">
         <CardHeader>
-          <CardTitle>What You'll Learn</CardTitle>
+          <CardTitle>{t('tutorialSession.whatYoullLearn')}</CardTitle>
         </CardHeader>
         <CardContent>
           <ul className="space-y-2">
             <li className="flex items-start gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-              <span>How to store and retrieve session data in Redis</span>
+              <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+              <span>{t('tutorialSession.learn1')}</span>
             </li>
             <li className="flex items-start gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-              <span>Implementing session expiration and TTL</span>
+              <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+              <span>{t('tutorialSession.learn2')}</span>
             </li>
             <li className="flex items-start gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-              <span>Creating a session manager class</span>
+              <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+              <span>{t('tutorialSession.learn3')}</span>
             </li>
             <li className="flex items-start gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-              <span>Integrating with Express.js middleware</span>
+              <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+              <span>{t('tutorialSession.learn4')}</span>
             </li>
           </ul>
         </CardContent>
@@ -74,25 +79,25 @@ export default function SessionStoreTutorial() {
       {/* Prerequisites */}
       <Card className="mb-8">
         <CardHeader>
-          <CardTitle>Prerequisites</CardTitle>
+          <CardTitle>{t('tutorialSession.prerequisites')}</CardTitle>
         </CardHeader>
         <CardContent>
           <ul className="space-y-2 text-sm">
             <li className="flex items-center gap-2">
-              <span className="text-yellow-600">•</span>
-              <span>Node.js 14+ installed</span>
+              <span className="text-amber-500">•</span>
+              <span>{t('tutorialSession.prereq1')}</span>
             </li>
             <li className="flex items-center gap-2">
-              <span className="text-yellow-600">•</span>
-              <span>Redis server running locally or remotely</span>
+              <span className="text-amber-500">•</span>
+              <span>{t('tutorialSession.prereq2')}</span>
             </li>
             <li className="flex items-center gap-2">
-              <span className="text-yellow-600">•</span>
-              <span>Basic understanding of Express.js</span>
+              <span className="text-amber-500">•</span>
+              <span>{t('tutorialSession.prereq3')}</span>
             </li>
             <li className="flex items-center gap-2">
-              <span className="text-yellow-600">•</span>
-              <span>Familiarity with TypeScript (optional)</span>
+              <span className="text-amber-500">•</span>
+              <span>{t('tutorialSession.prereq4')}</span>
             </li>
           </ul>
         </CardContent>
@@ -102,18 +107,20 @@ export default function SessionStoreTutorial() {
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold">
+            <div className="w-8 h-8 bg-amber-500/10 rounded-full flex items-center justify-center text-amber-500 font-semibold">
               1
             </div>
-            Project Setup
+            {t('tutorialSession.projectSetup')}
           </CardTitle>
           <CardDescription>
-            Install dependencies and initialize the project
+            {t('tutorialSession.projectSetupDesc')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div>
-            <h4 className="font-semibold mb-2">Install Dependencies</h4>
+            <h4 className="font-semibold mb-2">
+              {t('tutorialSession.installDeps')}
+            </h4>
             <Tabs defaultValue="npm" className="w-full">
               <TabsList>
                 <TabsTrigger value="npm">npm</TabsTrigger>
@@ -126,7 +133,9 @@ export default function SessionStoreTutorial() {
                   language="bash"
                 />
                 <div>
-                  <h4 className="font-semibold mb-2">TypeScript (Optional)</h4>
+                  <h4 className="font-semibold mb-2">
+                    {t('tutorialSession.tsOptional')}
+                  </h4>
                   <CodeBlock
                     code="npm install -D @types/express @types/uuid typescript"
                     language="bash"
@@ -139,7 +148,9 @@ export default function SessionStoreTutorial() {
                   language="bash"
                 />
                 <div>
-                  <h4 className="font-semibold mb-2">TypeScript (Optional)</h4>
+                  <h4 className="font-semibold mb-2">
+                    {t('tutorialSession.tsOptional')}
+                  </h4>
                   <CodeBlock
                     code="yarn add -D @types/express @types/uuid typescript"
                     language="bash"
@@ -152,7 +163,9 @@ export default function SessionStoreTutorial() {
                   language="bash"
                 />
                 <div>
-                  <h4 className="font-semibold mb-2">TypeScript (Optional)</h4>
+                  <h4 className="font-semibold mb-2">
+                    {t('tutorialSession.tsOptional')}
+                  </h4>
                   <CodeBlock
                     code="pnpm add -D @types/express @types/uuid typescript"
                     language="bash"
@@ -168,17 +181,17 @@ export default function SessionStoreTutorial() {
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold">
+            <div className="w-8 h-8 bg-amber-500/10 rounded-full flex items-center justify-center text-amber-500 font-semibold">
               2
             </div>
-            Create Session Manager Class
+            {t('tutorialSession.createSessionManager')}
           </CardTitle>
           <CardDescription>
-            Build a reusable session manager using Solidis
+            {t('tutorialSession.createSessionManagerDesc')}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
+          <div className="rounded-lg text-sm overflow-x-auto">
             <CodeBlock
               code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
 import { v4 as uuidv4 } from 'uuid';
@@ -298,17 +311,17 @@ export class SessionStore {
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold">
+            <div className="w-8 h-8 bg-amber-500/10 rounded-full flex items-center justify-center text-amber-500 font-semibold">
               3
             </div>
-            Create Express Middleware
+            {t('tutorialSession.createMiddleware')}
           </CardTitle>
           <CardDescription>
-            Integrate the session store with Express.js
+            {t('tutorialSession.createMiddlewareDesc')}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
+          <div className="rounded-lg text-sm overflow-x-auto">
             <CodeBlock
               code={`import express, { Request, Response, NextFunction } from 'express';
 import { SessionStore, SessionData } from './session-store';
@@ -383,17 +396,17 @@ export function createSessionMiddleware(store: SessionStore) {
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold">
+            <div className="w-8 h-8 bg-amber-500/10 rounded-full flex items-center justify-center text-amber-500 font-semibold">
               4
             </div>
-            Usage Example
+            {t('tutorialSession.usageExample')}
           </CardTitle>
           <CardDescription>
-            Putting it all together in your Express app
+            {t('tutorialSession.usageExampleDesc')}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
+          <div className="rounded-lg text-sm overflow-x-auto">
             <CodeBlock
               code={`import express from 'express';
 import cookieParser from 'cookie-parser';
@@ -477,14 +490,16 @@ start().catch(console.error);`}
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Code className="h-5 w-5 text-yellow-600" />
-            Testing Your Session Store
+            <Code className="h-5 w-5 text-amber-500" />
+            {t('tutorialSession.testing')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             <div>
-              <h4 className="font-semibold mb-2">Test Login</h4>
+              <h4 className="font-semibold mb-2">
+                {t('tutorialSession.testLogin')}
+              </h4>
               <CodeBlock
                 code={`curl -X POST http://localhost:3000/api/login \\
   -H "Content-Type: application/json" \\
@@ -495,7 +510,9 @@ start().catch(console.error);`}
             </div>
 
             <div>
-              <h4 className="font-semibold mb-2">Test Protected Endpoint</h4>
+              <h4 className="font-semibold mb-2">
+                {t('tutorialSession.testProtected')}
+              </h4>
               <CodeBlock
                 code={'curl http://localhost:3000/api/profile -b cookies.txt'}
                 language="bash"
@@ -503,7 +520,9 @@ start().catch(console.error);`}
             </div>
 
             <div>
-              <h4 className="font-semibold mb-2">Test Logout</h4>
+              <h4 className="font-semibold mb-2">
+                {t('tutorialSession.testLogout')}
+              </h4>
               <CodeBlock
                 code={
                   'curl -X POST http://localhost:3000/api/logout -b cookies.txt'
@@ -518,71 +537,62 @@ start().catch(console.error);`}
       {/* Best Practices */}
       <Card className="mb-8">
         <CardHeader>
-          <CardTitle>Best Practices & Tips</CardTitle>
+          <CardTitle>{t('tutorialSession.bestPractices')}</CardTitle>
         </CardHeader>
         <CardContent>
           <ul className="space-y-3">
             <li className="flex items-start gap-2">
-              <span className="text-green-600 mt-1">✓</span>
+              <span className="text-emerald-600 mt-1">✓</span>
               <div>
                 <div className="font-medium">
-                  Use secure cookies in production
+                  {t('tutorialSession.tip1Title')}
                 </div>
-                <div className="text-sm text-gray-600">
-                  Always set{' '}
-                  <code className="bg-gray-100 px-1 py-0.5 rounded">
-                    httpOnly
-                  </code>
-                  ,{' '}
-                  <code className="bg-gray-100 px-1 py-0.5 rounded">
-                    secure
-                  </code>
-                  , and{' '}
-                  <code className="bg-gray-100 px-1 py-0.5 rounded">
-                    sameSite
-                  </code>{' '}
-                  flags
+                <div className="text-sm text-muted-foreground">
+                  {t('tutorialSession.tip1Desc')}
                 </div>
               </div>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-green-600 mt-1">✓</span>
+              <span className="text-emerald-600 mt-1">✓</span>
               <div>
-                <div className="font-medium">Implement session rotation</div>
-                <div className="text-sm text-gray-600">
-                  Regenerate session IDs after login to prevent session fixation
-                  attacks
+                <div className="font-medium">
+                  {t('tutorialSession.tip2Title')}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {t('tutorialSession.tip2Desc')}
                 </div>
               </div>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-green-600 mt-1">✓</span>
+              <span className="text-emerald-600 mt-1">✓</span>
               <div>
-                <div className="font-medium">Set appropriate TTL values</div>
-                <div className="text-sm text-gray-600">
-                  Balance between user experience and security based on your
-                  application needs
+                <div className="font-medium">
+                  {t('tutorialSession.tip3Title')}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {t('tutorialSession.tip3Desc')}
                 </div>
               </div>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-green-600 mt-1">✓</span>
+              <span className="text-emerald-600 mt-1">✓</span>
               <div>
-                <div className="font-medium">Reuse client instances</div>
-                <div className="text-sm text-gray-600">
-                  Share a single SolidisClient across requests for better
-                  performance
+                <div className="font-medium">
+                  {t('tutorialSession.tip4Title')}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {t('tutorialSession.tip4Desc')}
                 </div>
               </div>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-green-600 mt-1">✓</span>
+              <span className="text-emerald-600 mt-1">✓</span>
               <div>
-                <div className="font-medium">Monitor session counts</div>
-                <div className="text-sm text-gray-600">
-                  Use{' '}
-                  <code className="bg-gray-100 px-1 py-0.5 rounded">SCAN</code>{' '}
-                  command to track active sessions
+                <div className="font-medium">
+                  {t('tutorialSession.tip5Title')}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {t('tutorialSession.tip5Desc')}
                 </div>
               </div>
             </li>
@@ -594,28 +604,32 @@ start().catch(console.error);`}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <ArrowRight className="h-5 w-5 text-yellow-600" />
-            Next Steps
+            <ArrowRight className="h-5 w-5 text-amber-500" />
+            {t('tutorialSession.nextSteps')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid md:grid-cols-2 gap-4">
             <Link
               href="/tutorials/cache-layer"
-              className="p-4 border rounded-lg hover:shadow-lg transition-shadow"
+              className="card-base card-interactive p-4 block"
             >
-              <h3 className="font-semibold mb-2">Cache Layer Tutorial</h3>
-              <p className="text-sm text-gray-600">
-                Learn how to implement caching for better performance
+              <h3 className="font-semibold mb-2">
+                {t('tutorialSession.nextCache')}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                {t('tutorialSession.nextCacheDesc')}
               </p>
             </Link>
             <Link
               href="/tutorials/rate-limiting"
-              className="p-4 border rounded-lg hover:shadow-lg transition-shadow"
+              className="card-base card-interactive p-4 block"
             >
-              <h3 className="font-semibold mb-2">Rate Limiting Tutorial</h3>
-              <p className="text-sm text-gray-600">
-                Protect your APIs with Redis-based rate limiting
+              <h3 className="font-semibold mb-2">
+                {t('tutorialSession.nextRate')}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                {t('tutorialSession.nextRateDesc')}
               </p>
             </Link>
           </div>

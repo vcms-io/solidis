@@ -1,55 +1,63 @@
+'use client';
+
 import { ArrowRight, CheckCircle, Clock, Layers } from 'lucide-react';
 import Link from 'next/link';
 
 import { CodeBlock } from '@/components/code-block';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useI18n } from '@/lib/i18n-context';
 
 export default function JobQueueTutorial() {
+  const { t } = useI18n();
+
   return (
-    <div className="container mx-auto max-w-4xl py-12 px-4">
+    <div className="content-container pt-20 sm:pt-24 pb-10 sm:pb-16">
       <div className="mb-8">
         <Link
           href="/tutorials"
-          className="text-yellow-600 hover:underline text-sm mb-4 inline-block"
+          className="text-amber-500 hover:underline text-sm mb-4 inline-block"
         >
-          ← Back to Tutorials
+          {t('tutorialJobQueue.backToTutorials')}
         </Link>
-        <div className="flex items-center gap-4 mb-4">
-          <Badge className="bg-yellow-100 text-yellow-800">Intermediate</Badge>
-          <div className="flex items-center gap-1 text-gray-500">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4">
+          <Badge className="bg-amber-500/10 text-amber-600">
+            {t('tutorialJobQueue.level')}
+          </Badge>
+          <div className="flex items-center gap-1 text-muted-foreground">
             <Clock className="h-4 w-4" />
-            <span className="text-sm">35 min</span>
+            <span className="text-sm">{t('tutorialJobQueue.duration')}</span>
           </div>
         </div>
-        <h1 className="text-4xl font-bold mb-4">Building a Job Queue System</h1>
-        <p className="text-xl text-gray-600">
-          Create a robust background job processing system using Redis lists for
-          reliable task execution.
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4">
+          {t('tutorialJobQueue.title')}
+        </h1>
+        <p className="text-xl text-muted-foreground">
+          {t('tutorialJobQueue.description')}
         </p>
       </div>
 
       <Card className="mb-8">
         <CardHeader>
-          <CardTitle>What You'll Build</CardTitle>
+          <CardTitle>{t('tutorialJobQueue.whatYoullBuild')}</CardTitle>
         </CardHeader>
         <CardContent>
           <ul className="space-y-2">
             <li className="flex items-start gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-              <span>Priority-based job queue</span>
+              <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+              <span>{t('tutorialJobQueue.build1')}</span>
             </li>
             <li className="flex items-start gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-              <span>Multiple worker support</span>
+              <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+              <span>{t('tutorialJobQueue.build2')}</span>
             </li>
             <li className="flex items-start gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-              <span>Job retry mechanism</span>
+              <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+              <span>{t('tutorialJobQueue.build3')}</span>
             </li>
             <li className="flex items-start gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-              <span>Dead letter queue for failed jobs</span>
+              <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+              <span>{t('tutorialJobQueue.build4')}</span>
             </li>
           </ul>
         </CardContent>
@@ -58,14 +66,14 @@ export default function JobQueueTutorial() {
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold">
+            <div className="w-8 h-8 bg-amber-500/10 rounded-full flex items-center justify-center text-amber-500 font-semibold">
               1
             </div>
-            Job Queue Manager
+            {t('tutorialJobQueue.queueManager')}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
+          <div className="rounded-lg text-sm overflow-x-auto">
             <CodeBlock
               code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
 import { v4 as uuidv4 } from 'uuid';
@@ -218,14 +226,14 @@ export class JobQueue {
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold">
+            <div className="w-8 h-8 bg-amber-500/10 rounded-full flex items-center justify-center text-amber-500 font-semibold">
               2
             </div>
-            Job Worker
+            {t('tutorialJobQueue.jobWorker')}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
+          <div className="rounded-lg text-sm overflow-x-auto">
             <CodeBlock
               code={`import { JobQueue, Job } from './job-queue';
 
@@ -318,14 +326,14 @@ export class JobWorker {
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold">
+            <div className="w-8 h-8 bg-amber-500/10 rounded-full flex items-center justify-center text-amber-500 font-semibold">
               3
             </div>
-            Usage Example
+            {t('tutorialJobQueue.usageExample')}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
+          <div className="rounded-lg text-sm overflow-x-auto">
             <CodeBlock
               code={`import { JobQueue } from './job-queue';
 import { JobWorker } from './job-worker';
@@ -393,45 +401,53 @@ process.on('SIGTERM', () => {
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Layers className="h-5 w-5 text-yellow-600" />
-            Advanced Features
+            <Layers className="h-5 w-5 text-amber-500" />
+            {t('tutorialJobQueue.advancedFeatures')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <ul className="space-y-3">
             <li className="flex items-start gap-2">
-              <span className="text-green-600 mt-1">✓</span>
+              <span className="text-emerald-600 mt-1">✓</span>
               <div>
-                <div className="font-medium">Delayed Jobs</div>
-                <div className="text-sm text-gray-600">
-                  Schedule jobs to run at a specific time
+                <div className="font-medium">
+                  {t('tutorialJobQueue.delayedJobs')}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {t('tutorialJobQueue.delayedJobsDesc')}
                 </div>
               </div>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-green-600 mt-1">✓</span>
+              <span className="text-emerald-600 mt-1">✓</span>
               <div>
-                <div className="font-medium">Job Progress Tracking</div>
-                <div className="text-sm text-gray-600">
-                  Update and monitor job progress in real-time
+                <div className="font-medium">
+                  {t('tutorialJobQueue.progressTracking')}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {t('tutorialJobQueue.progressTrackingDesc')}
                 </div>
               </div>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-green-600 mt-1">✓</span>
+              <span className="text-emerald-600 mt-1">✓</span>
               <div>
-                <div className="font-medium">Multiple Workers</div>
-                <div className="text-sm text-gray-600">
-                  Scale horizontally by running multiple worker processes
+                <div className="font-medium">
+                  {t('tutorialJobQueue.multipleWorkers')}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {t('tutorialJobQueue.multipleWorkersDesc')}
                 </div>
               </div>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-green-600 mt-1">✓</span>
+              <span className="text-emerald-600 mt-1">✓</span>
               <div>
-                <div className="font-medium">Job Deduplication</div>
-                <div className="text-sm text-gray-600">
-                  Prevent duplicate jobs from being queued
+                <div className="font-medium">
+                  {t('tutorialJobQueue.deduplication')}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {t('tutorialJobQueue.deduplicationDesc')}
                 </div>
               </div>
             </li>
@@ -442,28 +458,32 @@ process.on('SIGTERM', () => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <ArrowRight className="h-5 w-5 text-yellow-600" />
-            Next Steps
+            <ArrowRight className="h-5 w-5 text-amber-500" />
+            {t('tutorialJobQueue.nextSteps')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid md:grid-cols-2 gap-4">
             <Link
               href="/tutorials/distributed-locking"
-              className="p-4 border rounded-lg hover:shadow-lg transition-shadow"
+              className="card-base card-interactive p-4 block"
             >
-              <h3 className="font-semibold mb-2">Distributed Locking</h3>
-              <p className="text-sm text-gray-600">
-                Prevent race conditions in job processing
+              <h3 className="font-semibold mb-2">
+                {t('tutorialJobQueue.nextLocking')}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                {t('tutorialJobQueue.nextLockingDesc')}
               </p>
             </Link>
             <Link
               href="/tutorials/cache-layer"
-              className="p-4 border rounded-lg hover:shadow-lg transition-shadow"
+              className="card-base card-interactive p-4 block"
             >
-              <h3 className="font-semibold mb-2">Cache Layer</h3>
-              <p className="text-sm text-gray-600">
-                Cache job results for better performance
+              <h3 className="font-semibold mb-2">
+                {t('tutorialJobQueue.nextCache')}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                {t('tutorialJobQueue.nextCacheDesc')}
               </p>
             </Link>
           </div>

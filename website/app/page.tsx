@@ -1,368 +1,559 @@
 'use client';
 
-import {
-  ArrowRight,
-  BarChart,
-  Book,
-  Code,
-  Shield,
-  Star,
-  Users,
-  Zap,
-} from 'lucide-react';
+import { ArrowRight, ArrowUpRight } from 'lucide-react';
 import Link from 'next/link';
 
+import { ArchitectureDiagram } from '@/components/architecture-diagram';
 import { CodeBlock } from '@/components/code-block';
-import { GitHubStats } from '@/components/github-stats';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { useCountUp } from '@/hooks/use-count-up';
 import { useGitHubStats } from '@/hooks/use-github-stats';
+import { useIntersectionObserver } from '@/hooks/use-intersection-observer';
 import { useI18n } from '@/lib/i18n-context';
+
+const BENCHMARK_DATA = [
+  {
+    name: 'Set Mutation',
+    commands: 'SADD + SISMEMBER + SREM',
+    solidis: 1638,
+    ioredis: 3419,
+    multiplier: '2.1x',
+  },
+  {
+    name: 'List Range',
+    commands: 'LPUSH + RPUSH + LRANGE',
+    solidis: 1905,
+    ioredis: 3616,
+    multiplier: '1.9x',
+  },
+  {
+    name: 'Hash Mutation',
+    commands: 'HMSET + HMGET + HDEL',
+    solidis: 1869,
+    ioredis: 3391,
+    multiplier: '1.8x',
+  },
+  {
+    name: 'Set',
+    commands: 'SET (1 KB payload)',
+    solidis: 763,
+    ioredis: 1379,
+    multiplier: '1.8x',
+  },
+  {
+    name: 'Sorted Set',
+    commands: 'ZADD + ZRANGE + ZREM',
+    solidis: 1925,
+    ioredis: 3275,
+    multiplier: '1.7x',
+  },
+  {
+    name: 'Counter',
+    commands: 'INCR + DECR',
+    solidis: 903,
+    ioredis: 1397,
+    multiplier: '1.5x',
+  },
+];
+
+function BenchmarkBar({
+  data,
+  index,
+  animated,
+}: {
+  data: (typeof BENCHMARK_DATA)[number];
+  index: number;
+  animated: boolean;
+}) {
+  const solidisWidth = 100;
+  const ioredisWidth = (data.solidis / data.ioredis) * 100;
+  const solidisAnimDuration = data.solidis;
+  const ioredisAnimDuration = data.ioredis;
+
+  return (
+    <div className="group">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between mb-2">
+        <div>
+          <span className="text-sm font-medium text-foreground">
+            {data.name}
+          </span>
+          <span className="ml-2 text-xs text-muted-foreground font-mono">
+            {data.commands}
+          </span>
+        </div>
+        <span
+          className="text-sm font-mono font-semibold text-amber-600 transition-opacity duration-500"
+          style={{
+            opacity: animated ? 1 : 0,
+            transitionDelay: `${index * 100 + 400}ms`,
+          }}
+        >
+          {data.multiplier}
+        </span>
+      </div>
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] font-mono text-foreground w-14 shrink-0">
+            solidis
+          </span>
+          <div className="flex-1 relative h-2 rounded-full bg-secondary/50 overflow-hidden">
+            <div
+              className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-amber-500 to-amber-400"
+              style={{
+                width: animated ? `${solidisWidth}%` : '0%',
+                transition: `width ${solidisAnimDuration}ms linear`,
+                transitionDelay: `${index * 150}ms`,
+              }}
+            />
+          </div>
+          <span className="text-[11px] font-mono text-muted-foreground w-16 text-right shrink-0">
+            {data.solidis}ms
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] font-mono text-muted-foreground w-14 shrink-0">
+            ioredis
+          </span>
+          <div className="flex-1 relative h-2 rounded-full bg-secondary/50 overflow-hidden">
+            <div
+              className="absolute inset-y-0 left-0 rounded-full bg-foreground/15"
+              style={{
+                width: animated ? `${ioredisWidth}%` : '0%',
+                transition: `width ${ioredisAnimDuration}ms linear`,
+                transitionDelay: `${index * 150}ms`,
+              }}
+            />
+          </div>
+          <span className="text-[11px] font-mono text-muted-foreground w-16 text-right shrink-0">
+            {data.ioredis}ms
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RevealSection({
+  children,
+  className = '',
+  delay = 0,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  delay?: number;
+}) {
+  const { reference, isIntersecting } = useIntersectionObserver({
+    threshold: 0.1,
+    rootMargin: '0px 0px -60px 0px',
+  });
+
+  return (
+    <div
+      ref={reference}
+      className={`reveal ${isIntersecting ? 'visible' : ''} ${className}`}
+      style={{ '--reveal-delay': `${delay}ms` } as React.CSSProperties}
+    >
+      {children}
+    </div>
+  );
+}
 
 export default function HomePage() {
   const { stats, loading } = useGitHubStats();
   const { t } = useI18n();
+
+  const { reference: benchmarkReference, isIntersecting: benchmarkVisible } =
+    useIntersectionObserver({
+      threshold: 0.2,
+      rootMargin: '0px 0px -40px 0px',
+    });
+
+  const starsCount = useCountUp({
+    end: stats.stars,
+    duration: 1500,
+    enabled: !loading,
+  });
+
+  const featureList = [
+    {
+      title: t('home.serverlessReady'),
+      description: t('home.serverlessReadyDesc'),
+    },
+    { title: t('home.twiceAsFast'), description: t('home.twiceAsFastDesc') },
+    { title: t('home.battleTested'), description: t('home.battleTestedDesc') },
+    {
+      title: t('home.modernProtocol'),
+      description: t('home.modernProtocolDesc'),
+    },
+  ];
+
   return (
-    <div className="flex flex-col min-h-screen">
-      {/* Hero Section */}
-      <section className="relative bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white py-20 px-4">
-        <div className="absolute inset-0 bg-[url('/grid.png')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))] opacity-20" />
-        <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/10 via-transparent to-yellow-500/10" />
-        <div className="container mx-auto max-w-6xl relative">
-          <div className="text-center space-y-6">
-            <Badge variant="secondary" className="mb-4">
-              <Star className="w-4 h-4 mr-1" />
-              {loading
-                ? 'Loading...'
-                : `${stats.stars.toLocaleString()} GitHub Stars`}
-              {stats.fallback && !loading && (
-                <span className="ml-1 text-xs opacity-75">(cached)</span>
-              )}
-            </Badge>
-            <h1 className="text-5xl md:text-7xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-              {t('home.title')}
-            </h1>
-            <p className="text-xl md:text-2xl text-gray-300 max-w-3xl mx-auto">
-              {t('home.subtitle')}
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center mt-8">
-              <Button
-                size="lg"
-                className="bg-yellow-500 hover:bg-yellow-600 text-black font-semibold"
-                asChild
-              >
-                <Link href="/getting-started">
-                  {t('home.getStarted')} <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-              <Button
-                size="lg"
-                variant="secondary"
-                className="bg-white/10 hover:bg-white/20 text-white border-white/20"
-                asChild
-              >
-                <Link href="/api-reference">{t('home.viewApi')}</Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section className="py-20 px-4 bg-gray-50">
-        <div className="container mx-auto max-w-6xl">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              {t('home.whyChoose')}
-            </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              {t('home.whyDescription')}
-            </p>
+    <div className="flex flex-col">
+      {/* Hero */}
+      <section className="relative pt-32 pb-20 overflow-hidden">
+        <div className="relative content-container text-center">
+          <div
+            className="hero-reveal inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground mb-8 transition-colors hover:border-foreground/20"
+            style={{ '--hero-delay': '0ms' } as React.CSSProperties}
+          >
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+            {loading
+              ? t('home.loading')
+              : `${starsCount.toLocaleString()} ${t('home.starsOnGitHub')}`}
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            <Card>
-              <CardHeader>
-                <Zap className="h-12 w-12 text-yellow-500 mb-4" />
-                <CardTitle>{t('home.highPerformance')}</CardTitle>
-                <CardDescription>
-                  {t('home.highPerformanceDesc')}
-                </CardDescription>
-              </CardHeader>
-            </Card>
+          <h1
+            className="hero-reveal text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight gradient-text leading-[1.1] mb-6 text-balance"
+            style={{ '--hero-delay': '150ms' } as React.CSSProperties}
+          >
+            {t('home.title')}
+          </h1>
 
-            <Card>
-              <CardHeader>
-                <Shield className="h-12 w-12 text-yellow-600 mb-4" />
-                <CardTitle>{t('home.solidArchitecture')}</CardTitle>
-                <CardDescription>
-                  {t('home.solidArchitectureDesc')}
-                </CardDescription>
-              </CardHeader>
-            </Card>
+          <p
+            className="hero-reveal text-lg text-muted-foreground mx-auto leading-relaxed mb-4"
+            style={{ '--hero-delay': '300ms' } as React.CSSProperties}
+          >
+            {t('home.subtitle')}
+          </p>
 
-            <Card>
-              <CardHeader>
-                <Code className="h-12 w-12 text-yellow-700 mb-4" />
-                <CardTitle>{t('home.typescriptFirst')}</CardTitle>
-                <CardDescription>
-                  {t('home.typescriptFirstDesc')}
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          </div>
-        </div>
-      </section>
-
-      {/* Benchmarks Section */}
-      <section className="py-20 px-4 bg-gray-900 text-white">
-        <div className="container mx-auto max-w-6xl">
-          <div className="text-center mb-16">
-            <Badge
-              variant="outline"
-              className="mb-4 border-yellow-500 text-yellow-400"
-            >
-              <BarChart className="w-4 h-4 mr-1" />
-              Performance
-            </Badge>
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              {t('home.blazingFast')}
-            </h2>
-            <p className="text-xl text-gray-300 max-w-2xl mx-auto">
-              {t('home.blazingFastDesc')}
-            </p>
+          <div
+            className="hero-reveal flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-muted-foreground font-mono mb-10"
+            style={{ '--hero-delay': '450ms' } as React.CSSProperties}
+          >
+            <span>0 deps</span>
+            <span className="text-foreground/15">·</span>
+            <span>383 commands</span>
+            <span className="text-foreground/15">·</span>
+            <span>&lt; 29 KB</span>
+            <span className="text-foreground/15">·</span>
+            <span>98% coverage</span>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="border-b border-gray-700">
-                  <th className="py-3 px-4 text-left">Benchmark</th>
-                  <th className="py-3 px-4 text-center">Solidis</th>
-                  <th className="py-3 px-4 text-center">ioredis</th>
-                  <th className="py-3 px-4 text-center">Speed Boost</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-b border-gray-800 hover:bg-gray-800/50">
-                  <td className="py-3 px-4">
-                    <div className="font-medium">Set Mutation</div>
-                    <div className="text-xs text-gray-400">
-                      SADD + SISMEMBER + SREM
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-center font-mono text-yellow-400">
-                    1772ms
-                  </td>
-                  <td className="py-3 px-4 text-center font-mono">3617ms</td>
-                  <td className="py-3 px-4 text-center">
-                    <span className="bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded text-sm font-medium">
-                      2.0x FASTER 🔥🔥
-                    </span>
-                  </td>
-                </tr>
-                <tr className="border-b border-gray-800 hover:bg-gray-800/50">
-                  <td className="py-3 px-4">
-                    <div className="font-medium">List Range</div>
-                    <div className="text-xs text-gray-400">
-                      LPUSH + RPUSH + LRANGE
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-center font-mono text-yellow-400">
-                    1854ms
-                  </td>
-                  <td className="py-3 px-4 text-center font-mono">3701ms</td>
-                  <td className="py-3 px-4 text-center">
-                    <span className="bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded text-sm font-medium">
-                      2.0x FASTER 🔥🔥
-                    </span>
-                  </td>
-                </tr>
-                <tr className="border-b border-gray-800 hover:bg-gray-800/50">
-                  <td className="py-3 px-4">
-                    <div className="font-medium">Hash Mutation</div>
-                    <div className="text-xs text-gray-400">
-                      HMSET + HMGET + HDEL
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-center font-mono text-yellow-400">
-                    1522ms
-                  </td>
-                  <td className="py-3 px-4 text-center font-mono">2837ms</td>
-                  <td className="py-3 px-4 text-center">
-                    <span className="bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded text-sm font-medium">
-                      1.9x FASTER 🔥🔥
-                    </span>
-                  </td>
-                </tr>
-                <tr className="border-b border-gray-800 hover:bg-gray-800/50">
-                  <td className="py-3 px-4">
-                    <div className="font-medium">Set</div>
-                    <div className="text-xs text-gray-400">
-                      SET (1 KB payload)
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-center font-mono text-yellow-400">
-                    746ms
-                  </td>
-                  <td className="py-3 px-4 text-center font-mono">1365ms</td>
-                  <td className="py-3 px-4 text-center">
-                    <span className="bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded text-sm font-medium">
-                      1.8x FASTER 🔥🔥
-                    </span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div className="mt-8 text-center">
+          <div
+            className="hero-reveal flex flex-col sm:flex-row items-center justify-center gap-3 w-full sm:w-auto"
+            style={{ '--hero-delay': '600ms' } as React.CSSProperties}
+          >
             <Button
-              variant="outline"
-              className="border-yellow-500 text-yellow-400 hover:bg-yellow-500/20"
+              size="lg"
+              className="w-full sm:w-auto bg-foreground text-background hover:bg-foreground/90 font-medium h-10 px-6 text-sm rounded-lg transition-all hover:shadow-lg"
               asChild
             >
-              <Link href="/benchmarks">{t('home.viewBenchmarks')}</Link>
+              <Link href="/getting-started">
+                {t('home.getStarted')}
+                <ArrowRight className="ml-2 h-3.5 w-3.5" />
+              </Link>
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              className="w-full sm:w-auto border-foreground/15 text-muted-foreground hover:text-foreground hover:border-foreground/30 hover:bg-card h-10 px-6 text-sm rounded-lg transition-all"
+              asChild
+            >
+              <Link
+                href="https://github.com/vcms-io/solidis"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {t('home.viewOnGitHub')}
+                <ArrowUpRight className="ml-1.5 h-3.5 w-3.5" />
+              </Link>
             </Button>
           </div>
         </div>
       </section>
 
-      {/* Quick Start Section */}
-      <section className="py-20 px-4">
-        <div className="container mx-auto max-w-6xl">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            <div>
-              <h2 className="text-3xl md:text-4xl font-bold mb-6">
+      {/* Install */}
+      <section className="pb-16">
+        <RevealSection className="content-container max-w-2xl">
+          <div className="card-base overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border">
+              <div className="flex gap-1.5">
+                <div className="h-2.5 w-2.5 rounded-full bg-foreground/10" />
+                <div className="h-2.5 w-2.5 rounded-full bg-foreground/10" />
+                <div className="h-2.5 w-2.5 rounded-full bg-foreground/10" />
+              </div>
+              <span className="text-xs text-muted-foreground font-mono ml-2">
+                {t('home.terminal')}
+              </span>
+            </div>
+            <div className="p-4">
+              <CodeBlock
+                code={'npm install @vcms-io/solidis'}
+                language="bash"
+              />
+            </div>
+          </div>
+        </RevealSection>
+      </section>
+
+      {/* Code Example */}
+      <section className="section-block border-t border-border">
+        <div className="content-container">
+          <RevealSection>
+            <div className="section-header">
+              <h2 className="text-2xl font-bold tracking-tight text-foreground mb-3">
                 {t('home.getStartedMinutes')}
               </h2>
-              <p className="text-lg text-gray-600 mb-8">
+              <p className="text-muted-foreground mx-auto text-[15px]">
                 {t('home.getStartedDesc')}
               </p>
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold">
-                    1
-                  </div>
-                  <span>Install via npm, yarn or pnpm</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold">
-                    2
-                  </div>
-                  <span>Configure your Redis connection</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 font-semibold">
-                    3
-                  </div>
-                  <span>Start building amazing applications</span>
-                </div>
-              </div>
             </div>
+          </RevealSection>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>{t('home.quickInstallation')}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm">
+          <div className="grid md:grid-cols-2 gap-4">
+            <RevealSection delay={100}>
+              <div className="card-base overflow-hidden flex flex-col h-full">
+                <div className="flex items-center px-4 py-2.5 border-b border-border">
+                  <span className="text-xs text-muted-foreground font-mono">
+                    featured-client.ts
+                  </span>
+                </div>
+                <div className="p-4 flex-1 flex flex-col [&>div]:flex-1">
                   <CodeBlock
-                    code={`# Install Solidis
-npm install @vcms-io/solidis`}
-                    language="bash"
-                  />
-                  <CodeBlock
-                    code={`# Basic usage
-import { SolidisClient } from '@vcms-io/solidis';
-const client = new SolidisClient();
-await client.connect();`}
+                    code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
+
+const client = new SolidisFeaturedClient({
+  host: '127.0.0.1',
+  port: 6379,
+});
+
+await client.set('key', 'value');
+const value = await client.get('key');`}
                     language="typescript"
                   />
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </RevealSection>
+
+            <RevealSection delay={200}>
+              <div className="card-base overflow-hidden flex flex-col h-full">
+                <div className="flex items-center px-4 py-2.5 border-b border-border">
+                  <span className="text-xs text-muted-foreground font-mono">
+                    tree-shakable.ts
+                  </span>
+                </div>
+                <div className="p-4 flex-1 flex flex-col [&>div]:flex-1">
+                  <CodeBlock
+                    code={`import { SolidisClient } from '@vcms-io/solidis';
+import { get } from '@vcms-io/solidis/command/get';
+import { set } from '@vcms-io/solidis/command/set';
+
+const client = new SolidisClient({
+  host: '127.0.0.1',
+  port: 6379,
+}).extend({ get, set });
+
+await client.set('key', 'value');`}
+                    language="typescript"
+                  />
+                </div>
+              </div>
+            </RevealSection>
           </div>
         </div>
       </section>
 
-      {/* GitHub Statistics */}
-      <section className="py-20 px-4 bg-gray-50">
-        <div className="container mx-auto max-w-6xl">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              {t('home.communityActivity')}
-            </h2>
-            <p className="text-xl text-gray-600">{t('home.communityDesc')}</p>
-          </div>
-          <div className="max-w-2xl mx-auto">
-            <GitHubStats />
+      {/* Features */}
+      <section className="section-block border-t border-border">
+        <div className="content-container">
+          <RevealSection>
+            <div className="section-header">
+              <h2 className="text-2xl font-bold tracking-tight text-foreground mb-3">
+                {t('home.whyChoose')}
+              </h2>
+              <p className="text-muted-foreground mx-auto text-[15px]">
+                {t('home.whyDescription')}
+              </p>
+            </div>
+          </RevealSection>
+
+          <div className="grid sm:grid-cols-2 gap-4">
+            {featureList.map((feature, index) => (
+              <RevealSection key={feature.title} delay={index * 100}>
+                <div className="card-base feature-card p-5">
+                  <h3 className="text-sm font-semibold text-foreground mb-1.5 transition-colors duration-250">
+                    {feature.title}
+                  </h3>
+                  <p className="text-[13px] leading-relaxed text-muted-foreground">
+                    {feature.description}
+                  </p>
+                </div>
+              </RevealSection>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Documentation Sections */}
-      <section className="py-20 px-4 bg-gray-50">
-        <div className="container mx-auto max-w-6xl">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              {t('home.comprehensiveDocs')}
-            </h2>
-            <p className="text-xl text-gray-600">
-              {t('home.comprehensiveDocsDesc')}
-            </p>
-          </div>
+      {/* Benchmarks */}
+      <section className="section-block border-t border-border">
+        <div className="content-container">
+          <RevealSection>
+            <div className="section-header">
+              <div className="inline-flex items-center gap-2 rounded-full border border-amber-600/20 bg-amber-500/5 px-3 py-1 text-xs font-medium text-amber-600 mb-4">
+                {t('home.performance')}
+              </div>
+              <h2 className="text-2xl font-bold tracking-tight text-foreground mb-3">
+                {t('home.blazingFast')}
+              </h2>
+              <p className="text-muted-foreground mx-auto text-[15px]">
+                {t('home.benchmarkDesc')}
+              </p>
+            </div>
+          </RevealSection>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <Card className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <Book className="h-8 w-8 text-blue-600 mb-2" />
-                <CardTitle>{t('nav.gettingStarted')}</CardTitle>
-                <CardDescription>
-                  {t('home.gettingStartedCard')}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button variant="outline" asChild className="w-full">
-                  <Link href="/getting-started">{t('home.getStarted')}</Link>
-                </Button>
-              </CardContent>
-            </Card>
+          <RevealSection delay={100}>
+            <div ref={benchmarkReference} className="card-base p-6 space-y-5">
+              {BENCHMARK_DATA.map((benchmark, index) => (
+                <BenchmarkBar
+                  key={benchmark.name}
+                  data={benchmark}
+                  index={index}
+                  animated={benchmarkVisible}
+                />
+              ))}
+            </div>
+          </RevealSection>
 
-            <Card className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <Code className="h-8 w-8 text-green-600 mb-2" />
-                <CardTitle>{t('nav.apiReference')}</CardTitle>
-                <CardDescription>{t('home.apiReferenceCard')}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button variant="outline" asChild className="w-full">
-                  <Link href="/api-reference">{t('home.viewApi')}</Link>
-                </Button>
-              </CardContent>
-            </Card>
+          <RevealSection delay={200}>
+            <div className="mt-8 text-center">
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-foreground/15 text-muted-foreground hover:text-foreground hover:border-foreground/30 h-9 text-[13px] transition-all"
+                asChild
+              >
+                <Link href="/benchmarks">
+                  {t('home.viewBenchmarks')}
+                  <ArrowRight className="ml-1.5 h-3 w-3" />
+                </Link>
+              </Button>
+            </div>
+          </RevealSection>
+        </div>
+      </section>
 
-            <Card className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <Users className="h-8 w-8 text-purple-600 mb-2" />
-                <CardTitle>{t('nav.tutorials')}</CardTitle>
-                <CardDescription>{t('home.tutorialsCard')}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button variant="outline" asChild className="w-full">
-                  <Link href="/tutorials">{t('nav.tutorials')}</Link>
-                </Button>
-              </CardContent>
-            </Card>
+      {/* Architecture Preview */}
+      <section className="section-block border-t border-border">
+        <div className="content-container">
+          <RevealSection>
+            <div className="section-header">
+              <h2 className="text-2xl font-bold tracking-tight text-foreground mb-3">
+                {t('home.solidArchitecture')}
+              </h2>
+              <p className="text-muted-foreground mx-auto text-[15px]">
+                {t('home.solidArchitectureDesc')}
+              </p>
+            </div>
+          </RevealSection>
+
+          <RevealSection delay={100}>
+            <div className="card-base p-5 sm:p-8">
+              <ArchitectureDiagram compact />
+            </div>
+          </RevealSection>
+
+          <RevealSection delay={200}>
+            <div className="mt-8 text-center">
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-foreground/15 text-muted-foreground hover:text-foreground hover:border-foreground/30 h-9 text-[13px] transition-all"
+                asChild
+              >
+                <Link href="/architecture">
+                  {t('home.viewArchitecture')}
+                  <ArrowRight className="ml-1.5 h-3 w-3" />
+                </Link>
+              </Button>
+            </div>
+          </RevealSection>
+        </div>
+      </section>
+
+      {/* Documentation Links */}
+      <section className="section-block border-t border-border">
+        <div className="content-container">
+          <RevealSection>
+            <div className="section-header">
+              <h2 className="text-2xl font-bold tracking-tight text-foreground mb-3">
+                {t('home.comprehensiveDocs')}
+              </h2>
+              <p className="text-muted-foreground mx-auto text-[15px]">
+                {t('home.comprehensiveDocsDesc')}
+              </p>
+            </div>
+          </RevealSection>
+
+          <div className="grid sm:grid-cols-3 gap-4">
+            {[
+              {
+                title: t('nav.gettingStarted'),
+                description: t('home.gettingStartedCard'),
+                href: '/getting-started',
+              },
+              {
+                title: t('nav.apiReference'),
+                description: t('home.apiReferenceCard'),
+                href: '/api-reference',
+              },
+              {
+                title: t('nav.tutorials'),
+                description: t('home.tutorialsCard'),
+                href: '/tutorials',
+              },
+            ].map((card, index) => (
+              <RevealSection key={card.href} delay={index * 100}>
+                <Link
+                  href={card.href}
+                  className="card-base card-interactive p-5 block h-full"
+                >
+                  <h3 className="text-sm font-semibold text-foreground mb-1.5">
+                    {card.title}
+                  </h3>
+                  <p className="text-[13px] text-muted-foreground leading-relaxed mb-3">
+                    {card.description}
+                  </p>
+                  <span className="inline-flex items-center text-xs text-muted-foreground group-hover:text-foreground transition-colors">
+                    {t('home.learnMore')}
+                    <ArrowRight className="ml-1 h-3 w-3" />
+                  </span>
+                </Link>
+              </RevealSection>
+            ))}
           </div>
         </div>
+      </section>
+
+      {/* CTA */}
+      <section className="section-block border-t border-border">
+        <RevealSection className="content-container text-center">
+          <h2 className="text-2xl font-bold tracking-tight gradient-text mb-4">
+            {t('home.readyToStart')}
+          </h2>
+          <p className="text-muted-foreground mb-8 mx-auto text-[15px]">
+            {t('home.readyToStartDesc')}
+          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full sm:w-auto">
+            <Button
+              size="lg"
+              className="w-full sm:w-auto bg-foreground text-background hover:bg-foreground/90 font-medium h-10 px-6 text-sm rounded-lg transition-all hover:shadow-lg"
+              asChild
+            >
+              <Link href="/getting-started">
+                {t('home.getStarted')}
+                <ArrowRight className="ml-2 h-3.5 w-3.5" />
+              </Link>
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              className="w-full sm:w-auto border-foreground/15 text-muted-foreground hover:text-foreground hover:border-foreground/30 hover:bg-card h-10 px-6 text-sm rounded-lg transition-all"
+              asChild
+            >
+              <Link href="/api-reference">{t('home.viewApi')}</Link>
+            </Button>
+          </div>
+        </RevealSection>
       </section>
     </div>
   );
