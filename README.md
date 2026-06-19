@@ -117,33 +117,33 @@ await client.subscribe('events');
 
 # ⚡ Solidis vs ioredis ⚡
 
-<small>Generated on 2026-06-17 19:03:55 · linux x64 · Node.js v22.22.3</small>
-### Up to **2.0x faster** than ioredis! 🚀
+<small>Generated on 2026-06-19 12:47:33 · linux x64 · Node.js v22.22.3</small>
+### Up to **2.1x faster** than ioredis! 🚀
 
 ---
 <br/>
 
-**15** / **15** benchmarks won · **78%** average speed improvement · **104%** peak speed improvement
+**15** / **15** benchmarks won · **71%** average speed improvement · **109%** peak speed improvement
 
 *100,000 iterations × 10,000 concurrency · 1 KB payload · 10 repeats*
 
 | | Benchmark | Commands | solidis | ioredis | Difference | Performance |
 |---:|:---|:---:|:---:|:---:|:---:|:---|
-| 🥇 | **Set Mutation** | <sup><sub><kbd>SADD</kbd> <kbd>SISMEMBER</kbd> <kbd>SREM</kbd></sub></sup> | **1772ms** | 3617ms | **2.0x** 🔥🔥 | `██████████` |
-| 🥈 | **List Range** | <sup><sub><kbd>LPUSH</kbd> <kbd>RPUSH</kbd> <kbd>LRANGE</kbd></sub></sup> | **1854ms** | 3701ms | **2.0x** 🔥🔥 | `██████████` |
-| 🥉 | **List Mutation** | <sup><sub><kbd>LPUSH</kbd> <kbd>RPUSH</kbd> <kbd>LPOP</kbd> <kbd>RPOP</kbd> <kbd>LLEN</kbd></sub></sup> | **2567ms** | 5002ms | **1.9x** 🔥🔥 | `█████████░` |
-| 4. | **Sorted Set** | <sup><sub><kbd>ZADD</kbd> <kbd>ZRANGE</kbd> <kbd>ZREM</kbd></sub></sup> | **1692ms** | 3278ms | **1.9x** 🔥🔥 | `█████████░` |
-| 5. | **Multi-Key** | <sup><sub><kbd>MSET</kbd> <kbd>MGET</kbd></sub></sup> | **1602ms** | 3049ms | **1.9x** 🔥🔥 | `█████████░` |
-| 6. | **Hash Mutation** | <sup><sub><kbd>HMSET</kbd> <kbd>HMGET</kbd> <kbd>HDEL</kbd></sub></sup> | **1522ms** | 2837ms | **1.9x** 🔥🔥 | `████████░░` |
-| 7. | **Set** | <sup><sub><kbd>SET</kbd></sub></sup> | **746ms** | 1365ms | **1.8x** 🔥🔥 | `████████░░` |
-| 8. | **Set Read** | <sup><sub><kbd>SADD</kbd> <kbd>SISMEMBER</kbd> <kbd>SMEMBERS</kbd></sub></sup> | **1799ms** | 3295ms | **1.8x** 🔥🔥 | `████████░░` |
-| 9. | **Expire** | <sup><sub><kbd>SET</kbd> <kbd>EXPIRE</kbd> <kbd>TTL</kbd></sub></sup> | **1445ms** | 2559ms | **1.8x** 🔥🔥 | `███████░░░` |
-| 10. | **Stream** | <sup><sub><kbd>XADD</kbd> <kbd>XRANGE</kbd> <kbd>XLEN</kbd></sub></sup> | **1496ms** | 2622ms | **1.8x** 🔥🔥 | `███████░░░` |
-| 11. | **Non-Transaction** | <sup><sub><kbd>SETPX</kbd> <kbd>GET</kbd></sub></sup> | **1255ms** | 2141ms | **1.7x** 🔥🔥 | `███████░░░` |
-| 12. | **Pipeline Mixed** | <sup><sub><kbd>SET</kbd> <kbd>INCR</kbd> <kbd>GET</kbd></sub></sup> | **1616ms** | 2631ms | **1.6x** 🔥🔥 | `██████░░░░` |
-| 13. | **Counter** | <sup><sub><kbd>INCR</kbd> <kbd>DECR</kbd></sub></sup> | **922ms** | 1415ms | **1.5x** 🔥 | `█████░░░░░` |
-| 14. | **Hash Round-Trip** | <sup><sub><kbd>HSET</kbd> <kbd>HGET</kbd> <kbd>HGETALL</kbd></sub></sup> | **1810ms** | 2734ms | **1.5x** 🔥 | `█████░░░░░` |
-| 15. | **Get Buffer** | <sup><sub><kbd>GETBUFFER</kbd></sub></sup> | **618ms** | 916ms | **1.5x** 🔥 | `█████░░░░░` |
+| 🥇 | **Set Mutation** | <sup><sub><kbd>SADD</kbd> <kbd>SISMEMBER</kbd> <kbd>SREM</kbd></sub></sup> | **1639ms** | 3429ms | **2.1x** 🔥🔥 | `██████████` |
+| 🥈 | **List Range** | <sup><sub><kbd>LPUSH</kbd> <kbd>RPUSH</kbd> <kbd>LRANGE</kbd></sub></sup> | **1860ms** | 3531ms | **1.9x** 🔥🔥 | `████████░░` |
+| 🥉 | **Set** | <sup><sub><kbd>SET</kbd></sub></sup> | **742ms** | 1361ms | **1.8x** 🔥🔥 | `████████░░` |
+| 4. | **List Mutation** | <sup><sub><kbd>LPUSH</kbd> <kbd>RPUSH</kbd> <kbd>LPOP</kbd> <kbd>RPOP</kbd> <kbd>LLEN</kbd></sub></sup> | **2620ms** | 4801ms | **1.8x** 🔥🔥 | `████████░░` |
+| 5. | **Sorted Set** | <sup><sub><kbd>ZADD</kbd> <kbd>ZRANGE</kbd> <kbd>ZREM</kbd></sub></sup> | **1911ms** | 3391ms | **1.8x** 🔥🔥 | `███████░░░` |
+| 6. | **Set Read** | <sup><sub><kbd>SADD</kbd> <kbd>SISMEMBER</kbd> <kbd>SMEMBERS</kbd></sub></sup> | **1898ms** | 3356ms | **1.8x** 🔥🔥 | `███████░░░` |
+| 7. | **Hash Mutation** | <sup><sub><kbd>HMSET</kbd> <kbd>HMGET</kbd> <kbd>HDEL</kbd></sub></sup> | **2019ms** | 3476ms | **1.7x** 🔥🔥 | `███████░░░` |
+| 8. | **Non-Transaction** | <sup><sub><kbd>SETPX</kbd> <kbd>GET</kbd></sub></sup> | **1218ms** | 2056ms | **1.7x** 🔥🔥 | `██████░░░░` |
+| 9. | **Multi-Key** | <sup><sub><kbd>MSET</kbd> <kbd>MGET</kbd></sub></sup> | **1754ms** | 2960ms | **1.7x** 🔥🔥 | `██████░░░░` |
+| 10. | **Expire** | <sup><sub><kbd>SET</kbd> <kbd>EXPIRE</kbd> <kbd>TTL</kbd></sub></sup> | **1561ms** | 2607ms | **1.7x** 🔥🔥 | `██████░░░░` |
+| 11. | **Stream** | <sup><sub><kbd>XADD</kbd> <kbd>XRANGE</kbd> <kbd>XLEN</kbd></sub></sup> | **1900ms** | 3118ms | **1.6x** 🔥🔥 | `██████░░░░` |
+| 12. | **Pipeline Mixed** | <sup><sub><kbd>SET</kbd> <kbd>INCR</kbd> <kbd>GET</kbd></sub></sup> | **1616ms** | 2616ms | **1.6x** 🔥🔥 | `██████░░░░` |
+| 13. | **Counter** | <sup><sub><kbd>INCR</kbd> <kbd>DECR</kbd></sub></sup> | **933ms** | 1405ms | **1.5x** 🔥 | `█████░░░░░` |
+| 14. | **Get Buffer** | <sup><sub><kbd>GETBUFFER</kbd></sub></sup> | **592ms** | 868ms | **1.5x** 🔥 | `████░░░░░░` |
+| 15. | **Hash Round-Trip** | <sup><sub><kbd>HSET</kbd> <kbd>HGET</kbd> <kbd>HGETALL</kbd></sub></sup> | **2286ms** | 3145ms | **1.4x** 🔥 | `███░░░░░░░` |
 
 ### Non Strictly Comparable Benchmarks
 
@@ -151,10 +151,10 @@ await client.subscribe('events');
 
 | | Benchmark | Commands | solidis | ioredis | Difference | Performance |
 |---:|:---|:---:|:---:|:---:|:---:|:---|
-| 16. | **Transaction Mixed** | <sup><sub><kbd>SET</kbd> <kbd>GET</kbd></sub></sup> | 1672ms | 7260ms | **4.3x** 🔥🔥 | `██████████` |
-| 17. | **Transaction** | <sup><sub><kbd>SET</kbd> <kbd>EXPIRE</kbd> <kbd>GET</kbd></sub></sup> | 1063ms | 3935ms | **3.7x** 🔥🔥 | `██████████` |
-| 18. | **Pub/Sub** | <sup><sub><kbd>PUBLISH</kbd> <kbd>MESSAGE</kbd></sub></sup> | 731ms | 2456ms | **3.4x** 🔥🔥 | `██████████` |
-| 19. | **Info / Config** | <sup><sub><kbd>INFO</kbd> <kbd>CONFIGGET</kbd></sub></sup> | 1069ms | 2242ms | **2.1x** 🔥🔥 | `██████████` |
+| 16. | **Transaction Mixed** | <sup><sub><kbd>SET</kbd> <kbd>GET</kbd></sub></sup> | 1648ms | 7144ms | **4.3x** 🔥🔥 | `██████████` |
+| 17. | **Transaction** | <sup><sub><kbd>SET</kbd> <kbd>EXPIRE</kbd> <kbd>GET</kbd></sub></sup> | 1060ms | 4027ms | **3.8x** 🔥🔥 | `██████████` |
+| 18. | **Pub/Sub** | <sup><sub><kbd>PUBLISH</kbd> <kbd>MESSAGE</kbd></sub></sup> | 735ms | 2686ms | **3.7x** 🔥🔥 | `██████████` |
+| 19. | **Info / Config** | <sup><sub><kbd>INFO</kbd> <kbd>CONFIGGET</kbd></sub></sup> | 1099ms | 1997ms | **1.8x** 🔥🔥 | `███████░░░` |
 
 <sub>Ranked by performance gain of `solidis` over `ioredis` (baseline). Elapsed = median time across repeats.</sub>
 
@@ -171,36 +171,36 @@ await client.subscribe('events');
 
 | Benchmark | Library | ops/s | cmds/s | Elapsed | Spread |
 |:---|:---|---:|---:|---:|---:|
-| **Set Mutation: <sup><sub><kbd>SADD</kbd> <kbd>SISMEMBER</kbd> <kbd>SREM</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 56.4K | 169.3K | 1772ms | ±6.6% |
-|  | ioredis | 27.6K | 82.9K | 3617ms | ±1.4% |
-| **List Range: <sup><sub><kbd>LPUSH</kbd> <kbd>RPUSH</kbd> <kbd>LRANGE</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 53.9K | 161.8K | 1854ms | ±4.0% |
-|  | ioredis | 27.0K | 81.1K | 3701ms | ±2.1% |
-| **List Mutation: <sup><sub><kbd>LPUSH</kbd> <kbd>RPUSH</kbd> <kbd>LPOP</kbd> <kbd>RPOP</kbd> <kbd>LLEN</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 39.0K | 194.8K | 2567ms | ±3.9% |
-|  | ioredis | 20.0K | 100.0K | 5002ms | ±3.4% |
-| **Sorted Set: <sup><sub><kbd>ZADD</kbd> <kbd>ZRANGE</kbd> <kbd>ZREM</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 59.1K | 177.3K | 1692ms | ±7.0% |
-|  | ioredis | 30.5K | 91.5K | 3278ms | ±1.0% |
-| **Multi-Key: <sup><sub><kbd>MSET</kbd> <kbd>MGET</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 62.4K | 124.8K | 1602ms | ±2.5% |
-|  | ioredis | 32.8K | 65.6K | 3049ms | ±3.5% |
-| **Hash Mutation: <sup><sub><kbd>HMSET</kbd> <kbd>HMGET</kbd> <kbd>HDEL</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 65.7K | 197.1K | 1522ms | ±2.9% |
-|  | ioredis | 35.3K | 105.8K | 2837ms | ±1.7% |
-| **Set: <sup><sub><kbd>SET</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 134.1K | 134.1K | 746ms | ±2.9% |
-|  | ioredis | 73.3K | 73.3K | 1365ms | ±3.5% |
-| **Set Read: <sup><sub><kbd>SADD</kbd> <kbd>SISMEMBER</kbd> <kbd>SMEMBERS</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 55.6K | 166.7K | 1799ms | ±3.9% |
-|  | ioredis | 30.4K | 91.1K | 3295ms | ±2.4% |
-| **Expire: <sup><sub><kbd>SET</kbd> <kbd>EXPIRE</kbd> <kbd>TTL</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 69.2K | 207.6K | 1445ms | ±10.1% |
-|  | ioredis | 39.1K | 117.2K | 2559ms | ±1.4% |
-| **Stream: <sup><sub><kbd>XADD</kbd> <kbd>XRANGE</kbd> <kbd>XLEN</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 66.8K | 200.5K | 1496ms | ±7.9% |
-|  | ioredis | 38.1K | 114.4K | 2622ms | ±2.1% |
-| **Non-Transaction: <sup><sub><kbd>SETPX</kbd> <kbd>GET</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 79.7K | 159.4K | 1255ms | ±2.5% |
-|  | ioredis | 46.7K | 93.4K | 2141ms | ±1.3% |
-| **Pipeline Mixed: <sup><sub><kbd>SET</kbd> <kbd>INCR</kbd> <kbd>GET</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 61.9K | 185.6K | 1616ms | ±5.9% |
-|  | ioredis | 38.0K | 114.0K | 2631ms | ±1.5% |
-| **Counter: <sup><sub><kbd>INCR</kbd> <kbd>DECR</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 108.5K | 217.0K | 922ms | ±1.6% |
-|  | ioredis | 70.6K | 141.3K | 1415ms | ±7.1% |
-| **Hash Round-Trip: <sup><sub><kbd>HSET</kbd> <kbd>HGET</kbd> <kbd>HGETALL</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 55.2K | 165.7K | 1810ms | ±7.0% |
-|  | ioredis | 36.6K | 109.7K | 2734ms | ±1.3% |
-| **Get Buffer: <sup><sub><kbd>GETBUFFER</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 161.7K | 161.7K | 618ms | ±4.7% |
-|  | ioredis | 109.2K | 109.2K | 916ms | ±3.2% |
+| **Set Mutation: <sup><sub><kbd>SADD</kbd> <kbd>SISMEMBER</kbd> <kbd>SREM</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 61.0K | 183.1K | 1639ms | ±9.3% |
+|  | ioredis | 29.2K | 87.5K | 3429ms | ±2.0% |
+| **List Range: <sup><sub><kbd>LPUSH</kbd> <kbd>RPUSH</kbd> <kbd>LRANGE</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 53.8K | 161.3K | 1860ms | ±2.2% |
+|  | ioredis | 28.3K | 85.0K | 3531ms | ±2.5% |
+| **Set: <sup><sub><kbd>SET</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 134.8K | 134.8K | 742ms | ±3.8% |
+|  | ioredis | 73.5K | 73.5K | 1361ms | ±1.6% |
+| **List Mutation: <sup><sub><kbd>LPUSH</kbd> <kbd>RPUSH</kbd> <kbd>LPOP</kbd> <kbd>RPOP</kbd> <kbd>LLEN</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 38.2K | 190.9K | 2620ms | ±2.8% |
+|  | ioredis | 20.8K | 104.2K | 4801ms | ±3.0% |
+| **Sorted Set: <sup><sub><kbd>ZADD</kbd> <kbd>ZRANGE</kbd> <kbd>ZREM</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 52.3K | 157.0K | 1911ms | ±9.0% |
+|  | ioredis | 29.5K | 88.5K | 3391ms | ±2.0% |
+| **Set Read: <sup><sub><kbd>SADD</kbd> <kbd>SISMEMBER</kbd> <kbd>SMEMBERS</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 52.7K | 158.1K | 1898ms | ±3.7% |
+|  | ioredis | 29.8K | 89.4K | 3356ms | ±3.4% |
+| **Hash Mutation: <sup><sub><kbd>HMSET</kbd> <kbd>HMGET</kbd> <kbd>HDEL</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 49.5K | 148.6K | 2019ms | ±5.4% |
+|  | ioredis | 28.8K | 86.3K | 3476ms | ±1.6% |
+| **Non-Transaction: <sup><sub><kbd>SETPX</kbd> <kbd>GET</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 82.1K | 164.2K | 1218ms | ±6.7% |
+|  | ioredis | 48.6K | 97.3K | 2056ms | ±1.4% |
+| **Multi-Key: <sup><sub><kbd>MSET</kbd> <kbd>MGET</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 57.0K | 114.0K | 1754ms | ±2.3% |
+|  | ioredis | 33.8K | 67.6K | 2960ms | ±3.4% |
+| **Expire: <sup><sub><kbd>SET</kbd> <kbd>EXPIRE</kbd> <kbd>TTL</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 64.1K | 192.2K | 1561ms | ±4.3% |
+|  | ioredis | 38.4K | 115.1K | 2607ms | ±2.0% |
+| **Stream: <sup><sub><kbd>XADD</kbd> <kbd>XRANGE</kbd> <kbd>XLEN</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 52.6K | 157.9K | 1900ms | ±3.2% |
+|  | ioredis | 32.1K | 96.2K | 3118ms | ±1.3% |
+| **Pipeline Mixed: <sup><sub><kbd>SET</kbd> <kbd>INCR</kbd> <kbd>GET</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 61.9K | 185.7K | 1616ms | ±4.2% |
+|  | ioredis | 38.2K | 114.7K | 2616ms | ±1.3% |
+| **Counter: <sup><sub><kbd>INCR</kbd> <kbd>DECR</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 107.2K | 214.4K | 933ms | ±3.1% |
+|  | ioredis | 71.2K | 142.3K | 1405ms | ±1.1% |
+| **Get Buffer: <sup><sub><kbd>GETBUFFER</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 168.9K | 168.9K | 592ms | ±3.7% |
+|  | ioredis | 115.2K | 115.2K | 868ms | ±2.7% |
+| **Hash Round-Trip: <sup><sub><kbd>HSET</kbd> <kbd>HGET</kbd> <kbd>HGETALL</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 43.7K | 131.2K | 2286ms | ±3.2% |
+|  | ioredis | 31.8K | 95.4K | 3145ms | ±1.6% |
 
 </details>
 
@@ -224,7 +224,7 @@ await client.subscribe('events');
 | Cooldown | 2500ms |
 | Platform | linux x64 |
 | Node.js | v22.22.3 |
-| Date | 2026-06-17 19:03:55 |
+| Date | 2026-06-19 12:47:33 |
 
 </details>
 
