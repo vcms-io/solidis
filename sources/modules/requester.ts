@@ -255,19 +255,32 @@ export class SolidisRequester {
 
     return new Promise<void>((resolve) => {
       const drainTimeoutId = setTimeout(() => {
-        socket.removeListener('drain', onDrain);
-
+        cleanup();
         resolve();
       }, this.#options.socketWriteTimeout);
+
+      const cleanup = () => {
+        socket.removeListener('drain', onDrain);
+        socket.removeListener('error', onSocketFault);
+        socket.removeListener('close', onSocketFault);
+      };
 
       const onDrain = () => {
         clearTimeout(drainTimeoutId);
         clearTimeout(connectionTimeoutId);
+        cleanup();
+        resolve();
+      };
 
+      const onSocketFault = () => {
+        clearTimeout(drainTimeoutId);
+        cleanup();
         resolve();
       };
 
       socket.once('drain', onDrain);
+      socket.once('error', onSocketFault);
+      socket.once('close', onSocketFault);
     });
   }
 
@@ -279,6 +292,14 @@ export class SolidisRequester {
       handlers.error = new SolidisRequesterError('Socket timed out');
     }, this.#options.socketWriteTimeout);
 
+    const onClose = (hadError: boolean) => {
+      handlers.onError(
+        new SolidisRequesterError(
+          `Socket closed${hadError ? ' due to a transmission error' : ''}`,
+        ),
+      );
+    };
+
     const handlers: SolidisSocketWriteEventHandlers = {
       onError: (error: Error) => {
         handlers.isError = true;
@@ -289,7 +310,7 @@ export class SolidisRequester {
       waitForDrain: () => this.#waitForSocketDrain(timeoutId),
       removeEventListeners: () => {
         socket.removeListener('error', handlers.onError);
-        socket.removeListener('close', handlers.onError);
+        socket.removeListener('close', onClose);
 
         clearTimeout(timeoutId);
       },
@@ -298,9 +319,9 @@ export class SolidisRequester {
     };
 
     socket.once('error', handlers.onError);
-    socket.once('close', handlers.onError);
+    socket.once('close', onClose);
 
-    return { ...handlers, socket };
+    return handlers;
   }
 
   #writeChunkToSocket(chunk: Buffer) {
@@ -779,6 +800,14 @@ export class SolidisRequester {
 
     this.#requests = [];
     this.#replyBuffers = [];
+
+    if (this.#scheduledReplies) {
+      clearImmediate(this.#scheduledReplies);
+    }
+
+    if (this.#scheduledRequests) {
+      clearImmediate(this.#scheduledRequests);
+    }
 
     this.#scheduledReplies = undefined;
     this.#scheduledRequests = undefined;

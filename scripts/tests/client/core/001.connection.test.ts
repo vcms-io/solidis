@@ -608,6 +608,68 @@ describe('connection', () => {
       connection.quit();
     });
 
+    it('removes all socket listeners when cleanup is called on an already-destroyed socket', async () => {
+      const server = new MockRedisServer();
+      await server.listen();
+
+      const connection = new SolidisConnection({
+        ...SolidisDefaultOptions,
+        host: '127.0.0.1',
+        port: server.port,
+        clientName: '',
+        enableReadyCheck: false,
+        autoReconnect: false,
+        maxConnectionRetries: 0,
+      });
+
+      connection.on('error', () => {});
+
+      try {
+        await connection.connect();
+
+        const socket = connection.socket;
+
+        if (!socket) {
+          assert.fail('expected a socket reference after a successful connect');
+        }
+
+        const closeListenerCountBeforeDestroy = socket.listenerCount('close');
+        const errorListenerCountBeforeDestroy = socket.listenerCount('error');
+
+        assert.ok(
+          closeListenerCountBeforeDestroy > 0,
+          `expected at least one close listener before destroy, got ${closeListenerCountBeforeDestroy}`,
+        );
+        assert.ok(
+          errorListenerCountBeforeDestroy > 0,
+          `expected at least one error listener before destroy, got ${errorListenerCountBeforeDestroy}`,
+        );
+
+        socket.destroy();
+
+        connection.cleanup();
+
+        assert.strictEqual(
+          socket.listenerCount('close'),
+          0,
+          'cleanup must remove all close listeners from the socket even when ' +
+            'the socket was already destroyed — the current implementation ' +
+            'relies on a socket.end() callback that never fires on a ' +
+            'destroyed socket, leaving listeners attached',
+        );
+
+        assert.strictEqual(
+          socket.listenerCount('error'),
+          0,
+          'cleanup must remove all error listeners from the socket even when ' +
+            'the socket was already destroyed',
+        );
+      } finally {
+        connection.quit();
+        await server.close();
+      }
+    });
+
     it('triggers background reconnect failure in the socket close handler', async () => {
       const debugMemory = new SolidisDebugMemory(50);
       const server = new MockRedisServer();

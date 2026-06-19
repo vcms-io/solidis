@@ -155,10 +155,12 @@ export class SolidisClient extends EventEmitter {
   }
 
   public async send(commands: StringOrBuffer[][]): Promise<SolidisData[][]> {
-    try {
-      await this.connect();
-    } catch (error) {
-      throw new SolidisClientError('Not connected with redis server.', error);
+    if (!this.#connection.isConnected || this.#connection.isQuitted) {
+      try {
+        await this.connect();
+      } catch (error) {
+        throw new SolidisClientError('Not connected with redis server.', error);
+      }
     }
 
     return await this.#requester.send(commands);
@@ -183,10 +185,13 @@ export class SolidisClient extends EventEmitter {
 
     const initializeLock = this.#setupInitializeListeners();
 
-    this.#connectLock = this.#connection.connect();
+    this.#connectLock = Promise.all([
+      initializeLock,
+      this.#connection.connect(),
+    ]);
 
     try {
-      return await Promise.all([initializeLock, this.#connectLock]);
+      return await this.#connectLock;
     } finally {
       this.#connectLock = null;
     }

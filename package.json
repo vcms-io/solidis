@@ -22,7 +22,7 @@
     "benchmark:redis:snapshot": "cross-env SOLIDIS_BENCH_EXPORT_SNAPSHOT=./redis.benchmark npm run --silent node:ts ./scripts/benchmarks/redis/benchmark.ts --",
     "benchmark:merge": "npm run --silent node:ts ./scripts/benchmarks/shared/markdown/merge.ts --",
     "benchmark:replace:readme": "npm run --silent node:ts ./scripts/benchmarks/shared/markdown/replace.readme.ts --",
-    "test": "npm run test:commands && npm run test:client",
+    "test": "concurrently --raw --max-processes 1 \"npm run test:commands\" \"npm run test:client\"",
     "test:commands": "node --import=./scripts/esm/register.js --test ./scripts/tests/commands/*.test.ts",
     "test:client": "node --import=./scripts/esm/register.js --test --test-concurrency=1 ./scripts/tests/client/**/*.test.ts",
     "test:coverage": "npm run node:ts ./scripts/tests/coverage.ts",

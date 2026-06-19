@@ -361,6 +361,38 @@ describe('parser-edge', () => {
     });
   });
 
+  describe('boolean byte validation', () => {
+    it('rejects an invalid boolean byte that is neither t nor f', async () => {
+      await assert.rejects(
+        () => parseOnce(bytes('#x\r\n')),
+        (error: Error) =>
+          error instanceof SolidisParserError &&
+          error.message === 'Boolean parse error: invalid value byte 0x78',
+        'the parser must throw a SolidisParserError when the boolean ' +
+          'character is not the canonical "t" or "f" because silently ' +
+          'returning false for arbitrary bytes masks protocol corruption',
+      );
+    });
+
+    it('rejects every non-canonical boolean character as a parse error', async () => {
+      const invalidCharacters = ['a', 'b', 'z', '1', '0', 'T', 'F', '!'];
+
+      for (const character of invalidCharacters) {
+        const hexByte = character.charCodeAt(0).toString(16);
+
+        await assert.rejects(
+          () => parseOnce(bytes(`#${character}\r\n`)),
+          (error: Error) =>
+            error instanceof SolidisParserError &&
+            error.message ===
+              `Boolean parse error: invalid value byte 0x${hexByte}`,
+          `boolean character "${character}" (0x${hexByte}) must throw ` +
+            'a SolidisParserError instead of being silently accepted as false',
+        );
+      }
+    });
+  });
+
   describe('integer BigInt auto-promotion', () => {
     it('promotes a 16-digit integer exceeding MAX_SAFE_INTEGER to BigInt', async () => {
       const [reply] = await parseOnce(bytes(':9007199254740993\r\n'));

@@ -594,6 +594,32 @@ describe('pubsub', () => {
     assert.strictEqual(mutableCopy.has('real-channel'), false);
   });
 
+  it('returns the same Set reference from subscribedChannels on consecutive accesses', async () => {
+    const { SolidisPubSub } = await import(
+      '../../../sources/modules/pubsub.ts'
+    );
+
+    const pubsub = new SolidisPubSub();
+    const emit = () => true;
+
+    pubsub.dispatchPubSubEvent(
+      [Buffer.from('subscribe'), Buffer.from('identity-channel'), 1],
+      emit,
+    );
+
+    const firstAccess = pubsub.subscribedChannels;
+    const secondAccess = pubsub.subscribedChannels;
+
+    assert.strictEqual(
+      firstAccess,
+      secondAccess,
+      'consecutive accesses to subscribedChannels must return the same ' +
+        'Set reference — the current implementation creates a new Set ' +
+        'copy on every property access, which wastes allocations during ' +
+        'recovery when the getter is called twice in sequence',
+    );
+  });
+
   it('handles PSUBSCRIBE and PUNSUBSCRIBE for pattern channels', async () => {
     const messages: string[] = [];
 

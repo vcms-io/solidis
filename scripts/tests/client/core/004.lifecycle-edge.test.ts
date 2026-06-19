@@ -375,6 +375,61 @@ describe('lifecycle-edge', () => {
     );
   });
 
+  it('guarantees initialization completes before a concurrent connect resolves', async () => {
+    const server = new MockRedisServer();
+    await server.listen();
+
+    server.onData((socket, data) => {
+      const text = data.toString();
+
+      if (text.includes('INFO')) {
+        setTimeout(() => {
+          const body = 'loading:0\r\n';
+          socket.write(`$${body.length}\r\n${body}\r\n`);
+        }, 200);
+      }
+    });
+
+    const client = new SolidisFeaturedClient(
+      mockClientOptions(server.port, {
+        enableReadyCheck: true,
+      }),
+    );
+
+    track(client);
+    client.on('error', () => {});
+
+    try {
+      const events: string[] = [];
+
+      client.on('ready', () => {
+        events.push('ready');
+      });
+
+      const firstConnect = client.connect().then(() => {
+        events.push('first-connect-resolved');
+      });
+
+      const secondConnect = client.connect().then(() => {
+        events.push('second-connect-resolved');
+      });
+
+      await Promise.all([firstConnect, secondConnect]);
+
+      assert.deepStrictEqual(
+        events,
+        ['ready', 'first-connect-resolved', 'second-connect-resolved'],
+        'the ready event must fire before either connect() resolves — ' +
+          `observed event order [${events.join(', ')}] shows that a ` +
+          'concurrent caller bypasses the initialization sequence when ' +
+          'the connect lock covers only the TCP handshake',
+      );
+    } finally {
+      client.quit();
+      await server.close();
+    }
+  });
+
   it('skips standalone AUTH when HELLO carries credentials (RESP3 single-HELLO auth)', async () => {
     const server = new MockRedisServer();
     await server.listen();

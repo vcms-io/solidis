@@ -3432,12 +3432,11 @@ describe('fragility', () => {
     it('rejects when socket emits error during chunked write', async () => {
       const server = await startMockServer();
 
-      let dataCount = 0;
+      let destroyed = false;
 
       server.onData((socket) => {
-        dataCount += 1;
-
-        if (dataCount >= 2) {
+        if (!destroyed) {
+          destroyed = true;
           socket.destroy(new Error('forced socket error'));
         }
       });
@@ -3454,14 +3453,22 @@ describe('fragility', () => {
 
       await client.connect();
 
+      const startTime = Date.now();
+
       const result = await client
         .send(buildLargeEchoCommands(50, 200))
         .catch((error: Error) => error);
 
-      assert.ok(result instanceof SolidisRequesterError);
+      const elapsed = Date.now() - startTime;
+
+      assert.ok(result instanceof SolidisClientError);
       assert.strictEqual(
         result.message,
-        'Solidis command(s) timed out after 3000 ms.',
+        'SolidisConnectionError: Solidis connection closed.',
+      );
+      assert.ok(
+        elapsed < 3000,
+        `socket error must be detected before commandTimeout (took ${elapsed}ms)`,
       );
     });
 

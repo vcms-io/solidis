@@ -399,6 +399,15 @@ export class SolidisParser {
 
     const boolByte = this.#buffer[startPosition];
 
+    if (
+      boolByte !== SolidisSymbolBytes.LOWER_T &&
+      boolByte !== SolidisSymbolBytes.LOWER_F
+    ) {
+      throw new SolidisParserError(
+        `Boolean parse error: invalid value byte 0x${boolByte.toString(16)}`,
+      );
+    }
+
     return {
       data: boolByte === SolidisSymbolBytes.LOWER_T,
       length: 4,

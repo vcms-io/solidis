@@ -80,6 +80,13 @@ export class SolidisConnection extends EventEmitter {
 
     this.#socket = null;
 
+    if (socket.destroyed) {
+      socket.removeAllListeners();
+      socket.unref();
+
+      return;
+    }
+
     socket.end(() => {
       socket.removeAllListeners();
       socket.destroy();

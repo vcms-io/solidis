@@ -54,6 +54,7 @@ export const SolidisSymbolBytes = {
   LF: 10,
   ZERO: 48,
   LOWER_T: 116,
+  LOWER_F: 102,
 } as const;
 
 export const SolidisReplyBytes = {

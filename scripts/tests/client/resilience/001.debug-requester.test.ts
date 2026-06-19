@@ -699,4 +699,162 @@ describe('debug-requester', () => {
       );
     });
   });
+
+  describe('requester socket close event type safety', () => {
+    it('wraps the hadError boolean from socket close into a SolidisRequesterError', async () => {
+      const { SolidisRequester } = await import(
+        '../../../../sources/modules/requester.ts'
+      );
+      const { SolidisPubSub } = await import(
+        '../../../../sources/modules/pubsub.ts'
+      );
+      const { SolidisDefaultOptions } = await import(
+        '../../../../sources/common/constants.ts'
+      );
+
+      const emitter = new EventEmitter();
+
+      const originalOnce = emitter.once.bind(emitter);
+      const originalRemoveListener = emitter.removeListener.bind(emitter);
+
+      const socket = emitter as import('node:net').Socket;
+
+      let hasEmittedClose = false;
+
+      socket.write = () => {
+        if (!hasEmittedClose) {
+          hasEmittedClose = true;
+
+          emitter.emit('close', false);
+        }
+
+        return true;
+      };
+
+      socket.once = ((
+        event: string,
+        listener: (...arguments_: unknown[]) => void,
+      ) => {
+        originalOnce(event, listener);
+
+        return socket;
+      }) as typeof socket.once;
+
+      socket.removeListener = ((
+        event: string,
+        listener: (...arguments_: unknown[]) => void,
+      ) => {
+        originalRemoveListener(event, listener);
+
+        return socket;
+      }) as typeof socket.removeListener;
+
+      const requester = new SolidisRequester({
+        ...SolidisDefaultOptions,
+        commandTimeout: 500,
+        maxSocketWriteSizePerOnce: 65536,
+        connection: { socket, reset() {} } as never,
+        pubSub: new SolidisPubSub(),
+        autoReconnect: false,
+      });
+
+      const sendError = await requester
+        .send([['PING']])
+        .then(() => null)
+        .catch((error: Error) => error);
+
+      assert.strictEqual(
+        sendError?.message,
+        'Socket closed',
+        'the socket close event fires with (hadError: boolean) but the ' +
+          'requester must wrap this boolean into a SolidisRequesterError ' +
+          'and the error handler reference chain must not be broken by a ' +
+          'shallow copy so that eventHandlers.isError reflects the update',
+      );
+    });
+  });
+
+  describe('requester scheduled callback cancellation', () => {
+    it('calls clearImmediate on scheduled callbacks during fault recovery', async () => {
+      const { SolidisRequester } = await import(
+        '../../../../sources/modules/requester.ts'
+      );
+      const { SolidisPubSub } = await import(
+        '../../../../sources/modules/pubsub.ts'
+      );
+      const { SolidisDefaultOptions } = await import(
+        '../../../../sources/common/constants.ts'
+      );
+
+      const clearedHandles: NodeJS.Immediate[] = [];
+      const originalClearImmediate = globalThis.clearImmediate;
+      let trackingEnabled = false;
+
+      globalThis.clearImmediate = ((handle: NodeJS.Immediate) => {
+        if (trackingEnabled) {
+          clearedHandles.push(handle);
+        }
+
+        return originalClearImmediate(handle);
+      }) as typeof globalThis.clearImmediate;
+
+      try {
+        const emitter = new EventEmitter();
+        const originalOnce = emitter.once.bind(emitter);
+        const originalRemoveListener = emitter.removeListener.bind(emitter);
+        const socket = emitter as import('node:net').Socket;
+
+        socket.write = () => true;
+
+        socket.once = ((
+          event: string,
+          listener: (...arguments_: unknown[]) => void,
+        ) => {
+          originalOnce(event, listener);
+
+          return socket;
+        }) as typeof socket.once;
+
+        socket.removeListener = ((
+          event: string,
+          listener: (...arguments_: unknown[]) => void,
+        ) => {
+          originalRemoveListener(event, listener);
+
+          return socket;
+        }) as typeof socket.removeListener;
+
+        const requester = new SolidisRequester({
+          ...SolidisDefaultOptions,
+          maxSocketWriteSizePerOnce: 65536,
+          connection: { socket, reset() {} } as never,
+          pubSub: new SolidisPubSub(),
+          autoReconnect: false,
+        });
+
+        const sendPromise = requester.send([['PING']]).catch(() => {});
+
+        trackingEnabled = true;
+
+        requester.recoveryFromFault(new Error('test fault'));
+
+        await sendPromise;
+        await new Promise<void>((resolve) => setTimeout(resolve, 100));
+
+        trackingEnabled = false;
+
+        assert.strictEqual(
+          clearedHandles.length > 0,
+          true,
+          'recoveryFromFault must call clearImmediate at least once to ' +
+            'cancel scheduled request and reply processing callbacks — ' +
+            'currently resetStates only sets the references to undefined ' +
+            'without calling clearImmediate, leaving stale callbacks in ' +
+            'the event loop after fault recovery resets all internal state',
+        );
+      } finally {
+        globalThis.clearImmediate = originalClearImmediate;
+      }
+    });
+  });
 });
