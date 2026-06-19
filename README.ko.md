@@ -117,33 +117,33 @@ await client.subscribe('events');
 
 # ⚡ Solidis vs ioredis ⚡
 
-<small>측정일 2026-06-19 12:47:33 · linux x64 · Node.js v22.22.3</small>
+<small>측정일 2026-06-19 17:48:54 · linux x64 · Node.js v22.22.3</small>
 ### ioredis 대비 최대 **2.1x 빠릅니다**! 🚀
 
 ---
 <br/>
 
-**15**개 중 **15**개 벤치마크 우위 · 평균 **71%** 성능 향상 · 최대 **109%** 성능 향상
+**15**개 중 **15**개 벤치마크 우위 · 평균 **72%** 성능 향상 · 최대 **109%** 성능 향상
 
 *100,000번 반복 × 10,000 동시 실행 · 1 KB 페이로드 · 10회 측정*
 
 | | 벤치마크 | 명령어 | solidis | ioredis | 차이 | 성능 |
 |---:|:---|:---:|:---:|:---:|:---:|:---|
-| 🥇 | **Set 변경** | <sup><sub><kbd>SADD</kbd> <kbd>SISMEMBER</kbd> <kbd>SREM</kbd></sub></sup> | **1639ms** | 3429ms | **2.1x** 🔥🔥 | `██████████` |
-| 🥈 | **List 범위** | <sup><sub><kbd>LPUSH</kbd> <kbd>RPUSH</kbd> <kbd>LRANGE</kbd></sub></sup> | **1860ms** | 3531ms | **1.9x** 🔥🔥 | `████████░░` |
-| 🥉 | **Set** | <sup><sub><kbd>SET</kbd></sub></sup> | **742ms** | 1361ms | **1.8x** 🔥🔥 | `████████░░` |
-| 4. | **List 변경** | <sup><sub><kbd>LPUSH</kbd> <kbd>RPUSH</kbd> <kbd>LPOP</kbd> <kbd>RPOP</kbd> <kbd>LLEN</kbd></sub></sup> | **2620ms** | 4801ms | **1.8x** 🔥🔥 | `████████░░` |
-| 5. | **Sorted Set** | <sup><sub><kbd>ZADD</kbd> <kbd>ZRANGE</kbd> <kbd>ZREM</kbd></sub></sup> | **1911ms** | 3391ms | **1.8x** 🔥🔥 | `███████░░░` |
-| 6. | **Set 조회** | <sup><sub><kbd>SADD</kbd> <kbd>SISMEMBER</kbd> <kbd>SMEMBERS</kbd></sub></sup> | **1898ms** | 3356ms | **1.8x** 🔥🔥 | `███████░░░` |
-| 7. | **Hash 변경** | <sup><sub><kbd>HMSET</kbd> <kbd>HMGET</kbd> <kbd>HDEL</kbd></sub></sup> | **2019ms** | 3476ms | **1.7x** 🔥🔥 | `███████░░░` |
-| 8. | **비트랜잭션** | <sup><sub><kbd>SETPX</kbd> <kbd>GET</kbd></sub></sup> | **1218ms** | 2056ms | **1.7x** 🔥🔥 | `██████░░░░` |
-| 9. | **Multi-Key** | <sup><sub><kbd>MSET</kbd> <kbd>MGET</kbd></sub></sup> | **1754ms** | 2960ms | **1.7x** 🔥🔥 | `██████░░░░` |
-| 10. | **Expire** | <sup><sub><kbd>SET</kbd> <kbd>EXPIRE</kbd> <kbd>TTL</kbd></sub></sup> | **1561ms** | 2607ms | **1.7x** 🔥🔥 | `██████░░░░` |
-| 11. | **Stream** | <sup><sub><kbd>XADD</kbd> <kbd>XRANGE</kbd> <kbd>XLEN</kbd></sub></sup> | **1900ms** | 3118ms | **1.6x** 🔥🔥 | `██████░░░░` |
-| 12. | **파이프라인 혼합** | <sup><sub><kbd>SET</kbd> <kbd>INCR</kbd> <kbd>GET</kbd></sub></sup> | **1616ms** | 2616ms | **1.6x** 🔥🔥 | `██████░░░░` |
-| 13. | **Counter** | <sup><sub><kbd>INCR</kbd> <kbd>DECR</kbd></sub></sup> | **933ms** | 1405ms | **1.5x** 🔥 | `█████░░░░░` |
-| 14. | **Get Buffer** | <sup><sub><kbd>GETBUFFER</kbd></sub></sup> | **592ms** | 868ms | **1.5x** 🔥 | `████░░░░░░` |
-| 15. | **Hash 왕복** | <sup><sub><kbd>HSET</kbd> <kbd>HGET</kbd> <kbd>HGETALL</kbd></sub></sup> | **2286ms** | 3145ms | **1.4x** 🔥 | `███░░░░░░░` |
+| 🥇 | **Set 변경** | <sup><sub><kbd>SADD</kbd> <kbd>SISMEMBER</kbd> <kbd>SREM</kbd></sub></sup> | **1638ms** | 3419ms | **2.1x** 🔥🔥 | `██████████` |
+| 🥈 | **List 변경** | <sup><sub><kbd>LPUSH</kbd> <kbd>RPUSH</kbd> <kbd>LPOP</kbd> <kbd>RPOP</kbd> <kbd>LLEN</kbd></sub></sup> | **2373ms** | 4520ms | **1.9x** 🔥🔥 | `████████░░` |
+| 🥉 | **List 범위** | <sup><sub><kbd>LPUSH</kbd> <kbd>RPUSH</kbd> <kbd>LRANGE</kbd></sub></sup> | **1905ms** | 3616ms | **1.9x** 🔥🔥 | `████████░░` |
+| 4. | **Hash 변경** | <sup><sub><kbd>HMSET</kbd> <kbd>HMGET</kbd> <kbd>HDEL</kbd></sub></sup> | **1869ms** | 3391ms | **1.8x** 🔥🔥 | `███████░░░` |
+| 5. | **Set** | <sup><sub><kbd>SET</kbd></sub></sup> | **763ms** | 1379ms | **1.8x** 🔥🔥 | `███████░░░` |
+| 6. | **Expire** | <sup><sub><kbd>SET</kbd> <kbd>EXPIRE</kbd> <kbd>TTL</kbd></sub></sup> | **1495ms** | 2598ms | **1.7x** 🔥🔥 | `███████░░░` |
+| 7. | **Set 조회** | <sup><sub><kbd>SADD</kbd> <kbd>SISMEMBER</kbd> <kbd>SMEMBERS</kbd></sub></sup> | **1876ms** | 3205ms | **1.7x** 🔥🔥 | `███████░░░` |
+| 8. | **Stream** | <sup><sub><kbd>XADD</kbd> <kbd>XRANGE</kbd> <kbd>XLEN</kbd></sub></sup> | **1856ms** | 3162ms | **1.7x** 🔥🔥 | `██████░░░░` |
+| 9. | **Sorted Set** | <sup><sub><kbd>ZADD</kbd> <kbd>ZRANGE</kbd> <kbd>ZREM</kbd></sub></sup> | **1925ms** | 3275ms | **1.7x** 🔥🔥 | `██████░░░░` |
+| 10. | **Multi-Key** | <sup><sub><kbd>MSET</kbd> <kbd>MGET</kbd></sub></sup> | **1769ms** | 2946ms | **1.7x** 🔥🔥 | `██████░░░░` |
+| 11. | **비트랜잭션** | <sup><sub><kbd>SETPX</kbd> <kbd>GET</kbd></sub></sup> | **1307ms** | 2169ms | **1.7x** 🔥🔥 | `██████░░░░` |
+| 12. | **파이프라인 혼합** | <sup><sub><kbd>SET</kbd> <kbd>INCR</kbd> <kbd>GET</kbd></sub></sup> | **1580ms** | 2546ms | **1.6x** 🔥🔥 | `██████░░░░` |
+| 13. | **Counter** | <sup><sub><kbd>INCR</kbd> <kbd>DECR</kbd></sub></sup> | **903ms** | 1397ms | **1.5x** 🔥 | `█████░░░░░` |
+| 14. | **Hash 왕복** | <sup><sub><kbd>HSET</kbd> <kbd>HGET</kbd> <kbd>HGETALL</kbd></sub></sup> | **1777ms** | 2706ms | **1.5x** 🔥 | `█████░░░░░` |
+| 15. | **Get Buffer** | <sup><sub><kbd>GETBUFFER</kbd></sub></sup> | **598ms** | 883ms | **1.5x** 🔥 | `████░░░░░░` |
 
 ### 엄격 비교가 불가능한 벤치마크
 
@@ -151,10 +151,10 @@ await client.subscribe('events');
 
 | | 벤치마크 | 명령어 | solidis | ioredis | 차이 | 성능 |
 |---:|:---|:---:|:---:|:---:|:---:|:---|
-| 16. | **트랜잭션 혼합** | <sup><sub><kbd>SET</kbd> <kbd>GET</kbd></sub></sup> | 1648ms | 7144ms | **4.3x** 🔥🔥 | `██████████` |
-| 17. | **트랜잭션** | <sup><sub><kbd>SET</kbd> <kbd>EXPIRE</kbd> <kbd>GET</kbd></sub></sup> | 1060ms | 4027ms | **3.8x** 🔥🔥 | `██████████` |
-| 18. | **Pub/Sub** | <sup><sub><kbd>PUBLISH</kbd> <kbd>MESSAGE</kbd></sub></sup> | 735ms | 2686ms | **3.7x** 🔥🔥 | `██████████` |
-| 19. | **Info / Config** | <sup><sub><kbd>INFO</kbd> <kbd>CONFIGGET</kbd></sub></sup> | 1099ms | 1997ms | **1.8x** 🔥🔥 | `███████░░░` |
+| 16. | **트랜잭션** | <sup><sub><kbd>SET</kbd> <kbd>EXPIRE</kbd> <kbd>GET</kbd></sub></sup> | 1257ms | 5958ms | **4.7x** 🔥🔥 | `██████████` |
+| 17. | **트랜잭션 혼합** | <sup><sub><kbd>SET</kbd> <kbd>GET</kbd></sub></sup> | 1641ms | 7003ms | **4.3x** 🔥🔥 | `██████████` |
+| 18. | **Pub/Sub** | <sup><sub><kbd>PUBLISH</kbd> <kbd>MESSAGE</kbd></sub></sup> | 558ms | 2078ms | **3.7x** 🔥🔥 | `██████████` |
+| 19. | **Info / Config** | <sup><sub><kbd>INFO</kbd> <kbd>CONFIGGET</kbd></sub></sup> | 1063ms | 2160ms | **2.0x** 🔥🔥 | `█████████░` |
 
 <sub>`solidis`의 `ioredis` (기준) 대비 성능 향상률 순으로 정렬. 소요 시간 = 반복 측정의 중앙값.</sub>
 
@@ -171,36 +171,36 @@ await client.subscribe('events');
 
 | 벤치마크 | 라이브러리 | ops/s | cmds/s | 소요 시간 | 분산 |
 |:---|:---|---:|---:|---:|---:|
-| **Set 변경: <sup><sub><kbd>SADD</kbd> <kbd>SISMEMBER</kbd> <kbd>SREM</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 61.0K | 183.1K | 1639ms | ±9.3% |
-|  | ioredis | 29.2K | 87.5K | 3429ms | ±2.0% |
-| **List 범위: <sup><sub><kbd>LPUSH</kbd> <kbd>RPUSH</kbd> <kbd>LRANGE</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 53.8K | 161.3K | 1860ms | ±2.2% |
-|  | ioredis | 28.3K | 85.0K | 3531ms | ±2.5% |
-| **Set: <sup><sub><kbd>SET</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 134.8K | 134.8K | 742ms | ±3.8% |
-|  | ioredis | 73.5K | 73.5K | 1361ms | ±1.6% |
-| **List 변경: <sup><sub><kbd>LPUSH</kbd> <kbd>RPUSH</kbd> <kbd>LPOP</kbd> <kbd>RPOP</kbd> <kbd>LLEN</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 38.2K | 190.9K | 2620ms | ±2.8% |
-|  | ioredis | 20.8K | 104.2K | 4801ms | ±3.0% |
-| **Sorted Set: <sup><sub><kbd>ZADD</kbd> <kbd>ZRANGE</kbd> <kbd>ZREM</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 52.3K | 157.0K | 1911ms | ±9.0% |
-|  | ioredis | 29.5K | 88.5K | 3391ms | ±2.0% |
-| **Set 조회: <sup><sub><kbd>SADD</kbd> <kbd>SISMEMBER</kbd> <kbd>SMEMBERS</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 52.7K | 158.1K | 1898ms | ±3.7% |
-|  | ioredis | 29.8K | 89.4K | 3356ms | ±3.4% |
-| **Hash 변경: <sup><sub><kbd>HMSET</kbd> <kbd>HMGET</kbd> <kbd>HDEL</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 49.5K | 148.6K | 2019ms | ±5.4% |
-|  | ioredis | 28.8K | 86.3K | 3476ms | ±1.6% |
-| **비트랜잭션: <sup><sub><kbd>SETPX</kbd> <kbd>GET</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 82.1K | 164.2K | 1218ms | ±6.7% |
-|  | ioredis | 48.6K | 97.3K | 2056ms | ±1.4% |
-| **Multi-Key: <sup><sub><kbd>MSET</kbd> <kbd>MGET</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 57.0K | 114.0K | 1754ms | ±2.3% |
-|  | ioredis | 33.8K | 67.6K | 2960ms | ±3.4% |
-| **Expire: <sup><sub><kbd>SET</kbd> <kbd>EXPIRE</kbd> <kbd>TTL</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 64.1K | 192.2K | 1561ms | ±4.3% |
-|  | ioredis | 38.4K | 115.1K | 2607ms | ±2.0% |
-| **Stream: <sup><sub><kbd>XADD</kbd> <kbd>XRANGE</kbd> <kbd>XLEN</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 52.6K | 157.9K | 1900ms | ±3.2% |
-|  | ioredis | 32.1K | 96.2K | 3118ms | ±1.3% |
-| **파이프라인 혼합: <sup><sub><kbd>SET</kbd> <kbd>INCR</kbd> <kbd>GET</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 61.9K | 185.7K | 1616ms | ±4.2% |
-|  | ioredis | 38.2K | 114.7K | 2616ms | ±1.3% |
-| **Counter: <sup><sub><kbd>INCR</kbd> <kbd>DECR</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 107.2K | 214.4K | 933ms | ±3.1% |
-|  | ioredis | 71.2K | 142.3K | 1405ms | ±1.1% |
-| **Get Buffer: <sup><sub><kbd>GETBUFFER</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 168.9K | 168.9K | 592ms | ±3.7% |
-|  | ioredis | 115.2K | 115.2K | 868ms | ±2.7% |
-| **Hash 왕복: <sup><sub><kbd>HSET</kbd> <kbd>HGET</kbd> <kbd>HGETALL</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 43.7K | 131.2K | 2286ms | ±3.2% |
-|  | ioredis | 31.8K | 95.4K | 3145ms | ±1.6% |
+| **Set 변경: <sup><sub><kbd>SADD</kbd> <kbd>SISMEMBER</kbd> <kbd>SREM</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 61.0K | 183.1K | 1638ms | ±7.5% |
+|  | ioredis | 29.2K | 87.7K | 3419ms | ±2.3% |
+| **List 변경: <sup><sub><kbd>LPUSH</kbd> <kbd>RPUSH</kbd> <kbd>LPOP</kbd> <kbd>RPOP</kbd> <kbd>LLEN</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 42.1K | 210.7K | 2373ms | ±3.4% |
+|  | ioredis | 22.1K | 110.6K | 4520ms | ±0.8% |
+| **List 범위: <sup><sub><kbd>LPUSH</kbd> <kbd>RPUSH</kbd> <kbd>LRANGE</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 52.5K | 157.5K | 1905ms | ±7.9% |
+|  | ioredis | 27.7K | 83.0K | 3616ms | ±1.6% |
+| **Hash 변경: <sup><sub><kbd>HMSET</kbd> <kbd>HMGET</kbd> <kbd>HDEL</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 53.5K | 160.5K | 1869ms | ±4.4% |
+|  | ioredis | 29.5K | 88.5K | 3391ms | ±3.2% |
+| **Set: <sup><sub><kbd>SET</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 131.1K | 131.1K | 763ms | ±7.7% |
+|  | ioredis | 72.5K | 72.5K | 1379ms | ±2.6% |
+| **Expire: <sup><sub><kbd>SET</kbd> <kbd>EXPIRE</kbd> <kbd>TTL</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 66.9K | 200.6K | 1495ms | ±2.7% |
+|  | ioredis | 38.5K | 115.5K | 2598ms | ±0.9% |
+| **Set 조회: <sup><sub><kbd>SADD</kbd> <kbd>SISMEMBER</kbd> <kbd>SMEMBERS</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 53.3K | 159.9K | 1876ms | ±7.6% |
+|  | ioredis | 31.2K | 93.6K | 3205ms | ±2.1% |
+| **Stream: <sup><sub><kbd>XADD</kbd> <kbd>XRANGE</kbd> <kbd>XLEN</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 53.9K | 161.6K | 1856ms | ±3.8% |
+|  | ioredis | 31.6K | 94.9K | 3162ms | ±1.7% |
+| **Sorted Set: <sup><sub><kbd>ZADD</kbd> <kbd>ZRANGE</kbd> <kbd>ZREM</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 51.9K | 155.8K | 1925ms | ±4.8% |
+|  | ioredis | 30.5K | 91.6K | 3275ms | ±1.4% |
+| **Multi-Key: <sup><sub><kbd>MSET</kbd> <kbd>MGET</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 56.5K | 113.1K | 1769ms | ±1.9% |
+|  | ioredis | 33.9K | 67.9K | 2946ms | ±4.3% |
+| **비트랜잭션: <sup><sub><kbd>SETPX</kbd> <kbd>GET</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 76.5K | 153.0K | 1307ms | ±6.1% |
+|  | ioredis | 46.1K | 92.2K | 2169ms | ±5.6% |
+| **파이프라인 혼합: <sup><sub><kbd>SET</kbd> <kbd>INCR</kbd> <kbd>GET</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 63.3K | 189.9K | 1580ms | ±1.6% |
+|  | ioredis | 39.3K | 117.8K | 2546ms | ±0.5% |
+| **Counter: <sup><sub><kbd>INCR</kbd> <kbd>DECR</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 110.7K | 221.4K | 903ms | ±2.7% |
+|  | ioredis | 71.6K | 143.1K | 1397ms | ±6.6% |
+| **Hash 왕복: <sup><sub><kbd>HSET</kbd> <kbd>HGET</kbd> <kbd>HGETALL</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 56.3K | 168.8K | 1777ms | ±3.1% |
+|  | ioredis | 37.0K | 110.9K | 2706ms | ±3.7% |
+| **Get Buffer: <sup><sub><kbd>GETBUFFER</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 167.2K | 167.2K | 598ms | ±2.3% |
+|  | ioredis | 113.3K | 113.3K | 883ms | ±2.2% |
 
 </details>
 
@@ -224,7 +224,7 @@ await client.subscribe('events');
 | 쿨다운 | 2500ms |
 | 플랫폼 | linux x64 |
 | Node.js | v22.22.3 |
-| 날짜 | 2026-06-19 12:47:33 |
+| 날짜 | 2026-06-19 17:48:54 |
 
 </details>
 
