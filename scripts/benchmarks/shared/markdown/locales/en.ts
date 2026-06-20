@@ -1,3 +1,5 @@
+import { fluentEmoji } from '../emoji.ts';
+
 import type { BenchmarkLocale } from './types.ts';
 
 function plural(count: number, singular: string): string {
@@ -5,12 +7,13 @@ function plural(count: number, singular: string): string {
 }
 
 export const en: BenchmarkLocale = {
-  sectionTitle: '## 📊 Benchmarks',
+  sectionTitle: `## ${fluentEmoji('Objects', 'Bar Chart')} Benchmarks`,
 
-  reportTitle: (baseline) => `⚡ Solidis vs ${baseline} ⚡`,
+  reportTitle: (baseline) =>
+    `${fluentEmoji('Travel and places', 'High Voltage')} Solidis vs ${baseline} ${fluentEmoji('Travel and places', 'High Voltage')}`,
   generatedOnPrefix: 'Generated on',
   upToFaster: (ratio, baseline) =>
-    `Up to **${ratio} faster** than ${baseline}! 🚀`,
+    `Up to **${ratio} faster** than ${baseline}! ${fluentEmoji('Travel and places', 'Rocket')}`,
 
   benchmarksWon: (wins, total) => `**${wins}** / **${total}** benchmarks won`,
   averageSpeedImprovement: (percent) =>
@@ -35,7 +38,7 @@ export const en: BenchmarkLocale = {
   rankingFootnote: (solidis, baseline) =>
     `Ranked by performance gain of \`${solidis}\` over \`${baseline}\` (baseline). Elapsed = median time across repeats.`,
 
-  detailedMetricsTitle: '## 📊 Detailed Metrics',
+  detailedMetricsTitle: `## ${fluentEmoji('Objects', 'Bar Chart')} Detailed Metrics`,
   detailedMetricsDescription:
     'All metrics per library: operations/s, commands/s, median elapsed time, and spread (coefficient of variation).',
   expandDetailedMetrics: 'Click to expand detailed metrics table',
@@ -49,7 +52,7 @@ export const en: BenchmarkLocale = {
     spread: 'Spread',
   },
 
-  configurationTitle: '## ⚙️ Configuration',
+  configurationTitle: `## ${fluentEmoji('Objects', 'Gear')} Configuration`,
   expandConfiguration: 'Click to expand benchmark configuration',
 
   configLabels: {
@@ -69,7 +72,7 @@ export const en: BenchmarkLocale = {
     date: 'Date',
   },
 
-  methodologyTitle: '## 📖 Methodology',
+  methodologyTitle: `## ${fluentEmoji('Objects', 'Open Book')} Methodology`,
   methodologyItems: [
     'Each benchmark is run in an **isolated worker thread** to prevent GC and JIT cross-contamination',
     'Libraries are **alternated** between repeats to reduce ordering bias',

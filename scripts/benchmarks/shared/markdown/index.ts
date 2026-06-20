@@ -2,6 +2,7 @@ import { writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import { formatLargeNumber, formatPayloadSize } from '../utils.ts';
+import { fluentEmoji } from './emoji.ts';
 import { en } from './locales/index.ts';
 
 import type { BenchConfig, ComparedResult, LibraryName } from '../types.ts';
@@ -91,16 +92,19 @@ function getPerformanceBadge(ratio: number | null): string {
     return '';
   }
 
+  const fire = fluentEmoji('Travel and places', 'Fire', 16);
+  const voltage = fluentEmoji('Travel and places', 'High Voltage', 16);
+
   if (ratio >= 1.6) {
-    return ' 🔥🔥';
+    return ` ${fire}${fire}`;
   }
 
   if (ratio >= 1.3) {
-    return ' 🔥';
+    return ` ${fire}`;
   }
 
   if (ratio > 1.05) {
-    return ' ⚡️';
+    return ` ${voltage}`;
   }
 
   return '';
@@ -108,13 +112,13 @@ function getPerformanceBadge(ratio: number | null): string {
 
 function getRankMedal(rank: number): string {
   if (rank === 1) {
-    return '🥇';
+    return fluentEmoji('Activities', '1st Place Medal', 20);
   }
   if (rank === 2) {
-    return '🥈';
+    return fluentEmoji('Activities', '2nd Place Medal', 20);
   }
   if (rank === 3) {
-    return '🥉';
+    return fluentEmoji('Activities', '3rd Place Medal', 20);
   }
 
   return `${rank}.`;
