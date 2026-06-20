@@ -1,12 +1,15 @@
+import { fluentEmoji } from '../emoji.ts';
+
 import type { BenchmarkLocale } from './types.ts';
 
 export const ko: BenchmarkLocale = {
-  sectionTitle: '## 📊 벤치마크',
+  sectionTitle: `## ${fluentEmoji('Objects', 'Bar Chart')} 벤치마크`,
 
-  reportTitle: (baseline) => `⚡ Solidis vs ${baseline} ⚡`,
+  reportTitle: (baseline) =>
+    `${fluentEmoji('Travel and places', 'High Voltage')} Solidis vs ${baseline} ${fluentEmoji('Travel and places', 'High Voltage')}`,
   generatedOnPrefix: '측정일',
   upToFaster: (ratio, baseline) =>
-    `${baseline} 대비 최대 **${ratio} 빠릅니다**! 🚀`,
+    `${baseline} 대비 최대 **${ratio} 빠릅니다**! ${fluentEmoji('Travel and places', 'Rocket')}`,
 
   benchmarksWon: (wins, total) =>
     `**${total}**개 중 **${wins}**개 벤치마크 우위`,
@@ -31,7 +34,7 @@ export const ko: BenchmarkLocale = {
   rankingFootnote: (solidis, baseline) =>
     `\`${solidis}\`의 \`${baseline}\` (기준) 대비 성능 향상률 순으로 정렬. 소요 시간 = 반복 측정의 중앙값.`,
 
-  detailedMetricsTitle: '## 📊 상세 지표',
+  detailedMetricsTitle: `## ${fluentEmoji('Objects', 'Bar Chart')} 상세 지표`,
   detailedMetricsDescription:
     '라이브러리별 전체 지표: 초당 작업 수, 초당 명령 수, 소요 시간 중앙값, 분산 (변동 계수).',
   expandDetailedMetrics: '상세 지표 테이블 펼치기',
@@ -45,7 +48,7 @@ export const ko: BenchmarkLocale = {
     spread: '분산',
   },
 
-  configurationTitle: '## ⚙️ 설정',
+  configurationTitle: `## ${fluentEmoji('Objects', 'Gear')} 설정`,
   expandConfiguration: '벤치마크 설정 펼치기',
 
   configLabels: {
@@ -65,7 +68,7 @@ export const ko: BenchmarkLocale = {
     date: '날짜',
   },
 
-  methodologyTitle: '## 📖 측정 방법론',
+  methodologyTitle: `## ${fluentEmoji('Objects', 'Open Book')} 측정 방법론`,
   methodologyItems: [
     '각 벤치마크는 GC 및 JIT 간섭을 방지하기 위해 **격리된 워커 스레드**에서 실행됩니다',
     '순서 편향을 줄이기 위해 반복 측정 시 라이브러리를 **번갈아 실행**합니다',
