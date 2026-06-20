@@ -116,6 +116,14 @@ jobs:
         if: steps.check.outputs.pr == 'true'
         run: npm run benchmark:replace:readme -- merged.benchmark
 
+      - name: Update website benchmark data
+        if: steps.check.outputs.pr == 'true'
+        run: npm run benchmark:replace:website -- merged.benchmark
+
+      - name: Lint and format
+        if: steps.check.outputs.pr == 'true'
+        run: npm run lint
+
       - name: Create pull request
         if: steps.check.outputs.pr == 'true'
         uses: peter-evans/create-pull-request@v8
@@ -131,4 +139,5 @@ jobs:
             - Ran **19** benchmark cases independently
             - Merged all results into a single report
             - Updated the benchmark section in all `README*.md` files (localized)
+            - Updated website benchmark data (`benchmarks`, `home`, i18n)
           labels: benchmark,automated
