@@ -1,8 +1,10 @@
 <h1 align="center"><img src="./assets/solidis.png" alt="Solidis" width="50"/></h1>
 
-<p align="center">
-  <b>Zero-dependency RESP client for Redis. Fastest by design.</b>
-</p>
+<h3 align="center">
+  <b>The fastest Redis client for Node.js.<br/>Zero dependencies, 2x+ faster than ioredis, battle-tested in production.</b>
+</h3>
+
+<br/>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@vcms-io/solidis"><img src="https://img.shields.io/npm/v/@vcms-io/solidis.svg?style=flat-square&labelColor=000&color=f5a623" alt="npm"></a>
