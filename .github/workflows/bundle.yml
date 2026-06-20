@@ -56,6 +56,10 @@ jobs:
             echo "pr=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Lint and format
+        if: steps.check.outputs.pr == 'true'
+        run: npm run lint
+
       - name: Create pull request
         if: steps.check.outputs.pr == 'true'
         uses: peter-evans/create-pull-request@v8

@@ -2,7 +2,7 @@
   "name": "@vcms-io/solidis",
   "version": "0.3.0",
   "author": "Jay Lee <jay@vendit.co.kr>",
-  "description": "High-performance, SOLID-structured RESP client for Redis and other RESP-compatible servers",
+  "description": "The fastest Redis client for Node.js. Zero dependencies, 2x+ faster than ioredis, battle-tested in production.",
   "repository": {
     "type": "git",
     "url": "https://github.com/vcms-io/solidis.git"
@@ -13,8 +13,10 @@
     "prepack": "npm run build",
     "cleanup": "npm run --silent node:ts ./scripts/cleanup.ts",
     "build": "npm run cleanup && tsc && npm run node:ts ./scripts/build.ts",
-    "lint": "concurrently --raw \"biome check --write\" \"tsc --noEmit\" \"tsc --noEmit --project scripts/tsconfig.json\"",
-    "format": "biome format --write",
+    "lint": "concurrently --raw \"npm run format\" \"npm run format:markdown\" \"npm run check\"",
+    "format": "biome check --write",
+    "format:markdown": "prettier --write \"**/*.md\" --prose-wrap preserve --single-quote --embedded-language-formatting off",
+    "check": "concurrently --raw \"tsc --noEmit\" \"tsc --noEmit --project scripts/tsconfig.json\"",
     "node:ts": "node --import=./scripts/esm/register.js",
     "benchmark:ioredis": "npm run --silent node:ts ./scripts/benchmarks/ioredis/benchmark.ts --",
     "benchmark:ioredis:snapshot": "cross-env SOLIDIS_BENCH_EXPORT_SNAPSHOT=./ioredis.benchmark npm run --silent node:ts ./scripts/benchmarks/ioredis/benchmark.ts --",
@@ -22,6 +24,7 @@
     "benchmark:redis:snapshot": "cross-env SOLIDIS_BENCH_EXPORT_SNAPSHOT=./redis.benchmark npm run --silent node:ts ./scripts/benchmarks/redis/benchmark.ts --",
     "benchmark:merge": "npm run --silent node:ts ./scripts/benchmarks/shared/markdown/merge.ts --",
     "benchmark:replace:readme": "npm run --silent node:ts ./scripts/benchmarks/shared/markdown/replace.readme.ts --",
+    "benchmark:replace:website": "npm run --silent node:ts ./scripts/benchmarks/shared/markdown/replace.website.ts --",
     "test": "concurrently --raw --max-processes 1 \"npm run test:commands\" \"npm run test:client\"",
     "test:commands": "node --import=./scripts/esm/register.js --test ./scripts/tests/commands/*.test.ts",
     "test:client": "node --import=./scripts/esm/register.js --test --test-concurrency=1 ./scripts/tests/client/**/*.test.ts",
@@ -91,6 +94,7 @@
     "cross-env": "^10.1.0",
     "esbuild": "^0.28.1",
     "ioredis": "^5.11.1",
+    "prettier": "^3.8.4",
     "redis": "^6.0.0",
     "typescript": "^6.0.3"
   }

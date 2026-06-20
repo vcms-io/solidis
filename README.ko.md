@@ -1,8 +1,10 @@
 <h1 align="center"><img src="./assets/solidis.png" alt="Solidis" width="50"/></h1>
 
-<p align="center">
-  <b>Zero-dependency RESP client for Redis. Fastest by design.</b>
-</p>
+<h3 align="center">
+  <b>The fastest Redis client for Node.js.<br/>Zero dependencies, 2x+ faster than ioredis, battle-tested in production.</b>
+</h3>
+
+<br/>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@vcms-io/solidis"><img src="https://img.shields.io/npm/v/@vcms-io/solidis.svg?style=flat-square&labelColor=000&color=f5a623" alt="npm"></a>
@@ -118,43 +120,45 @@ await client.subscribe('events');
 # <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/High%20Voltage.png?raw=true" alt="High Voltage" width="25" height="25" /> Solidis vs ioredis <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/High%20Voltage.png?raw=true" alt="High Voltage" width="25" height="25" />
 
 <small>측정일 2026-06-20 10:28:46 · linux x64 · Node.js v22.22.3</small>
+
 ### ioredis 대비 최대 **2.1x 빠릅니다**! <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Rocket.png?raw=true" alt="Rocket" width="25" height="25" />
 
 ---
+
 <br/>
 
 **15**개 중 **15**개 벤치마크 우위 · 평균 **72%** 성능 향상 · 최대 **109%** 성능 향상
 
-*100,000번 반복 × 10,000 동시 실행 · 1 KB 페이로드 · 10회 측정*
+_100,000번 반복 × 10,000 동시 실행 · 1 KB 페이로드 · 10회 측정_
 
-| | 벤치마크 | 명령어 | solidis | ioredis | 차이 | 성능 |
-|---:|:---|:---:|:---:|:---:|:---:|:---|
-| <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Activities/1st%20Place%20Medal.png?raw=true" alt="1st Place Medal" width="20" height="20" /> | **Set 변경** | <sup><sub><kbd>SADD</kbd> <kbd>SISMEMBER</kbd> <kbd>SREM</kbd></sub></sup> | **1600ms** | 3336ms | **2.1x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `██████████` |
-| <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Activities/2nd%20Place%20Medal.png?raw=true" alt="2nd Place Medal" width="20" height="20" /> | **List 범위** | <sup><sub><kbd>LPUSH</kbd> <kbd>RPUSH</kbd> <kbd>LRANGE</kbd></sub></sup> | **1914ms** | 3635ms | **1.9x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `████████░░` |
-| <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Activities/3rd%20Place%20Medal.png?raw=true" alt="3rd Place Medal" width="20" height="20" /> | **Multi-Key** | <sup><sub><kbd>MSET</kbd> <kbd>MGET</kbd></sub></sup> | **1646ms** | 3124ms | **1.9x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `████████░░` |
-| 4. | **List 변경** | <sup><sub><kbd>LPUSH</kbd> <kbd>RPUSH</kbd> <kbd>LPOP</kbd> <kbd>RPOP</kbd> <kbd>LLEN</kbd></sub></sup> | **2419ms** | 4482ms | **1.9x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `████████░░` |
-| 5. | **Set** | <sup><sub><kbd>SET</kbd></sub></sup> | **715ms** | 1285ms | **1.8x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `███████░░░` |
-| 6. | **Expire** | <sup><sub><kbd>SET</kbd> <kbd>EXPIRE</kbd> <kbd>TTL</kbd></sub></sup> | **1422ms** | 2521ms | **1.8x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `███████░░░` |
-| 7. | **Hash 변경** | <sup><sub><kbd>HMSET</kbd> <kbd>HMGET</kbd> <kbd>HDEL</kbd></sub></sup> | **1971ms** | 3487ms | **1.8x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `███████░░░` |
-| 8. | **Sorted Set** | <sup><sub><kbd>ZADD</kbd> <kbd>ZRANGE</kbd> <kbd>ZREM</kbd></sub></sup> | **1881ms** | 3286ms | **1.7x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `███████░░░` |
-| 9. | **비트랜잭션** | <sup><sub><kbd>SETPX</kbd> <kbd>GET</kbd></sub></sup> | **1263ms** | 2102ms | **1.7x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `██████░░░░` |
-| 10. | **Stream** | <sup><sub><kbd>XADD</kbd> <kbd>XRANGE</kbd> <kbd>XLEN</kbd></sub></sup> | **1984ms** | 3266ms | **1.6x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `██████░░░░` |
-| 11. | **Set 조회** | <sup><sub><kbd>SADD</kbd> <kbd>SISMEMBER</kbd> <kbd>SMEMBERS</kbd></sub></sup> | **1940ms** | 3120ms | **1.6x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `██████░░░░` |
-| 12. | **파이프라인 혼합** | <sup><sub><kbd>SET</kbd> <kbd>INCR</kbd> <kbd>GET</kbd></sub></sup> | **1787ms** | 2839ms | **1.6x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `█████░░░░░` |
-| 13. | **Counter** | <sup><sub><kbd>INCR</kbd> <kbd>DECR</kbd></sub></sup> | **952ms** | 1446ms | **1.5x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `█████░░░░░` |
-| 14. | **Hash 왕복** | <sup><sub><kbd>HSET</kbd> <kbd>HGET</kbd> <kbd>HGETALL</kbd></sub></sup> | **1859ms** | 2798ms | **1.5x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `█████░░░░░` |
-| 15. | **Get Buffer** | <sup><sub><kbd>GETBUFFER</kbd></sub></sup> | **628ms** | 928ms | **1.5x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `████░░░░░░` |
+|                                                                                                                                                                                        | 벤치마크            |                                                 명령어                                                  |  solidis   | ioredis |                                                                                                                                                                          차이                                                                                                                                                                           | 성능         |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :------------------ | :-----------------------------------------------------------------------------------------------------: | :--------: | :-----: | :-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :----------- |
+| <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Activities/1st%20Place%20Medal.png?raw=true" alt="1st Place Medal" width="20" height="20" /> | **Set 변경**        |               <sup><sub><kbd>SADD</kbd> <kbd>SISMEMBER</kbd> <kbd>SREM</kbd></sub></sup>                | **1600ms** | 3336ms  | **2.1x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `██████████` |
+| <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Activities/2nd%20Place%20Medal.png?raw=true" alt="2nd Place Medal" width="20" height="20" /> | **List 범위**       |                <sup><sub><kbd>LPUSH</kbd> <kbd>RPUSH</kbd> <kbd>LRANGE</kbd></sub></sup>                | **1914ms** | 3635ms  | **1.9x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `████████░░` |
+| <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Activities/3rd%20Place%20Medal.png?raw=true" alt="3rd Place Medal" width="20" height="20" /> | **Multi-Key**       |                          <sup><sub><kbd>MSET</kbd> <kbd>MGET</kbd></sub></sup>                          | **1646ms** | 3124ms  | **1.9x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `████████░░` |
+|                                                                                                                                                                                     4. | **List 변경**       | <sup><sub><kbd>LPUSH</kbd> <kbd>RPUSH</kbd> <kbd>LPOP</kbd> <kbd>RPOP</kbd> <kbd>LLEN</kbd></sub></sup> | **2419ms** | 4482ms  | **1.9x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `████████░░` |
+|                                                                                                                                                                                     5. | **Set**             |                                  <sup><sub><kbd>SET</kbd></sub></sup>                                   | **715ms**  | 1285ms  | **1.8x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `███████░░░` |
+|                                                                                                                                                                                     6. | **Expire**          |                  <sup><sub><kbd>SET</kbd> <kbd>EXPIRE</kbd> <kbd>TTL</kbd></sub></sup>                  | **1422ms** | 2521ms  | **1.8x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `███████░░░` |
+|                                                                                                                                                                                     7. | **Hash 변경**       |                 <sup><sub><kbd>HMSET</kbd> <kbd>HMGET</kbd> <kbd>HDEL</kbd></sub></sup>                 | **1971ms** | 3487ms  | **1.8x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `███████░░░` |
+|                                                                                                                                                                                     8. | **Sorted Set**      |                 <sup><sub><kbd>ZADD</kbd> <kbd>ZRANGE</kbd> <kbd>ZREM</kbd></sub></sup>                 | **1881ms** | 3286ms  | **1.7x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `███████░░░` |
+|                                                                                                                                                                                     9. | **비트랜잭션**      |                          <sup><sub><kbd>SETPX</kbd> <kbd>GET</kbd></sub></sup>                          | **1263ms** | 2102ms  | **1.7x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `██████░░░░` |
+|                                                                                                                                                                                    10. | **Stream**          |                 <sup><sub><kbd>XADD</kbd> <kbd>XRANGE</kbd> <kbd>XLEN</kbd></sub></sup>                 | **1984ms** | 3266ms  | **1.6x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `██████░░░░` |
+|                                                                                                                                                                                    11. | **Set 조회**        |             <sup><sub><kbd>SADD</kbd> <kbd>SISMEMBER</kbd> <kbd>SMEMBERS</kbd></sub></sup>              | **1940ms** | 3120ms  | **1.6x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `██████░░░░` |
+|                                                                                                                                                                                    12. | **파이프라인 혼합** |                   <sup><sub><kbd>SET</kbd> <kbd>INCR</kbd> <kbd>GET</kbd></sub></sup>                   | **1787ms** | 2839ms  |                                                                                    **1.6x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" />                                                                                     | `█████░░░░░` |
+|                                                                                                                                                                                    13. | **Counter**         |                          <sup><sub><kbd>INCR</kbd> <kbd>DECR</kbd></sub></sup>                          | **952ms**  | 1446ms  |                                                                                    **1.5x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" />                                                                                     | `█████░░░░░` |
+|                                                                                                                                                                                    14. | **Hash 왕복**       |                <sup><sub><kbd>HSET</kbd> <kbd>HGET</kbd> <kbd>HGETALL</kbd></sub></sup>                 | **1859ms** | 2798ms  |                                                                                    **1.5x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" />                                                                                     | `█████░░░░░` |
+|                                                                                                                                                                                    15. | **Get Buffer**      |                               <sup><sub><kbd>GETBUFFER</kbd></sub></sup>                                | **628ms**  |  928ms  |                                                                                    **1.5x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" />                                                                                     | `████░░░░░░` |
 
 ### 엄격 비교가 불가능한 벤치마크
 
 <sub>라이브러리별 고유 동작으로 인해 엄밀한 비교가 어려운 벤치마크입니다.</sub>
 
-| | 벤치마크 | 명령어 | solidis | ioredis | 차이 | 성능 |
-|---:|:---|:---:|:---:|:---:|:---:|:---|
-| 16. | **트랜잭션** | <sup><sub><kbd>SET</kbd> <kbd>EXPIRE</kbd> <kbd>GET</kbd></sub></sup> | 1261ms | 6006ms | **4.8x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `██████████` |
-| 17. | **트랜잭션 혼합** | <sup><sub><kbd>SET</kbd> <kbd>GET</kbd></sub></sup> | 1621ms | 6977ms | **4.3x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `██████████` |
-| 18. | **Pub/Sub** | <sup><sub><kbd>PUBLISH</kbd> <kbd>MESSAGE</kbd></sub></sup> | 775ms | 2569ms | **3.3x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `██████████` |
-| 19. | **Info / Config** | <sup><sub><kbd>INFO</kbd> <kbd>CONFIGGET</kbd></sub></sup> | 1119ms | 1745ms | **1.6x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `█████░░░░░` |
+|     | 벤치마크          |                                명령어                                 | solidis | ioredis |                                                                                                                                                                          차이                                                                                                                                                                           | 성능         |
+| --: | :---------------- | :-------------------------------------------------------------------: | :-----: | :-----: | :-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :----------- |
+| 16. | **트랜잭션**      | <sup><sub><kbd>SET</kbd> <kbd>EXPIRE</kbd> <kbd>GET</kbd></sub></sup> | 1261ms  | 6006ms  | **4.8x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `██████████` |
+| 17. | **트랜잭션 혼합** |          <sup><sub><kbd>SET</kbd> <kbd>GET</kbd></sub></sup>          | 1621ms  | 6977ms  | **4.3x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `██████████` |
+| 18. | **Pub/Sub**       |      <sup><sub><kbd>PUBLISH</kbd> <kbd>MESSAGE</kbd></sub></sup>      |  775ms  | 2569ms  | **3.3x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" /> | `██████████` |
+| 19. | **Info / Config** |      <sup><sub><kbd>INFO</kbd> <kbd>CONFIGGET</kbd></sub></sup>       | 1119ms  | 1745ms  |                                                                                    **1.6x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" />                                                                                     | `█████░░░░░` |
 
 <sub>`solidis`의 `ioredis` (기준) 대비 성능 향상률 순으로 정렬. 소요 시간 = 반복 측정의 중앙값.</sub>
 
@@ -169,38 +173,38 @@ await client.subscribe('events');
 <details>
 <summary>상세 지표 테이블 펼치기</summary>
 
-| 벤치마크 | 라이브러리 | ops/s | cmds/s | 소요 시간 | 분산 |
-|:---|:---|---:|---:|---:|---:|
-| **Set 변경: <sup><sub><kbd>SADD</kbd> <kbd>SISMEMBER</kbd> <kbd>SREM</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 62.5K | 187.5K | 1600ms | ±6.0% |
-|  | ioredis | 30.0K | 89.9K | 3336ms | ±1.1% |
-| **List 범위: <sup><sub><kbd>LPUSH</kbd> <kbd>RPUSH</kbd> <kbd>LRANGE</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 52.3K | 156.8K | 1914ms | ±2.6% |
-|  | ioredis | 27.5K | 82.5K | 3635ms | ±1.2% |
-| **Multi-Key: <sup><sub><kbd>MSET</kbd> <kbd>MGET</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 60.7K | 121.5K | 1646ms | ±1.4% |
-|  | ioredis | 32.0K | 64.0K | 3124ms | ±4.0% |
-| **List 변경: <sup><sub><kbd>LPUSH</kbd> <kbd>RPUSH</kbd> <kbd>LPOP</kbd> <kbd>RPOP</kbd> <kbd>LLEN</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 41.3K | 206.7K | 2419ms | ±8.0% |
-|  | ioredis | 22.3K | 111.6K | 4482ms | ±0.9% |
-| **Set: <sup><sub><kbd>SET</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 139.8K | 139.8K | 715ms | ±3.4% |
-|  | ioredis | 77.8K | 77.8K | 1285ms | ±2.3% |
-| **Expire: <sup><sub><kbd>SET</kbd> <kbd>EXPIRE</kbd> <kbd>TTL</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 70.3K | 211.0K | 1422ms | ±2.4% |
-|  | ioredis | 39.7K | 119.0K | 2521ms | ±2.2% |
-| **Hash 변경: <sup><sub><kbd>HMSET</kbd> <kbd>HMGET</kbd> <kbd>HDEL</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 50.7K | 152.2K | 1971ms | ±7.5% |
-|  | ioredis | 28.7K | 86.0K | 3487ms | ±1.2% |
-| **Sorted Set: <sup><sub><kbd>ZADD</kbd> <kbd>ZRANGE</kbd> <kbd>ZREM</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 53.2K | 159.5K | 1881ms | ±4.0% |
-|  | ioredis | 30.4K | 91.3K | 3286ms | ±2.2% |
-| **비트랜잭션: <sup><sub><kbd>SETPX</kbd> <kbd>GET</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 79.2K | 158.4K | 1263ms | ±5.1% |
-|  | ioredis | 47.6K | 95.1K | 2102ms | ±1.7% |
-| **Stream: <sup><sub><kbd>XADD</kbd> <kbd>XRANGE</kbd> <kbd>XLEN</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 50.4K | 151.2K | 1984ms | ±6.8% |
-|  | ioredis | 30.6K | 91.8K | 3266ms | ±3.3% |
-| **Set 조회: <sup><sub><kbd>SADD</kbd> <kbd>SISMEMBER</kbd> <kbd>SMEMBERS</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 51.6K | 154.7K | 1940ms | ±2.8% |
-|  | ioredis | 32.1K | 96.2K | 3120ms | ±2.0% |
-| **파이프라인 혼합: <sup><sub><kbd>SET</kbd> <kbd>INCR</kbd> <kbd>GET</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 56.0K | 167.9K | 1787ms | ±2.2% |
-|  | ioredis | 35.2K | 105.7K | 2839ms | ±1.6% |
-| **Counter: <sup><sub><kbd>INCR</kbd> <kbd>DECR</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 105.0K | 210.0K | 952ms | ±7.2% |
-|  | ioredis | 69.2K | 138.3K | 1446ms | ±1.3% |
-| **Hash 왕복: <sup><sub><kbd>HSET</kbd> <kbd>HGET</kbd> <kbd>HGETALL</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 53.8K | 161.4K | 1859ms | ±7.5% |
-|  | ioredis | 35.7K | 107.2K | 2798ms | ±2.5% |
-| **Get Buffer: <sup><sub><kbd>GETBUFFER</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** | 159.3K | 159.3K | 628ms | ±7.9% |
-|  | ioredis | 107.7K | 107.7K | 928ms | ±4.3% |
+| 벤치마크                                                                                                                                   | 라이브러리  |  ops/s | cmds/s | 소요 시간 |  분산 |
+| :----------------------------------------------------------------------------------------------------------------------------------------- | :---------- | -----: | -----: | --------: | ----: |
+| **Set 변경: <sup><sub><kbd>SADD</kbd> <kbd>SISMEMBER</kbd> <kbd>SREM</kbd></sub></sup>**<br/><sub>1 KB</sub>                               | **solidis** |  62.5K | 187.5K |    1600ms | ±6.0% |
+|                                                                                                                                            | ioredis     |  30.0K |  89.9K |    3336ms | ±1.1% |
+| **List 범위: <sup><sub><kbd>LPUSH</kbd> <kbd>RPUSH</kbd> <kbd>LRANGE</kbd></sub></sup>**<br/><sub>1 KB</sub>                               | **solidis** |  52.3K | 156.8K |    1914ms | ±2.6% |
+|                                                                                                                                            | ioredis     |  27.5K |  82.5K |    3635ms | ±1.2% |
+| **Multi-Key: <sup><sub><kbd>MSET</kbd> <kbd>MGET</kbd></sub></sup>**<br/><sub>1 KB</sub>                                                   | **solidis** |  60.7K | 121.5K |    1646ms | ±1.4% |
+|                                                                                                                                            | ioredis     |  32.0K |  64.0K |    3124ms | ±4.0% |
+| **List 변경: <sup><sub><kbd>LPUSH</kbd> <kbd>RPUSH</kbd> <kbd>LPOP</kbd> <kbd>RPOP</kbd> <kbd>LLEN</kbd></sub></sup>**<br/><sub>1 KB</sub> | **solidis** |  41.3K | 206.7K |    2419ms | ±8.0% |
+|                                                                                                                                            | ioredis     |  22.3K | 111.6K |    4482ms | ±0.9% |
+| **Set: <sup><sub><kbd>SET</kbd></sub></sup>**<br/><sub>1 KB</sub>                                                                          | **solidis** | 139.8K | 139.8K |     715ms | ±3.4% |
+|                                                                                                                                            | ioredis     |  77.8K |  77.8K |    1285ms | ±2.3% |
+| **Expire: <sup><sub><kbd>SET</kbd> <kbd>EXPIRE</kbd> <kbd>TTL</kbd></sub></sup>**<br/><sub>1 KB</sub>                                      | **solidis** |  70.3K | 211.0K |    1422ms | ±2.4% |
+|                                                                                                                                            | ioredis     |  39.7K | 119.0K |    2521ms | ±2.2% |
+| **Hash 변경: <sup><sub><kbd>HMSET</kbd> <kbd>HMGET</kbd> <kbd>HDEL</kbd></sub></sup>**<br/><sub>1 KB</sub>                                 | **solidis** |  50.7K | 152.2K |    1971ms | ±7.5% |
+|                                                                                                                                            | ioredis     |  28.7K |  86.0K |    3487ms | ±1.2% |
+| **Sorted Set: <sup><sub><kbd>ZADD</kbd> <kbd>ZRANGE</kbd> <kbd>ZREM</kbd></sub></sup>**<br/><sub>1 KB</sub>                                | **solidis** |  53.2K | 159.5K |    1881ms | ±4.0% |
+|                                                                                                                                            | ioredis     |  30.4K |  91.3K |    3286ms | ±2.2% |
+| **비트랜잭션: <sup><sub><kbd>SETPX</kbd> <kbd>GET</kbd></sub></sup>**<br/><sub>1 KB</sub>                                                  | **solidis** |  79.2K | 158.4K |    1263ms | ±5.1% |
+|                                                                                                                                            | ioredis     |  47.6K |  95.1K |    2102ms | ±1.7% |
+| **Stream: <sup><sub><kbd>XADD</kbd> <kbd>XRANGE</kbd> <kbd>XLEN</kbd></sub></sup>**<br/><sub>1 KB</sub>                                    | **solidis** |  50.4K | 151.2K |    1984ms | ±6.8% |
+|                                                                                                                                            | ioredis     |  30.6K |  91.8K |    3266ms | ±3.3% |
+| **Set 조회: <sup><sub><kbd>SADD</kbd> <kbd>SISMEMBER</kbd> <kbd>SMEMBERS</kbd></sub></sup>**<br/><sub>1 KB</sub>                           | **solidis** |  51.6K | 154.7K |    1940ms | ±2.8% |
+|                                                                                                                                            | ioredis     |  32.1K |  96.2K |    3120ms | ±2.0% |
+| **파이프라인 혼합: <sup><sub><kbd>SET</kbd> <kbd>INCR</kbd> <kbd>GET</kbd></sub></sup>**<br/><sub>1 KB</sub>                               | **solidis** |  56.0K | 167.9K |    1787ms | ±2.2% |
+|                                                                                                                                            | ioredis     |  35.2K | 105.7K |    2839ms | ±1.6% |
+| **Counter: <sup><sub><kbd>INCR</kbd> <kbd>DECR</kbd></sub></sup>**<br/><sub>1 KB</sub>                                                     | **solidis** | 105.0K | 210.0K |     952ms | ±7.2% |
+|                                                                                                                                            | ioredis     |  69.2K | 138.3K |    1446ms | ±1.3% |
+| **Hash 왕복: <sup><sub><kbd>HSET</kbd> <kbd>HGET</kbd> <kbd>HGETALL</kbd></sub></sup>**<br/><sub>1 KB</sub>                                | **solidis** |  53.8K | 161.4K |    1859ms | ±7.5% |
+|                                                                                                                                            | ioredis     |  35.7K | 107.2K |    2798ms | ±2.5% |
+| **Get Buffer: <sup><sub><kbd>GETBUFFER</kbd></sub></sup>**<br/><sub>1 KB</sub>                                                             | **solidis** | 159.3K | 159.3K |     628ms | ±7.9% |
+|                                                                                                                                            | ioredis     | 107.7K | 107.7K |     928ms | ±4.3% |
 
 </details>
 
@@ -211,20 +215,20 @@ await client.subscribe('events');
 <details>
 <summary>벤치마크 설정 펼치기</summary>
 
-| 항목 | 값 |
-|:----------|:------|
-| 모드 | `autopipeline` |
-| 페이로드 크기 | 1 KB |
-| 반복 횟수 | 100,000 |
-| 워밍업 | 1,000 |
-| 클라이언트 수 | 1 |
-| 클라이언트당 동시 실행 | 10000 |
-| 총 동시 실행 | 10000 |
-| 측정 횟수 | 10 |
-| 쿨다운 | 2500ms |
-| 플랫폼 | linux x64 |
-| Node.js | v22.22.3 |
-| 날짜 | 2026-06-20 10:28:46 |
+| 항목                   | 값                  |
+| :--------------------- | :------------------ |
+| 모드                   | `autopipeline`      |
+| 페이로드 크기          | 1 KB                |
+| 반복 횟수              | 100,000             |
+| 워밍업                 | 1,000               |
+| 클라이언트 수          | 1                   |
+| 클라이언트당 동시 실행 | 10000               |
+| 총 동시 실행           | 10000               |
+| 측정 횟수              | 10                  |
+| 쿨다운                 | 2500ms              |
+| 플랫폼                 | linux x64           |
+| Node.js                | v22.22.3            |
+| 날짜                   | 2026-06-20 10:28:46 |
 
 </details>
 
@@ -415,13 +419,13 @@ sequenceDiagram
   Client-->>App: 'OK'
 ```
 
-| 모듈 | 역할 |
-|:-------|:---------------|
-| **Connection** | TCP/TLS 소켓 관리, 재연결 백오프 |
-| **Requester** | 커맨드 큐, 파이프라인 청킹, 응답 매칭, 타임아웃 |
-| **Parser** | RESP 디코딩, 버퍼 관리, zero-copy 슬라이싱 |
-| **PubSub** | 채널/패턴/샤드 상태 추적, 메시지 디스패치 |
-| **Debug Memory** | 링 버퍼 기반 디버그 로그, credential 마스킹 |
+| 모듈             | 역할                                            |
+| :--------------- | :---------------------------------------------- |
+| **Connection**   | TCP/TLS 소켓 관리, 재연결 백오프                |
+| **Requester**    | 커맨드 큐, 파이프라인 청킹, 응답 매칭, 타임아웃 |
+| **Parser**       | RESP 디코딩, 버퍼 관리, zero-copy 슬라이싱      |
+| **PubSub**       | 채널/패턴/샤드 상태 추적, 메시지 디스패치       |
+| **Debug Memory** | 링 버퍼 기반 디버그 로그, credential 마스킹     |
 
 ## 이벤트
 
@@ -453,12 +457,12 @@ try {
 > Solidis가 throw하는 모든 에러는 `SolidisError`를 상속합니다.
 > `unwrapSolidisError()`로 root cause까지 cause chain을 추적할 수 있습니다.
 
-| 에러 클래스 | 발생 조건 |
-|:------------|:-----|
-| `SolidisConnectionError` | TCP/TLS 연결 실패, 타임아웃, 소켓 리셋 |
-| `SolidisRequesterError` | 커맨드 타임아웃, 파이프라인 reject, 쓰기 실패 |
-| `SolidisParserError` | 잘못된 RESP 포맷, bulk string 크기 초과 |
-| `SolidisPubSubError` | 구독 상태 관련 에러 |
+| 에러 클래스              | 발생 조건                                     |
+| :----------------------- | :-------------------------------------------- |
+| `SolidisConnectionError` | TCP/TLS 연결 실패, 타임아웃, 소켓 리셋        |
+| `SolidisRequesterError`  | 커맨드 타임아웃, 파이프라인 reject, 쓰기 실패 |
+| `SolidisParserError`     | 잘못된 RESP 포맷, bulk string 크기 초과       |
+| `SolidisPubSubError`     | 구독 상태 관련 에러                           |
 
 ## 확장
 
@@ -466,10 +470,10 @@ try {
 npm install @vcms-io/solidis-extensions
 ```
 
-| 확장 | 설명 |
-|:----------|:------------|
+| 확장                                                                                                       | 설명                                     |
+| :--------------------------------------------------------------------------------------------------------- | :--------------------------------------- |
 | [**SpinLock**](https://github.com/vcms-io/solidis-extensions/blob/main/sources/domains/spinlock/README.md) | 가벼운 Redis 기반 뮤텍스 (단일 인스턴스) |
-| [**RedLock**](https://github.com/vcms-io/solidis-extensions/blob/main/sources/domains/redlock/README.md) | 분산 잠금 (Redlock 알고리즘, 내결함성) |
+| [**RedLock**](https://github.com/vcms-io/solidis-extensions/blob/main/sources/domains/redlock/README.md)   | 분산 잠금 (Redlock 알고리즘, 내결함성)   |
 
 ## 기여하기
 
