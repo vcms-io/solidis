@@ -299,8 +299,8 @@ export default function BenchmarksPage() {
                 descriptionKey: 'zeroDepsDesc2',
               },
               {
-                titleKey: 'zeroCopyParser',
-                descriptionKey: 'zeroCopyParserDesc',
+                titleKey: 'binarySafeParser',
+                descriptionKey: 'binarySafeParserDesc',
               },
               {
                 titleKey: 'pipelineCoalescing',
