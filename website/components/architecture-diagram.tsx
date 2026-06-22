@@ -239,7 +239,7 @@ export function ArchitectureDiagram({
         width={parserWidth}
         height={parserHeight}
         title="Parser"
-        subtitle="RESP2 · RESP3 · Zero-copy"
+        subtitle="RESP2 · RESP3 · Binary-safe"
       />
       <DiagramNode
         x={pubsubX}

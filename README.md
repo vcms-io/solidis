@@ -254,7 +254,7 @@ _100,000 iterations × 10,000 concurrency · 1 KB payload · 10 repeats_
 ### <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/High%20Voltage.png?raw=true" alt="High Voltage" width="25" height="25" /> Performance
 
 - `setImmediate` pipeline coalescing
-- Zero-copy RESP parser (borrowed buffer slices)
+- Binary-safe RESP parser with owned buffers
 - Chunked socket writes with backpressure
 - Configurable event-loop yield points
 
@@ -385,7 +385,7 @@ graph TD
     direction LR
     Conn[Connection<br/><sub>TCP · TLS · Reconnect</sub>]
     Req[Requester<br/><sub>Queue · Pipeline · Timeout</sub>]
-    Parse[Parser<br/><sub>RESP2 · RESP3 · Zero-copy</sub>]
+    Parse[Parser<br/><sub>RESP2 · RESP3 · Binary-safe</sub>]
     PS[PubSub<br/><sub>Channel · Pattern · Shard</sub>]
     DM[Debug Memory<br/><sub>Ring buffer · Sanitized</sub>]
   end
