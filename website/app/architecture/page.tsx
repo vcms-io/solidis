@@ -66,7 +66,7 @@ export default function ArchitecturePage() {
       description: t('architecture.parserDesc'),
       responsibilities: [
         t('architecture.parserParsing'),
-        t('architecture.parserZeroCopy'),
+        t('architecture.parserOwnedBuffers'),
         t('architecture.parserMemory'),
         t('architecture.parserMultibyte'),
         t('architecture.parserBinary'),
@@ -306,8 +306,8 @@ export default function ArchitecturePage() {
           <div className="grid md:grid-cols-2 gap-4">
             {[
               {
-                title: t('architecture.zeroCopy'),
-                description: t('architecture.zeroCopyDesc'),
+                title: t('architecture.binarySafeParser'),
+                description: t('architecture.binarySafeParserDesc'),
               },
               {
                 title: t('architecture.pipelineBatching'),
