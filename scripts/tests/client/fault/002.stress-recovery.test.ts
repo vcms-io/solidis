@@ -228,16 +228,22 @@ describe('stress-recovery', () => {
 
     const clientId = await client.clientId();
 
-    const commands = range(5000).map((index) => [
-      'SET',
-      keyspace.key('giant', index),
-      `${index}`,
-    ]);
+    const blockKey = keyspace.key('giant', 'block');
+    const commands = [['BLPOP', blockKey, '0']];
 
-    const settled = client
-      .send(commands)
-      .then(() => 'resolved' as const)
-      .catch(() => 'rejected' as const);
+    for (const index of range(4999)) {
+      commands.push(['SET', keyspace.key('giant', index), `${index}`]);
+    }
+
+    const settled: Promise<'resolved' | 'rejected'> = (async () => {
+      try {
+        await client.send(commands);
+
+        return 'resolved';
+      } catch {
+        return 'rejected';
+      }
+    })();
 
     await new Promise<void>((resolve) => setImmediate(resolve));
     await killer.clientKill(clientId);
