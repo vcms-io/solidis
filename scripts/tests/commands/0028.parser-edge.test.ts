@@ -246,6 +246,59 @@ describe('parser-edge', () => {
   });
 
   describe('internal buffer management', () => {
+    it('returns bulk buffers that are independent from the input chunk', async () => {
+      const parser = createParser();
+      const chunk = bytes('$5\r\nhello\r\n');
+
+      const [reply] = await parser.queueParse(chunk);
+
+      chunk.fill(0);
+
+      assert.deepStrictEqual(reply, bytes('hello'));
+    });
+
+    it('keeps a returned bulk buffer stable after caller mutation and later parses', async () => {
+      const parser = createParser();
+
+      const [first] = await parser.queueParse(bytes('$3\r\nabc\r\n'));
+
+      if (!Buffer.isBuffer(first)) {
+        assert.fail('expected first reply to be a Buffer');
+      }
+
+      first.fill(0);
+
+      const [second] = await parser.queueParse(bytes('$3\r\nxyz\r\n'));
+
+      assert.deepStrictEqual(first, Buffer.alloc(3));
+      assert.deepStrictEqual(second, bytes('xyz'));
+    });
+
+    it('does not mutate a held bulk buffer when later replies shift the internal buffer', async () => {
+      const parser = new SolidisParser({
+        ...SolidisDefaultOptions,
+        parser: {
+          buffer: { initial: 512, shiftThreshold: 16 },
+          maxBulkStringLength: 1048576,
+        },
+      });
+
+      const payload = 'x'.repeat(256);
+      const [bulk] = await parser.queueParse(
+        bytes(`$${payload.length}\r\n${payload}\r\n`),
+      );
+
+      if (!Buffer.isBuffer(bulk)) {
+        assert.fail('expected bulk reply to be a Buffer');
+      }
+
+      const snapshot = Buffer.from(bulk);
+
+      await parser.queueParse(bytes('+OK\r\n'.repeat(30)));
+
+      assert.deepStrictEqual(bulk, snapshot);
+    });
+
     it('grows the internal buffer when a second chunk exceeds remaining capacity', async () => {
       const parser = new SolidisParser({
         ...SolidisDefaultOptions,

@@ -20,8 +20,6 @@ import type {
 
 export class SolidisParser {
   #buffer: Buffer;
-  #bufferHasBorrowedSlices = false;
-  #bufferIsExternal = false;
   #initialBufferSize: number;
   #shiftThreshold: number;
   #maxBulkStringLength: number;
@@ -76,20 +74,6 @@ export class SolidisParser {
   }
 
   #appendBuffer(parseBuffer: Buffer) {
-    if (this.#readOffset === this.#writeOffset) {
-      this.#buffer = parseBuffer;
-      this.#bufferHasBorrowedSlices = false;
-      this.#bufferIsExternal = true;
-      this.#readOffset = 0;
-      this.#writeOffset = parseBuffer.length;
-
-      return;
-    }
-
-    if (this.#bufferIsExternal) {
-      this.#moveUnreadBytesToInternalBuffer(parseBuffer.length);
-    }
-
     if (this.#writeOffset + parseBuffer.length > this.#buffer.length) {
       this.#growInternalBuffer(this.#writeOffset + parseBuffer.length);
     }
@@ -97,20 +81,6 @@ export class SolidisParser {
     parseBuffer.copy(this.#buffer, this.#writeOffset);
 
     this.#writeOffset += parseBuffer.length;
-  }
-
-  #moveUnreadBytesToInternalBuffer(additionalCapacity: number) {
-    const remainingBytes = this.#writeOffset - this.#readOffset;
-    const minCapacity = remainingBytes + additionalCapacity;
-    const newBuffer = this.#allocateInternalBuffer(minCapacity);
-
-    this.#buffer.copy(newBuffer, 0, this.#readOffset, this.#writeOffset);
-
-    this.#buffer = newBuffer;
-    this.#bufferHasBorrowedSlices = false;
-    this.#bufferIsExternal = false;
-    this.#readOffset = 0;
-    this.#writeOffset = remainingBytes;
   }
 
   #allocateInternalBuffer(minCapacity: number) {
@@ -132,8 +102,6 @@ export class SolidisParser {
     this.#readOffset = 0;
 
     this.#buffer = newBuffer;
-    this.#bufferHasBorrowedSlices = false;
-    this.#bufferIsExternal = false;
   }
 
   #tryShiftInternalBuffer() {
@@ -141,10 +109,6 @@ export class SolidisParser {
       this.#readOffset = 0;
       this.#writeOffset = 0;
 
-      return;
-    }
-
-    if (this.#bufferIsExternal || this.#bufferHasBorrowedSlices) {
       return;
     }
 
@@ -360,7 +324,7 @@ export class SolidisParser {
         }
 
         default: {
-          data = this.#borrowParsedBuffer(parsed.data);
+          data = Buffer.from(parsed.data);
           break;
         }
       }
@@ -370,14 +334,6 @@ export class SolidisParser {
       data,
       length: parsed.length,
     };
-  }
-
-  #borrowParsedBuffer(buffer: Buffer) {
-    if (!this.#bufferIsExternal) {
-      this.#bufferHasBorrowedSlices = true;
-    }
-
-    return buffer;
   }
 
   #parseSimpleLine(type: SolidisRespSimpleLineType): SolidisParsed {

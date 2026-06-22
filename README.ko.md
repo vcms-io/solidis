@@ -254,7 +254,7 @@ _100,000번 반복 × 10,000 동시 실행 · 1 KB 페이로드 · 10회 측정_
 ### <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/High%20Voltage.png?raw=true" alt="High Voltage" width="25" height="25" /> 성능
 
 - `setImmediate` 기반 파이프라인 자동 병합
-- Zero-copy RESP 파서 (버퍼 슬라이스 재사용)
+- 바이너리 세이프 RESP 파서와 독립 버퍼 반환
 - 백프레셔 대응 청크 단위 소켓 쓰기
 - 이벤트 루프 양보 포인트 설정 가능
 
@@ -385,7 +385,7 @@ graph TD
     direction LR
     Conn[Connection<br/><sub>TCP · TLS · Reconnect</sub>]
     Req[Requester<br/><sub>Queue · Pipeline · Timeout</sub>]
-    Parse[Parser<br/><sub>RESP2 · RESP3 · Zero-copy</sub>]
+    Parse[Parser<br/><sub>RESP2 · RESP3 · Binary-safe</sub>]
     PS[PubSub<br/><sub>Channel · Pattern · Shard</sub>]
     DM[Debug Memory<br/><sub>Ring buffer · Sanitized</sub>]
   end
@@ -419,13 +419,13 @@ sequenceDiagram
   Client-->>App: 'OK'
 ```
 
-| 모듈             | 역할                                            |
-| :--------------- | :---------------------------------------------- |
-| **Connection**   | TCP/TLS 소켓 관리, 재연결 백오프                |
-| **Requester**    | 커맨드 큐, 파이프라인 청킹, 응답 매칭, 타임아웃 |
-| **Parser**       | RESP 디코딩, 버퍼 관리, zero-copy 슬라이싱      |
-| **PubSub**       | 채널/패턴/샤드 상태 추적, 메시지 디스패치       |
-| **Debug Memory** | 링 버퍼 기반 디버그 로그, credential 마스킹     |
+| 모듈             | 역할                                              |
+| :--------------- | :------------------------------------------------ |
+| **Connection**   | TCP/TLS 소켓 관리, 재연결 백오프                  |
+| **Requester**    | 커맨드 큐, 파이프라인 청킹, 응답 매칭, 타임아웃   |
+| **Parser**       | RESP 디코딩, 버퍼 관리, 바이너리 세이프 응답 처리 |
+| **PubSub**       | 채널/패턴/샤드 상태 추적, 메시지 디스패치         |
+| **Debug Memory** | 링 버퍼 기반 디버그 로그, credential 마스킹       |
 
 ## 이벤트
 

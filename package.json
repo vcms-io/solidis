@@ -1,6 +1,6 @@
 {
   "name": "@vcms-io/solidis",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "author": "Jay Lee <jay@vendit.co.kr>",
   "description": "The fastest Redis client for Node.js. Zero dependencies, 2x+ faster than ioredis, battle-tested in production.",
   "repository": {
