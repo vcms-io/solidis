@@ -10,6 +10,7 @@ import {
   closeClient,
   createClient,
   createKeyspace,
+  detectServerCapabilities,
   waitFor,
 } from '../utils/index.ts';
 
@@ -17,10 +18,25 @@ import type { FeaturedClient } from '../utils/index.ts';
 
 describe('strings', () => {
   let client: FeaturedClient;
+  let atLeastRedis84 = false;
+  let supportsSetIfEq = false;
+  let supportsSetIfNe = false;
   const keyspace = createKeyspace('strings');
+  const helloWorldDigest = 'b6acb9d84a38ff74';
+  const zeroDigest = '0'.repeat(16);
 
   before(async () => {
     client = await createClient();
+
+    const capabilities = await detectServerCapabilities(client);
+
+    atLeastRedis84 = !capabilities.isValkey && capabilities.atLeast(8, 4);
+    supportsSetIfEq = capabilities.isValkey
+      ? capabilities.atLeast(8, 1)
+      : capabilities.atLeast(8, 4);
+    supportsSetIfNe = capabilities.isValkey
+      ? capabilities.atLeast(9, 2)
+      : capabilities.atLeast(8, 4);
   });
 
   after(async () => {
@@ -302,6 +318,368 @@ describe('strings', () => {
     });
   });
 
+  it('SET setIfValueEquals guards on the current value', async (context) => {
+    if (!supportsSetIfEq) {
+      context.skip('SET IFEQ requires Redis 8.4+ or Valkey 8.1+');
+      return;
+    }
+
+    const key = keyspace.key('set-ifeq');
+
+    assert.strictEqual(
+      await client.set(key, 'a', { setIfValueEquals: 'x' }),
+      null,
+    );
+    assert.strictEqual(await client.get(key), null);
+
+    await client.set(key, 'a');
+
+    assert.strictEqual(
+      await client.set(key, 'b', { setIfValueEquals: 'x' }),
+      null,
+    );
+    assert.strictEqual(await client.get(key), 'a');
+    assert.strictEqual(
+      await client.set(key, 'b', { setIfValueEquals: 'a' }),
+      'OK',
+    );
+    assert.strictEqual(await client.get(key), 'b');
+  });
+
+  it('SET setIfValueEquals only touches the TTL on a match', async (context) => {
+    if (!supportsSetIfEq) {
+      context.skip('SET IFEQ requires Redis 8.4+ or Valkey 8.1+');
+      return;
+    }
+
+    const key = keyspace.key('set-ifeq-ttl');
+
+    await client.set(key, 'a', { expireInSeconds: 100 });
+
+    assert.strictEqual(
+      await client.set(key, 'b', {
+        setIfValueEquals: 'x',
+        expireInSeconds: 200,
+      }),
+      null,
+    );
+    const mismatchTtl = await client.ttl(key);
+    assert.ok(mismatchTtl >= 99 && mismatchTtl <= 100);
+
+    assert.strictEqual(
+      await client.set(key, 'b', {
+        setIfValueEquals: 'a',
+        expireInSeconds: 200,
+      }),
+      'OK',
+    );
+    const matchTtl = await client.ttl(key);
+    assert.ok(matchTtl >= 199 && matchTtl <= 200);
+
+    assert.strictEqual(
+      await client.set(key, 'c', { setIfValueEquals: 'b' }),
+      'OK',
+    );
+    assert.strictEqual(await client.ttl(key), -1);
+  });
+
+  it('SET setIfValueEquals compares Buffers byte for byte', async (context) => {
+    if (!supportsSetIfEq) {
+      context.skip('SET IFEQ requires Redis 8.4+ or Valkey 8.1+');
+      return;
+    }
+
+    const key = keyspace.key('set-ifeq-binary');
+    const payload = Buffer.from([0x00, 0xff, 0x10, 0x7f, 0x80]);
+
+    await client.set(key, payload);
+
+    assert.strictEqual(
+      await client.set(key, 'text', { setIfValueEquals: payload.toString() }),
+      null,
+    );
+    assert.strictEqual(
+      await client.set(key, 'text', { setIfValueEquals: payload }),
+      'OK',
+    );
+    assert.strictEqual(await client.get(key), 'text');
+  });
+
+  it('SET setIfValueEquals with returnOldValue yields the previous value either way', async (context) => {
+    if (!supportsSetIfEq) {
+      context.skip('SET IFEQ requires Redis 8.4+ or Valkey 8.1+');
+      return;
+    }
+
+    const key = keyspace.key('set-ifeq-get');
+
+    await client.set(key, 'a');
+
+    assert.strictEqual(
+      await client.set(key, 'b', {
+        setIfValueEquals: 'x',
+        returnOldValue: true,
+      }),
+      'a',
+    );
+    assert.strictEqual(await client.get(key), 'a');
+    assert.strictEqual(
+      await client.set(key, 'b', {
+        setIfValueEquals: 'a',
+        returnOldValue: true,
+      }),
+      'a',
+    );
+    assert.strictEqual(await client.get(key), 'b');
+  });
+
+  it('rejects SET setIfValueEquals on a non-string key', async (context) => {
+    if (!supportsSetIfEq) {
+      context.skip('SET IFEQ requires Redis 8.4+ or Valkey 8.1+');
+      return;
+    }
+
+    const key = keyspace.key('set-ifeq-wrongtype');
+
+    await client.rpush(key, 'item');
+
+    await assert.rejects(
+      () => client.set(key, 'value', { setIfValueEquals: 'item' }),
+      (error: Error) => {
+        assert.strictEqual(
+          error.message,
+          `[SET ${key} value IFEQ item] Invalid reply: RespError: WRONGTYPE Operation against a key holding the wrong kind of value`,
+        );
+        return true;
+      },
+    );
+  });
+
+  it('SET setIfValueNotEquals guards on the current value and creates missing keys', async (context) => {
+    if (!supportsSetIfNe) {
+      context.skip('SET IFNE requires Redis 8.4+ or Valkey 9.2+');
+      return;
+    }
+
+    const key = keyspace.key('set-ifne');
+
+    await client.set(key, 'b');
+
+    assert.strictEqual(
+      await client.set(key, 'c', { setIfValueNotEquals: 'b' }),
+      null,
+    );
+    assert.strictEqual(await client.get(key), 'b');
+    assert.strictEqual(
+      await client.set(key, 'c', { setIfValueNotEquals: 'x' }),
+      'OK',
+    );
+    assert.strictEqual(await client.get(key), 'c');
+
+    const fresh = keyspace.key('set-ifne-create');
+
+    assert.strictEqual(
+      await client.set(fresh, 'created', { setIfValueNotEquals: 'anything' }),
+      'OK',
+    );
+    assert.strictEqual(await client.get(fresh), 'created');
+  });
+
+  it('SET honours setIfDigestEquals / setIfDigestNotEquals guards', async (context) => {
+    if (!atLeastRedis84) {
+      context.skip('SET IFDEQ / IFDNE require Redis 8.4+');
+      return;
+    }
+
+    const key = keyspace.key('set-ifdeq-ifdne');
+
+    assert.strictEqual(
+      await client.set(key, 'Hello world', { setIfDigestEquals: zeroDigest }),
+      null,
+    );
+    assert.strictEqual(await client.get(key), null);
+    assert.strictEqual(
+      await client.set(key, 'Hello world', {
+        setIfDigestNotEquals: zeroDigest,
+      }),
+      'OK',
+    );
+
+    assert.strictEqual(
+      await client.set(key, 'next', { setIfDigestNotEquals: helloWorldDigest }),
+      null,
+    );
+    assert.strictEqual(
+      await client.set(key, 'next', { setIfDigestEquals: zeroDigest }),
+      null,
+    );
+    assert.strictEqual(await client.get(key), 'Hello world');
+
+    assert.strictEqual(
+      await client.set(key, 'next', { setIfDigestEquals: helloWorldDigest }),
+      'OK',
+    );
+    assert.strictEqual(await client.get(key), 'next');
+    assert.strictEqual(
+      await client.set(key, 'Hello world', {
+        setIfDigestNotEquals: helloWorldDigest,
+      }),
+      'OK',
+    );
+    assert.strictEqual(await client.get(key), 'Hello world');
+  });
+
+  it('SET setIfDigestEquals with returnOldValue yields the previous value either way', async (context) => {
+    if (!atLeastRedis84) {
+      context.skip('SET IFDEQ requires Redis 8.4+');
+      return;
+    }
+
+    const key = keyspace.key('set-ifdeq-get');
+
+    await client.set(key, 'Hello world');
+
+    assert.strictEqual(
+      await client.set(key, 'skipped', {
+        setIfDigestEquals: zeroDigest,
+        returnOldValue: true,
+      }),
+      'Hello world',
+    );
+    assert.strictEqual(await client.get(key), 'Hello world');
+    assert.strictEqual(
+      await client.set(key, 'written', {
+        setIfDigestEquals: helloWorldDigest,
+        returnOldValue: true,
+      }),
+      'Hello world',
+    );
+    assert.strictEqual(await client.get(key), 'written');
+  });
+
+  it('hashes a string value with DIGEST', async (context) => {
+    if (!atLeastRedis84) {
+      context.skip('DIGEST requires Redis 8.4+');
+      return;
+    }
+
+    const key = keyspace.key('digest');
+
+    assert.strictEqual(await client.digest(key), null);
+
+    await client.set(key, 'Hello world');
+
+    assert.strictEqual(await client.digest(key), helloWorldDigest);
+  });
+
+  it('deletes conditionally with DELEX', async (context) => {
+    if (!atLeastRedis84) {
+      context.skip('DELEX requires Redis 8.4+');
+      return;
+    }
+
+    const key = keyspace.key('delex');
+
+    await client.set(key, 'Hello world');
+
+    assert.strictEqual(await client.delex(key), 1);
+    assert.strictEqual(await client.delex(key), 0);
+
+    await client.set(key, 'Hello world');
+
+    assert.strictEqual(await client.delex(key, { ifValueEquals: 'other' }), 0);
+    assert.strictEqual(
+      await client.delex(key, { ifValueNotEquals: 'Hello world' }),
+      0,
+    );
+    assert.strictEqual(
+      await client.delex(key, { ifDigestEquals: zeroDigest }),
+      0,
+    );
+    assert.strictEqual(
+      await client.delex(key, { ifDigestNotEquals: helloWorldDigest }),
+      0,
+    );
+    assert.strictEqual(await client.get(key), 'Hello world');
+    assert.strictEqual(
+      await client.delex(key, { ifValueEquals: 'Hello world' }),
+      1,
+    );
+
+    await client.set(key, 'Hello world');
+
+    assert.strictEqual(
+      await client.delex(key, { ifValueNotEquals: 'other' }),
+      1,
+    );
+
+    await client.set(key, 'Hello world');
+
+    assert.strictEqual(
+      await client.delex(key, { ifDigestEquals: helloWorldDigest }),
+      1,
+    );
+
+    await client.set(key, 'Hello world');
+
+    assert.strictEqual(
+      await client.delex(key, { ifDigestNotEquals: zeroDigest }),
+      1,
+    );
+    assert.strictEqual(await client.get(key), null);
+  });
+
+  it('compares Buffers byte for byte with DELEX', async (context) => {
+    if (!atLeastRedis84) {
+      context.skip('DELEX requires Redis 8.4+');
+      return;
+    }
+
+    const key = keyspace.key('delex-binary');
+    const payload = Buffer.from([0x00, 0xff, 0x10, 0x7f, 0x80]);
+
+    await client.set(key, payload);
+
+    assert.strictEqual(
+      await client.delex(key, { ifValueEquals: payload.toString() }),
+      0,
+    );
+    assert.strictEqual(await client.delex(key, { ifValueEquals: payload }), 1);
+  });
+
+  it('rejects DIGEST and conditional DELEX on a non-string key', async (context) => {
+    if (!atLeastRedis84) {
+      context.skip('DIGEST / DELEX require Redis 8.4+');
+      return;
+    }
+
+    const key = keyspace.key('digest-delex-wrongtype');
+
+    await client.rpush(key, 'item');
+
+    await assert.rejects(
+      () => client.digest(key),
+      (error: Error) => {
+        assert.strictEqual(
+          error.message,
+          `[DIGEST ${key}] Invalid reply: RespError: WRONGTYPE Operation against a key holding the wrong kind of value`,
+        );
+        return true;
+      },
+    );
+    await assert.rejects(
+      () => client.delex(key, { ifValueEquals: 'item' }),
+      (error: Error) => {
+        assert.strictEqual(
+          error.message,
+          `[DELEX ${key} IFEQ item] Invalid reply: RespError: ERR Key should be of string type if conditions are specified`,
+        );
+        return true;
+      },
+    );
+    assert.strictEqual(await client.delex(key), 1);
+  });
+
   it('preserves binary payloads round-trip', async () => {
     const key = keyspace.key('binary');
     const payload = Buffer.from([0x00, 0xff, 0x10, 0x7f, 0x80]);
@@ -360,5 +738,89 @@ describe('strings', () => {
     });
 
     assert.deepStrictEqual(command, ['SET', 'key', 'val', 'KEEPTTL', 'GET']);
+  });
+
+  it('builds SET with IFEQ and GET options', async () => {
+    const { buildSetCommand } = await import(
+      '../../../sources/command/utils/command.ts'
+    );
+
+    const command = buildSetCommand('key', 'val', {
+      setIfValueEquals: 'old',
+      returnOldValue: true,
+    });
+
+    assert.deepStrictEqual(command, [
+      'SET',
+      'key',
+      'val',
+      'IFEQ',
+      'old',
+      'GET',
+    ]);
+  });
+
+  it('builds SET with IFNE option', async () => {
+    const { buildSetCommand } = await import(
+      '../../../sources/command/utils/command.ts'
+    );
+
+    const command = buildSetCommand('key', 'val', {
+      setIfValueNotEquals: 'old',
+    });
+
+    assert.deepStrictEqual(command, ['SET', 'key', 'val', 'IFNE', 'old']);
+  });
+
+  it('builds SET with IFDEQ option', async () => {
+    const { buildSetCommand } = await import(
+      '../../../sources/command/utils/command.ts'
+    );
+
+    const command = buildSetCommand('key', 'val', {
+      setIfDigestEquals: helloWorldDigest,
+    });
+
+    assert.deepStrictEqual(command, [
+      'SET',
+      'key',
+      'val',
+      'IFDEQ',
+      helloWorldDigest,
+    ]);
+  });
+
+  it('builds SET with IFDNE option', async () => {
+    const { buildSetCommand } = await import(
+      '../../../sources/command/utils/command.ts'
+    );
+
+    const command = buildSetCommand('key', 'val', {
+      setIfDigestNotEquals: helloWorldDigest,
+    });
+
+    assert.deepStrictEqual(command, [
+      'SET',
+      'key',
+      'val',
+      'IFDNE',
+      helloWorldDigest,
+    ]);
+  });
+
+  it('builds DELEX without a condition', async () => {
+    const { createCommand } = await import('../../../sources/command/delex.ts');
+
+    const command = createCommand('key');
+
+    assert.deepStrictEqual(command, ['DELEX', 'key']);
+  });
+
+  it('builds DELEX with IFEQ option', async () => {
+    const { createCommand } = await import('../../../sources/command/delex.ts');
+
+    const command = createCommand('key', { ifValueEquals: 'val' });
+
+    assert.deepStrictEqual(command, ['DELEX', 'key', 'IFEQ', 'val']);
   });
 });

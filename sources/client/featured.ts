@@ -84,6 +84,8 @@ import {
   decr,
   decrby,
   del,
+  delex,
+  digest,
   dump,
   echo,
   evalRo,
@@ -481,6 +483,8 @@ export class SolidisFeaturedClient extends SolidisClient {
   decr = decr;
   decrby = decrby;
   del = del;
+  delex = delex;
+  digest = digest;
   dump = dump;
   echo = echo;
   evalRo = evalRo;

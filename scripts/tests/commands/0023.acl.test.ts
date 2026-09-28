@@ -122,7 +122,18 @@ describe('acl', () => {
       assert.fail('ACL GETUSER must return user info for an active user');
     }
 
-    if (atLeast7) {
+    if (isValkey && atLeast8) {
+      assert.deepStrictEqual(info, {
+        flags: ['on'],
+        passwords: [
+          '9b8769a4a742959a2d0298c36fb70623f2dfacda8436237df08d8dfd5b37374c',
+        ],
+        commands: '+@all',
+        keys: '~*',
+        channels: '',
+        selectors: [],
+      });
+    } else if (atLeast7) {
       assert.deepStrictEqual(info, {
         flags: ['on', 'sanitize-payload'],
         passwords: [

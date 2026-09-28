@@ -84,6 +84,8 @@ export { debug } from './debug.ts';
 export { decr } from './decr.ts';
 export { decrby } from './decrby.ts';
 export { del } from './del.ts';
+export { delex } from './delex.ts';
+export { digest } from './digest.ts';
 export { dump } from './dump.ts';
 export { echo } from './echo.ts';
 export { evalRo } from './eval.ro.ts';

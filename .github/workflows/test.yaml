@@ -35,6 +35,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - label: redis-8
+            image: redis:8-alpine
           - label: redis-7
             image: redis:7-alpine
           - label: redis-6

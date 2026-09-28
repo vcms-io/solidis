@@ -69,7 +69,9 @@ jobs:
         if: always()
         run: cat /tmp/coverage.md >> "$GITHUB_STEP_SUMMARY"
       - name: PR comment
-        if: always() && github.event_name == 'pull_request'
+        if: >-
+          always() && github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
         run: >-
           npm run node:ts ./scripts/workflows/coverage/comment.ts
           /tmp/coverage.md

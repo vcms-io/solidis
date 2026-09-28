@@ -626,6 +626,8 @@ describe('modules-json', () => {
     }
     if (capabilities.isValkey) {
       assert.strictEqual(result[0], 40);
+    } else if (capabilities.atLeast(8, 10)) {
+      assert.strictEqual(result[0], 80);
     } else {
       assert.strictEqual(result[0], 128);
     }

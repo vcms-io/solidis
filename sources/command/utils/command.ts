@@ -209,6 +209,14 @@ export function buildSetCommand(
       command.push('XX');
     }
 
+    appendValueConditionOptions(
+      command,
+      options.setIfValueEquals,
+      options.setIfValueNotEquals,
+      options.setIfDigestEquals,
+      options.setIfDigestNotEquals,
+    );
+
     if (options.returnOldValue === true) {
       command.push('GET');
     }
@@ -575,6 +583,30 @@ export function appendExpireOptions(
 
   if (options.expireAtMilliseconds !== undefined) {
     command.push('PXAT', `${options.expireAtMilliseconds}`);
+  }
+}
+
+export function appendValueConditionOptions(
+  command: StringOrBuffer[],
+  valueEquals?: StringOrBuffer,
+  valueNotEquals?: StringOrBuffer,
+  digestEquals?: string,
+  digestNotEquals?: string,
+) {
+  if (valueEquals !== undefined) {
+    command.push('IFEQ', valueEquals);
+  }
+
+  if (valueNotEquals !== undefined) {
+    command.push('IFNE', valueNotEquals);
+  }
+
+  if (digestEquals !== undefined) {
+    command.push('IFDEQ', digestEquals);
+  }
+
+  if (digestNotEquals !== undefined) {
+    command.push('IFDNE', digestNotEquals);
   }
 }
 

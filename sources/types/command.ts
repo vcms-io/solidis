@@ -4,6 +4,7 @@ import type {
   RespDuplicatePolicy,
   RespEncoding,
 } from './resp.ts';
+import type { StringOrBuffer } from './solidis.ts';
 
 export type CommandBitOrByteOption = 'BIT' | 'BYTE';
 export type CommandLeftOrRightOption = 'LEFT' | 'RIGHT';
@@ -82,6 +83,13 @@ export interface CommandCopyOptions {
 export interface CommandCuckooFilterInsertOptions {
   capacity?: number;
   nocreate?: boolean;
+}
+
+export interface CommandDelExOptions {
+  ifValueEquals?: StringOrBuffer;
+  ifValueNotEquals?: StringOrBuffer;
+  ifDigestEquals?: string;
+  ifDigestNotEquals?: string;
 }
 
 export interface CommandFailoverOptions {
@@ -252,6 +260,10 @@ export interface CommandSetOptions {
   keepOriginalTimeToLive?: boolean;
   setIfKeyNotExists?: boolean;
   setIfKeyExists?: boolean;
+  setIfValueEquals?: StringOrBuffer;
+  setIfValueNotEquals?: StringOrBuffer;
+  setIfDigestEquals?: string;
+  setIfDigestNotEquals?: string;
   returnOldValue?: boolean;
   returnOldValueAsBuffer?: boolean;
 }
