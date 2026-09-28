@@ -129,16 +129,8 @@ export class DistributedLock {
   async release(resource: string, token: string): Promise<boolean> {
     const key = \`\${this.prefix}\${resource}\`;
 
-    // Use Lua script to ensure atomicity
-    const script = \`
-      if redis.call("get", KEYS[1]) == ARGV[1] then
-        return redis.call("del", KEYS[1])
-      else
-        return 0
-      end
-    \`;
-
-    const result = await this.client.eval(script, [key], [token]);
+    // DELEX IFEQ (Redis 8.4+): Delete only if we still hold the lock
+    const result = await this.client.delex(key, { ifValueEquals: token });
 
     return result === 1;
   }
@@ -154,17 +146,12 @@ export class DistributedLock {
     const key = \`\${this.prefix}\${resource}\`;
     const ttlSeconds = Math.ceil(ttlMs / 1000);
 
-    const script = \`
-      if redis.call("get", KEYS[1]) == ARGV[1] then
-        return redis.call("expire", KEYS[1], ARGV[2])
-      else
-        return 0
-      end
-    \`;
+    const result = await this.client.set(key, token, {
+      setIfValueEquals: token,
+      expireInSeconds: ttlSeconds,
+    });
 
-    const result = await this.client.eval(script, [key], [token, ttlSeconds.toString()]);
-
-    return result === 1;
+    return result !== null;
   }
 
   /**
