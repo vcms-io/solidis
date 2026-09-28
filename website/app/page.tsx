@@ -222,7 +222,7 @@ export default function HomePage() {
           >
             <span>0 deps</span>
             <span className="text-foreground/15">·</span>
-            <span>383 commands</span>
+            <span>385 commands</span>
             <span className="text-foreground/15">·</span>
             <span>&lt; 29 KB</span>
             <span className="text-foreground/15">·</span>

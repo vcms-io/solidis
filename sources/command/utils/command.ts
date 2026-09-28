@@ -188,6 +188,30 @@ export function buildGeoSearchCommand(
   return command;
 }
 
+function appendValueConditionOptions(
+  command: StringOrBuffer[],
+  valueEquals?: StringOrBuffer,
+  valueNotEquals?: StringOrBuffer,
+  digestEquals?: string,
+  digestNotEquals?: string,
+) {
+  if (valueEquals !== undefined) {
+    command.push('IFEQ', valueEquals);
+  }
+
+  if (valueNotEquals !== undefined) {
+    command.push('IFNE', valueNotEquals);
+  }
+
+  if (digestEquals !== undefined) {
+    command.push('IFDEQ', digestEquals);
+  }
+
+  if (digestNotEquals !== undefined) {
+    command.push('IFDNE', digestNotEquals);
+  }
+}
+
 export function buildSetCommand(
   key: string,
   value: StringOrBuffer,
@@ -210,21 +234,13 @@ export function buildSetCommand(
       command.push('XX');
     }
 
-    if (options.setIfValueEquals !== undefined) {
-      command.push('IFEQ', options.setIfValueEquals);
-    }
-
-    if (options.setIfValueNotEquals !== undefined) {
-      command.push('IFNE', options.setIfValueNotEquals);
-    }
-
-    if (options.setIfDigestEquals !== undefined) {
-      command.push('IFDEQ', options.setIfDigestEquals);
-    }
-
-    if (options.setIfDigestNotEquals !== undefined) {
-      command.push('IFDNE', options.setIfDigestNotEquals);
-    }
+    appendValueConditionOptions(
+      command,
+      options.setIfValueEquals,
+      options.setIfValueNotEquals,
+      options.setIfDigestEquals,
+      options.setIfDigestNotEquals,
+    );
 
     if (options.returnOldValue === true) {
       command.push('GET');
@@ -237,20 +253,14 @@ export function buildSetCommand(
 export function buildDelexCommand(key: string, options?: CommandDelexOptions) {
   const command: StringOrBuffer[] = ['DELEX', key];
 
-  if (options?.ifValueEquals !== undefined) {
-    command.push('IFEQ', options.ifValueEquals);
-  }
-
-  if (options?.ifValueNotEquals !== undefined) {
-    command.push('IFNE', options.ifValueNotEquals);
-  }
-
-  if (options?.ifDigestEquals !== undefined) {
-    command.push('IFDEQ', options.ifDigestEquals);
-  }
-
-  if (options?.ifDigestNotEquals !== undefined) {
-    command.push('IFDNE', options.ifDigestNotEquals);
+  if (options !== undefined) {
+    appendValueConditionOptions(
+      command,
+      options.ifValueEquals,
+      options.ifValueNotEquals,
+      options.ifDigestEquals,
+      options.ifDigestNotEquals,
+    );
   }
 
   return command;

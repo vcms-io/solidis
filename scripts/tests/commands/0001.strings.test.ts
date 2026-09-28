@@ -1,6 +1,7 @@
 /**
- * String value type: SET/GET family, counters, ranged access, and the various
- * SET option permutations (expiry, existence guards, GET-on-set).
+ * String value type: SET/GET family, counters, ranged access, the various SET
+ * option permutations (expiry, existence and value guards, GET-on-set), and
+ * DIGEST / DELEX.
  */
 
 import assert from 'node:assert/strict';
@@ -10,7 +11,7 @@ import {
   closeClient,
   createClient,
   createKeyspace,
-  isCommandSupported,
+  detectServerCapabilities,
   waitFor,
 } from '../utils/index.ts';
 
@@ -18,51 +19,25 @@ import type { FeaturedClient } from '../utils/index.ts';
 
 describe('strings', () => {
   let client: FeaturedClient;
+  let atLeastRedis84 = false;
+  let supportsSetIfEq = false;
+  let supportsSetIfNe = false;
   const keyspace = createKeyspace('strings');
-
-  let setIfEqAvailable = false;
-  let setIfNeAvailable = false;
-  let setIfDeqAvailable = false;
-  let setIfDneAvailable = false;
-  let digestAvailable = false;
-  let delexAvailable = false;
+  const helloWorldDigest = 'b6acb9d84a38ff74';
+  const zeroDigest = '0'.repeat(16);
 
   before(async () => {
     client = await createClient();
 
-    const probeKey = keyspace.key('probe');
-    setIfEqAvailable = await isCommandSupported(client, [
-      'SET',
-      probeKey,
-      'x',
-      'IFEQ',
-      'x',
-    ]);
-    setIfNeAvailable = await isCommandSupported(client, [
-      'SET',
-      probeKey,
-      'x',
-      'IFNE',
-      'x',
-    ]);
-    setIfDeqAvailable = await isCommandSupported(client, [
-      'SET',
-      probeKey,
-      'x',
-      'IFDEQ',
-      '0000000000000000',
-    ]);
-    setIfDneAvailable = await isCommandSupported(client, [
-      'SET',
-      probeKey,
-      'x',
-      'IFDNE',
-      '0000000000000000',
-    ]);
-    digestAvailable = await isCommandSupported(client, ['DIGEST', probeKey]);
-    delexAvailable = await isCommandSupported(client, ['DELEX', probeKey]);
+    const capabilities = await detectServerCapabilities(client);
 
-    await client.del(probeKey);
+    atLeastRedis84 = !capabilities.isValkey && capabilities.atLeast(8, 4);
+    supportsSetIfEq = capabilities.isValkey
+      ? capabilities.atLeast(8, 1)
+      : capabilities.atLeast(8, 4);
+    supportsSetIfNe = capabilities.isValkey
+      ? capabilities.atLeast(9, 2)
+      : capabilities.atLeast(8, 4);
   });
 
   after(async () => {
@@ -418,12 +393,12 @@ describe('strings', () => {
       ['SET', 'k', 'v', 'IFNE', 'old'],
     );
     assert.deepStrictEqual(
-      buildSetCommand('k', 'v', { setIfDigestEquals: 'abc123' }),
-      ['SET', 'k', 'v', 'IFDEQ', 'abc123'],
+      buildSetCommand('k', 'v', { setIfDigestEquals: helloWorldDigest }),
+      ['SET', 'k', 'v', 'IFDEQ', helloWorldDigest],
     );
     assert.deepStrictEqual(
-      buildSetCommand('k', 'v', { setIfDigestNotEquals: 'abc123' }),
-      ['SET', 'k', 'v', 'IFDNE', 'abc123'],
+      buildSetCommand('k', 'v', { setIfDigestNotEquals: helloWorldDigest }),
+      ['SET', 'k', 'v', 'IFDNE', helloWorldDigest],
     );
     assert.deepStrictEqual(
       buildSetCommand('k', 'v', {
@@ -440,41 +415,36 @@ describe('strings', () => {
     );
 
     assert.deepStrictEqual(buildDelexCommand('k'), ['DELEX', 'k']);
+    assert.deepStrictEqual(buildDelexCommand('k', { ifValueEquals: 'v' }), [
+      'DELEX',
+      'k',
+      'IFEQ',
+      'v',
+    ]);
+    assert.deepStrictEqual(buildDelexCommand('k', { ifValueNotEquals: 'v' }), [
+      'DELEX',
+      'k',
+      'IFNE',
+      'v',
+    ]);
     assert.deepStrictEqual(
-      buildDelexCommand('k', {
-        ifValueEquals: 'v',
-      }),
-      ['DELEX', 'k', 'IFEQ', 'v'],
+      buildDelexCommand('k', { ifDigestEquals: helloWorldDigest }),
+      ['DELEX', 'k', 'IFDEQ', helloWorldDigest],
     );
     assert.deepStrictEqual(
-      buildDelexCommand('k', {
-        ifValueNotEquals: 'v',
-      }),
-      ['DELEX', 'k', 'IFNE', 'v'],
-    );
-    assert.deepStrictEqual(
-      buildDelexCommand('k', {
-        ifDigestEquals: 'abc123',
-      }),
-      ['DELEX', 'k', 'IFDEQ', 'abc123'],
-    );
-    assert.deepStrictEqual(
-      buildDelexCommand('k', {
-        ifDigestNotEquals: 'abc123',
-      }),
-      ['DELEX', 'k', 'IFDNE', 'abc123'],
+      buildDelexCommand('k', { ifDigestNotEquals: helloWorldDigest }),
+      ['DELEX', 'k', 'IFDNE', helloWorldDigest],
     );
   });
 
   it('SET IFEQ guards on the current value', async (context) => {
-    if (!setIfEqAvailable) {
-      context.skip('requires Redis 8.4+ SET IFEQ');
+    if (!supportsSetIfEq) {
+      context.skip('SET IFEQ requires Redis 8.4+ or Valkey 8.1+');
       return;
     }
 
     const key = keyspace.key('set-ifeq');
 
-    // IFEQ against a missing key does not create it.
     assert.strictEqual(
       await client.set(key, 'a', { setIfValueEquals: 'x' }),
       null,
@@ -483,14 +453,11 @@ describe('strings', () => {
 
     await client.set(key, 'a');
 
-    // IFEQ mismatch is a no-op.
     assert.strictEqual(
       await client.set(key, 'b', { setIfValueEquals: 'x' }),
       null,
     );
     assert.strictEqual(await client.get(key), 'a');
-
-    // IFEQ match applies the new value.
     assert.strictEqual(
       await client.set(key, 'b', { setIfValueEquals: 'a' }),
       'OK',
@@ -498,9 +465,118 @@ describe('strings', () => {
     assert.strictEqual(await client.get(key), 'b');
   });
 
+  it('SET IFEQ only touches the TTL when the value matches', async (context) => {
+    if (!supportsSetIfEq) {
+      context.skip('SET IFEQ requires Redis 8.4+ or Valkey 8.1+');
+      return;
+    }
+
+    const key = keyspace.key('set-ifeq-ttl');
+
+    await client.set(key, 'a', { expireInSeconds: 100 });
+
+    assert.strictEqual(
+      await client.set(key, 'b', {
+        setIfValueEquals: 'x',
+        expireInSeconds: 200,
+      }),
+      null,
+    );
+    const mismatchTtl = await client.ttl(key);
+    assert.ok(mismatchTtl >= 99 && mismatchTtl <= 100);
+
+    assert.strictEqual(
+      await client.set(key, 'b', {
+        setIfValueEquals: 'a',
+        expireInSeconds: 200,
+      }),
+      'OK',
+    );
+    const matchTtl = await client.ttl(key);
+    assert.ok(matchTtl >= 199 && matchTtl <= 200);
+
+    assert.strictEqual(
+      await client.set(key, 'c', { setIfValueEquals: 'b' }),
+      'OK',
+    );
+    assert.strictEqual(await client.ttl(key), -1);
+  });
+
+  it('SET IFEQ compares binary values byte for byte', async (context) => {
+    if (!supportsSetIfEq) {
+      context.skip('SET IFEQ requires Redis 8.4+ or Valkey 8.1+');
+      return;
+    }
+
+    const key = keyspace.key('set-ifeq-binary');
+    const payload = Buffer.from([0x00, 0xff, 0x10, 0x7f, 0x80]);
+
+    await client.set(key, payload);
+
+    assert.strictEqual(
+      await client.set(key, 'text', { setIfValueEquals: payload.toString() }),
+      null,
+    );
+    assert.strictEqual(
+      await client.set(key, 'text', { setIfValueEquals: payload }),
+      'OK',
+    );
+    assert.strictEqual(await client.get(key), 'text');
+  });
+
+  it('SET IFEQ with returnOldValue replies with the old value either way', async (context) => {
+    if (!supportsSetIfEq) {
+      context.skip('SET IFEQ requires Redis 8.4+ or Valkey 8.1+');
+      return;
+    }
+
+    const key = keyspace.key('set-ifeq-get');
+
+    await client.set(key, 'a');
+
+    assert.strictEqual(
+      await client.set(key, 'b', {
+        setIfValueEquals: 'x',
+        returnOldValue: true,
+      }),
+      'a',
+    );
+    assert.strictEqual(await client.get(key), 'a');
+    assert.strictEqual(
+      await client.set(key, 'b', {
+        setIfValueEquals: 'a',
+        returnOldValue: true,
+      }),
+      'a',
+    );
+    assert.strictEqual(await client.get(key), 'b');
+  });
+
+  it('rejects SET IFEQ against a non-string key', async (context) => {
+    if (!supportsSetIfEq) {
+      context.skip('SET IFEQ requires Redis 8.4+ or Valkey 8.1+');
+      return;
+    }
+
+    const key = keyspace.key('set-ifeq-wrongtype');
+
+    await client.rpush(key, 'item');
+
+    await assert.rejects(
+      () => client.set(key, 'value', { setIfValueEquals: 'item' }),
+      (error: Error) => {
+        assert.strictEqual(
+          error.message,
+          `[SET ${key} value IFEQ item] Invalid reply: RespError: WRONGTYPE Operation against a key holding the wrong kind of value`,
+        );
+        return true;
+      },
+    );
+  });
+
   it('SET IFNE guards on the current value and creates missing keys', async (context) => {
-    if (!setIfNeAvailable) {
-      context.skip('requires Redis 8.4+ SET IFNE');
+    if (!supportsSetIfNe) {
+      context.skip('SET IFNE requires Redis 8.4+ or Valkey 9.2+');
       return;
     }
 
@@ -508,22 +584,19 @@ describe('strings', () => {
 
     await client.set(key, 'b');
 
-    // IFNE mismatch (value equals) is a no-op.
     assert.strictEqual(
       await client.set(key, 'c', { setIfValueNotEquals: 'b' }),
       null,
     );
     assert.strictEqual(await client.get(key), 'b');
-
-    // IFNE match applies the new value.
     assert.strictEqual(
       await client.set(key, 'c', { setIfValueNotEquals: 'x' }),
       'OK',
     );
     assert.strictEqual(await client.get(key), 'c');
 
-    // IFNE against a missing key creates it.
     const fresh = keyspace.key('set-ifne-create');
+
     assert.strictEqual(
       await client.set(fresh, 'created', { setIfValueNotEquals: 'anything' }),
       'OK',
@@ -532,8 +605,8 @@ describe('strings', () => {
   });
 
   it('DIGEST returns the XXH3 hex digest of a string value', async (context) => {
-    if (!digestAvailable) {
-      context.skip('requires Redis 8.4+ DIGEST');
+    if (!atLeastRedis84) {
+      context.skip('DIGEST requires Redis 8.4+');
       return;
     }
 
@@ -543,114 +616,186 @@ describe('strings', () => {
 
     await client.set(key, 'Hello world');
 
-    const d = await client.digest(key);
-    assert.ok(typeof d === 'string' && /^[0-9a-fA-F]+$/.test(d), `${d}`);
+    assert.strictEqual(await client.digest(key), helloWorldDigest);
   });
 
   it('SET IFDEQ / IFDNE guard on the current hash digest', async (context) => {
-    if (!(setIfDeqAvailable && setIfDneAvailable && digestAvailable)) {
-      context.skip('requires Redis 8.4+ SET IFDEQ/IFDNE and DIGEST');
+    if (!atLeastRedis84) {
+      context.skip('SET IFDEQ / IFDNE require Redis 8.4+');
       return;
     }
 
     const key = keyspace.key('set-ifdeq-ifdne');
 
-    await client.set(key, 'v1');
-    const d1 = await client.digest(key);
-    assert.ok(typeof d1 === 'string');
-
-    // IFDEQ with a non-matching digest is a no-op.
     assert.strictEqual(
-      await client.set(key, 'v2', { setIfDigestEquals: '0000000000000000' }),
+      await client.set(key, 'Hello world', { setIfDigestEquals: zeroDigest }),
       null,
     );
-    assert.strictEqual(await client.get(key), 'v1');
-
-    // IFDEQ with the matching digest applies.
+    assert.strictEqual(await client.get(key), null);
     assert.strictEqual(
-      await client.set(key, 'v2', { setIfDigestEquals: d1 }),
+      await client.set(key, 'Hello world', {
+        setIfDigestNotEquals: zeroDigest,
+      }),
       'OK',
     );
-    assert.strictEqual(await client.get(key), 'v2');
 
-    // Recompute the digest for the new value before testing IFDNE.
-    const d2 = await client.digest(key);
-    assert.ok(typeof d2 === 'string');
-
-    // IFDNE with the matching digest is a no-op.
     assert.strictEqual(
-      await client.set(key, 'v3', { setIfDigestNotEquals: d2 }),
+      await client.set(key, 'next', { setIfDigestNotEquals: helloWorldDigest }),
       null,
     );
-    assert.strictEqual(await client.get(key), 'v2');
-
-    // IFDNE with a non-matching digest applies.
     assert.strictEqual(
-      await client.set(key, 'v3', { setIfDigestNotEquals: '0000000000000000' }),
+      await client.set(key, 'next', { setIfDigestEquals: zeroDigest }),
+      null,
+    );
+    assert.strictEqual(await client.get(key), 'Hello world');
+
+    assert.strictEqual(
+      await client.set(key, 'next', { setIfDigestEquals: helloWorldDigest }),
       'OK',
     );
-    assert.strictEqual(await client.get(key), 'v3');
+    assert.strictEqual(await client.get(key), 'next');
+    assert.strictEqual(
+      await client.set(key, 'Hello world', {
+        setIfDigestNotEquals: helloWorldDigest,
+      }),
+      'OK',
+    );
+    assert.strictEqual(await client.get(key), 'Hello world');
+  });
+
+  it('SET IFDEQ with returnOldValue replies with the old value either way', async (context) => {
+    if (!atLeastRedis84) {
+      context.skip('SET IFDEQ requires Redis 8.4+');
+      return;
+    }
+
+    const key = keyspace.key('set-ifdeq-get');
+
+    await client.set(key, 'Hello world');
+
+    assert.strictEqual(
+      await client.set(key, 'skipped', {
+        setIfDigestEquals: zeroDigest,
+        returnOldValue: true,
+      }),
+      'Hello world',
+    );
+    assert.strictEqual(await client.get(key), 'Hello world');
+    assert.strictEqual(
+      await client.set(key, 'written', {
+        setIfDigestEquals: helloWorldDigest,
+        returnOldValue: true,
+      }),
+      'Hello world',
+    );
+    assert.strictEqual(await client.get(key), 'written');
   });
 
   it('DELEX conditionally removes a key', async (context) => {
-    if (
-      !delexAvailable ||
-      !setIfEqAvailable ||
-      !setIfNeAvailable ||
-      !setIfDeqAvailable ||
-      !setIfDneAvailable ||
-      !digestAvailable
-    ) {
-      context.skip('requires Redis 8.4+ DELEX and its condition options');
+    if (!atLeastRedis84) {
+      context.skip('DELEX requires Redis 8.4+');
       return;
     }
 
     const key = keyspace.key('delex');
 
-    // Without a condition, DELEX behaves like DEL.
-    await client.set(key, 'v');
+    await client.set(key, 'Hello world');
+
     assert.strictEqual(await client.delex(key), 1);
-    assert.strictEqual(await client.get(key), null);
     assert.strictEqual(await client.delex(key), 0);
 
-    // IFEQ only deletes when the current value matches.
-    await client.set(key, 'v');
-    assert.strictEqual(await client.delex(key, { ifValueEquals: 'wrong' }), 0);
-    assert.strictEqual(await client.get(key), 'v');
-    assert.strictEqual(await client.delex(key, { ifValueEquals: 'v' }), 1);
-    assert.strictEqual(await client.get(key), null);
+    await client.set(key, 'Hello world');
 
-    // IFNE deletes when the current value differs.
-    await client.set(key, 'v');
-    assert.strictEqual(await client.delex(key, { ifValueNotEquals: 'v' }), 0);
+    assert.strictEqual(await client.delex(key, { ifValueEquals: 'other' }), 0);
+    assert.strictEqual(
+      await client.delex(key, { ifValueNotEquals: 'Hello world' }),
+      0,
+    );
+    assert.strictEqual(
+      await client.delex(key, { ifDigestEquals: zeroDigest }),
+      0,
+    );
+    assert.strictEqual(
+      await client.delex(key, { ifDigestNotEquals: helloWorldDigest }),
+      0,
+    );
+    assert.strictEqual(await client.get(key), 'Hello world');
+    assert.strictEqual(
+      await client.delex(key, { ifValueEquals: 'Hello world' }),
+      1,
+    );
+
+    await client.set(key, 'Hello world');
+
     assert.strictEqual(
       await client.delex(key, { ifValueNotEquals: 'other' }),
       1,
     );
-    assert.strictEqual(await client.get(key), null);
 
-    // IFDEQ / IFDNE based on the digest.
-    await client.set(key, 'v');
-    const digest = await client.digest(key);
-    assert.ok(typeof digest === 'string');
+    await client.set(key, 'Hello world');
 
     assert.strictEqual(
-      await client.delex(key, { ifDigestEquals: '0000000000000000' }),
-      0,
+      await client.delex(key, { ifDigestEquals: helloWorldDigest }),
+      1,
     );
-    assert.strictEqual(await client.get(key), 'v');
-    assert.strictEqual(await client.delex(key, { ifDigestEquals: digest }), 1);
-    assert.strictEqual(await client.get(key), null);
 
-    await client.set(key, 'v');
+    await client.set(key, 'Hello world');
+
     assert.strictEqual(
-      await client.delex(key, { ifDigestNotEquals: digest }),
-      0,
-    );
-    assert.strictEqual(
-      await client.delex(key, { ifDigestNotEquals: '0000000000000000' }),
+      await client.delex(key, { ifDigestNotEquals: zeroDigest }),
       1,
     );
     assert.strictEqual(await client.get(key), null);
+  });
+
+  it('DELEX compares binary values byte for byte', async (context) => {
+    if (!atLeastRedis84) {
+      context.skip('DELEX requires Redis 8.4+');
+      return;
+    }
+
+    const key = keyspace.key('delex-binary');
+    const payload = Buffer.from([0x00, 0xff, 0x10, 0x7f, 0x80]);
+
+    await client.set(key, payload);
+
+    assert.strictEqual(
+      await client.delex(key, { ifValueEquals: payload.toString() }),
+      0,
+    );
+    assert.strictEqual(await client.delex(key, { ifValueEquals: payload }), 1);
+  });
+
+  it('rejects DIGEST and conditional DELEX on a non-string key', async (context) => {
+    if (!atLeastRedis84) {
+      context.skip('DIGEST / DELEX require Redis 8.4+');
+      return;
+    }
+
+    const key = keyspace.key('digest-delex-wrongtype');
+
+    await client.rpush(key, 'item');
+
+    await assert.rejects(
+      () => client.digest(key),
+      (error: Error) => {
+        assert.strictEqual(
+          error.message,
+          `[DIGEST ${key}] Invalid reply: RespError: WRONGTYPE Operation against a key holding the wrong kind of value`,
+        );
+        return true;
+      },
+    );
+    await assert.rejects(
+      () => client.delex(key, { ifValueEquals: 'item' }),
+      (error: Error) => {
+        assert.strictEqual(
+          error.message,
+          `[DELEX ${key} IFEQ item] Invalid reply: RespError: ERR Key should be of string type if conditions are specified`,
+        );
+        return true;
+      },
+    );
+    assert.strictEqual(await client.delex(key), 1);
   });
 });

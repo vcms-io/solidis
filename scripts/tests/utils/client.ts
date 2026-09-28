@@ -188,33 +188,29 @@ export async function detectServerCapabilities(
 }
 
 /**
- * Returns whether the server recognises a command (or accepts its argument
- * form), used to skip module-only suites independently of module naming
- * differences across distributions and to gate subcommand options that vary
- * across Redis and Valkey. Both "unknown command" and "syntax error" replies
- * are treated as unsupported.
+ * Returns whether the server recognises a command, used to skip module-only
+ * suites independently of module naming differences across distributions.
  */
 export async function isCommandSupported(
   client: SolidisFeaturedClient,
   command: StringOrBuffer[],
 ): Promise<boolean> {
-  const isUnknownCommandOrSyntaxError = (value: unknown): boolean =>
-    value instanceof Error &&
-    /unknown command|syntax error/i.test(value.message);
+  const isUnknownCommand = (value: unknown): boolean =>
+    value instanceof Error && /unknown command/i.test(value.message);
 
   try {
     const reply = await client.send([command]);
 
     /**
      * A raw pipeline surfaces command errors as inline RespError values rather
-     * than rejecting, so the unknown-command or syntax-error probe must inspect the reply.
+     * than rejecting, so the unknown-command probe must inspect the reply.
      */
-    return !isUnknownCommandOrSyntaxError(reply[0]?.[0]);
+    return !isUnknownCommand(reply[0]?.[0]);
   } catch (error) {
     /**
-     * If the probe itself rejects, a non-"unknown command" or non-"syntax error" error still proves
+     * If the probe itself rejects, a non-"unknown command" error still proves
      * the command is registered (it failed on arity/type instead).
      */
-    return !isUnknownCommandOrSyntaxError(error);
+    return !isUnknownCommand(error);
   }
 }

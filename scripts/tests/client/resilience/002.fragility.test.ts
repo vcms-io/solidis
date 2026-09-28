@@ -186,7 +186,12 @@ describe('fragility', () => {
       if (!(replies[4][0] instanceof RespError)) {
         assert.fail('expected RespError for unknown command');
       }
-      if (capabilities.atLeast(7, 0)) {
+      if (!capabilities.isValkey && capabilities.atLeast(8, 6)) {
+        assert.strictEqual(
+          replies[4][0].message,
+          "ERR unknown command 'NOTACOMMAND'",
+        );
+      } else if (capabilities.atLeast(7, 0)) {
         assert.strictEqual(
           replies[4][0].message,
           "ERR unknown command 'NOTACOMMAND', with args beginning with: ",

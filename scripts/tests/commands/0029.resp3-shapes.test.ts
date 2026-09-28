@@ -679,7 +679,12 @@ describe('resp3-shapes', () => {
     assert.strictEqual(info.length, 1);
     assert.strictEqual(info.lastGeneratedId, '1-1');
     assert.strictEqual(info.radixTreeKeys, 1);
-    assert.strictEqual(info.radixTreeNodes, 2);
+
+    if (!capabilities.isValkey && capabilities.atLeast(8, 10)) {
+      assert.strictEqual(info.radixTreeNodes, 1);
+    } else {
+      assert.strictEqual(info.radixTreeNodes, 2);
+    }
 
     if (capabilities.atLeast(7, 0)) {
       assert.strictEqual(info.maxDeletedEntryId, '0-0');
