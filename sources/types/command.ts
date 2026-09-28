@@ -85,7 +85,7 @@ export interface CommandCuckooFilterInsertOptions {
   nocreate?: boolean;
 }
 
-export interface CommandDelexOptions {
+export interface CommandDelExOptions {
   ifValueEquals?: StringOrBuffer;
   ifValueNotEquals?: StringOrBuffer;
   ifDigestEquals?: string;
@@ -264,10 +264,6 @@ export interface CommandSetOptions {
   setIfValueNotEquals?: StringOrBuffer;
   setIfDigestEquals?: string;
   setIfDigestNotEquals?: string;
-  /**
-   * With a digest condition the old value comes back whether or not the write
-   * happened, so the reply alone cannot tell the two apart.
-   */
   returnOldValue?: boolean;
   returnOldValueAsBuffer?: boolean;
 }

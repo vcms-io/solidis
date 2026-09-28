@@ -11,7 +11,6 @@ import {
 
 import type {
   CommandCuckooFilterInsertOptions,
-  CommandDelexOptions,
   CommandExpireMode,
   CommandGeoRadiusOptions,
   CommandGeoSearchByOptions,
@@ -188,30 +187,6 @@ export function buildGeoSearchCommand(
   return command;
 }
 
-function appendValueConditionOptions(
-  command: StringOrBuffer[],
-  valueEquals?: StringOrBuffer,
-  valueNotEquals?: StringOrBuffer,
-  digestEquals?: string,
-  digestNotEquals?: string,
-) {
-  if (valueEquals !== undefined) {
-    command.push('IFEQ', valueEquals);
-  }
-
-  if (valueNotEquals !== undefined) {
-    command.push('IFNE', valueNotEquals);
-  }
-
-  if (digestEquals !== undefined) {
-    command.push('IFDEQ', digestEquals);
-  }
-
-  if (digestNotEquals !== undefined) {
-    command.push('IFDNE', digestNotEquals);
-  }
-}
-
 export function buildSetCommand(
   key: string,
   value: StringOrBuffer,
@@ -245,22 +220,6 @@ export function buildSetCommand(
     if (options.returnOldValue === true) {
       command.push('GET');
     }
-  }
-
-  return command;
-}
-
-export function buildDelexCommand(key: string, options?: CommandDelexOptions) {
-  const command: StringOrBuffer[] = ['DELEX', key];
-
-  if (options !== undefined) {
-    appendValueConditionOptions(
-      command,
-      options.ifValueEquals,
-      options.ifValueNotEquals,
-      options.ifDigestEquals,
-      options.ifDigestNotEquals,
-    );
   }
 
   return command;
@@ -624,6 +583,30 @@ export function appendExpireOptions(
 
   if (options.expireAtMilliseconds !== undefined) {
     command.push('PXAT', `${options.expireAtMilliseconds}`);
+  }
+}
+
+export function appendValueConditionOptions(
+  command: StringOrBuffer[],
+  valueEquals?: StringOrBuffer,
+  valueNotEquals?: StringOrBuffer,
+  digestEquals?: string,
+  digestNotEquals?: string,
+) {
+  if (valueEquals !== undefined) {
+    command.push('IFEQ', valueEquals);
+  }
+
+  if (valueNotEquals !== undefined) {
+    command.push('IFNE', valueNotEquals);
+  }
+
+  if (digestEquals !== undefined) {
+    command.push('IFDEQ', digestEquals);
+  }
+
+  if (digestNotEquals !== undefined) {
+    command.push('IFDNE', digestNotEquals);
   }
 }
 
