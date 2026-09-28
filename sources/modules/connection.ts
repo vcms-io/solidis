@@ -27,8 +27,8 @@ export class SolidisConnection extends EventEmitter {
 
   #debug?: (type: SolidisDebugLogType, message: string, data?: unknown) => void;
 
-  public declare emit: SolidisConnectionEventHandlers<this>['emit'];
-  public declare on: SolidisConnectionEventHandlers<this>['on'];
+  declare public emit: SolidisConnectionEventHandlers<this>['emit'];
+  declare public on: SolidisConnectionEventHandlers<this>['on'];
 
   constructor(options: SolidisConnectionOptions) {
     super();

@@ -31,9 +31,9 @@ export class SolidisDebugMemory extends Writable {
 
   readonly #maxEntries: number;
 
-  public declare emit: SolidisDebugMemoryEventHandlers<this>['emit'];
-  public declare on: SolidisDebugMemoryEventHandlers<this>['on'];
-  public declare write: SolidisDebugMemoryEventHandlers<this>['write'];
+  declare public emit: SolidisDebugMemoryEventHandlers<this>['emit'];
+  declare public on: SolidisDebugMemoryEventHandlers<this>['on'];
+  declare public write: SolidisDebugMemoryEventHandlers<this>['write'];
 
   constructor(maxEntries: number) {
     super({ objectMode: true });

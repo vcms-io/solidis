@@ -43,9 +43,9 @@ export class SolidisClient extends EventEmitter {
   #debug?: (type: SolidisDebugLogType, message: string, data?: unknown) => void;
   #debugMemory?: SolidisDebugMemory;
 
-  public declare emit: SolidisClientEventHandlers<this>['emit'];
-  public declare on: SolidisClientEventHandlers<this>['on'];
-  public declare once: SolidisClientEventHandlers<this>['once'];
+  declare public emit: SolidisClientEventHandlers<this>['emit'];
+  declare public on: SolidisClientEventHandlers<this>['on'];
+  declare public once: SolidisClientEventHandlers<this>['once'];
 
   [key: string]: unknown;
 
