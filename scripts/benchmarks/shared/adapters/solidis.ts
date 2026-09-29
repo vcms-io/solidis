@@ -1,10 +1,6 @@
 import { SolidisFeaturedClient } from '../../../../sources/client/featured.ts';
 import { BenchmarkClientAdapter, type PubSubSubscriber } from '../client.ts';
-import {
-  unboundedPipelineLimit,
-  unboundedReplyProcessingLimit,
-  unboundedSocketWriteSize,
-} from '../constants.ts';
+import { unboundedPipelineLimit } from '../constants.ts';
 import { retry, unwrapScanReply } from '../utils.ts';
 
 import type { SolidisClientOptions } from '../../../../sources/index.ts';
@@ -29,9 +25,6 @@ function makeSolidisOptions(target: ConnectionTarget): SolidisClientOptions {
     connectionTimeout: 10000,
     commandTimeout: 0,
     maxCommandsPerPipeline: unboundedPipelineLimit,
-    maxSocketWriteSizePerOnce: unboundedSocketWriteSize,
-    maxProcessReplyBytesPerChunk: unboundedReplyProcessingLimit,
-    maxProcessRepliesPerChunk: unboundedReplyProcessingLimit,
   };
 }
 

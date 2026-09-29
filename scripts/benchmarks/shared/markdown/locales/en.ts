@@ -80,6 +80,7 @@ export const en: BenchmarkLocale = {
     'Payloads use a **deterministic pseudo-random pool** shared by both libraries',
     'Elapsed time is the **median** across all repeat samples',
     'Spread is the **coefficient of variation** (σ / median × 100%)',
+    'Both clients run with **command timeouts, ready checks and reconnects disabled** and unbounded auto-pipelining',
   ],
 
   operationDisplayNames: {
