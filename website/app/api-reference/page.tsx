@@ -318,7 +318,7 @@ await client.subscribe('news');`}
               <CardContent>
                 <CodeBlock
                   code={`const client = new SolidisClient({
-  uri: 'redis://localhost:6379',
+  uri: 'redis://user:password@localhost:6379/0',
   host: '127.0.0.1',
   port: 6379,
   tls: { /* tls.ConnectionOptions */ },
@@ -340,21 +340,15 @@ await client.subscribe('news');`}
   enableReadyCheck: true,
   maxConnectionRetries: 20,
   connectionRetryDelay: 100,
+  maxConnectionRetryDelay: 2000,
   commandTimeout: 5000,
   connectionTimeout: 2000,
-  socketWriteTimeout: 1000,
   readyCheckInterval: 100,
   maxCommandsPerPipeline: 300,
   maxEventListenersForClient: 10240,
-  maxEventListenersForSocket: 10240,
-  maxProcessRepliesPerChunk: 4096,
-  maxSocketWriteSizePerOnce: 65536,
   rejectOnPartialPipelineError: false,
   parser: {
-    buffer: {
-      initial: 4194304,
-      shiftThreshold: 2097152,
-    },
+    maxBulkStringLength: 536870912,
   },
   debug: false,
   debugMaxEntries: 10240,
@@ -541,14 +535,17 @@ try {
                 <CodeBlock
                   code={`client.on('connect', () => console.log('Connected to server'));
 client.on('ready', () => console.log('Client is ready'));
-client.on('end', () => console.log('Connection closed'));
-client.on('close', () => console.log('Connection closed'));
+client.on('close', (error) => console.log('Connection lost:', error.message));
+client.on('reconnecting', (attempt, delay) => console.log(\`Reconnect attempt \${attempt} in \${delay} ms\`));
+client.on('reconnected', () => console.log('Connection re-established'));
+client.on('end', () => console.log('Client quit'));
 client.on('drain', () => console.log('Socket drain occurred'));
 client.on('error', (err) => console.error('Error:', err));
 
 client.on('message', (channel, message) => console.log(\`\${channel}: \${message}\`));
 client.on('smessage', (channel, message) => console.log(\`\${channel}: \${message}\`));
 client.on('pmessage', (pattern, channel, message) => console.log(\`\${pattern} \${channel}: \${message}\`));
+client.on('push', (reply) => console.log('RESP3 push:', reply));
 
 client.on('debug', (entry) => console.log(\`[\${entry.type}] \${entry.message}\`));`}
                   language="typescript"
@@ -567,8 +564,16 @@ client.on('debug', (entry) => console.log(\`[\${entry.type}] \${entry.message}\`
                       descriptionKey: 'apiReference.eventReady',
                     },
                     {
-                      name: 'end',
+                      name: 'close',
                       descriptionKey: 'apiReference.eventClose',
+                    },
+                    {
+                      name: 'reconnecting',
+                      descriptionKey: 'apiReference.eventReconnecting',
+                    },
+                    {
+                      name: 'end',
+                      descriptionKey: 'apiReference.eventEnd',
                     },
                     {
                       name: 'error',
@@ -581,6 +586,10 @@ client.on('debug', (entry) => console.log(\`[\${entry.type}] \${entry.message}\`
                     {
                       name: 'smessage',
                       descriptionKey: 'apiReference.eventShardMessage',
+                    },
+                    {
+                      name: 'push',
+                      descriptionKey: 'apiReference.eventPush',
                     },
                     {
                       name: 'debug',

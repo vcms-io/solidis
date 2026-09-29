@@ -28,8 +28,8 @@
 <table align="center">
 <tr>
 <td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Rocket.png?raw=true" alt="Rocket" width="32" height="32" /><br/><strong>0 deps</strong><br/><sub>제로 의존성</sub></td>
-<td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Package.png?raw=true" alt="Package" width="32" height="32" /><br/><strong>385</strong><br/><sub>커맨드</sub></td>
-<td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Test%20Tube.png?raw=true" alt="Test Tube" width="32" height="32" /><br/><strong>19K+</strong><br/><sub>테스트 라인</sub></td>
+<td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Package.png?raw=true" alt="Package" width="32" height="32" /><br/><strong>383</strong><br/><sub>커맨드</sub></td>
+<td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Test%20Tube.png?raw=true" alt="Test Tube" width="32" height="32" /><br/><strong>25K+</strong><br/><sub>테스트 라인</sub></td>
 <td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Animals/Feather.png?raw=true" alt="Feather" width="32" height="32" /><br/><strong>&lt; 29KB</strong><br/><sub>최소 번들</sub></td>
 </tr>
 </table>
@@ -83,10 +83,10 @@ const client = new SolidisClient({ host: '127.0.0.1', port: 6379 }).extend(exten
 const tx = client.multi();
 tx.set('key', 'value');
 tx.incr('counter');
-const results = await tx.exec();
+const results = await tx.exec(); // WATCH한 키가 바뀌었다면 null
 
 // 파이프라인 (raw)
-const results = await client.send([
+const replies = await client.send([
   ['set', 'a', '1'],
   ['incr', 'counter'],
   ['get', 'a']
@@ -106,6 +106,23 @@ client.on('message', (channel, message) => {
 });
 await client.subscribe('events');
 ```
+
+</details>
+
+<details>
+<summary>&nbsp;&nbsp;<b>블로킹 커맨드</b></summary>
+
+<br/>
+
+```typescript
+// BLPOP 계열은 응답할 때까지 연결 전체를 점유하므로 전용 클라이언트를 쓰세요
+const worker = new SolidisFeaturedClient({ host: '127.0.0.1', port: 6379 });
+
+const job = await worker.blpop(['jobs'], 0); // 타임아웃 0은 무한 대기
+```
+
+블로킹 커맨드는 `commandTimeout`에 자신의 블로킹 타임아웃을 더한 별도 기한을 가집니다.
+기한이 지나면 연결을 리셋해서, 아무도 받지 못하는 값을 서버가 꺼내는 일이 없도록 합니다.
 
 </details>
 
@@ -242,6 +259,7 @@ _100,000번 반복 × 10,000 동시 실행 · 1 KB 페이로드 · 10회 측정_
 - 페이로드는 두 라이브러리가 공유하는 **결정론적 의사 난수 풀**을 사용합니다
 - 소요 시간은 전체 반복 샘플의 **중앙값**입니다
 - 분산은 **변동 계수** (σ / 중앙값 × 100%)입니다
+- 두 클라이언트 모두 **커맨드 타임아웃, 레디 체크, 재연결을 끈 상태**에서 무제한 오토 파이프라이닝으로 실행됩니다
 
 </div>
 
@@ -254,9 +272,9 @@ _100,000번 반복 × 10,000 동시 실행 · 1 KB 페이로드 · 10회 측정_
 ### <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/High%20Voltage.png?raw=true" alt="High Voltage" width="25" height="25" /> 성능
 
 - `setImmediate` 기반 파이프라인 자동 병합
-- 바이너리 세이프 RESP 파서와 독립 버퍼 반환
-- 백프레셔 대응 청크 단위 소켓 쓰기
-- 이벤트 루프 양보 포인트 설정 가능
+- 선형 시간 증분 RESP 파서
+- 64KB 이상 bulk 응답은 복사 없이 뷰로 반환
+- 파이프라인 단위 소켓 쓰기와 drain 백프레셔
 
 </td>
 <td width="50%" valign="top">
@@ -264,7 +282,8 @@ _100,000번 반복 × 10,000 동시 실행 · 1 KB 페이로드 · 10회 측정_
 ### <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Electric%20Plug.png?raw=true" alt="Electric Plug" width="25" height="25" /> 프로토콜
 
 - RESP2 + RESP3 와이어 레벨 풀 구현
-- 17가지 RESP3 데이터 타입 전부 지원 (Map, Set, Push, BigNumber, ...)
+- 15가지 RESP3 응답 타입 전부 지원 (Map, Set, Push, Attribute, BigNumber, ...)
+- RESP3 push가 커맨드 응답을 가로채지 않음
 - unsafe integer 자동 BigInt 변환
 - 바이너리 세이프, 멀티바이트 문자 정상 처리
 
@@ -275,9 +294,10 @@ _100,000번 반복 × 10,000 동시 실행 · 1 KB 페이로드 · 10회 측정_
 
 ### <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Shield.png?raw=true" alt="Shield" width="25" height="25" /> 안정성
 
-- 자동 재연결 (configurable backoff)
+- 지수 백오프 기반 자동 재연결
+- 핸드셰이크(AUTH, SELECT) 완료 전에는 커맨드를 보내지 않음
 - 재연결 시 SELECT, Pub/Sub 구독 자동 복구
-- 파이프라인 단위 커맨드 타임아웃
+- 파이프라인 단위 커맨드 타임아웃, 블로킹 커맨드는 별도 기한
 - Ready check로 서버 로딩 완료까지 대기
 - 장애 발생 시 in-flight 요청 즉시 reject
 
@@ -289,6 +309,7 @@ _100,000번 반복 × 10,000 동시 실행 · 1 KB 페이로드 · 10회 측정_
 - TLS/SSL 지원 (`rediss://` 또는 `tls` 옵션)
 - ACL 인증 (username/password)
 - 디버그 로그에서 자격 증명 자동 마스킹
+- 에러 메시지에 커맨드 인자를 절대 포함하지 않음
 - `maxBulkStringLength`로 비정상 응답 차단
 
 </td>
@@ -300,7 +321,7 @@ _100,000번 반복 × 10,000 동시 실행 · 1 KB 페이로드 · 10회 측정_
 
 - TypeScript `strict` 모드, 커맨드별 I/O 타입 정의
 - 런타임 응답 가드 (`tryReplyToString`, ...)
-- 구조화된 에러 계층 + cause chain
+- 구조화된 에러 계층 + 표준 `cause` 체인
 
 </td>
 <td width="50%" valign="top">
@@ -323,7 +344,7 @@ _100,000번 반복 × 10,000 동시 실행 · 1 KB 페이로드 · 10회 측정_
 ```typescript
 const client = new SolidisClient({
   // 연결
-  uri: 'redis://localhost:6379',
+  uri: 'redis://user:pass@localhost:6379/0', // redis[s]://[user[:password]@]host[:port][/db]
   host: '127.0.0.1',
   port: 6379,
   tls: { /* tls.ConnectionOptions */ },
@@ -341,7 +362,8 @@ const client = new SolidisClient({
   maxReadyCheckRetries: 100,
   readyCheckInterval: 100,
   maxConnectionRetries: 20,
-  connectionRetryDelay: 100,
+  connectionRetryDelay: 100,              // 실패할 때마다 두 배
+  maxConnectionRetryDelay: 2000,
   autoRecovery: {
     database: true,
     subscribe: true,
@@ -350,30 +372,26 @@ const client = new SolidisClient({
   },
 
   // 타임아웃 (ms)
-  commandTimeout: 5000,
+  commandTimeout: 5000,                   // 0이면 비활성화
   connectionTimeout: 2000,
-  socketWriteTimeout: 1000,
 
   // 성능 튜닝
   maxCommandsPerPipeline: 300,
-  maxProcessRepliesPerChunk: 4096,
-  maxProcessReplyBytesPerChunk: 8_388_608,  // 8MB
-  maxSocketWriteSizePerOnce: 65_536,        // 64KB
   rejectOnPartialPipelineError: false,
 
   // 파서
   parser: {
-    buffer: { initial: 4_194_304, shiftThreshold: 2_097_152 },
     maxBulkStringLength: 536_870_912,       // 512MB
   },
 
   // 기타
   maxEventListenersForClient: 10_240,
-  maxEventListenersForSocket: 10_240,
   debug: false,
   debugMaxEntries: 10_240,
 });
 ```
+
+직접 지정한 옵션이 `uri`의 각 부분보다 우선합니다.
 
 </details>
 
@@ -413,56 +431,65 @@ sequenceDiagram
   App->>Client: await client.set('key', 'value')
   Client->>Req: enqueue command
   Note over Req: setImmediate batching
-  Req->>Socket: write pipeline chunk
+  Req->>Socket: write pipeline
   Socket-->>Req: RESP reply bytes
   Req-->>Client: parsed reply
   Client-->>App: 'OK'
 ```
 
-| 모듈             | 역할                                              |
-| :--------------- | :------------------------------------------------ |
-| **Connection**   | TCP/TLS 소켓 관리, 재연결 백오프                  |
-| **Requester**    | 커맨드 큐, 파이프라인 청킹, 응답 매칭, 타임아웃   |
-| **Parser**       | RESP 디코딩, 버퍼 관리, 바이너리 세이프 응답 처리 |
-| **PubSub**       | 채널/패턴/샤드 상태 추적, 메시지 디스패치         |
-| **Debug Memory** | 링 버퍼 기반 디버그 로그, credential 마스킹       |
+| 모듈             | 역할                                            |
+| :--------------- | :---------------------------------------------- |
+| **Connection**   | TCP/TLS 소켓 관리, 재연결 백오프                |
+| **Requester**    | 커맨드 큐, 파이프라인 청킹, 응답 매칭, 타임아웃 |
+| **Parser**       | RESP 증분 디코딩, 바이너리 세이프 응답 처리     |
+| **PubSub**       | 채널/패턴/샤드 상태 추적, 메시지 디스패치       |
+| **Debug Memory** | 링 버퍼 기반 디버그 로그, credential 마스킹     |
 
 ## 이벤트
 
 ```typescript
-client.on('connect', () => {});         // TCP 연결 수립
-client.on('ready', () => {});           // 인증 완료, 커맨드 전송 가능
-client.on('reconnected', () => {});     // 재연결 성공
-client.on('end', () => {});             // 연결 종료
-client.on('error', (err) => {});        // 소켓/프로토콜 에러
-client.on('message', (ch, msg) => {});  // Pub/Sub 메시지 수신
-client.on('pmessage', (pat, ch, msg) => {});
-client.on('smessage', (ch, msg) => {}); // Shard 채널 메시지
-client.on('debug', (entry) => {});      // 디버그 로그 엔트리
+client.on('connect', () => {});                    // TCP 연결 수립
+client.on('ready', () => {});                      // 핸드셰이크 완료, 커맨드 전송 가능
+client.on('close', (error) => {});                 // 연결 끊김 (autoReconnect면 재연결)
+client.on('reconnecting', (attempt, delay) => {}); // 다음 재연결 시도 예약
+client.on('reconnected', () => {});                // 재연결 성공
+client.on('end', () => {});                        // 클라이언트 종료 (quit)
+client.on('error', (error) => {});                 // 소켓/프로토콜 에러
+client.on('message', (channel, message) => {});    // Pub/Sub 메시지 수신
+client.on('pmessage', (pattern, channel, message) => {});
+client.on('smessage', (channel, message) => {});   // Shard 채널 메시지
+client.on('push', (reply) => {});                  // 그 밖의 RESP3 push (예: client tracking)
+client.on('debug', (entry) => {});                 // 디버그 로그 엔트리
 ```
 
 ## 에러 처리
 
 ```typescript
-import { unwrapSolidisError, SolidisConnectionError, SolidisRequesterError } from '@vcms-io/solidis';
+import { RespError, SolidisCommandError, unwrapSolidisError } from '@vcms-io/solidis';
 
 try {
-  await client.set('key', 'value');
+  await client.incr('key');
 } catch (error) {
-  const root = unwrapSolidisError(error); // cause chain 전체 추적
+  if (error instanceof SolidisCommandError && error.cause instanceof RespError) {
+    console.log(error.cause.code); // 'WRONGTYPE', 'ERR', ...
+  }
+
+  const chain = unwrapSolidisError(error); // 에러와 모든 cause
 }
 ```
 
 > [!NOTE]
-> Solidis가 throw하는 모든 에러는 `SolidisError`를 상속합니다.
-> `unwrapSolidisError()`로 root cause까지 cause chain을 추적할 수 있습니다.
+> Solidis가 throw하는 모든 에러는 `SolidisError`를 상속하고, 원인은 표준 `cause`로 연결됩니다.
+> 메시지에는 커맨드 이름(`[INCR] ERR ...`)만 들어가고 인자는 절대 들어가지 않습니다.
 
-| 에러 클래스              | 발생 조건                                     |
-| :----------------------- | :-------------------------------------------- |
-| `SolidisConnectionError` | TCP/TLS 연결 실패, 타임아웃, 소켓 리셋        |
-| `SolidisRequesterError`  | 커맨드 타임아웃, 파이프라인 reject, 쓰기 실패 |
-| `SolidisParserError`     | 잘못된 RESP 포맷, bulk string 크기 초과       |
-| `SolidisPubSubError`     | 구독 상태 관련 에러                           |
+| 에러 클래스              | 발생 조건                                                 |
+| :----------------------- | :-------------------------------------------------------- |
+| `SolidisCommandError`    | 서버 에러 응답 (`cause`는 `RespError`), 예상과 다른 응답  |
+| `SolidisClientError`     | `commandTimeout` 안에 준비되지 않음, 인증 실패, quit 이후 |
+| `SolidisConnectionError` | TCP/TLS 연결 실패, 타임아웃, 연결 끊김                    |
+| `SolidisRequesterError`  | 커맨드 타임아웃, 빈 커맨드, MONITOR 또는 CLIENT REPLY OFF |
+| `SolidisParserError`     | 잘못된 RESP 포맷, bulk string 크기 초과                   |
+| `SolidisPubSubError`     | 잘못된 pub/sub 이벤트, 리스너 예외                        |
 
 ## 확장
 

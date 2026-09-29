@@ -28,8 +28,8 @@
 <table align="center">
 <tr>
 <td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Rocket.png?raw=true" alt="Rocket" width="32" height="32" /><br/><strong>0 deps</strong><br/><sub>zero dependencies</sub></td>
-<td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Package.png?raw=true" alt="Package" width="32" height="32" /><br/><strong>385</strong><br/><sub>commands</sub></td>
-<td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Test%20Tube.png?raw=true" alt="Test Tube" width="32" height="32" /><br/><strong>19K+</strong><br/><sub>lines of tests</sub></td>
+<td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Package.png?raw=true" alt="Package" width="32" height="32" /><br/><strong>383</strong><br/><sub>commands</sub></td>
+<td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Test%20Tube.png?raw=true" alt="Test Tube" width="32" height="32" /><br/><strong>25K+</strong><br/><sub>lines of tests</sub></td>
 <td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Animals/Feather.png?raw=true" alt="Feather" width="32" height="32" /><br/><strong>&lt; 29KB</strong><br/><sub>min bundle</sub></td>
 </tr>
 </table>
@@ -83,10 +83,10 @@ const client = new SolidisClient({ host: '127.0.0.1', port: 6379 }).extend(exten
 const tx = client.multi();
 tx.set('key', 'value');
 tx.incr('counter');
-const results = await tx.exec();
+const results = await tx.exec(); // null when a WATCHed key changed
 
 // Pipeline (raw)
-const results = await client.send([
+const replies = await client.send([
   ['set', 'a', '1'],
   ['incr', 'counter'],
   ['get', 'a']
@@ -106,6 +106,23 @@ client.on('message', (channel, message) => {
 });
 await client.subscribe('events');
 ```
+
+</details>
+
+<details>
+<summary>&nbsp;&nbsp;<b>Blocking commands</b></summary>
+
+<br/>
+
+```typescript
+// BLPOP & co. hold the whole connection until they return, so give them a dedicated client
+const worker = new SolidisFeaturedClient({ host: '127.0.0.1', port: 6379 });
+
+const job = await worker.blpop(['jobs'], 0); // a timeout of 0 waits forever
+```
+
+A blocking command gets its own deadline: `commandTimeout` plus its blocking timeout.
+When that deadline passes, the connection is reset so the server cannot pop a value nobody receives.
 
 </details>
 
@@ -242,6 +259,7 @@ _100,000 iterations × 10,000 concurrency · 1 KB payload · 10 repeats_
 - Payloads use a **deterministic pseudo-random pool** shared by both libraries
 - Elapsed time is the **median** across all repeat samples
 - Spread is the **coefficient of variation** (σ / median × 100%)
+- Both clients run with **command timeouts, ready checks and reconnects disabled** and unbounded auto-pipelining
 
 </div>
 
@@ -254,9 +272,9 @@ _100,000 iterations × 10,000 concurrency · 1 KB payload · 10 repeats_
 ### <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/High%20Voltage.png?raw=true" alt="High Voltage" width="25" height="25" /> Performance
 
 - `setImmediate` pipeline coalescing
-- Binary-safe RESP parser with owned buffers
-- Chunked socket writes with backpressure
-- Configurable event-loop yield points
+- Linear-time incremental RESP parser
+- Zero-copy views for bulk replies of 64KB and more
+- Whole-pipeline socket writes with drain backpressure
 
 </td>
 <td width="50%" valign="top">
@@ -264,7 +282,8 @@ _100,000 iterations × 10,000 concurrency · 1 KB payload · 10 repeats_
 ### <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Electric%20Plug.png?raw=true" alt="Electric Plug" width="25" height="25" /> Protocol
 
 - Full RESP2 + RESP3 wire-level implementation
-- All 17 RESP3 data types (Map, Set, Push, BigNumber, ...)
+- All 15 RESP3 reply types (Map, Set, Push, Attribute, BigNumber, ...)
+- RESP3 pushes never consume a command reply
 - Automatic BigInt promotion for unsafe integers
 - Binary-safe, multi-byte character support
 
@@ -275,9 +294,10 @@ _100,000 iterations × 10,000 concurrency · 1 KB payload · 10 repeats_
 
 ### <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Shield.png?raw=true" alt="Shield" width="25" height="25" /> Reliability
 
-- Auto-reconnect with configurable backoff
+- Auto-reconnect with exponential backoff
+- Commands wait until the handshake (AUTH, SELECT) is done
 - Auto-recovery: SELECT, Pub/Sub subscriptions
-- Per-pipeline command timeout
+- Per-pipeline command timeout; blocking commands get their own
 - Ready check (waits for server loading)
 - Deterministic in-flight rejection on fault
 
@@ -289,6 +309,7 @@ _100,000 iterations × 10,000 concurrency · 1 KB payload · 10 repeats_
 - TLS/SSL (`rediss://` or explicit `tls` option)
 - ACL username/password authentication
 - Credential masking in debug output
+- Error messages never include command arguments
 - `maxBulkStringLength` oversized reply guard
 
 </td>
@@ -300,7 +321,7 @@ _100,000 iterations × 10,000 concurrency · 1 KB payload · 10 repeats_
 
 - TypeScript `strict` with per-command I/O types
 - Runtime reply guards (`tryReplyToString`, ...)
-- Structured error hierarchy + causal chain
+- Structured error hierarchy with standard `cause` chains
 
 </td>
 <td width="50%" valign="top">
@@ -323,7 +344,7 @@ _100,000 iterations × 10,000 concurrency · 1 KB payload · 10 repeats_
 ```typescript
 const client = new SolidisClient({
   // Connection
-  uri: 'redis://localhost:6379',
+  uri: 'redis://user:pass@localhost:6379/0', // redis[s]://[user[:password]@]host[:port][/db]
   host: '127.0.0.1',
   port: 6379,
   tls: { /* tls.ConnectionOptions */ },
@@ -341,7 +362,8 @@ const client = new SolidisClient({
   maxReadyCheckRetries: 100,
   readyCheckInterval: 100,
   maxConnectionRetries: 20,
-  connectionRetryDelay: 100,
+  connectionRetryDelay: 100,              // doubled after every failed attempt
+  maxConnectionRetryDelay: 2000,
   autoRecovery: {
     database: true,
     subscribe: true,
@@ -350,30 +372,26 @@ const client = new SolidisClient({
   },
 
   // Timeouts (ms)
-  commandTimeout: 5000,
+  commandTimeout: 5000,                   // 0 disables it
   connectionTimeout: 2000,
-  socketWriteTimeout: 1000,
 
   // Performance
   maxCommandsPerPipeline: 300,
-  maxProcessRepliesPerChunk: 4096,
-  maxProcessReplyBytesPerChunk: 8_388_608,  // 8MB
-  maxSocketWriteSizePerOnce: 65_536,        // 64KB
   rejectOnPartialPipelineError: false,
 
   // Parser
   parser: {
-    buffer: { initial: 4_194_304, shiftThreshold: 2_097_152 },
     maxBulkStringLength: 536_870_912,       // 512MB
   },
 
   // Misc
   maxEventListenersForClient: 10_240,
-  maxEventListenersForSocket: 10_240,
   debug: false,
   debugMaxEntries: 10_240,
 });
 ```
+
+Explicit options take precedence over the parts of `uri`.
 
 </details>
 
@@ -413,7 +431,7 @@ sequenceDiagram
   App->>Client: await client.set('key', 'value')
   Client->>Req: enqueue command
   Note over Req: setImmediate batching
-  Req->>Socket: write pipeline chunk
+  Req->>Socket: write pipeline
   Socket-->>Req: RESP reply bytes
   Req-->>Client: parsed reply
   Client-->>App: 'OK'
@@ -422,39 +440,48 @@ sequenceDiagram
 ## Events
 
 ```typescript
-client.on('connect', () => {});         // TCP connected
-client.on('ready', () => {});           // Auth done, ready for commands
-client.on('reconnected', () => {});     // Re-established after disconnect
-client.on('end', () => {});             // Connection closed
-client.on('error', (err) => {});        // Non-fatal error
-client.on('message', (ch, msg) => {});  // Pub/Sub message
-client.on('pmessage', (pat, ch, msg) => {});
-client.on('smessage', (ch, msg) => {}); // Shard channel
-client.on('debug', (entry) => {});      // Debug log entry
+client.on('connect', () => {});                    // TCP connected
+client.on('ready', () => {});                      // Handshake done, ready for commands
+client.on('close', (error) => {});                 // Connection lost (reconnects when autoReconnect)
+client.on('reconnecting', (attempt, delay) => {}); // Next reconnect attempt scheduled
+client.on('reconnected', () => {});                // Re-established after disconnect
+client.on('end', () => {});                        // Client quit
+client.on('error', (error) => {});                 // Non-fatal error
+client.on('message', (channel, message) => {});    // Pub/Sub message
+client.on('pmessage', (pattern, channel, message) => {});
+client.on('smessage', (channel, message) => {});   // Shard channel
+client.on('push', (reply) => {});                  // Other RESP3 pushes (e.g. client tracking)
+client.on('debug', (entry) => {});                 // Debug log entry
 ```
 
 ## Error Handling
 
 ```typescript
-import { unwrapSolidisError, SolidisConnectionError, SolidisRequesterError } from '@vcms-io/solidis';
+import { RespError, SolidisCommandError, unwrapSolidisError } from '@vcms-io/solidis';
 
 try {
-  await client.set('key', 'value');
+  await client.incr('key');
 } catch (error) {
-  const root = unwrapSolidisError(error); // full causal chain
+  if (error instanceof SolidisCommandError && error.cause instanceof RespError) {
+    console.log(error.cause.code); // 'WRONGTYPE', 'ERR', ...
+  }
+
+  const chain = unwrapSolidisError(error); // the error and every cause
 }
 ```
 
 > [!NOTE]
-> Every error thrown by Solidis is an instance of `SolidisError`.
-> Use `unwrapSolidisError()` to traverse the full causal chain to the root cause.
+> Every error thrown by Solidis is an instance of `SolidisError` and links its origin through the standard `cause`.
+> Messages name the command (`[INCR] ERR ...`) but never include its arguments.
 
-| Error Class              | When                                               |
-| :----------------------- | :------------------------------------------------- |
-| `SolidisConnectionError` | TCP/TLS connect failure, timeout, reset            |
-| `SolidisRequesterError`  | Command timeout, pipeline rejection, write failure |
-| `SolidisParserError`     | Malformed RESP, oversized bulk string              |
-| `SolidisPubSubError`     | Subscription lifecycle error                       |
+| Error Class              | When                                                              |
+| :----------------------- | :---------------------------------------------------------------- |
+| `SolidisCommandError`    | Server error reply (`cause` is the `RespError`), unexpected reply |
+| `SolidisClientError`     | Not ready within `commandTimeout`, authentication failure, quit   |
+| `SolidisConnectionError` | TCP/TLS connect failure, timeout, connection lost                 |
+| `SolidisRequesterError`  | Command timeout, empty command, MONITOR or CLIENT REPLY OFF       |
+| `SolidisParserError`     | Malformed RESP, oversized bulk string                             |
+| `SolidisPubSubError`     | Malformed pub/sub event, throwing listener                        |
 
 ## Extensions
 
