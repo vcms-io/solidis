@@ -1,7 +1,7 @@
 import {
   buildCuckooFilterInsertCommand,
   executeCommand,
-  tryReplyToBooleanArray,
+  tryReplyToCuckooFilterInsertResults,
 } from './utils/index.ts';
 
 import type { CommandCuckooFilterInsertOptions } from '../index.ts';
@@ -23,6 +23,6 @@ export async function cfInsertnx<T>(
   return await executeCommand(
     this,
     createCommand(key, items, options),
-    tryReplyToBooleanArray,
+    tryReplyToCuckooFilterInsertResults,
   );
 }

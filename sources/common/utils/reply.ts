@@ -1,9 +1,30 @@
-import { RespError, SolidisPubSubEventNames } from '../../index.ts';
+import {
+  SolidisMessageEventNames,
+  SolidisPubSubEventNames,
+  SolidisSubscriptionEventNames,
+  SolidisUnsubscribeEventNames,
+} from '../constants.ts';
+import { RespError } from './error.ts';
 
-import type { SolidisData } from '../../index.ts';
+import type {
+  SolidisData,
+  SolidisMessageEventName,
+  SolidisSubscriptionEventName,
+  SolidisUnsubscribeEventName,
+} from '../../types/solidis.ts';
 
-const SolidisPubSubEventNameSet = new Set(SolidisPubSubEventNames);
-const SolidisMessageEventNameSet = new Set(SolidisPubSubEventNames.slice(0, 3));
+const SolidisPubSubEventNameSet: ReadonlySet<string> = new Set(
+  SolidisPubSubEventNames,
+);
+const SolidisMessageEventNameSet: ReadonlySet<string> = new Set(
+  SolidisMessageEventNames,
+);
+const SolidisSubscriptionEventNameSet: ReadonlySet<string> = new Set(
+  SolidisSubscriptionEventNames,
+);
+const SolidisUnsubscribeEventNameSet: ReadonlySet<string> = new Set(
+  SolidisUnsubscribeEventNames,
+);
 
 export function findErrorInReplies(replies: SolidisData): false | RespError {
   if (replies instanceof RespError) {
@@ -23,35 +44,38 @@ export function findErrorInReplies(replies: SolidisData): false | RespError {
   return false;
 }
 
-export function checkReplyIsArray(reply: SolidisData): reply is SolidisData[] {
-  if (!Array.isArray(reply)) {
-    return false;
-  }
-
-  if (reply.length < 1) {
-    return false;
-  }
-
-  return true;
-}
-
-function checkReplyEventName(
-  reply: SolidisData[],
-  nameSet: ReadonlySet<string> = SolidisPubSubEventNameSet,
-): boolean {
+function readEventName(reply: SolidisData[]) {
   const eventName = reply[0];
 
-  if (!Buffer.isBuffer(eventName)) {
-    return false;
-  }
-
-  return nameSet.has(eventName.toString('latin1'));
+  return Buffer.isBuffer(eventName) ? eventName.toString('latin1') : undefined;
 }
 
 export function checkReplyIsPubSubEvent(reply: SolidisData[]): boolean {
-  return checkReplyEventName(reply);
+  const eventName = readEventName(reply);
+
+  return eventName !== undefined && SolidisPubSubEventNameSet.has(eventName);
 }
 
-export function checkReplyIsMessageEvent(reply: SolidisData[]): boolean {
-  return checkReplyEventName(reply, SolidisMessageEventNameSet);
+export function getPubSubEventName(reply: SolidisData[]): string | undefined {
+  return reply.length >= 3 && checkReplyIsPubSubEvent(reply)
+    ? readEventName(reply)
+    : undefined;
+}
+
+export function isMessageEventName(
+  eventName: string,
+): eventName is SolidisMessageEventName {
+  return SolidisMessageEventNameSet.has(eventName);
+}
+
+export function isSubscriptionEventName(
+  eventName: string,
+): eventName is SolidisSubscriptionEventName {
+  return SolidisSubscriptionEventNameSet.has(eventName);
+}
+
+export function isUnsubscribeEventName(
+  eventName: string,
+): eventName is SolidisUnsubscribeEventName {
+  return SolidisUnsubscribeEventNameSet.has(eventName);
 }

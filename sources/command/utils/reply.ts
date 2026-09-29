@@ -1,27 +1,78 @@
-import { RespOK, SolidisCommandError } from '../../index.ts';
+import { SolidisCommandError } from '../../common/utils/error.ts';
+import { formatDouble, parseDouble } from '../../common/utils/number.ts';
+import { getCommandName } from '../../common/utils/request.ts';
+import { RespOK } from '../../types/resp.ts';
 
 import type {
   CommandGeoRadiusOptions,
   CommandGeoSearchOptions,
+} from '../../types/command.ts';
+import type {
   RespConfigInfo,
   RespGeoRadius,
   RespModuleInfo,
   RespSortedSetMember,
+  RespStreamDeletedEntry,
   RespStreamEntry,
+  RespStreamGroupReadResult,
   RespStreamReadResult,
+} from '../../types/resp.ts';
+import type {
   SolidisData,
   SolidisRecursiveStringRecord,
   StringOrBuffer,
-} from '../../index.ts';
+} from '../../types/solidis.ts';
 
 type CommandName = string | StringOrBuffer[];
 
 export const UnexpectedReplyPrefix = 'Unexpected reply';
-export const InvalidReplyPrefix = 'Invalid reply';
 
-export function newCommandError(message: string, prefix?: CommandName) {
-  return new SolidisCommandError(
-    `${prefix ? `[${Array.isArray(prefix) ? prefix.join(' ') : prefix}] ` : ''}${message}`,
+export function describeReply(reply: unknown): string {
+  if (reply === null) {
+    return 'null';
+  }
+
+  if (Buffer.isBuffer(reply)) {
+    return `Buffer(${reply.length})`;
+  }
+
+  if (Array.isArray(reply)) {
+    return `Array(${reply.length})`;
+  }
+
+  if (reply instanceof Map || reply instanceof Set) {
+    return `${reply.constructor.name}(${reply.size})`;
+  }
+
+  if (reply instanceof Error) {
+    return reply.name;
+  }
+
+  return typeof reply;
+}
+
+export function newCommandError(
+  message: string,
+  commandName?: CommandName,
+  cause?: unknown,
+) {
+  if (commandName === undefined) {
+    return new SolidisCommandError(message, cause);
+  }
+
+  const name =
+    typeof commandName === 'string' ? commandName : getCommandName(commandName);
+
+  return new SolidisCommandError(`[${name}] ${message}`, cause);
+}
+
+export function newUnexpectedReplyError(
+  reply: unknown,
+  commandName?: CommandName,
+) {
+  return newCommandError(
+    `${UnexpectedReplyPrefix}: ${describeReply(reply)}`,
+    commandName,
   );
 }
 
@@ -29,23 +80,38 @@ export function escapeReply(reply: SolidisData[][]): SolidisData {
   return reply[0]?.[0];
 }
 
+export function setRecordEntry<T>(
+  record: Record<string, T>,
+  key: string,
+  value: T,
+) {
+  if (key === '__proto__') {
+    Object.defineProperty(record, key, {
+      value,
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+
+    return;
+  }
+
+  record[key] = value;
+}
+
 export function tryReplyOK(reply: unknown, commandName?: CommandName): RespOK {
-  if (typeof reply === 'string' && reply === RespOK) {
+  if (reply === RespOK) {
     return RespOK;
   }
 
-  throw newCommandError(`${InvalidReplyPrefix}: ${reply}`, commandName);
+  throw newUnexpectedReplyError(reply, commandName);
 }
 
 export function tryReplyOKOrNull(
   reply: unknown,
   commandName?: CommandName,
 ): RespOK | null {
-  if (reply === null) {
-    return null;
-  }
-
-  return tryReplyOK(reply, commandName);
+  return reply === null ? null : tryReplyOK(reply, commandName);
 }
 
 export function tryReplyToBoolean(
@@ -56,33 +122,35 @@ export function tryReplyToBoolean(
     return reply;
   }
 
-  if (typeof reply === 'number' && (reply === 0 || reply === 1)) {
+  if (reply === 0 || reply === 1) {
     return reply === 1;
   }
 
-  throw newCommandError(`${InvalidReplyPrefix}: ${reply}`, commandName);
+  throw newUnexpectedReplyError(reply, commandName);
 }
 
 export function tryReplyToBooleanArray(
   reply: unknown,
   commandName?: CommandName,
 ): boolean[] {
-  if (!Array.isArray(reply)) {
-    throw newCommandError(`${InvalidReplyPrefix}: ${reply}`, commandName);
-  }
-
-  return reply.map((value) => tryReplyToBoolean(value, commandName));
+  return tryReplyArray(reply, commandName).map((value) =>
+    tryReplyToBoolean(value, commandName),
+  );
 }
 
 export function tryReplyToString(
   reply: unknown,
   commandName?: CommandName,
 ): string {
-  if (!(typeof reply === 'string' || reply instanceof Buffer)) {
-    throw newCommandError(`${InvalidReplyPrefix}: ${reply}`, commandName);
+  if (typeof reply === 'string') {
+    return reply;
   }
 
-  return reply.toString();
+  if (Buffer.isBuffer(reply)) {
+    return reply.toString();
+  }
+
+  throw newUnexpectedReplyError(reply, commandName);
 }
 
 export function tryReplyToStringOrNull(
@@ -96,7 +164,7 @@ export function tryReplyToBinaryString(
   reply: unknown,
   commandName?: CommandName,
 ): string {
-  if (reply instanceof Buffer) {
+  if (Buffer.isBuffer(reply)) {
     return reply.toString('latin1');
   }
 
@@ -104,7 +172,7 @@ export function tryReplyToBinaryString(
     return reply;
   }
 
-  throw newCommandError(`${InvalidReplyPrefix}: ${reply}`, commandName);
+  throw newUnexpectedReplyError(reply, commandName);
 }
 
 export function tryReplyToBinaryStringOrNull(
@@ -122,7 +190,14 @@ export function tryReplyNumber(
     return reply;
   }
 
-  throw newCommandError(`${InvalidReplyPrefix}: ${reply}`, commandName);
+  if (typeof reply === 'bigint') {
+    throw newCommandError(
+      `${UnexpectedReplyPrefix}: integer exceeds Number.MAX_SAFE_INTEGER`,
+      commandName,
+    );
+  }
+
+  throw newUnexpectedReplyError(reply, commandName);
 }
 
 export function tryReplyNumberOrNull(
@@ -140,13 +215,24 @@ export function tryReplyToNumber(
     return reply;
   }
 
-  const numberValue = Number(reply);
-
-  if (Number.isNaN(numberValue)) {
-    throw newCommandError(`${InvalidReplyPrefix}: ${reply}`, commandName);
+  if (typeof reply === 'boolean') {
+    return reply ? 1 : 0;
   }
 
-  return numberValue;
+  if (typeof reply === 'bigint') {
+    return tryReplyNumber(reply, commandName);
+  }
+
+  const value =
+    typeof reply === 'string' || Buffer.isBuffer(reply)
+      ? parseDouble(reply.toString())
+      : undefined;
+
+  if (value === undefined) {
+    throw newUnexpectedReplyError(reply, commandName);
+  }
+
+  return value;
 }
 
 export function tryReplyToNumberOrNull(
@@ -156,20 +242,31 @@ export function tryReplyToNumberOrNull(
   return reply === null ? null : tryReplyToNumber(reply, commandName);
 }
 
+export function tryReplyToDoubleString(
+  reply: unknown,
+  commandName?: CommandName,
+): string {
+  if (typeof reply === 'number') {
+    return formatDouble(reply);
+  }
+
+  return tryReplyToString(reply, commandName);
+}
+
 export function processPairedArray(
   array: unknown,
   processor: (key: string, value: unknown) => void,
   commandName?: CommandName,
 ) {
   if (!Array.isArray(array) && !(array instanceof Map)) {
-    throw newCommandError(`${InvalidReplyPrefix}: ${array}`, commandName);
+    throw newUnexpectedReplyError(array, commandName);
   }
 
   const targetArray = Array.isArray(array) ? array : Array.from(array).flat();
 
   if (targetArray.length % 2 !== 0) {
     throw newCommandError(
-      `${InvalidReplyPrefix}: expected even-length array, got ${targetArray.length}`,
+      `${UnexpectedReplyPrefix}: expected even-length array, got ${targetArray.length}`,
       commandName,
     );
   }
@@ -178,21 +275,23 @@ export function processPairedArray(
     const key = targetArray[index];
     const value = targetArray[index + 1];
 
-    const isBufferKey = Buffer.isBuffer(key);
-
-    processor(isBufferKey ? key.toString() : `${key}`, value);
+    processor(Buffer.isBuffer(key) ? key.toString() : `${key}`, value);
   }
 }
 
-export function tryReplyArray<T>(
-  reply: T,
+export function tryReplyArray(
+  reply: unknown,
   commandName?: CommandName,
-): T extends unknown[] ? T : T[] {
-  if (!Array.isArray(reply)) {
-    throw newCommandError(`${InvalidReplyPrefix}: ${reply}`, commandName);
+): unknown[] {
+  if (Array.isArray(reply)) {
+    return reply;
   }
 
-  return reply as T extends unknown[] ? T : T[];
+  if (reply instanceof Set) {
+    return Array.from(reply);
+  }
+
+  throw newUnexpectedReplyError(reply, commandName);
 }
 
 export function tryReplyToStringArray(
@@ -214,17 +313,11 @@ export function tryReplyToStringArray(
   commandName?: CommandName,
   nullable = false,
 ): string[] | (string | null)[] {
-  if (!Array.isArray(reply) && !(reply instanceof Set)) {
-    throw newCommandError(`${InvalidReplyPrefix}: ${reply}`, commandName);
-  }
-
-  return (Array.isArray(reply) ? reply : Array.from(reply)).map((item) => {
-    if (nullable) {
-      return tryReplyToStringOrNull(item, commandName);
-    }
-
-    return tryReplyToString(item, commandName);
-  });
+  return tryReplyArray(reply, commandName).map((item) =>
+    nullable
+      ? tryReplyToStringOrNull(item, commandName)
+      : tryReplyToString(item, commandName),
+  );
 }
 
 export function tryReplyToNullableStringArray(
@@ -253,17 +346,11 @@ export function tryReplyToNumberArray(
   commandName?: CommandName,
   nullable = false,
 ): number[] | (number | null)[] {
-  if (!Array.isArray(reply)) {
-    throw newCommandError(`${InvalidReplyPrefix}: ${reply}`, commandName);
-  }
-
-  return reply.map((value) => {
-    if (nullable) {
-      return tryReplyToNumberOrNull(value, commandName);
-    }
-
-    return tryReplyToNumber(value, commandName);
-  });
+  return tryReplyArray(reply, commandName).map((value) =>
+    nullable
+      ? tryReplyToNumberOrNull(value, commandName)
+      : tryReplyToNumber(value, commandName),
+  );
 }
 
 export function tryReplyToNullableNumberArray(
@@ -277,14 +364,10 @@ export function tryReplyToSortedSetMembers(
   reply: unknown,
   commandName?: CommandName,
 ): RespSortedSetMember[] {
-  if (!Array.isArray(reply)) {
-    throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, commandName);
-  }
-
   const result: RespSortedSetMember[] = [];
 
   processPairedArray(
-    reply.flat(),
+    tryReplyArray(reply, commandName).flat(),
     (member, score) => {
       result.push({ member, score: tryReplyToNumber(score, commandName) });
     },
@@ -306,15 +389,9 @@ export function tryReplyToStringsOrSortedSetMembers(
   commandName: CommandName | undefined,
   withScores: boolean | undefined,
 ): string[] | RespSortedSetMember[] {
-  if (!Array.isArray(reply)) {
-    throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, commandName);
-  }
-
-  if (!withScores) {
-    return tryReplyToStringArray(reply, commandName);
-  }
-
-  return tryReplyToSortedSetMembers(reply, commandName);
+  return withScores
+    ? tryReplyToSortedSetMembers(reply, commandName)
+    : tryReplyToStringArray(reply, commandName);
 }
 
 export function tryReplyToKeyValuePairOrNull(
@@ -325,18 +402,16 @@ export function tryReplyToKeyValuePairOrNull(
     return null;
   }
 
-  if (Array.isArray(reply) && reply.length === 2) {
-    const [key, value] = reply;
+  const pair = tryReplyArray(reply, commandName);
 
-    if (
-      (typeof key === 'string' || key instanceof Buffer) &&
-      (typeof value === 'string' || value instanceof Buffer)
-    ) {
-      return [`${key}`, `${value}`];
-    }
+  if (pair.length !== 2) {
+    throw newUnexpectedReplyError(reply, commandName);
   }
 
-  throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, commandName);
+  return [
+    tryReplyToString(pair[0], commandName),
+    tryReplyToString(pair[1], commandName),
+  ];
 }
 
 export function tryReplyToKeyMemberScoreOrNull(
@@ -347,21 +422,59 @@ export function tryReplyToKeyMemberScoreOrNull(
     return null;
   }
 
-  if (Array.isArray(reply) && reply.length === 3) {
-    const [key, member, score] = reply;
+  const triple = tryReplyArray(reply, commandName);
 
-    if (
-      (typeof key === 'string' || key instanceof Buffer) &&
-      (typeof member === 'string' || member instanceof Buffer) &&
-      (typeof score === 'string' ||
-        typeof score === 'number' ||
-        score instanceof Buffer)
-    ) {
-      return [`${key}`, `${member}`, `${score}`];
-    }
+  if (triple.length !== 3) {
+    throw newUnexpectedReplyError(reply, commandName);
   }
 
-  throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, commandName);
+  return [
+    tryReplyToString(triple[0], commandName),
+    tryReplyToString(triple[1], commandName),
+    tryReplyToDoubleString(triple[2], commandName),
+  ];
+}
+
+export function tryReplyToCuckooFilterInsertResults(
+  reply: unknown,
+  commandName?: CommandName,
+): boolean[] {
+  return tryReplyArray(reply, commandName).map((value) =>
+    value === -1 ? false : tryReplyToBoolean(value, commandName),
+  );
+}
+
+export function tryReplyToJsonNumbers(
+  reply: unknown,
+  commandName?: CommandName,
+): (number | null)[] {
+  if (Array.isArray(reply)) {
+    return tryReplyToNullableNumberArray(reply, commandName);
+  }
+
+  return [tryReplyToNumberOrNull(reply, commandName)];
+}
+
+export function tryReplyToJsonNumberText(
+  reply: unknown,
+  path: string,
+  commandName?: CommandName,
+): string | null {
+  if (reply === null) {
+    return null;
+  }
+
+  if (!Array.isArray(reply)) {
+    return tryReplyToString(reply, commandName);
+  }
+
+  const values = tryReplyToNullableNumberArray(reply, commandName);
+
+  if (!path.startsWith('$') && values.length === 1) {
+    return `${values[0]}`;
+  }
+
+  return JSON.stringify(values);
 }
 
 export function tryReplyToNumberScalarOrArray(
@@ -394,10 +507,6 @@ export function tryReplyToMap(
     return reply;
   }
 
-  if (!Array.isArray(reply)) {
-    throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, commandName);
-  }
-
   const map = new Map<unknown, unknown>();
 
   processPairedArray(
@@ -420,7 +529,7 @@ export function tryReplyToStringRecord(
   processPairedArray(
     fields,
     (key, value) => {
-      result[key] = tryReplyToString(value, commandName);
+      setRecordEntry(result, key, tryReplyToString(value, commandName));
     },
     commandName,
   );
@@ -438,13 +547,13 @@ export function tryReplyToStringRecordRecursively(
     reply,
     (key, value) => {
       if (Array.isArray(value) || value instanceof Map) {
-        result[key] = tryReplyToStringRecordRecursively(value, commandName);
-
-        return;
-      }
-
-      if (typeof value === 'string' || value instanceof Buffer) {
-        result[key] = tryReplyToString(value, commandName);
+        setRecordEntry(
+          result,
+          key,
+          tryReplyToStringRecordRecursively(value, commandName),
+        );
+      } else if (typeof value === 'string' || Buffer.isBuffer(value)) {
+        setRecordEntry(result, key, tryReplyToString(value, commandName));
       }
     },
     commandName,
@@ -455,12 +564,7 @@ export function tryReplyToStringRecordRecursively(
 
 export function tryReplyToModuleInfo(modules: unknown): RespModuleInfo {
   const commandName = 'MODULE';
-
-  if (!Array.isArray(modules) && !(modules instanceof Map)) {
-    throw newCommandError(`${UnexpectedReplyPrefix}: ${modules}`, commandName);
-  }
-
-  const moduleData = tryReplyToMap(modules);
+  const moduleData = tryReplyToMap(modules, commandName);
 
   const name = moduleData.get('name');
   const version = moduleData.get('ver');
@@ -469,7 +573,7 @@ export function tryReplyToModuleInfo(modules: unknown): RespModuleInfo {
 
   if (name === undefined || version === undefined) {
     throw newCommandError(
-      `${InvalidReplyPrefix}: Missing required ${commandName} fields: ${modules}`,
+      `${UnexpectedReplyPrefix}: missing name or ver`,
       commandName,
     );
   }
@@ -492,10 +596,9 @@ export function tryReplyToModuleInfo(modules: unknown): RespModuleInfo {
 
 export function tryReplyToConfigInfo(reply: unknown): RespConfigInfo {
   const result: RespConfigInfo = {};
-  const map = tryReplyToMap(reply);
 
-  for (const [key, value] of map) {
-    result[`${key}`] = tryReplyToString(value, 'CONFIG');
+  for (const [key, value] of tryReplyToMap(reply, 'CONFIG')) {
+    setRecordEntry(result, `${key}`, tryReplyToString(value, 'CONFIG'));
   }
 
   return result;
@@ -506,65 +609,38 @@ export function tryReplyToGeoRadius(
   commandName: CommandName,
   options?: CommandGeoSearchOptions | CommandGeoRadiusOptions,
 ): RespGeoRadius[] {
-  if (!Array.isArray(reply)) {
-    throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, commandName);
-  }
-
-  return reply.map((item) => {
-    if (typeof item === 'string' || item instanceof Buffer) {
+  return tryReplyArray(reply, commandName).map((item) => {
+    if (typeof item === 'string' || Buffer.isBuffer(item)) {
       return { member: tryReplyToString(item, commandName) };
     }
 
-    if (!Array.isArray(item)) {
-      throw newCommandError(`${UnexpectedReplyPrefix}: ${item}`, commandName);
-    }
-
+    const fields = tryReplyArray(item, commandName);
     const result: RespGeoRadius = {
-      member: tryReplyToString(item[0], commandName),
+      member: tryReplyToString(fields[0], commandName),
     };
 
     let currentIndex = 1;
 
     if (options?.withDist) {
-      const distance = item[currentIndex++];
-
-      /** RESP2 sends the distance as a bulk string, RESP3 as a native double. */
-      if (
-        typeof distance === 'number' ||
-        typeof distance === 'string' ||
-        distance instanceof Buffer
-      ) {
-        result.distance = Number.parseFloat(`${distance}`);
-      }
+      result.distance = tryReplyToNumber(fields[currentIndex], commandName);
+      currentIndex += 1;
     }
 
     if (options?.withHash) {
-      const hash = item[currentIndex++];
-
-      if (typeof hash === 'number') {
-        result.hash = hash;
-      } else if (typeof hash === 'string' || hash instanceof Buffer) {
-        result.hash = Number.parseInt(`${hash}`, 10);
-      }
+      result.hash = tryReplyToNumber(fields[currentIndex], commandName);
+      currentIndex += 1;
     }
 
     if (options?.withCoord) {
-      const coordinates = item[currentIndex++];
+      const [longitude, latitude] = tryReplyArray(
+        fields[currentIndex],
+        commandName,
+      );
 
-      if (Array.isArray(coordinates) && coordinates.length === 2) {
-        const [longitude, latitude] = coordinates;
-
-        /** Coordinates are bulk strings under RESP2 and native doubles under RESP3. */
-        const parsedLongitude = Number.parseFloat(`${longitude}`);
-        const parsedLatitude = Number.parseFloat(`${latitude}`);
-
-        if (!Number.isNaN(parsedLongitude) && !Number.isNaN(parsedLatitude)) {
-          result.position = {
-            longitude: parsedLongitude,
-            latitude: parsedLatitude,
-          };
-        }
-      }
+      result.position = {
+        longitude: tryReplyToNumber(longitude, commandName),
+        latitude: tryReplyToNumber(latitude, commandName),
+      };
     }
 
     return result;
@@ -573,61 +649,82 @@ export function tryReplyToGeoRadius(
 
 export function tryReplyToScan(
   reply: unknown,
+  commandName?: CommandName,
 ): [cursor: string, elements: unknown[]] {
-  const commandName = 'SCAN';
+  const scan = tryReplyArray(reply, commandName);
 
-  if (!Array.isArray(reply) || reply.length !== 2) {
-    throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, commandName);
+  if (scan.length !== 2) {
+    throw newUnexpectedReplyError(reply, commandName);
   }
 
-  const [cursor, elements] = reply;
-
-  if (!Array.isArray(elements)) {
-    throw newCommandError(`${InvalidReplyPrefix}: ${elements}`, commandName);
-  }
-
-  return [tryReplyToString(cursor), elements];
+  return [
+    tryReplyToString(scan[0], commandName),
+    tryReplyArray(scan[1], commandName),
+  ];
 }
 
-export function tryReplyToStreamEntry(entry: unknown): RespStreamEntry {
-  if (!Array.isArray(entry) || entry.length !== 2) {
-    throw newCommandError(`${InvalidReplyPrefix}: ${entry}`, 'STREAM');
+function tryReplyToStreamPair(entry: unknown, commandName?: CommandName) {
+  const pair = tryReplyArray(entry, commandName);
+
+  if (pair.length !== 2) {
+    throw newUnexpectedReplyError(entry, commandName);
   }
 
-  const [id, fields] = entry;
+  return pair;
+}
+
+export function tryReplyToStreamEntry(
+  entry: unknown,
+  commandName?: CommandName,
+): RespStreamEntry {
+  const [id, fields] = tryReplyToStreamPair(entry, commandName);
 
   return {
-    id: `${id}`,
-    fields: tryReplyToStringRecord(fields),
+    id: tryReplyToString(id, commandName),
+    fields: tryReplyToStringRecord(fields, commandName),
   };
+}
+
+export function tryReplyToStreamEntryOrDeleted(
+  entry: unknown,
+  commandName?: CommandName,
+): RespStreamEntry | RespStreamDeletedEntry {
+  const [id, fields] = tryReplyToStreamPair(entry, commandName);
+
+  if (fields === null) {
+    return { id: tryReplyToString(id, commandName), fields };
+  }
+
+  return {
+    id: tryReplyToString(id, commandName),
+    fields: tryReplyToStringRecord(fields, commandName),
+  };
+}
+
+function tryReplyToStreams<T>(
+  reply: unknown,
+  commandName: CommandName | undefined,
+  parseEntry: (entry: unknown, commandName?: CommandName) => T,
+) {
+  const streams = reply instanceof Map ? Array.from(reply.entries()) : reply;
+
+  return tryReplyArray(streams, commandName).map((stream) => {
+    const [name, entries] = tryReplyToStreamPair(stream, commandName);
+
+    return {
+      stream: tryReplyToString(name, commandName),
+      entries: tryReplyArray(entries, commandName).map((entry) =>
+        parseEntry(entry, commandName),
+      ),
+    };
+  });
 }
 
 export function tryReplyToStreamReadResults(
   reply: unknown,
   commandName?: CommandName,
 ): RespStreamReadResult[] {
-  const streams = reply instanceof Map ? Array.from(reply.entries()) : reply;
-
-  if (!Array.isArray(streams)) {
-    throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, commandName);
-  }
-
-  return streams.map((stream): RespStreamReadResult => {
-    if (!Array.isArray(stream) || stream.length !== 2) {
-      throw newCommandError(`${InvalidReplyPrefix}: ${stream}`, commandName);
-    }
-
-    const [name, entries] = stream;
-
-    if (!Array.isArray(entries)) {
-      throw newCommandError(`${InvalidReplyPrefix}: ${entries}`, commandName);
-    }
-
-    return {
-      stream: String(name),
-      entries: entries.map((entry) => tryReplyToStreamEntry(entry)),
-    };
-  });
+  return tryReplyToStreams(reply, commandName, tryReplyToStreamEntry);
 }
 
 export function tryReplyToStreamReadResultsOrNull(
@@ -639,41 +736,39 @@ export function tryReplyToStreamReadResultsOrNull(
     : tryReplyToStreamReadResults(reply, commandName);
 }
 
+export function tryReplyToStreamGroupReadResultsOrNull(
+  reply: unknown,
+  commandName?: CommandName,
+): RespStreamGroupReadResult[] | null {
+  return reply === null
+    ? null
+    : tryReplyToStreams(reply, commandName, tryReplyToStreamEntryOrDeleted);
+}
+
 export function tryReplyToStreamEntries(
   reply: unknown,
   commandName?: CommandName,
 ): RespStreamEntry[] {
-  if (!Array.isArray(reply)) {
-    throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, commandName);
-  }
-
-  return reply.map(tryReplyToStreamEntry);
+  return tryReplyArray(reply, commandName).map((entry) =>
+    tryReplyToStreamEntry(entry, commandName),
+  );
 }
 
 export function tryReplyToTimeSeriesSamples(
   reply: unknown,
   commandName?: CommandName,
 ): Array<{ timestamp: number; value: number }> {
-  if (!Array.isArray(reply)) {
-    throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, commandName);
-  }
+  return tryReplyArray(reply, commandName).map((sample) => {
+    const pair = tryReplyArray(sample, commandName);
 
-  return reply.map((sample) => {
-    if (!Array.isArray(sample) || sample.length !== 2) {
-      throw newCommandError(`${InvalidReplyPrefix}: ${sample}`, commandName);
+    if (pair.length !== 2) {
+      throw newUnexpectedReplyError(sample, commandName);
     }
 
-    const parsedTimestamp = Number(sample[0]);
-    const parsedValue = Number(sample[1]);
-
-    if (Number.isNaN(parsedTimestamp) || Number.isNaN(parsedValue)) {
-      throw newCommandError(
-        `${InvalidReplyPrefix}: ${sample[0]}/${sample[1]}`,
-        commandName,
-      );
-    }
-
-    return { timestamp: parsedTimestamp, value: parsedValue };
+    return {
+      timestamp: tryReplyToNumber(pair[0], commandName),
+      value: tryReplyToNumber(pair[1], commandName),
+    };
   });
 }
 
@@ -684,55 +779,24 @@ export function tryReplyToTimeSeriesMultiRangeResults(
   key: string;
   samples: Array<{ timestamp: number; value: number }>;
 }> {
-  if (reply instanceof Map) {
-    const results: Array<{
-      key: string;
-      samples: Array<{ timestamp: number; value: number }>;
-    }> = [];
+  const series =
+    reply instanceof Map
+      ? Array.from(reply, ([key, value]) => [
+          key,
+          ...tryReplyArray(value, commandName),
+        ])
+      : tryReplyArray(reply, commandName);
 
-    for (const [key, value] of reply) {
-      if (!Array.isArray(value)) {
-        throw newCommandError(`${InvalidReplyPrefix}: ${value}`, commandName);
-      }
+  return series.map((item) => {
+    const fields = tryReplyArray(item, commandName);
 
-      const samples = value[value.length - 1];
-
-      if (!Array.isArray(samples)) {
-        throw newCommandError(`${InvalidReplyPrefix}: ${samples}`, commandName);
-      }
-
-      results.push({
-        key: `${key}`,
-        samples: tryReplyToTimeSeriesSamples(samples, commandName),
-      });
-    }
-
-    return results;
-  }
-
-  if (!Array.isArray(reply)) {
-    throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, commandName);
-  }
-
-  return reply.map((item) => {
-    if (!Array.isArray(item) || item.length < 2) {
-      throw newCommandError(`${InvalidReplyPrefix}: ${item}`, commandName);
-    }
-
-    const key = item[0];
-    const samples = item[item.length - 1];
-
-    if (typeof key !== 'string' && !(key instanceof Buffer)) {
-      throw newCommandError(`${InvalidReplyPrefix}: ${key}`, commandName);
-    }
-
-    if (!Array.isArray(samples)) {
-      throw newCommandError(`${InvalidReplyPrefix}: ${samples}`, commandName);
+    if (fields.length < 2) {
+      throw newUnexpectedReplyError(item, commandName);
     }
 
     return {
-      key: `${key}`,
-      samples: tryReplyToTimeSeriesSamples(samples, commandName),
+      key: tryReplyToString(fields[0], commandName),
+      samples: tryReplyToTimeSeriesSamples(fields.at(-1), commandName),
     };
   });
 }
@@ -746,23 +810,15 @@ export function tryReplyToKeyElementsOrNull<T>(
     return null;
   }
 
-  if (!Array.isArray(reply) || reply.length !== 2) {
-    throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, commandName);
-  }
+  const pair = tryReplyArray(reply, commandName);
 
-  const [key, elements] = reply;
-
-  if (!(typeof key === 'string' || key instanceof Buffer)) {
-    throw newCommandError(`${UnexpectedReplyPrefix}: ${key}`, commandName);
-  }
-
-  if (!Array.isArray(elements)) {
-    throw newCommandError(`${UnexpectedReplyPrefix}: ${elements}`, commandName);
+  if (pair.length !== 2) {
+    throw newUnexpectedReplyError(reply, commandName);
   }
 
   return {
-    key: `${key}`,
-    elements: parseElements(elements, commandName),
+    key: tryReplyToString(pair[0], commandName),
+    elements: parseElements(tryReplyArray(pair[1], commandName), commandName),
   };
 }
 
@@ -775,7 +831,7 @@ export function tryReplyToNumberRecord(
   processPairedArray(
     reply,
     (key, value) => {
-      result[key] = tryReplyNumber(value, commandName);
+      setRecordEntry(result, key, tryReplyNumber(value, commandName));
     },
     commandName,
   );
@@ -798,25 +854,18 @@ export function tryReplyToScanDump(
   commandName?: CommandName,
   nullable?: boolean,
 ): [nextIterator: number, data: Buffer | null] {
-  if (Array.isArray(reply) && reply.length === 2) {
-    const [nextIterator, data] = reply;
+  const pair = tryReplyArray(reply, commandName);
+  const data = pair[1];
 
-    if (data === null) {
-      if (nullable) {
-        return [Number(nextIterator), null];
-      }
-
-      throw newCommandError(`${InvalidReplyPrefix}: ${data}`, commandName);
-    }
-
-    if (data instanceof Buffer) {
-      return [Number(nextIterator), data];
-    }
-
-    throw newCommandError(`${InvalidReplyPrefix}: ${data}`, commandName);
+  if (pair.length !== 2) {
+    throw newUnexpectedReplyError(reply, commandName);
   }
 
-  throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, commandName);
+  if (Buffer.isBuffer(data) || (data === null && nullable)) {
+    return [tryReplyToNumber(pair[0], commandName), data];
+  }
+
+  throw newUnexpectedReplyError(data, commandName);
 }
 
 export function tryReplyToKeyStringElementsOrNull(

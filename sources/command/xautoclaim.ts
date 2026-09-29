@@ -1,9 +1,9 @@
 import {
   executeCommand,
-  newCommandError,
+  newUnexpectedReplyError,
   tryReplyToStreamEntry,
   tryReplyToString,
-  UnexpectedReplyPrefix,
+  tryReplyToStringArray,
 } from './utils/index.ts';
 
 import type { RespStreamAutoClaimResult } from '../index.ts';
@@ -45,30 +45,29 @@ export async function xautoclaim<T>(
     createCommand(key, group, consumer, minIdleTime, start, count, justid),
     (reply, command) => {
       if (Array.isArray(reply) && (reply.length === 2 || reply.length === 3)) {
-        const [nextId, entries] = reply;
+        const [nextId, entries, deletedIds] = reply;
 
         if (
           (typeof nextId === 'string' || nextId instanceof Buffer) &&
           Array.isArray(entries)
         ) {
-          if (justid) {
-            return {
-              nextId: `${nextId}`,
-              entries: entries.map((entry) => ({
-                id: tryReplyToString(entry),
-                fields: {},
-              })),
-            };
-          }
-
           return {
             nextId: `${nextId}`,
-            entries: entries.map(tryReplyToStreamEntry),
+            entries: justid
+              ? entries.map((entry) => ({
+                  id: tryReplyToString(entry, command),
+                  fields: {},
+                }))
+              : entries.map((entry) => tryReplyToStreamEntry(entry, command)),
+            deletedIds:
+              deletedIds === undefined
+                ? []
+                : tryReplyToStringArray(deletedIds, command),
           };
         }
       }
 
-      throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
+      throw newUnexpectedReplyError(reply, command);
     },
   );
 }

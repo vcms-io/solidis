@@ -1,9 +1,7 @@
 import {
   executeCommand,
-  InvalidReplyPrefix,
-  newCommandError,
+  newUnexpectedReplyError,
   tryReplyToStringArray,
-  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type { RespCommandKeyFlag } from '../index.ts';
@@ -24,13 +22,13 @@ export async function commandGetkeysandflags<T>(
       if (Array.isArray(reply)) {
         return reply.map((item) => {
           if (!Array.isArray(item) || item.length !== 2) {
-            throw newCommandError(`${InvalidReplyPrefix}: ${item}`, command);
+            throw newUnexpectedReplyError(item, command);
           }
 
           const [key, flags] = item;
 
           if (!(typeof key === 'string' || key instanceof Buffer)) {
-            throw newCommandError(`${InvalidReplyPrefix}: ${key}`, command);
+            throw newUnexpectedReplyError(key, command);
           }
 
           return {
@@ -40,7 +38,7 @@ export async function commandGetkeysandflags<T>(
         });
       }
 
-      throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
+      throw newUnexpectedReplyError(reply, command);
     },
   );
 }

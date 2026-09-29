@@ -17,12 +17,18 @@ export function createCommand(
   by: CommandGeoSearchByOptions,
   options?: CommandGeoSearchStoreOptions,
 ) {
-  return buildGeoSearchCommand(
+  const command = buildGeoSearchCommand(
     ['GEOSEARCHSTORE', destination, source],
     from,
     by,
     options,
   );
+
+  if (options?.storedist) {
+    command.push('STOREDIST');
+  }
+
+  return command;
 }
 
 export async function geosearchstore<T>(

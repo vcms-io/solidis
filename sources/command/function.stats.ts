@@ -3,6 +3,7 @@ import {
   tryReplyToMap,
   tryReplyToNumber,
   tryReplyToString,
+  tryReplyToStringArray,
 } from './utils/index.ts';
 
 import type { RespFunctionStats } from '../index.ts';
@@ -26,9 +27,13 @@ export async function functionStats<T>(this: T): Promise<RespFunctionStats> {
     if (runningScript !== null && runningScript !== undefined) {
       const scriptMap = tryReplyToMap(runningScript, command);
 
+      const scriptCommand = scriptMap.get('command');
+
       result.runningScript = {
         name: tryReplyToString(scriptMap.get('name'), command),
-        command: tryReplyToString(scriptMap.get('command'), command),
+        command: Array.isArray(scriptCommand)
+          ? tryReplyToStringArray(scriptCommand, command).join(' ')
+          : tryReplyToString(scriptCommand, command),
         duration: tryReplyToNumber(scriptMap.get('duration_ms'), command),
       };
     }

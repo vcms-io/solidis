@@ -1,9 +1,4 @@
-import {
-  executeCommand,
-  InvalidReplyPrefix,
-  newCommandError,
-  UnexpectedReplyPrefix,
-} from './utils/index.ts';
+import { executeCommand, newUnexpectedReplyError } from './utils/index.ts';
 
 import type {
   RespStreamPendingEntry,
@@ -51,12 +46,12 @@ export async function xpending<T>(
     createCommand(key, group, start, end, count, consumer, idleTime),
     (reply, command) => {
       if (!Array.isArray(reply)) {
-        throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
+        throw newUnexpectedReplyError(reply, command);
       }
 
       if (start === undefined) {
         if (reply.length !== 4) {
-          throw newCommandError(`${InvalidReplyPrefix}: ${reply}`, command);
+          throw newUnexpectedReplyError(reply, command);
         }
 
         const [pending, minId, maxId, consumers] = reply;
@@ -75,7 +70,7 @@ export async function xpending<T>(
         }
 
         if (!Array.isArray(consumers)) {
-          throw newCommandError(`${InvalidReplyPrefix}: ${consumers}`, command);
+          throw newUnexpectedReplyError(consumers, command);
         }
 
         return {
@@ -84,10 +79,7 @@ export async function xpending<T>(
           maxId: maxId === null ? null : String(maxId),
           consumers: consumers.map((consumer) => {
             if (!Array.isArray(consumer) || consumer.length !== 2) {
-              throw newCommandError(
-                `${InvalidReplyPrefix}: ${consumer}`,
-                command,
-              );
+              throw newUnexpectedReplyError(consumer, command);
             }
 
             const [name, count] = consumer;
@@ -102,7 +94,7 @@ export async function xpending<T>(
 
       return reply.map((entry): RespStreamPendingEntry => {
         if (!Array.isArray(entry) || entry.length !== 4) {
-          throw newCommandError(`${InvalidReplyPrefix}: ${entry}`, command);
+          throw newUnexpectedReplyError(entry, command);
         }
 
         const [id, consumer, deliveryTime, deliveryCount] = entry;

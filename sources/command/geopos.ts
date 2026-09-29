@@ -1,9 +1,7 @@
 import {
   executeCommand,
-  InvalidReplyPrefix,
-  newCommandError,
+  newUnexpectedReplyError,
   tryReplyToNumber,
-  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type { RespGeoPosition } from '../index.ts';
@@ -22,7 +20,7 @@ export async function geopos<T>(
     createCommand(key, members),
     (reply, command) => {
       if (!Array.isArray(reply)) {
-        throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
+        throw newUnexpectedReplyError(reply, command);
       }
 
       return reply.map((position) => {
@@ -31,7 +29,7 @@ export async function geopos<T>(
         }
 
         if (!Array.isArray(position) || position.length !== 2) {
-          throw newCommandError(`${InvalidReplyPrefix}: ${position}`, command);
+          throw newUnexpectedReplyError(position, command);
         }
 
         const [longitude, latitude] = position;

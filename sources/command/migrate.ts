@@ -1,4 +1,4 @@
-import { RespNoKey } from '../index.ts';
+import { RespNoKey } from '../types/resp.ts';
 import { executeCommand, tryReplyOK } from './utils/index.ts';
 
 import type { CommandMigrateOptions, RespOK } from '../index.ts';

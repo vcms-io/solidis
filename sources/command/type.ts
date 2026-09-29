@@ -1,9 +1,6 @@
-import { RespDataTypes } from '../index.ts';
-import {
-  executeCommand,
-  newCommandError,
-  UnexpectedReplyPrefix,
-} from './utils/index.ts';
+import { executeCommand, tryReplyToString } from './utils/index.ts';
+
+import type { RespDataTypes } from '../index.ts';
 
 export function createCommand(key: string) {
   return ['TYPE', key];
@@ -12,24 +9,8 @@ export function createCommand(key: string) {
 export async function type<T>(
   this: T,
   key: string,
-): Promise<RespDataTypes | 'NONE'> {
-  return await executeCommand(this, createCommand(key), (reply, command) => {
-    if (typeof reply === 'string' || reply instanceof Buffer) {
-      const typeString = `${reply}`.toUpperCase();
-
-      if (typeString === 'NONE') {
-        return 'NONE';
-      }
-
-      const matched = Object.values(RespDataTypes).find(
-        (value) => value === typeString,
-      );
-
-      if (matched !== undefined) {
-        return matched;
-      }
-    }
-
-    throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
-  });
+): Promise<RespDataTypes | 'NONE' | (string & {})> {
+  return await executeCommand(this, createCommand(key), (reply, command) =>
+    tryReplyToString(reply, command).toUpperCase(),
+  );
 }

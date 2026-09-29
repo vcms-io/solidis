@@ -60,7 +60,6 @@ import {
   clientNoEvict,
   clientNoTouch,
   clientPause,
-  clientReply,
   clientSetinfo,
   clientSetname,
   clientTracking,
@@ -300,7 +299,6 @@ import {
   sunionstore,
   sunsubscribe,
   swapdb,
-  sync,
   time,
   touch,
   tsAdd,
@@ -459,7 +457,6 @@ export class SolidisFeaturedClient extends SolidisClient {
   clientNoEvict = clientNoEvict;
   clientNoTouch = clientNoTouch;
   clientPause = clientPause;
-  clientReply = clientReply;
   clientSetinfo = clientSetinfo;
   clientSetname = clientSetname;
   clientTracking = clientTracking;
@@ -711,7 +708,6 @@ export class SolidisFeaturedClient extends SolidisClient {
   sunionstore = sunionstore;
   sunsubscribe = sunsubscribe;
   swapdb = swapdb;
-  sync = sync;
   time = time;
   touch = touch;
   tsAdd = tsAdd;

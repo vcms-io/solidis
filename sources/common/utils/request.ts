@@ -1,6 +1,9 @@
-import { SolidisSymbolBytes } from '../constants.ts';
+import {
+  SolidisContainerCommandNameSet,
+  SolidisSymbolBytes,
+} from '../constants.ts';
 
-import type { StringOrBuffer } from '../../index.ts';
+import type { StringOrBuffer } from '../../types/solidis.ts';
 
 const { ASTERISK, DOLLAR, CR, LF } = SolidisSymbolBytes;
 
@@ -68,9 +71,16 @@ export function commandsToBuffer(commands: StringOrBuffer[][]): Buffer {
     }
   }
 
-  if (offset !== totalLength) {
-    return result.subarray(0, offset);
+  return result;
+}
+
+export function getCommandName(command: readonly StringOrBuffer[]): string {
+  const name = String(command[0] ?? '').toUpperCase();
+  const subcommand = command[1];
+
+  if (subcommand === undefined || !SolidisContainerCommandNameSet.has(name)) {
+    return name;
   }
 
-  return result;
+  return `${name} ${String(subcommand).toUpperCase()}`;
 }

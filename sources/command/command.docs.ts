@@ -1,10 +1,11 @@
 import {
   executeCommand,
-  InvalidReplyPrefix,
-  newCommandError,
+  newUnexpectedReplyError,
   processPairedArray,
+  setRecordEntry,
+  tryReplyArray,
   tryReplyToMap,
-  tryReplyToStringRecordRecursively,
+  tryReplyToStringArray,
 } from './utils/index.ts';
 
 import type {
@@ -21,6 +22,23 @@ export function createCommand(commands?: string[]) {
   }
 
   return command;
+}
+
+function parseCommandDocs(
+  reply: unknown,
+  command: StringOrBuffer[],
+): Record<string, RespCommandDoc> {
+  const result: Record<string, RespCommandDoc> = {};
+
+  processPairedArray(
+    reply,
+    (key, value) => {
+      setRecordEntry(result, key, parseCommandDoc(value, command));
+    },
+    command,
+  );
+
+  return result;
 }
 
 function parseCommandDoc(
@@ -45,29 +63,25 @@ function parseCommandDoc(
     since: since ? String(since) : undefined,
     group: group ? String(group) : undefined,
     complexity: complexity ? String(complexity) : undefined,
-    docFlags: docFlags ? parseDocFlags(docFlags) : undefined,
+    docFlags: docFlags ? parseDocFlags(docFlags, command) : undefined,
     deprecatedSince: deprecatedSince ? String(deprecatedSince) : undefined,
     replacedBy: replacedBy ? String(replacedBy) : undefined,
     history: history ? parseHistory(history, command) : undefined,
     arguments: subArguments ? parseArguments(subArguments, command) : undefined,
     subcommands: subcommands
-      ? tryReplyToStringRecordRecursively(subcommands, command)
+      ? parseCommandDocs(subcommands, command)
       : undefined,
   };
 }
 
 function parseDocFlags(
   flags: unknown,
-): Array<'deprecated' | 'syscmd'> | undefined {
-  if (!Array.isArray(flags)) {
-    return undefined;
-  }
-
-  return flags
-    .map((flag) => String(flag))
-    .filter((flag): flag is 'deprecated' | 'syscmd' =>
-      ['deprecated', 'syscmd'].includes(flag),
-    );
+  command: StringOrBuffer[],
+): Array<'deprecated' | 'syscmd'> {
+  return tryReplyToStringArray(flags, command).filter(
+    (flag): flag is 'deprecated' | 'syscmd' =>
+      flag === 'deprecated' || flag === 'syscmd',
+  );
 }
 
 function parseHistory(
@@ -80,7 +94,7 @@ function parseHistory(
 
   return history.map((entry) => {
     if (!Array.isArray(entry) || entry.length !== 2) {
-      throw newCommandError(`${InvalidReplyPrefix}: ${entry}`, command);
+      throw newUnexpectedReplyError(entry, command);
     }
 
     const [version, description] = entry;
@@ -101,15 +115,14 @@ function parseArguments(
     const result = tryReplyToMap(parameter, command);
     const name = result.get('name');
     const type = result.get('type');
-    const optional = result.get('optional') === true;
-    const multiple = result.get('multiple') === true;
+    const flags = tryReplyArray(result.get('flags') ?? [], command);
     const subArguments = result.get('arguments');
 
     return {
       name: String(name),
       type: String(type),
-      optional,
-      multiple,
+      optional: flags.some((flag) => String(flag) === 'optional'),
+      multiple: flags.some((flag) => String(flag) === 'multiple'),
       arguments: parseArguments(subArguments, command),
     };
   });
@@ -119,25 +132,5 @@ export async function commandDocs<T>(
   this: T,
   commands?: string[],
 ): Promise<Record<string, RespCommandDoc>> {
-  return await executeCommand(
-    this,
-    createCommand(commands),
-    (reply, command) => {
-      const result: Record<string, RespCommandDoc> = {};
-
-      processPairedArray(
-        reply,
-        (key, value) => {
-          const parsedDoc = parseCommandDoc(value, command);
-
-          if (typeof key === 'string') {
-            result[key] = parsedDoc;
-          }
-        },
-        command,
-      );
-
-      return result;
-    },
-  );
+  return await executeCommand(this, createCommand(commands), parseCommandDocs);
 }

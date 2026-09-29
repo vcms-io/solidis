@@ -1,12 +1,11 @@
 import {
   executeCommand,
-  newCommandError,
+  newUnexpectedReplyError,
   tryReplyArray,
   tryReplyToMap,
   tryReplyToString,
   tryReplyToStringArray,
   tryReplyToStringOrNull,
-  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type {
@@ -92,7 +91,7 @@ export async function functionList<T>(
     createCommand(options),
     (reply, command) => {
       if (!Array.isArray(reply)) {
-        throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
+        throw newUnexpectedReplyError(reply, command);
       }
 
       return reply.map((library) =>

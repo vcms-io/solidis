@@ -1,10 +1,9 @@
 import {
   executeCommand,
-  InvalidReplyPrefix,
   newCommandError,
+  newUnexpectedReplyError,
   tryReplyToMap,
   tryReplyToStringArray,
-  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type {
@@ -27,7 +26,7 @@ const parseSelector = (
   }
 
   if (!Array.isArray(selector)) {
-    throw newCommandError(`${InvalidReplyPrefix}: ${selector}`, command);
+    throw newUnexpectedReplyError(selector, command);
   }
 
   const [, commands = '', , keys = '', , channels = ''] = selector;
@@ -56,7 +55,7 @@ export async function aclGetuser<T>(
       }
 
       if (!Array.isArray(reply) && !(reply instanceof Map)) {
-        throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
+        throw newUnexpectedReplyError(reply, command);
       }
 
       const result: RespAclUserInfo = {
@@ -68,7 +67,7 @@ export async function aclGetuser<T>(
         selectors: [],
       };
 
-      const map = tryReplyToMap(reply);
+      const map = tryReplyToMap(reply, command);
 
       const flags = map.get('flags');
       const passwords = map.get('passwords');
@@ -79,7 +78,7 @@ export async function aclGetuser<T>(
 
       if (flags === undefined || passwords === undefined) {
         throw newCommandError(
-          `${InvalidReplyPrefix}: flags & passwords required`,
+          'Unexpected reply: flags and passwords are required',
           command,
         );
       }

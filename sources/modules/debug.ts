@@ -1,96 +1,77 @@
+import { EventEmitter } from 'node:events';
 import { stdout } from 'node:process';
-import { pipeline, Transform, Writable } from 'node:stream';
+import { inspect } from 'node:util';
 
 import type {
   SolidisDebugLog,
   SolidisDebugMemoryEventHandlers,
-} from '../index.ts';
+} from '../types/solidis.ts';
 
-export class SolidisDebugTransform extends Transform {
-  constructor() {
-    super({ objectMode: true });
-  }
+export function formatDebugLog(entry: SolidisDebugLog): string {
+  const data =
+    entry.data === undefined
+      ? ''
+      : ` ${inspect(entry.data, { breakLength: Number.POSITIVE_INFINITY })}`;
 
-  _transform(
-    entry: SolidisDebugLog,
-    _encoding: BufferEncoding,
-    callback: (error?: Error | null, data?: string) => void,
-  ) {
-    callback(
-      null,
-      `[Solidis ${entry.type}] ${entry.message}${
-        entry.data ? ` ${JSON.stringify(entry.data)}` : ''
-      }\r\n`,
-    );
-  }
+  return `[Solidis ${entry.type}] ${entry.message}${data}\n`;
 }
 
-export class SolidisDebugMemory extends Writable {
-  #logs: SolidisDebugLog[] = [];
-  #debugTransform?: SolidisDebugTransform;
+export class SolidisDebugMemory extends EventEmitter {
+  readonly #entries: (SolidisDebugLog | undefined)[];
+  readonly #isPrinting: boolean;
 
-  readonly #maxEntries: number;
+  #nextIndex = 0;
+  #size = 0;
 
   declare public emit: SolidisDebugMemoryEventHandlers<this>['emit'];
   declare public on: SolidisDebugMemoryEventHandlers<this>['on'];
-  declare public write: SolidisDebugMemoryEventHandlers<this>['write'];
 
   constructor(maxEntries: number) {
-    super({ objectMode: true });
-    this.#maxEntries = maxEntries;
+    super();
 
-    if (
-      process.env.DEBUG?.toLowerCase().includes('solidis') ||
-      process.env.DEBUG === '*'
-    ) {
-      this.#setupDebugStream();
-    }
+    const debugPattern = process.env.DEBUG?.toLowerCase() ?? '';
+
+    this.#entries = new Array(Math.max(0, maxEntries));
+    this.#isPrinting = debugPattern === '*' || debugPattern.includes('solidis');
   }
 
-  #setupDebugStream() {
-    this.#debugTransform = new SolidisDebugTransform();
+  public write(entry: SolidisDebugLog) {
+    const capacity = this.#entries.length;
 
-    pipeline(this.#debugTransform, stdout, (error) => {
-      if (error) {
-        this.#logs.push({
-          timestamp: Date.now(),
-          type: 'error',
-          message: error.message,
-          data: error,
-        });
-      }
-    });
-  }
+    entry.timestamp ??= Date.now();
 
-  public _write(
-    entry: SolidisDebugLog,
-    _encoding: BufferEncoding,
-    callback: (error?: Error | null) => void,
-  ) {
-    if (!entry.timestamp) {
-      entry.timestamp = Date.now();
+    if (capacity > 0) {
+      this.#entries[this.#nextIndex] = entry;
+      this.#nextIndex = (this.#nextIndex + 1) % capacity;
+      this.#size = Math.min(this.#size + 1, capacity);
     }
 
-    this.#logs.push(entry);
-
-    if (this.#logs.length > this.#maxEntries) {
-      this.#logs.shift();
-    }
-
-    if (this.#debugTransform) {
-      this.#debugTransform.write(entry);
+    if (this.#isPrinting) {
+      stdout.write(formatDebugLog(entry));
     }
 
     this.emit('pushed', entry);
-
-    callback();
   }
 
   public getLogs(): readonly SolidisDebugLog[] {
-    return Object.freeze([...this.#logs]);
+    const capacity = this.#entries.length;
+    const firstIndex = this.#nextIndex - this.#size + capacity;
+    const logs: SolidisDebugLog[] = [];
+
+    for (let offset = 0; offset < this.#size; offset += 1) {
+      const entry = this.#entries[(firstIndex + offset) % capacity];
+
+      if (entry !== undefined) {
+        logs.push(entry);
+      }
+    }
+
+    return Object.freeze(logs);
   }
 
   public clearLogs() {
-    this.#logs = [];
+    this.#entries.fill(undefined);
+    this.#nextIndex = 0;
+    this.#size = 0;
   }
 }

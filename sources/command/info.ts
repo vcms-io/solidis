@@ -1,4 +1,4 @@
-import { SolidisStringSymbols } from '../index.ts';
+import { SolidisStringSymbols } from '../common/constants.ts';
 import { executeCommand, tryReplyToString } from './utils/index.ts';
 
 export function createCommand(section?: string) {
@@ -19,12 +19,12 @@ function parseInfo(reply: string): Record<string, string> {
     const trimmedLine = line.trim();
 
     if (trimmedLine && !trimmedLine.startsWith('#')) {
-      const [key, value] = trimmedLine.split(':');
+      const separatorIndex = trimmedLine.indexOf(':');
 
-      const trimmedKey = key.trim();
-      const trimmedValue = value.trim();
+      const trimmedKey = trimmedLine.slice(0, separatorIndex).trim();
+      const trimmedValue = trimmedLine.slice(separatorIndex + 1).trim();
 
-      if (trimmedKey && trimmedValue) {
+      if (separatorIndex !== -1 && trimmedKey && trimmedValue) {
         record[trimmedKey] = trimmedValue;
       }
     }

@@ -34,5 +34,6 @@ export async function bzmpop<T>(
     this,
     createCommand(timeout, keys, where, count),
     tryReplyToKeySortedSetMembersOrNull,
+    { blockingTimeout: timeout * 1000 },
   );
 }

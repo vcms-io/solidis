@@ -13,5 +13,6 @@ export async function wait<T>(
     this,
     createCommand(numreplicas, timeout),
     tryReplyNumber,
+    { blockingTimeout: timeout },
   );
 }

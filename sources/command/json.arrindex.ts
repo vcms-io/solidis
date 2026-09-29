@@ -1,7 +1,4 @@
-import {
-  executeCommand,
-  tryReplyToNullableNumberArray,
-} from './utils/index.ts';
+import { executeCommand, tryReplyToJsonNumbers } from './utils/index.ts';
 
 import type { CommandJsonArrIndexOptions } from '../index.ts';
 
@@ -13,12 +10,12 @@ export function createCommand(
 ) {
   const command = ['JSON.ARRINDEX', key, path, value];
 
-  if (options?.start !== undefined) {
-    command.push(`${options.start}`);
+  if (options?.start !== undefined || options?.stop !== undefined) {
+    command.push(`${options.start ?? 0}`);
+  }
 
-    if (options.stop !== undefined) {
-      command.push(`${options.stop}`);
-    }
+  if (options?.stop !== undefined) {
+    command.push(`${options.stop}`);
   }
 
   return command;
@@ -34,6 +31,6 @@ export async function jsonArrindex<T>(
   return await executeCommand(
     this,
     createCommand(key, path, value, options),
-    tryReplyToNullableNumberArray,
+    tryReplyToJsonNumbers,
   );
 }

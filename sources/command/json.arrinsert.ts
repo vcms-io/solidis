@@ -1,7 +1,4 @@
-import {
-  executeCommand,
-  tryReplyToNullableNumberArray,
-} from './utils/index.ts';
+import { executeCommand, tryReplyToJsonNumbers } from './utils/index.ts';
 
 export function createCommand(
   key: string,
@@ -22,6 +19,6 @@ export async function jsonArrinsert<T>(
   return await executeCommand(
     this,
     createCommand(key, path, index, ...values),
-    tryReplyToNullableNumberArray,
+    tryReplyToJsonNumbers,
   );
 }

@@ -1,8 +1,8 @@
 import {
   executeCommand,
-  newCommandError,
+  newUnexpectedReplyError,
   tryReplyToMap,
-  UnexpectedReplyPrefix,
+  tryReplyToNumberOrNull,
 } from './utils/index.ts';
 
 import type { RespStreamGroupInfo } from '../index.ts';
@@ -17,7 +17,7 @@ export async function xinfoGroups<T>(
 ): Promise<RespStreamGroupInfo[]> {
   return await executeCommand(this, createCommand(key), (reply, command) => {
     if (!Array.isArray(reply)) {
-      throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
+      throw newUnexpectedReplyError(reply, command);
     }
 
     return reply.map((info) => {
@@ -34,8 +34,8 @@ export async function xinfoGroups<T>(
         consumers: Number(result.get('consumers')),
         pending: Number(result.get('pending')),
         lastDeliveredId: String(result.get('last-delivered-id')),
-        entriesRead: entriesRead === null ? 0 : Number(entriesRead),
-        lag: Number(result.get('lag')),
+        entriesRead: tryReplyToNumberOrNull(entriesRead ?? null, command),
+        lag: tryReplyToNumberOrNull(result.get('lag') ?? null, command),
       };
     });
   });

@@ -34,5 +34,6 @@ export async function blmpop<T>(
     this,
     createCommand(timeout, keys, where, count),
     tryReplyToKeyStringElementsOrNull,
+    { blockingTimeout: timeout * 1000 },
   );
 }

@@ -1,3 +1,4 @@
+import { RespError } from '../../common/utils/error.ts';
 import {
   escapeReply,
   newCommandError,
@@ -7,8 +8,9 @@ import {
   tryReplyToString,
   tryReplyToStringArray,
   tryReplyToStringOrNull,
-} from './index.ts';
+} from './reply.ts';
 
+import type { SolidisClient } from '../../client.ts';
 import type {
   CommandCuckooFilterInsertOptions,
   CommandExpireMode,
@@ -24,16 +26,23 @@ import type {
   CommandZInterOptions,
   CommandZRangeOptions,
   CommandZRangeStoreOptions,
-  RespOK,
-  SolidisClient,
+} from '../../types/command.ts';
+import type { RespOK } from '../../types/resp.ts';
+import type {
   SolidisData,
+  SolidisSendOptions,
   StringOrBuffer,
-} from '../../index.ts';
+} from '../../types/solidis.ts';
 
-export function guard(
+export const SolidisTransactionQueues = new WeakMap<
+  object,
+  StringOrBuffer[][]
+>();
+
+export function assertSender(
   client: unknown,
   command?: StringOrBuffer[],
-): client is SolidisClient {
+): asserts client is Pick<SolidisClient, 'send'> {
   if (typeof client !== 'object' || client === null) {
     throw newCommandError('Invalid client', command);
   }
@@ -41,12 +50,21 @@ export function guard(
   if (!('send' in client) || typeof client.send !== 'function') {
     throw newCommandError('Send method is not implemented', command);
   }
+}
+
+export function guard(
+  client: unknown,
+  command?: StringOrBuffer[],
+): client is Pick<SolidisClient, 'send'> {
+  assertSender(client, command);
+
+  const transactionQueue = SolidisTransactionQueues.get(client);
 
   /**
    * Returns false only when the client is in a transaction context
    */
-  if ('pipeQueue' in client && Array.isArray(client.pipeQueue) && command) {
-    client.pipeQueue.push(command);
+  if (transactionQueue && command) {
+    transactionQueue.push(command);
 
     return false;
   }
@@ -62,17 +80,23 @@ export async function executeCommand<T, R>(
   client: T,
   command: StringOrBuffer[],
   replyTo: (reply: SolidisData, command: StringOrBuffer[]) => R,
+  options?: SolidisSendOptions,
 ): Promise<R>;
 export async function executeCommand<T, R>(
   client: T,
   command: StringOrBuffer[],
   replyTo?: (reply: SolidisData, command: StringOrBuffer[]) => R,
+  options?: SolidisSendOptions,
 ): Promise<R | SolidisData> {
   if (!guard(client, command)) {
     return undefined as never;
   }
 
-  const reply = escapeReply(await client.send([command]));
+  const reply = escapeReply(await client.send([command], options));
+
+  if (reply instanceof RespError) {
+    throw newCommandError(reply.message, command, reply);
+  }
 
   return replyTo ? replyTo(reply, command) : reply;
 }
@@ -272,19 +296,20 @@ export function buildTimeSeriesCommand<
     command.push('ON_DUPLICATE', options.onDuplicate);
   }
 
-  if (options.labels) {
-    command.push('LABELS');
-    for (const [label, value] of Object.entries(options.labels)) {
-      command.push(label, value);
-    }
-  }
-
   if (options.ignore) {
     command.push(
       'IGNORE',
       `${options.ignore.maxTimediff}`,
       `${options.ignore.maxValDiff}`,
     );
+  }
+
+  if (options.labels) {
+    command.push('LABELS');
+
+    for (const [label, value] of Object.entries(options.labels)) {
+      command.push(label, value);
+    }
   }
 
   return command;
@@ -297,15 +322,16 @@ export function buildTimeSeriesRangeCommand(
   const command = [...baseCommand];
 
   if (options.filterByTs?.length) {
-    for (const [start, end] of options.filterByTs) {
-      command.push('FILTER_BY_TS', `${start}`, `${end}`);
-    }
+    command.push(
+      'FILTER_BY_TS',
+      ...options.filterByTs.map((timestamp) => `${timestamp}`),
+    );
   }
 
-  if (options.filterByValue?.length) {
-    for (const [min, max] of options.filterByValue) {
-      command.push('FILTER_BY_VALUE', `${min}`, `${max}`);
-    }
+  if (options.filterByValue) {
+    const [minimum, maximum] = options.filterByValue;
+
+    command.push('FILTER_BY_VALUE', `${minimum}`, `${maximum}`);
   }
 
   if (options.count !== undefined) {
@@ -395,11 +421,7 @@ export function buildHelpExecutor(group: string) {
 
 export function buildPubSubExecutor(commandName: string) {
   return async function <T>(this: T, ...channels: string[]): Promise<void> {
-    if (!guard(this)) {
-      return undefined as never;
-    }
-
-    await this.send([[commandName, ...channels]]);
+    await executeCommand(this, [commandName, ...channels]);
   };
 }
 
@@ -423,6 +445,36 @@ export function buildKeyStringOrNullExecutor(...commandParts: string[]) {
       tryReplyToStringOrNull,
     );
   };
+}
+
+export function buildKeyPopExecutor(commandName: string) {
+  async function pop<T>(this: T, key: string): Promise<string | null>;
+  async function pop<T>(
+    this: T,
+    key: string,
+    count: number,
+  ): Promise<string[] | null>;
+  async function pop<T>(
+    this: T,
+    key: string,
+    count?: number,
+  ): Promise<string | string[] | null> {
+    const command = [commandName, key];
+
+    if (count !== undefined) {
+      command.push(`${count}`);
+    }
+
+    return await executeCommand(this, command, (reply, commandName) => {
+      if (count === undefined || reply === null) {
+        return tryReplyToStringOrNull(reply, commandName);
+      }
+
+      return tryReplyToStringArray(reply, commandName);
+    });
+  }
+
+  return pop;
 }
 
 export function buildKeysNumberExecutor(...commandParts: string[]) {
@@ -621,7 +673,7 @@ export async function* createScanIterator<T, R>(
   do {
     const command = buildScanCommand(baseCommand, cursor, options);
     const reply = await executeCommand(client, command);
-    const [newCursor, elements] = tryReplyToScan(reply);
+    const [newCursor, elements] = tryReplyToScan(reply, command);
 
     cursor = newCursor;
 

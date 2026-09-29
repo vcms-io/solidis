@@ -1,9 +1,4 @@
-import {
-  executeCommand,
-  InvalidReplyPrefix,
-  newCommandError,
-  UnexpectedReplyPrefix,
-} from './utils/index.ts';
+import { executeCommand, newUnexpectedReplyError } from './utils/index.ts';
 
 import type { RespLatencyLatest } from '../index.ts';
 
@@ -40,10 +35,10 @@ export async function latencyLatest<T>(this: T): Promise<RespLatencyLatest[]> {
             return entry;
           }
         }
-        throw newCommandError(`${InvalidReplyPrefix}: ${item}`, command);
+        throw newUnexpectedReplyError(item, command);
       });
     }
 
-    throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
+    throw newUnexpectedReplyError(reply, command);
   });
 }

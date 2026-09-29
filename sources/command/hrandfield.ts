@@ -1,9 +1,8 @@
 import {
   executeCommand,
-  newCommandError,
+  newUnexpectedReplyError,
   tryReplyToStringArray,
   tryReplyToStringRecord,
-  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type { RespHashField } from '../index.ts';
@@ -53,7 +52,7 @@ export async function hrandfield<T>(
         return tryReplyToStringArray(reply, command);
       }
 
-      throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
+      throw newUnexpectedReplyError(reply, command);
     },
   );
 }

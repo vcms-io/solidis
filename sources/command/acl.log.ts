@@ -1,11 +1,9 @@
 import {
   executeCommand,
-  InvalidReplyPrefix,
-  newCommandError,
+  newUnexpectedReplyError,
   processPairedArray,
   tryReplyToNumber,
   tryReplyToString,
-  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type {
@@ -74,7 +72,7 @@ export async function aclLog<T>(
     }
 
     if (!Array.isArray(reply)) {
-      throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
+      throw newUnexpectedReplyError(reply, command);
     }
 
     return reply.map((entry) => {
@@ -97,17 +95,17 @@ export async function aclLog<T>(
           const logKey = key.toLowerCase();
 
           if (!checkAclLogKey(logKey)) {
-            throw newCommandError(`${InvalidReplyPrefix}: ${logKey}`, command);
+            throw newUnexpectedReplyError(logKey, command);
           }
 
           const resultKey = logKeyToResultKeyMap[logKey];
 
           if (checkAclLogNumberKey(resultKey)) {
-            result[resultKey] = tryReplyToNumber(value);
+            result[resultKey] = tryReplyToNumber(value, command);
             return;
           }
 
-          result[resultKey] = tryReplyToString(value);
+          result[resultKey] = tryReplyToString(value, command);
         },
         command,
       );

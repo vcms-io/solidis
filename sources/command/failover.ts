@@ -7,12 +7,6 @@ export function createCommand(options?: CommandFailoverOptions) {
 
   if (options?.to) {
     command.push('TO', options.to.host, `${options.to.port}`);
-
-    if (options.to.username && options.to.password) {
-      command.push(options.to.username, options.to.password);
-    } else if (options.to.password) {
-      command.push(options.to.password);
-    }
   }
 
   if (options?.force) {

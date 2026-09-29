@@ -12,16 +12,18 @@ export function createCommand(
 ) {
   const command = ['BITPOS', key, `${bit}`];
 
-  if (options?.start !== undefined) {
-    command.push(`${options.start}`);
+  const hasEnd = options?.end !== undefined || options?.mode !== undefined;
 
-    if (options.end !== undefined) {
-      command.push(`${options.end}`);
+  if (options?.start !== undefined || hasEnd) {
+    command.push(`${options?.start ?? 0}`);
+  }
 
-      if (options.mode) {
-        command.push(options.mode);
-      }
-    }
+  if (hasEnd) {
+    command.push(`${options?.end ?? -1}`);
+  }
+
+  if (options?.mode) {
+    command.push(options.mode);
   }
 
   return command;

@@ -1,4 +1,4 @@
-import type { SolidisData, SolidisRecursiveStringRecord } from './solidis.ts';
+import type { SolidisData } from './solidis.ts';
 
 export const RespDataTypes = {
   STRING: 'STRING',
@@ -28,7 +28,6 @@ export type RespBit = 0 | 1;
 export type RespBitOperation = 'AND' | 'OR' | 'XOR' | 'NOT';
 export type RespBitfield = `i${number}` | `u${number}`;
 export type RespBitfieldOverflow = 'WRAP' | 'SAT' | 'FAIL';
-export type RespClientReplyMode = RespOnOrOff | 'SKIP';
 export type RespHashField = Record<string, string>;
 export type RespSetMember = string;
 export type RespListMember = string;
@@ -117,7 +116,7 @@ export interface RespCommandArgument {
   multiple?: boolean;
   arguments?: RespCommandArgument[];
 }
-export type RespCommandSubcommands = SolidisRecursiveStringRecord;
+export type RespCommandSubcommands = Record<string, RespCommandDoc>;
 export interface RespCommandDoc {
   summary?: string;
   since?: string;
@@ -245,7 +244,17 @@ export interface RespMemoryStats {
   functions: {
     caches: number;
   };
-  db: Record<string, number>;
+  db: Record<
+    string,
+    {
+      overhead: {
+        hashtable: {
+          main: number;
+          expires: number;
+        };
+      };
+    }
+  >;
   overhead: {
     total: number;
     db: {
@@ -331,6 +340,7 @@ export interface RespSortedSetMember {
 export interface RespStreamAutoClaimResult {
   nextId: string;
   entries: RespStreamEntry[];
+  deletedIds: string[];
 }
 export interface RespStreamConsumerInfo {
   name: string;
@@ -347,13 +357,17 @@ export interface RespStreamEntry {
   id: string;
   fields: Record<string, string>;
 }
+export interface RespStreamDeletedEntry {
+  id: string;
+  fields: null;
+}
 export interface RespStreamGroupInfo {
   name: string;
   consumers: number;
   pending: number;
   lastDeliveredId: string;
-  entriesRead: number;
-  lag: number;
+  entriesRead: number | null;
+  lag: number | null;
 }
 export interface RespStreamGroupConsumer {
   name: string;
@@ -371,7 +385,7 @@ export interface RespStreamGroupPending {
 export interface RespStreamGroupDetail {
   name: string;
   lastDeliveredId: string;
-  entriesRead: number;
+  entriesRead: number | null;
   lag: number | null;
   pelCount: number;
   pending: RespStreamGroupPending[];
@@ -413,6 +427,10 @@ export interface RespStreamPendingInfo {
 export interface RespStreamReadResult {
   stream: string;
   entries: RespStreamEntry[];
+}
+export interface RespStreamGroupReadResult {
+  stream: string;
+  entries: (RespStreamEntry | RespStreamDeletedEntry)[];
 }
 export interface RespWaitAOF {
   localFsynced: number;

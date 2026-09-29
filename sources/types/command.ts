@@ -96,8 +96,6 @@ export interface CommandFailoverOptions {
   to?: {
     host: string;
     port: number;
-    username?: string;
-    password?: string;
   };
   force?: boolean;
   abort?: boolean;
@@ -216,8 +214,8 @@ export interface CommandLimitOptions {
 }
 
 export interface CommandLimitWithScoresOptions {
-  limit: CommandLimitOptions;
-  withScores: true;
+  limit?: CommandLimitOptions;
+  withScores?: boolean;
 }
 
 export interface CommandMigrateOptions {
@@ -336,8 +334,8 @@ export interface CommandTimeSeriesCreateRuleOptions {
 }
 
 export interface CommandTimeSeriesRangeOptions {
-  filterByTs?: [number, number][];
-  filterByValue?: [number, number][];
+  filterByTs?: number[];
+  filterByValue?: [number, number];
   count?: number;
   align?: number;
   aggregation?: {
@@ -349,7 +347,6 @@ export interface CommandTimeSeriesRangeOptions {
 
 export interface CommandTimeSeriesMGetOptions {
   latest?: boolean;
-  filterByValue?: [number, number][];
 }
 
 export interface CommandZInterOptions {

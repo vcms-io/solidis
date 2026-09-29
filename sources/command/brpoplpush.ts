@@ -18,5 +18,6 @@ export async function brpoplpush<T>(
     this,
     createCommand(source, destination, timeout),
     tryReplyToStringOrNull,
+    { blockingTimeout: timeout * 1000 },
   );
 }

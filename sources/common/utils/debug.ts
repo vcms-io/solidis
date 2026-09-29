@@ -1,11 +1,13 @@
 import { SolidisCredentialCommandNameSet } from '../constants.ts';
-import { commandsToBuffer } from './request.ts';
+import { commandsToBuffer, getCommandName } from './request.ts';
 
+import type { SolidisDebugMemory } from '../../modules/debug.ts';
 import type {
   SolidisDebugLogType,
-  SolidisDebugMemory,
   StringOrBuffer,
-} from '../../index.ts';
+} from '../../types/solidis.ts';
+
+const previewLength = 1024;
 
 export function generateDebugHandle(debugMemory?: SolidisDebugMemory) {
   if (!debugMemory) {
@@ -21,29 +23,34 @@ export function generateDebugHandle(debugMemory?: SolidisDebugMemory) {
   };
 }
 
+function maskCredentials(command: StringOrBuffer[]) {
+  const name = getCommandName(command);
+
+  if (!SolidisCredentialCommandNameSet.has(name)) {
+    return command;
+  }
+
+  const visibleLength = name.split(' ').length;
+
+  return command.map((argument, index) =>
+    index < visibleLength ? argument : '***',
+  );
+}
+
 export function sanitizeCommandsBufferForDebug(
   buffer: Buffer,
   commands: StringOrBuffer[][],
 ): string {
-  const hasCredentialCommand = commands.some((command) => {
-    const name = command[0]?.toString().toUpperCase() ?? '';
+  const hasCredentialCommand = commands.some((command) =>
+    SolidisCredentialCommandNameSet.has(getCommandName(command)),
+  );
+  const sanitizedBuffer = hasCredentialCommand
+    ? commandsToBuffer(commands.map(maskCredentials))
+    : buffer;
 
-    return SolidisCredentialCommandNameSet.has(name);
-  });
-
-  if (!hasCredentialCommand) {
-    return buffer.toString();
+  if (sanitizedBuffer.length > previewLength) {
+    return `${sanitizedBuffer.toString('utf8', 0, previewLength)}...`;
   }
 
-  return commandsToBuffer(
-    commands.map((command) => {
-      const name = command[0]?.toString().toUpperCase() ?? '';
-
-      if (!SolidisCredentialCommandNameSet.has(name)) {
-        return command;
-      }
-
-      return [command[0], ...command.slice(1).map(() => '***')];
-    }),
-  ).toString();
+  return sanitizedBuffer.toString();
 }

@@ -1,92 +1,94 @@
-export class RespError extends Error {
-  constructor(message: string) {
-    super(message);
-
-    this.stack = undefined;
-    this.name = 'RespError';
-  }
-}
-
 export class SolidisError extends Error {
-  #originalError?: unknown;
-
-  constructor(message: string, originalError?: unknown) {
-    super(message);
+  constructor(message: string, cause?: unknown) {
+    super(message, cause === undefined ? undefined : { cause });
 
     this.name = 'SolidisError';
-
-    this.#originalError = originalError;
-
-    if (originalError instanceof Error) {
-      this.stack = originalError.stack;
-      this.cause = originalError.cause;
-    }
   }
 
   public getOriginalError(): unknown {
-    return this.#originalError;
+    return this.cause;
+  }
+}
+
+export class RespError extends SolidisError {
+  public readonly code: string;
+
+  constructor(message: string) {
+    super(message);
+
+    const separatorIndex = message.indexOf(' ');
+
+    this.name = 'RespError';
+    this.stack = undefined;
+    this.code =
+      separatorIndex === -1 ? message : message.slice(0, separatorIndex);
   }
 }
 
 export class SolidisClientError extends SolidisError {
-  constructor(message: string, originalError?: unknown) {
-    super(message, originalError);
+  constructor(message: string, cause?: unknown) {
+    super(message, cause);
 
     this.name = 'SolidisClientError';
   }
 }
 
 export class SolidisCommandError extends SolidisError {
-  constructor(message: string, originalError?: unknown) {
-    super(message, originalError);
+  constructor(message: string, cause?: unknown) {
+    super(message, cause);
 
     this.name = 'SolidisCommandError';
   }
 }
 
 export class SolidisConnectionError extends SolidisError {
-  constructor(message: string, originalError?: unknown) {
-    super(message, originalError);
+  constructor(message: string, cause?: unknown) {
+    super(message, cause);
 
     this.name = 'SolidisConnectionError';
   }
 }
 
 export class SolidisParserError extends SolidisError {
-  constructor(message: string, originalError?: unknown) {
-    super(message, originalError);
+  constructor(message: string, cause?: unknown) {
+    super(message, cause);
 
     this.name = 'SolidisParserError';
   }
 }
 
 export class SolidisPubSubError extends SolidisError {
-  constructor(message: string, originalError?: unknown) {
-    super(message, originalError);
+  constructor(message: string, cause?: unknown) {
+    super(message, cause);
 
     this.name = 'SolidisPubSubError';
   }
 }
 
 export class SolidisRequesterError extends SolidisError {
-  constructor(message: string, originalError?: unknown) {
-    super(message, originalError);
+  constructor(message: string, cause?: unknown) {
+    super(message, cause);
 
     this.name = 'SolidisRequesterError';
   }
 }
 
 export function wrapWithError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(`${error}`);
+  return error instanceof Error ? error : new Error(String(error));
 }
 
 function wrapWithSolidisError<T extends SolidisError>(
-  ErrorClass: new (message: string, originalError?: unknown) => T,
+  ErrorClass: new (message: string, cause?: unknown) => T,
   error: unknown,
 ): T {
-  return error instanceof ErrorClass
-    ? error
-    : new ErrorClass(`${error}`, error);
+  if (error instanceof ErrorClass) {
+    return error;
+  }
+
+  return new ErrorClass(
+    error instanceof Error ? error.message : String(error),
+    error,
+  );
 }
 
 export function wrapWithSolidisClientError(error: unknown): SolidisClientError {
@@ -112,14 +114,12 @@ export function wrapWithSolidisRequesterError(
 export function unwrapSolidisError(error: unknown): Error[] {
   const errors: Error[] = [];
 
-  if (error instanceof Error) {
-    errors.push(error);
-  }
+  let current = error;
 
-  if (error instanceof SolidisError) {
-    const originalError = error.getOriginalError();
+  while (current instanceof Error && !errors.includes(current)) {
+    errors.push(current);
 
-    errors.push(...unwrapSolidisError(originalError));
+    current = current.cause;
   }
 
   return errors;

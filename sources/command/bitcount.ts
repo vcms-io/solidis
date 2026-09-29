@@ -8,12 +8,16 @@ export function createCommand(
 ) {
   const command = ['BITCOUNT', key];
 
-  if (options?.start !== undefined && options?.end !== undefined) {
-    command.push(`${options.start}`, `${options.end}`);
+  if (
+    options?.start !== undefined ||
+    options?.end !== undefined ||
+    options?.mode !== undefined
+  ) {
+    command.push(`${options.start ?? 0}`, `${options.end ?? -1}`);
+  }
 
-    if (options.mode) {
-      command.push(options.mode);
-    }
+  if (options?.mode) {
+    command.push(options.mode);
   }
 
   return command;

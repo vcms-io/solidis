@@ -23,13 +23,13 @@ export function createCommand(
 export async function sort<T>(
   this: T,
   key: string,
-  options?: CommandSortOptions,
-): Promise<(string | null)[]>;
+  options: CommandSortStoreOptions,
+): Promise<number>;
 export async function sort<T>(
   this: T,
   key: string,
-  options: CommandSortStoreOptions,
-): Promise<number>;
+  options?: CommandSortOptions,
+): Promise<(string | null)[]>;
 export async function sort<T>(
   this: T,
   key: string,

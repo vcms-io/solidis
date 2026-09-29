@@ -1,7 +1,8 @@
 import {
   executeCommand,
-  newCommandError,
-  UnexpectedReplyPrefix,
+  newUnexpectedReplyError,
+  tryReplyArray,
+  tryReplyToNumber,
 } from './utils/index.ts';
 
 export function createCommand(key: string, latest?: boolean) {
@@ -25,23 +26,20 @@ export async function tsGet<T>(
         return null;
       }
 
-      if (!Array.isArray(reply) || reply.length !== 2) {
-        throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
+      const sample = tryReplyArray(reply, command);
+
+      if (sample.length === 0) {
+        return null;
       }
 
-      const [timestamp, value] = reply;
-
-      const timestampNumber = Number(`${timestamp}`);
-      const valueNumber = Number(`${value}`);
-
-      if (Number.isNaN(timestampNumber) || Number.isNaN(valueNumber)) {
-        throw newCommandError(
-          `${UnexpectedReplyPrefix}: ${timestamp}/${value}`,
-          command,
-        );
+      if (sample.length !== 2) {
+        throw newUnexpectedReplyError(reply, command);
       }
 
-      return [timestampNumber, valueNumber];
+      return [
+        tryReplyToNumber(sample[0], command),
+        tryReplyToNumber(sample[1], command),
+      ];
     },
   );
 }

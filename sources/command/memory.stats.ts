@@ -1,4 +1,9 @@
-import { executeCommand, processPairedArray } from './utils/index.ts';
+import {
+  executeCommand,
+  processPairedArray,
+  tryReplyToMap,
+  tryReplyToNumber,
+} from './utils/index.ts';
 
 import type { RespMemoryStats } from '../index.ts';
 
@@ -9,13 +14,29 @@ export function createCommand() {
 export async function memoryStats<T>(this: T): Promise<RespMemoryStats> {
   return await executeCommand(this, createCommand(), (reply, command) => {
     const result: Record<string, string | number> = {};
-    const dbEntries: Record<string, number> = {};
+    const dbEntries: RespMemoryStats['db'] = {};
 
     processPairedArray(
       reply,
       (key, value) => {
-        if (key.match(/^db\d+$/)) {
-          dbEntries[key] = Number(value);
+        if (/^db\.\d+$/.test(key)) {
+          const database = tryReplyToMap(value, command);
+
+          dbEntries[key.slice(3)] = {
+            overhead: {
+              hashtable: {
+                main: tryReplyToNumber(
+                  database.get('overhead.hashtable.main'),
+                  command,
+                ),
+                expires: tryReplyToNumber(
+                  database.get('overhead.hashtable.expires'),
+                  command,
+                ),
+              },
+            },
+          };
+
           return;
         }
 

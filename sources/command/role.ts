@@ -1,9 +1,4 @@
-import {
-  executeCommand,
-  InvalidReplyPrefix,
-  newCommandError,
-  UnexpectedReplyPrefix,
-} from './utils/index.ts';
+import { executeCommand, newUnexpectedReplyError } from './utils/index.ts';
 
 import type { RespRole } from '../index.ts';
 
@@ -20,7 +15,7 @@ export async function role<T>(this: T): Promise<RespRole> {
         const [, replicationOffset, slaves] = reply;
 
         if (typeof replicationOffset !== 'number' || !Array.isArray(slaves)) {
-          throw newCommandError(`${InvalidReplyPrefix}: ${reply}`, command);
+          throw newUnexpectedReplyError(reply, command);
         }
 
         return {
@@ -28,7 +23,7 @@ export async function role<T>(this: T): Promise<RespRole> {
           replicationOffset,
           slaves: slaves.map((slave) => {
             if (!Array.isArray(slave) || slave.length !== 3) {
-              throw newCommandError(`${InvalidReplyPrefix}: ${reply}`, command);
+              throw newUnexpectedReplyError(reply, command);
             }
             const [ip, port, offset] = slave;
             return {
@@ -54,6 +49,6 @@ export async function role<T>(this: T): Promise<RespRole> {
       }
     }
 
-    throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
+    throw newUnexpectedReplyError(reply, command);
   });
 }

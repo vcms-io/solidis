@@ -1,9 +1,4 @@
-import {
-  executeCommand,
-  InvalidReplyPrefix,
-  newCommandError,
-  UnexpectedReplyPrefix,
-} from './utils/index.ts';
+import { executeCommand, newUnexpectedReplyError } from './utils/index.ts';
 
 import type { RespSlowLogEntry } from '../index.ts';
 
@@ -23,12 +18,12 @@ export async function slowlogGet<T>(
 ): Promise<RespSlowLogEntry[]> {
   return await executeCommand(this, createCommand(count), (reply, command) => {
     if (!Array.isArray(reply)) {
-      throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
+      throw newUnexpectedReplyError(reply, command);
     }
 
     return reply.map((log) => {
       if (!Array.isArray(log) || log.length < 6) {
-        throw newCommandError(`${InvalidReplyPrefix}: ${log}`, command);
+        throw newUnexpectedReplyError(log, command);
       }
 
       const [
@@ -49,7 +44,7 @@ export async function slowlogGet<T>(
           !(clientIpPort instanceof Buffer)) ||
         (typeof clientName !== 'string' && !(clientName instanceof Buffer))
       ) {
-        throw newCommandError(`${InvalidReplyPrefix}: ${log}`, command);
+        throw newUnexpectedReplyError(log, command);
       }
 
       return {

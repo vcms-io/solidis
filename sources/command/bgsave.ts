@@ -1,4 +1,4 @@
-import { executeCommand, tryReplyOK } from './utils/index.ts';
+import { executeCommand, tryReplyToString } from './utils/index.ts';
 
 export function createCommand(schedule?: boolean) {
   const command = ['BGSAVE'];
@@ -10,6 +10,6 @@ export function createCommand(schedule?: boolean) {
   return command;
 }
 
-export async function bgsave<T>(this: T, schedule?: boolean) {
-  return await executeCommand(this, createCommand(schedule), tryReplyOK);
+export async function bgsave<T>(this: T, schedule?: boolean): Promise<string> {
+  return await executeCommand(this, createCommand(schedule), tryReplyToString);
 }

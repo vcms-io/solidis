@@ -1,9 +1,8 @@
 import {
   executeCommand,
-  newCommandError,
+  newUnexpectedReplyError,
   tryReplyToSortedSetMembers,
   tryReplyToStringArray,
-  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type { RespSortedSetMember } from '../index.ts';
@@ -15,8 +14,8 @@ export function createCommand(
 ) {
   const command = ['ZRANDMEMBER', key];
 
-  if (count !== undefined) {
-    command.push(`${count}`);
+  if (count !== undefined || withScores) {
+    command.push(`${count ?? 1}`);
   }
 
   if (withScores) {
@@ -42,14 +41,14 @@ export async function zrandmember<T>(
 
       if (count === undefined && !withScores) {
         if (!(typeof reply === 'string' || reply instanceof Buffer)) {
-          throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
+          throw newUnexpectedReplyError(reply, command);
         }
 
         return `${reply}`;
       }
 
       if (!Array.isArray(reply)) {
-        throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
+        throw newUnexpectedReplyError(reply, command);
       }
 
       if (!withScores) {

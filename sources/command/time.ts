@@ -1,8 +1,4 @@
-import {
-  executeCommand,
-  newCommandError,
-  UnexpectedReplyPrefix,
-} from './utils/index.ts';
+import { executeCommand, newUnexpectedReplyError } from './utils/index.ts';
 
 export function createCommand() {
   return ['TIME'];
@@ -21,6 +17,6 @@ export async function time<T>(
       }
     }
 
-    throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
+    throw newUnexpectedReplyError(reply, command);
   });
 }

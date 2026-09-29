@@ -1,10 +1,10 @@
 import {
   executeCommand,
   newCommandError,
-  tryReplyToStreamReadResultsOrNull,
+  tryReplyToStreamGroupReadResultsOrNull,
 } from './utils/index.ts';
 
-import type { RespStreamReadResult } from '../index.ts';
+import type { RespStreamGroupReadResult } from '../index.ts';
 
 export function createCommand(
   group: string,
@@ -43,7 +43,7 @@ export async function xreadgroup<T>(
   count?: number,
   block?: number,
   noack?: boolean,
-): Promise<RespStreamReadResult[] | null> {
+): Promise<RespStreamGroupReadResult[] | null> {
   if (keys.length !== ids.length) {
     throw newCommandError(
       'Keys and IDs must have the same length',
@@ -54,6 +54,7 @@ export async function xreadgroup<T>(
   return await executeCommand(
     this,
     createCommand(group, consumer, keys, ids, count, block, noack),
-    tryReplyToStreamReadResultsOrNull,
+    tryReplyToStreamGroupReadResultsOrNull,
+    { blockingTimeout: block },
   );
 }

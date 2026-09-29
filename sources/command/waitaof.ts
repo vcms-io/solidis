@@ -1,8 +1,4 @@
-import {
-  executeCommand,
-  newCommandError,
-  UnexpectedReplyPrefix,
-} from './utils/index.ts';
+import { executeCommand, newUnexpectedReplyError } from './utils/index.ts';
 
 import type { RespWaitAOF } from '../index.ts';
 
@@ -38,7 +34,8 @@ export async function waitaof<T>(
         }
       }
 
-      throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
+      throw newUnexpectedReplyError(reply, command);
     },
+    { blockingTimeout: timeout },
   );
 }

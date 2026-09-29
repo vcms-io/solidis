@@ -1,4 +1,4 @@
-import { executeCommand, tryReplyToStringOrNull } from './utils/index.ts';
+import { executeCommand, tryReplyToJsonNumberText } from './utils/index.ts';
 
 export function createCommand(key: string, path: string, value: number) {
   return ['JSON.NUMMULTBY', key, path, `${value}`];
@@ -13,6 +13,6 @@ export async function jsonNummultby<T>(
   return await executeCommand(
     this,
     createCommand(key, path, value),
-    tryReplyToStringOrNull,
+    (reply, command) => tryReplyToJsonNumberText(reply, path, command),
   );
 }

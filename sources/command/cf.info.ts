@@ -9,12 +9,12 @@ import type { RespCuckooFilterInfo } from '../index.ts';
 const infoKeyMap: Record<string, keyof RespCuckooFilterInfo> = {
   Size: 'size',
   'Number of buckets': 'numberOfBuckets',
-  'Number of filter': 'numberOfFilter',
+  'Number of filters': 'numberOfFilter',
   'Number of items inserted': 'numberOfItemsInserted',
   'Number of items deleted': 'numberOfItemsDeleted',
   'Bucket size': 'bucketSize',
   'Expansion rate': 'expansionRate',
-  'Max iteration': 'maxIteration',
+  'Max iterations': 'maxIteration',
 };
 
 export function createCommand(key: string) {

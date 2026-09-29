@@ -1,8 +1,8 @@
 import {
   executeCommand,
-  InvalidReplyPrefix,
-  newCommandError,
+  newUnexpectedReplyError,
   tryReplyToMap,
+  tryReplyToNumberOrNull,
   tryReplyToStreamEntry,
 } from './utils/index.ts';
 
@@ -39,7 +39,7 @@ function parseConsumer(
   const pending = result.get('pending');
 
   if (!Array.isArray(pending)) {
-    throw newCommandError(`${InvalidReplyPrefix}: ${pending}`, command);
+    throw newUnexpectedReplyError(pending, command);
   }
 
   return {
@@ -49,7 +49,7 @@ function parseConsumer(
     pelCount: Number(result.get('pel-count')),
     pending: pending.map((entry): RespStreamConsumerPending => {
       if (!Array.isArray(entry) || entry.length !== 3) {
-        throw newCommandError(`${InvalidReplyPrefix}: ${entry}`, command);
+        throw newUnexpectedReplyError(entry, command);
       }
 
       const [id, deliveryTime, deliveryCount] = entry;
@@ -72,24 +72,27 @@ function parseGroup(
   const pending = result.get('pending');
 
   if (!Array.isArray(pending)) {
-    throw newCommandError(`${InvalidReplyPrefix}: ${pending}`, command);
+    throw newUnexpectedReplyError(pending, command);
   }
 
   const consumers = result.get('consumers');
 
   if (!Array.isArray(consumers)) {
-    throw newCommandError(`${InvalidReplyPrefix}: ${consumers}`, command);
+    throw newUnexpectedReplyError(consumers, command);
   }
 
   return {
     name: String(result.get('name')),
     lastDeliveredId: String(result.get('last-delivered-id')),
-    entriesRead: Number(result.get('entries-read')),
-    lag: result.get('lag') === null ? null : Number(result.get('lag')),
+    entriesRead: tryReplyToNumberOrNull(
+      result.get('entries-read') ?? null,
+      command,
+    ),
+    lag: tryReplyToNumberOrNull(result.get('lag') ?? null, command),
     pelCount: Number(result.get('pel-count')),
     pending: pending.map((entry): RespStreamGroupPending => {
       if (!Array.isArray(entry) || entry.length !== 4) {
-        throw newCommandError(`${InvalidReplyPrefix}: ${entry}`, command);
+        throw newUnexpectedReplyError(entry, command);
       }
 
       const [id, consumer, deliveryTime, deliveryCount] = entry;
@@ -135,27 +138,31 @@ export async function xinfoStream<T>(
 
         return {
           ...baseInformation,
-          firstEntry: firstEntry ? tryReplyToStreamEntry(firstEntry) : null,
-          lastEntry: lastEntry ? tryReplyToStreamEntry(lastEntry) : null,
+          firstEntry: firstEntry
+            ? tryReplyToStreamEntry(firstEntry, command)
+            : null,
+          lastEntry: lastEntry
+            ? tryReplyToStreamEntry(lastEntry, command)
+            : null,
         };
       }
 
       const entries = result.get('entries');
 
       if (!Array.isArray(entries)) {
-        throw newCommandError(`${InvalidReplyPrefix}: ${entries}`, command);
+        throw newUnexpectedReplyError(entries, command);
       }
 
       const groups = result.get('groups');
 
       if (!Array.isArray(groups)) {
-        throw newCommandError(`${InvalidReplyPrefix}: ${groups}`, command);
+        throw newUnexpectedReplyError(groups, command);
       }
 
       return {
         ...baseInformation,
         recordedFirstEntryId: String(result.get('recorded-first-entry-id')),
-        entries: entries.map(tryReplyToStreamEntry),
+        entries: entries.map((entry) => tryReplyToStreamEntry(entry, command)),
         groups: groups.map((group) => parseGroup(group, command)),
       };
     },

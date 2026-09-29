@@ -13,5 +13,6 @@ export async function brpop<T>(
     this,
     createCommand(keys, timeout),
     tryReplyToKeyValuePairOrNull,
+    { blockingTimeout: timeout * 1000 },
   );
 }

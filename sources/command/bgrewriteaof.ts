@@ -1,3 +1,3 @@
-import { buildWithoutArgumentsOKExecutor } from './utils/index.ts';
+import { buildWithoutArgumentsStringExecutor } from './utils/index.ts';
 
-export const bgrewriteaof = buildWithoutArgumentsOKExecutor('BGREWRITEAOF');
+export const bgrewriteaof = buildWithoutArgumentsStringExecutor('BGREWRITEAOF');

@@ -1,9 +1,7 @@
 import {
   executeCommand,
-  InvalidReplyPrefix,
-  newCommandError,
+  newUnexpectedReplyError,
   tryReplyToNumber,
-  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type { RespLatencyHistogram, StringOrBuffer } from '../index.ts';
@@ -27,7 +25,7 @@ function parseHistogramData(
   }
 
   if (!Array.isArray(data)) {
-    throw newCommandError(`${InvalidReplyPrefix}: ${data}`, command);
+    throw newUnexpectedReplyError(data, command);
   }
 
   for (let index = 0; index < data.length; index += 2) {
@@ -50,7 +48,7 @@ function parseArrayLatencyHistogram(
     const data = reply[index + 1];
 
     if (!Array.isArray(data) || data.length !== 4) {
-      throw newCommandError(`${InvalidReplyPrefix}: ${data}`, command);
+      throw newUnexpectedReplyError(data, command);
     }
 
     result[String(reply[index])] = {
@@ -70,7 +68,7 @@ function parseMapLatencyHistogram(
 
   for (const [key, value] of reply) {
     if (!(value instanceof Map)) {
-      throw newCommandError(`${InvalidReplyPrefix}: ${value}`, command);
+      throw newUnexpectedReplyError(value, command);
     }
 
     result[String(key)] = {
@@ -98,7 +96,7 @@ export async function latencyHistogram<T>(
         return parseMapLatencyHistogram(reply, command);
       }
 
-      throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
+      throw newUnexpectedReplyError(reply, command);
     },
   );
 }

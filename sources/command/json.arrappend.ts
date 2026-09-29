@@ -1,7 +1,4 @@
-import {
-  executeCommand,
-  tryReplyToNullableNumberArray,
-} from './utils/index.ts';
+import { executeCommand, tryReplyToJsonNumbers } from './utils/index.ts';
 
 export function createCommand(key: string, path: string, ...values: string[]) {
   return ['JSON.ARRAPPEND', key, path, ...values];
@@ -16,6 +13,6 @@ export async function jsonArrappend<T>(
   return await executeCommand(
     this,
     createCommand(key, path, ...values),
-    tryReplyToNullableNumberArray,
+    tryReplyToJsonNumbers,
   );
 }

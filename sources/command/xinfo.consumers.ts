@@ -1,8 +1,7 @@
 import {
   executeCommand,
-  newCommandError,
+  newUnexpectedReplyError,
   tryReplyToMap,
-  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type { RespStreamConsumerInfo } from '../index.ts';
@@ -21,7 +20,7 @@ export async function xinfoConsumers<T>(
     createCommand(key, group),
     (reply, command) => {
       if (!Array.isArray(reply)) {
-        throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
+        throw newUnexpectedReplyError(reply, command);
       }
 
       return reply.map((info) => {

@@ -1,104 +1,93 @@
-import { pipeline } from './pipeline.ts';
-import { newCommandError } from './utils/index.ts';
+import { RespError } from '../common/utils/error.ts';
+import {
+  assertSender,
+  newCommandError,
+  newUnexpectedReplyError,
+  SolidisTransactionQueues,
+} from './utils/index.ts';
 
+import type { SolidisClient } from '../client.ts';
 import type {
-  SolidisClient,
-  SolidisClientExtensions,
+  SolidisData,
   SolidisTransactionClient,
   StringOrBuffer,
 } from '../index.ts';
 
-const SolidisExtensions: {
-  pipeline: typeof pipeline;
-  pipeQueue?: StringOrBuffer[][];
-} = {
-  pipeline,
-  pipeQueue: [],
-} satisfies SolidisClientExtensions;
+async function exec(
+  client: Pick<SolidisClient, 'send'>,
+  transactionQueue: StringOrBuffer[][],
+  commandPromises: Promise<unknown>[],
+): Promise<SolidisData[] | null> {
+  const results = await Promise.allSettled(commandPromises);
+  const rejected = results.find((result) => result.status === 'rejected');
+  const commands = transactionQueue.splice(0);
 
-function guard(thisValue: object): asserts thisValue is SolidisClient {
-  if (!('extend' in thisValue) || typeof thisValue.extend !== 'function') {
-    throw newCommandError('Extend method is not implemented', 'MULTI');
+  commandPromises.length = 0;
+
+  if (rejected && rejected.status === 'rejected') {
+    throw rejected.reason;
   }
-}
 
-function clearPipeline(commands: StringOrBuffer[][]) {
-  commands.splice(0, commands.length);
+  if (commands.length < 1) {
+    return [];
+  }
+
+  const replies = await client.send([['MULTI'], ...commands, ['EXEC']]);
+  const reply = replies[replies.length - 1][0];
+
+  if (reply instanceof RespError) {
+    throw newCommandError(reply.message, 'EXEC', reply);
+  }
+
+  if (reply !== null && !Array.isArray(reply)) {
+    throw newUnexpectedReplyError(reply, 'EXEC');
+  }
+
+  return reply;
 }
 
 export function multi<T extends object>(this: T): SolidisTransactionClient<T> {
-  const pipeQueue: StringOrBuffer[][] = [];
+  const client = this;
+  const transactionQueue: StringOrBuffer[][] = [];
   const commandPromises: Promise<unknown>[] = [];
 
-  guard(this);
+  assertSender(client, ['MULTI']);
 
-  const client = this.extend(SolidisExtensions);
-
-  const proxyHandler: ProxyHandler<T> = {
+  const proxyHandler: ProxyHandler<object> = {
     get(_, property) {
       switch (property) {
         case 'exec': {
-          return async () => {
-            const results = await Promise.allSettled(commandPromises);
-            const rejected = results.find(
-              (result) => result.status === 'rejected',
-            );
-
-            if (rejected && rejected.status === 'rejected') {
-              clearPipeline(pipeQueue);
-              commandPromises.length = 0;
-
-              throw rejected.reason;
-            }
-
-            commandPromises.length = 0;
-
-            if (pipeQueue.length < 1) {
-              return [];
-            }
-
-            const pipelined = client.pipeline([
-              ['MULTI'],
-              ...pipeQueue,
-              ['EXEC'],
-            ]);
-
-            clearPipeline(pipeQueue);
-
-            return await pipelined;
-          };
+          return () => exec(client, transactionQueue, commandPromises);
         }
 
         case 'discard': {
           return () => {
-            if (pipeQueue.length < 1) {
-              return;
-            }
-
-            clearPipeline(pipeQueue);
+            transactionQueue.length = 0;
             commandPromises.length = 0;
           };
         }
 
         default: {
-          const method = client[property as keyof T];
+          const method = Reflect.get(client, property);
 
-          if (typeof method === 'function') {
-            return (...parameters: unknown[]) => {
-              try {
-                client.pipeQueue = pipeQueue;
-
-                const promise = method(...parameters);
-
-                commandPromises.push(promise);
-                promise.catch(() => {});
-              } finally {
-                client.pipeQueue = undefined;
-              }
-            };
+          if (typeof method !== 'function') {
+            return undefined;
           }
 
-          return undefined;
+          return (...parameters: unknown[]) => {
+            SolidisTransactionQueues.set(client, transactionQueue);
+
+            try {
+              const promise = Promise.resolve(
+                Reflect.apply(method, client, parameters),
+              );
+
+              commandPromises.push(promise);
+              promise.catch(() => {});
+            } finally {
+              SolidisTransactionQueues.delete(client);
+            }
+          };
         }
       }
     },

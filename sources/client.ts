@@ -1,47 +1,58 @@
 import { EventEmitter } from 'node:events';
 
-import { auth, clientSetname, hello, info, select } from './command/basic.ts';
+import { auth } from './command/auth.ts';
+import { clientSetname } from './command/client.setname.ts';
+import { hello } from './command/hello.ts';
+import { info } from './command/info.ts';
+import { select } from './command/select.ts';
+import { SolidisSubscribeEventNames } from './common/constants.ts';
+import { generateDebugHandle } from './common/utils/debug.ts';
 import {
-  generateDebugHandle,
+  RespError,
   SolidisClientError,
-  SolidisConnection,
-  SolidisDebugMemory,
-  SolidisDefaultOptions,
-  SolidisProtocols,
-  SolidisPubSub,
-  SolidisRequester,
+  SolidisRequesterError,
   wrapWithError,
-  wrapWithParserError,
-  wrapWithSolidisClientError,
-} from './index.ts';
+} from './common/utils/error.ts';
+import { resolveClientOptions } from './common/utils/options.ts';
+import { findErrorInReplies } from './common/utils/reply.ts';
+import { SolidisConnection } from './modules/connection.ts';
+import { SolidisDebugMemory } from './modules/debug.ts';
+import { SolidisPubSub } from './modules/pubsub.ts';
+import { SolidisRequester } from './modules/requester.ts';
+import { SolidisProtocols } from './types/solidis.ts';
 
 import type {
   SolidisClientEventHandlers,
-  SolidisClientEvents,
   SolidisClientExtensions,
   SolidisClientFrozenOptions,
   SolidisClientOptions,
-  SolidisClientRecoveryStep,
   SolidisData,
   SolidisDebugLogType,
-  SolidisPSubscribeMethod,
-  SolidisSocket,
-  SolidisSSubscribeMethod,
-  SolidisSubscribeMethod,
+  SolidisSendOptions,
   StringOrBuffer,
-} from './index.ts';
+} from './types/solidis.ts';
+
+function sleep(milliseconds: number) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
 
 export class SolidisClient extends EventEmitter {
-  #options: SolidisClientFrozenOptions;
-  #pubSub: SolidisPubSub;
-  #connection: SolidisConnection;
-  #requester: SolidisRequester;
+  readonly #options: SolidisClientFrozenOptions;
+  readonly #pubSub: SolidisPubSub;
+  readonly #connection: SolidisConnection;
+  readonly #requester: SolidisRequester;
+  readonly #handshake: Pick<SolidisClient, 'send'>;
+  readonly #debugMemory?: SolidisDebugMemory;
+  readonly #debug?: (
+    type: SolidisDebugLogType,
+    message: string,
+    data?: unknown,
+  ) => void;
 
-  #connectLock: Promise<unknown> | null = null;
-  #hasConnectedBefore = false;
-
-  #debug?: (type: SolidisDebugLogType, message: string, data?: unknown) => void;
-  #debugMemory?: SolidisDebugMemory;
+  #isReady = false;
+  #hasBeenReady = false;
+  #readyLock: Promise<void> | null = null;
+  #initialization: Promise<void> | null = null;
 
   declare public emit: SolidisClientEventHandlers<this>['emit'];
   declare public on: SolidisClientEventHandlers<this>['on'];
@@ -52,152 +63,86 @@ export class SolidisClient extends EventEmitter {
   constructor(options: SolidisClientOptions = {}) {
     super();
 
-    this.#options = {
-      ...SolidisDefaultOptions,
-      ...Object.fromEntries(
-        Object.entries(options).filter(([_, value]) => value !== undefined),
-      ),
-      authentication: {
-        ...SolidisDefaultOptions.authentication,
-        ...options.authentication,
-      },
-      autoRecovery: {
-        ...SolidisDefaultOptions.autoRecovery,
-        ...options.autoRecovery,
-      },
-      parser: {
-        ...SolidisDefaultOptions.parser,
-        ...options.parser,
-        buffer: {
-          ...SolidisDefaultOptions.parser.buffer,
-          ...options.parser?.buffer,
-        },
-      },
-    };
+    const emit = this.emit.bind(this);
 
-    this.#setupDebug();
-    this.#connection = this.#setupConnection();
-
-    this.#pubSub = new SolidisPubSub();
+    this.#options = resolveClientOptions(options);
+    this.#debugMemory = this.#options.debug
+      ? new SolidisDebugMemory(this.#options.debugMaxEntries)
+      : undefined;
+    this.#debug = generateDebugHandle(this.#debugMemory);
+    this.#pubSub = new SolidisPubSub(emit);
+    this.#connection = new SolidisConnection({
+      ...this.#options,
+      debugMemory: this.#debugMemory,
+    });
     this.#requester = new SolidisRequester({
       ...this.#options,
       connection: this.#connection,
       pubSub: this.#pubSub,
+      emit,
       debugMemory: this.#debugMemory,
     });
+    this.#handshake = {
+      send: (commands: StringOrBuffer[][]) => this.#requester.send(commands),
+    };
 
-    this.#setupDefaultErrorListener();
-    this.#setupConnectionListeners();
-
+    this.#setupListeners();
     this.setMaxListeners(this.#options.maxEventListenersForClient);
 
     if (!this.#options.lazyConnect) {
-      this.connect().catch((error) => {
-        this.emit('error', error);
+      this.connect().catch((error: unknown) => {
+        this.emit('error', wrapWithError(error));
       });
     }
   }
 
-  #setupDebug() {
-    const { debug, debugMaxEntries } = this.#options;
-
-    if (!debug) {
-      return;
-    }
-
-    this.#debugMemory = new SolidisDebugMemory(debugMaxEntries).on(
-      'pushed',
-      (entry) => {
-        this.emit('debug', entry);
-      },
-    );
-
-    this.#debug = generateDebugHandle(this.#debugMemory);
-  }
-
-  #setupConnection() {
-    if (this.#options.uri) {
-      const url = new URL(this.#options.uri);
-
-      const host = url.hostname;
-      const port = url.port ? Number.parseInt(url.port, 10) : 6379;
-
-      const username = this.#options.authentication.username || url.username;
-      const password = this.#options.authentication.password || url.password;
-
-      this.#options = {
-        ...this.#options,
-        host,
-        port,
-        authentication: {
-          username,
-          password,
-        },
-        tls: this.#options.tls ?? (url.protocol === 'rediss:' ? {} : undefined),
-      };
-    }
-
-    return new SolidisConnection({
-      ...this.#options,
-      debugMemory: this.#debugMemory,
-    });
-  }
-
   public get uri() {
-    const { username, password } = this.#options.authentication;
-    const prefix = this.#options.tls ? 'rediss' : 'redis';
+    const { host, port, tls, authentication } = this.#options;
+    const prefix = tls ? 'rediss' : 'redis';
 
-    if (username && password) {
-      return `${prefix}://${username}:***@${this.#options.host}:${this.#options.port}`;
+    if (authentication.username && authentication.password) {
+      return `${prefix}://${authentication.username}:***@${host}:${port}`;
     }
 
-    return `${prefix}://${this.#options.host}:${this.#options.port}`;
+    return `${prefix}://${host}:${port}`;
   }
 
-  public async send(commands: StringOrBuffer[][]): Promise<SolidisData[][]> {
-    if (!this.#connection.isConnected || this.#connection.isQuitted) {
+  public async send(
+    commands: StringOrBuffer[][],
+    options?: SolidisSendOptions,
+  ): Promise<SolidisData[][]> {
+    if (!this.#isReady) {
       try {
-        await this.connect();
+        await this.#connectWithinCommandTimeout();
       } catch (error) {
         throw new SolidisClientError('Not connected with redis server.', error);
       }
     }
 
-    return await this.#requester.send(commands);
+    return await this.#requester.send(commands, options);
   }
 
-  public async connect() {
-    if (this.#connectLock) {
-      return await this.#connectLock;
-    }
-
+  public async connect(): Promise<void> {
     if (this.#connection.isQuitted) {
       throw new SolidisClientError(
         'Cannot connect after the client was closed.',
       );
     }
 
-    if (this.#connection.isConnected && !this.#connection.isQuitted) {
-      this.#debug?.('info', 'Connection already established');
-
+    if (this.#isReady) {
       return;
     }
 
-    const initializeLock = this.#setupInitializeListeners();
+    this.#readyLock ??= this.#waitForReady().finally(() => {
+      this.#readyLock = null;
+    });
 
-    this.#connectLock = Promise.all([
-      initializeLock,
-      this.#connection.connect(),
-    ]);
-
-    try {
-      return await this.#connectLock;
-    } finally {
-      this.#connectLock = null;
-    }
+    await this.#readyLock;
   }
 
   public quit() {
+    this.#isReady = false;
+
     this.#connection.quit();
   }
 
@@ -206,309 +151,249 @@ export class SolidisClient extends EventEmitter {
   public info = info.bind(this);
   public select = select.bind(this);
 
-  #setupDefaultErrorListener() {
+  public extend<T extends Record<string, unknown>>(
+    extensions: T & ThisType<SolidisClient>,
+  ): this & SolidisClientExtensions<T> {
+    for (const method of Object.getOwnPropertyNames(extensions)) {
+      const extension = extensions[method];
+
+      if (method !== 'constructor' && typeof extension === 'function') {
+        this[method] = extension.bind(this);
+      }
+    }
+
+    return this as this & SolidisClientExtensions<T>;
+  }
+
+  #setupListeners() {
+    const connection = this.#connection;
+
+    this.#debugMemory?.on('pushed', (entry) => this.emit('debug', entry));
+
     this.on('error', (error: Error) => {
       this.#debug?.('error', 'Encountered an error', error);
     });
+
+    connection.on('connect', () => this.#onConnect());
+    connection.on('close', (error) => this.#onClose(error));
+    connection.on('reconnecting', (attempt, delay) =>
+      this.emit('reconnecting', attempt, delay),
+    );
+    connection.on('error', (error) => this.emit('error', error));
+    connection.on('drain', () => this.emit('drain'));
+    connection.on('end', () => this.emit('end'));
   }
 
-  #setupInitializeListeners() {
-    return new Promise<void>((resolve, reject) => {
-      const onReady = () => {
-        this.off('error', onError);
-        resolve();
-      };
+  #onConnect() {
+    this.emit('connect');
 
-      const onError = (error: Error) => {
-        this.off('ready', onReady);
-        reject(error);
-      };
-
-      this.once('ready', onReady);
-      this.once('error', onError);
+    this.#initialization = this.#initialize();
+    this.#initialization.catch((error: unknown) => {
+      if (this.#readyLock === null) {
+        this.emit('error', wrapWithError(error));
+      }
     });
   }
 
-  #setupConnectionListeners() {
-    this.#connection.on('connect', () => this.#onConnect());
-    this.#connection.on('end', () => this.#onEnd());
-    this.#connection.on('error', (error) => this.#onError(error));
-    this.#connection.on('closed', (error) => this.#onClosed(error));
-  }
+  #onClose(error: Error) {
+    this.#isReady = false;
 
-  #setupSocketListeners(socket: SolidisSocket) {
-    socket.on('data', (chunk: Buffer) => this.#onData(chunk));
-    socket.on('drain', () => this.emit('drain'));
-  }
+    this.emit('close', error);
 
-  async #onConnect() {
-    this.#debug?.('info', 'Connection established');
-
-    this.#requester.setNegotiatedProtocol(SolidisProtocols.RESP2);
-
-    this.emit('connect');
-
-    const socket = this.#connection.socket;
-
-    if (socket) {
-      this.#setupSocketListeners(socket);
-    }
-
-    try {
-      const authenticated = await this.#hello();
-
-      if (!authenticated) {
-        await this.#authenticate();
-
-        if (this.#options.protocol === SolidisProtocols.RESP3) {
-          await this.#hello();
-        }
-      }
-
-      await this.#applyClientName();
-      await this.#readyCheck();
-      await this.#recoveryAfterConnect();
-
-      this.#debug?.('info', 'Initialization completed');
-
-      this.emit('ready');
-
-      if (this.#hasConnectedBefore) {
-        this.emit('reconnected');
-      }
-
-      this.#hasConnectedBefore = true;
-    } catch (error) {
-      this.#onInitializeError(error);
+    if (this.#options.autoReconnect && this.#hasBeenReady) {
+      this.#connection.reconnect();
     }
   }
 
-  #cleanupConnection() {
-    if (this.#connection.isConnected) {
-      this.#connection.cleanup();
-    }
+  async #waitForReady() {
+    await this.#connection.connect();
+    await this.#initialization;
   }
 
-  #onData(chunk: Buffer) {
-    this.#debug?.('debug', 'Connection socket received data', chunk);
+  async #connectWithinCommandTimeout() {
+    const { commandTimeout } = this.#options;
+    const connection = this.connect();
 
-    try {
-      this.#requester.onReply(
-        chunk,
-        <E extends keyof SolidisClientEvents>(
-          event: E,
-          ...parameters: Parameters<SolidisClientEvents[E]>
-        ) => {
-          return this.emit(event, ...parameters);
-        },
+    if (commandTimeout <= 0) {
+      return await connection;
+    }
+
+    let timer: NodeJS.Timeout | undefined;
+
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () =>
+          reject(
+            new SolidisRequesterError(
+              `Connection was not ready within ${commandTimeout} ms.`,
+            ),
+          ),
+        commandTimeout,
       );
-    } catch (parserError) {
-      this.emit('error', wrapWithParserError(parserError));
+    });
 
-      this.#cleanupConnection();
+    try {
+      await Promise.race([connection, timeout]);
+    } finally {
+      clearTimeout(timer);
     }
   }
 
-  #onInitializeError(error: unknown) {
-    this.#debug?.('error', 'Initialization failed', error);
-    this.emit('error', wrapWithError(error));
+  async #initialize() {
+    try {
+      await this.#negotiate();
+      await this.#checkReadiness();
+      await this.#restoreSession();
+    } catch (error) {
+      this.#debug?.('error', 'Initialization failed', error);
 
-    this.#cleanupConnection();
+      this.#connection.reset(wrapWithError(error));
+
+      throw error;
+    }
+
+    this.#isReady = true;
+
+    this.#connection.resetBackoff();
+
+    this.#debug?.('info', 'Initialization completed');
+
+    this.emit('ready');
+
+    if (this.#hasBeenReady) {
+      this.emit('reconnected');
+    }
+
+    this.#hasBeenReady = true;
   }
 
-  #onError(error: Error) {
-    this.#debug?.('error', 'Connection error occurred', error);
-    this.emit('error', wrapWithSolidisClientError(error));
-  }
-
-  #onEnd() {
-    this.#debug?.('info', 'Connection terminated');
-    this.emit('end');
-  }
-
-  #onClosed(error: Error) {
-    this.#debug?.('error', 'Connection closed unexpectedly', error);
-
-    this.#requester.recoveryFromFault(wrapWithSolidisClientError(error));
-  }
-
-  async #hello() {
+  async #negotiate() {
     const {
       protocol,
       clientName,
       authentication: { username, password },
     } = this.#options;
 
-    if (protocol === SolidisProtocols.RESP2) {
-      return false;
-    }
+    let isAuthenticated = false;
+    let isNamed = false;
 
-    try {
-      await this.hello(protocol, username, password, clientName);
+    if (protocol === SolidisProtocols.RESP3) {
+      try {
+        await hello.call(
+          this.#handshake,
+          protocol,
+          username,
+          password,
+          clientName,
+        );
 
-      this.#requester.setNegotiatedProtocol(protocol);
+        isAuthenticated = password !== '';
+        isNamed = clientName !== '';
+      } catch (error) {
+        const cause = error instanceof Error ? error.cause : undefined;
 
-      if (username && password) {
-        return true;
+        if (
+          cause instanceof RespError &&
+          (cause.code === 'WRONGPASS' || cause.code === 'NOAUTH')
+        ) {
+          throw new SolidisClientError('Authentication failed', error);
+        }
+
+        this.#debug?.('warn', 'Protocol selection failed', error);
       }
-    } catch (error) {
-      this.#debug?.('error', 'Protocol selection failed', error);
     }
 
-    return false;
-  }
-
-  async #applyClientName() {
-    const { clientName, protocol } = this.#options;
-
-    if (!clientName || protocol !== SolidisProtocols.RESP2) {
-      return;
+    if (!isAuthenticated && password !== '') {
+      try {
+        await auth.call(this.#handshake, username, password);
+      } catch (error) {
+        throw new SolidisClientError('Authentication failed', error);
+      }
     }
 
-    try {
-      await clientSetname.call(this, clientName);
-    } catch (error) {
-      this.#debug?.('warn', `CLIENT SETNAME "${clientName}" failed`, error);
+    if (!isNamed && clientName !== '') {
+      try {
+        await clientSetname.call(this.#handshake, clientName);
+      } catch (error) {
+        this.#debug?.('warn', `CLIENT SETNAME "${clientName}" failed`, error);
+      }
     }
   }
 
-  async #authenticate() {
-    const {
-      authentication: { username, password },
-    } = this.#options;
-
-    if (!username && !password) {
-      this.#debug?.(
-        'info',
-        'Skipping authentication: credentials are not provided',
-      );
-
-      return;
-    }
-
-    try {
-      await this.auth(username, password);
-    } catch (error) {
-      this.#debug?.('error', 'Authentication failed', error);
-
-      throw new SolidisClientError('Authentication failed', error);
-    }
-  }
-
-  async #readyCheck(attempt = 0) {
+  async #checkReadiness() {
     const { enableReadyCheck, readyCheckInterval, maxReadyCheckRetries } =
       this.#options;
 
     if (!enableReadyCheck) {
-      this.#debug?.('info', 'Ready check disabled.');
-
       return;
     }
 
-    try {
-      const result = await this.info('persistence');
+    let attempt = 0;
 
-      if (!result.loading || result.loading === '0') {
-        this.#debug?.('info', 'Ready check completed');
+    while (true) {
+      let persistence: Record<string, string>;
 
+      try {
+        persistence = await info.call(this.#handshake, 'persistence');
+      } catch (error) {
+        throw new SolidisClientError('Ready check failed', error);
+      }
+
+      if (persistence.loading !== '1') {
         return;
       }
 
       if (attempt >= maxReadyCheckRetries) {
         throw new SolidisClientError(
-          `Ready check failed: still loading after ${maxReadyCheckRetries} attempts`,
+          `Ready check failed: still loading after ${maxReadyCheckRetries} retries`,
         );
       }
 
-      await new Promise((resolve) => setTimeout(resolve, readyCheckInterval));
+      attempt += 1;
 
-      await this.#readyCheck(attempt + 1);
-    } catch (error) {
-      this.#debug?.('error', 'Ready check failed with error', error);
-
-      throw new SolidisClientError('Ready check failed', error);
+      await sleep(readyCheckInterval);
     }
   }
 
-  async #recoveryAfterConnect() {
-    const {
-      autoRecovery: { database, subscribe, ssubscribe, psubscribe },
-    } = this.#options;
-
-    await this.#recoveryStep({
-      condition: !!database && this.#options.database > 0,
-      method: this.select<this>,
-      methodName: 'select',
-      parameters: [this.#options.database],
-    });
-
+  async #restoreSession() {
+    const { autoRecovery, database } = this.#options;
     const pubSub = this.#pubSub;
+    const selectedDatabase = this.#requester.database;
+    const targetDatabase = autoRecovery.database ? selectedDatabase : database;
 
-    await Promise.all([
-      this.#recoveryStep({
-        condition: !!subscribe && pubSub.subscribedChannels.size > 0,
-        method: this.subscribe as SolidisSubscribeMethod,
-        methodName: 'subscribe',
-        parameters: Array.from(pubSub.subscribedChannels),
-      }),
-      this.#recoveryStep({
-        condition: !!ssubscribe && pubSub.subscribedShardChannels.size > 0,
-        method: this.ssubscribe as SolidisSSubscribeMethod,
-        methodName: 'ssubscribe',
-        parameters: Array.from(pubSub.subscribedShardChannels),
-      }),
-      this.#recoveryStep({
-        condition: !!psubscribe && pubSub.subscribedPatterns.size > 0,
-        method: this.psubscribe as SolidisPSubscribeMethod,
-        methodName: 'psubscribe',
-        parameters: Array.from(pubSub.subscribedPatterns),
-      }),
-    ]);
-
-    if (!subscribe) {
-      pubSub.clearSubscribedChannels();
+    if (targetDatabase !== 0 || selectedDatabase !== 0) {
+      await select.call(this.#handshake, targetDatabase);
     }
 
-    if (!ssubscribe) {
-      pubSub.clearSubscribedShardChannels();
-    }
-
-    if (!psubscribe) {
-      pubSub.clearSubscribedPatterns();
-    }
-  }
-
-  async #recoveryStep<
-    T extends (...parameters: Parameters<T>) => Promise<unknown>,
-  >({
-    condition,
-    method,
-    methodName,
-    parameters,
-  }: SolidisClientRecoveryStep<T>) {
-    if (condition) {
-      this.#debug?.('debug', `${methodName} recovery step`);
-
-      if (method) {
-        await method(...parameters).catch((error) => {
-          this.#debug?.('error', `${methodName} recovery failed`, error);
-        });
+    for (const eventName of SolidisSubscribeEventNames) {
+      if (!autoRecovery[eventName]) {
+        pubSub.clearSubscriptions(eventName);
       }
-    }
-  }
 
-  public extend<T extends Record<string, unknown>>(
-    extensions: T & ThisType<SolidisClient>,
-  ): this & SolidisClientExtensions<T> {
-    for (const method of Object.getOwnPropertyNames(extensions)) {
-      if (
-        method !== 'constructor' &&
-        typeof extensions[method] === 'function'
-      ) {
-        this[method] = extensions[method].bind(this);
+      const subscriptions = pubSub.getSubscriptions(eventName);
+
+      if (subscriptions.size === 0) {
+        continue;
       }
-    }
 
-    return this as this & SolidisClientExtensions<T>;
+      const error = await this.#requester
+        .send([[eventName.toUpperCase(), ...subscriptions]])
+        .then(findErrorInReplies, (sendError: unknown) => sendError);
+
+      if (!error) {
+        continue;
+      }
+
+      if (!(error instanceof RespError)) {
+        throw error;
+      }
+
+      pubSub.clearSubscriptions(eventName);
+
+      this.emit(
+        'error',
+        new SolidisClientError('Failed to restore subscriptions', error),
+      );
+    }
   }
 }

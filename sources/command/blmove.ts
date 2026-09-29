@@ -24,5 +24,6 @@ export async function blmove<T>(
     this,
     createCommand(source, destination, whereFrom, whereTo, timeout),
     tryReplyToStringOrNull,
+    { blockingTimeout: timeout * 1000 },
   );
 }

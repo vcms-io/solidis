@@ -1,9 +1,8 @@
-import { RespJsonType } from '../index.ts';
+import { RespJsonType } from '../types/resp.ts';
 import {
   buildJsonKeyPathCommand,
   executeCommand,
-  InvalidReplyPrefix,
-  newCommandError,
+  newUnexpectedReplyError,
 } from './utils/index.ts';
 
 import type { StringOrBuffer } from '../index.ts';
@@ -27,7 +26,7 @@ function parseJsonType(
     return matched;
   }
 
-  throw newCommandError(`${InvalidReplyPrefix}: ${item}`, command);
+  throw newUnexpectedReplyError(item, command);
 }
 
 export async function jsonType<T>(
@@ -49,7 +48,11 @@ export async function jsonType<T>(
     createCommand(key, path),
     (reply, command) => {
       if (Array.isArray(reply)) {
-        if (path === undefined && reply.length === 1) {
+        if (
+          reply.length === 1 &&
+          !Array.isArray(reply[0]) &&
+          !path?.startsWith('$')
+        ) {
           return parseJsonType(reply[0], command);
         }
 

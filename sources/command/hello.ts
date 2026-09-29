@@ -1,8 +1,7 @@
-import { SolidisProtocols } from '../index.ts';
+import { SolidisProtocols } from '../types/solidis.ts';
 import {
   executeCommand,
-  InvalidReplyPrefix,
-  newCommandError,
+  tryReplyArray,
   tryReplyToMap,
   tryReplyToModuleInfo,
 } from './utils/index.ts';
@@ -45,13 +44,9 @@ export async function hello<T>(
     this,
     createCommand(protocol, username, password, clientName),
     (reply, command) => {
-      const map = tryReplyToMap(reply);
+      const map = tryReplyToMap(reply, command);
 
-      const modules = map.get('modules');
-
-      if (!Array.isArray(modules)) {
-        throw newCommandError(`${InvalidReplyPrefix}: ${modules}`, command);
-      }
+      const modules = map.get('modules') ?? [];
 
       return {
         server: String(map.get('server')),
@@ -60,7 +55,7 @@ export async function hello<T>(
         id: Number(map.get('id')),
         mode: String(map.get('mode')),
         role: String(map.get('role')),
-        modules: modules.map(tryReplyToModuleInfo),
+        modules: tryReplyArray(modules, command).map(tryReplyToModuleInfo),
       };
     },
   );
