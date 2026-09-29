@@ -64,7 +64,7 @@ jobs:
 
     permissions:
       contents: write
-      packages: write
+      id-token: write
 
     steps:
       - name: Checkout Repository
@@ -83,6 +83,11 @@ jobs:
       - name: Build Package
         run: npm run build
 
+      - name: Publish to NPM
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Push Tag
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
@@ -98,8 +103,3 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Publish to NPM
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
