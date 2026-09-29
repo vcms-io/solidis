@@ -603,12 +603,12 @@ describe('resp3-shapes', () => {
     if (capabilities.atLeast(7, 2)) {
       assert.strictEqual(
         denied.message,
-        `[SET forbidden:key val] Invalid reply: RespError: NOPERM User ${user} has no permissions to run the 'set' command`,
+        `[SET] NOPERM User ${user} has no permissions to run the 'set' command`,
       );
     } else {
       assert.strictEqual(
         denied.message,
-        "[SET forbidden:key val] Invalid reply: RespError: NOPERM this user has no permissions to run the 'set' command or its subcommand",
+        "[SET] NOPERM this user has no permissions to run the 'set' command or its subcommand",
       );
     }
 
@@ -1234,6 +1234,9 @@ describe('resp3-shapes', () => {
 
     const keys = await client.jsonObjkeys(key);
 
+    if (keys === null) {
+      assert.fail('JSON.OBJKEYS must return the keys of an existing object');
+    }
     assert.deepStrictEqual([...keys].sort(), ['x', 'y']);
   });
 
@@ -1458,25 +1461,21 @@ describe('resp3-shapes', () => {
     }
   });
 
-  it('reads a RESP3 TS.MGET with filterByValue option', async (context) => {
+  it('reads RESP3 TS.MGET / TS.GET replies for an empty series', async (context) => {
     if (!hasTimeSeries) {
       context.skip('RedisTimeSeries not loaded');
       return;
     }
 
-    const key = keyspace.key('ts-mget-fbv');
-    const label = keyspace.key('ts-mget-fbv-label');
+    const key = keyspace.key('ts-mget-empty');
+    const label = keyspace.key('ts-mget-empty-label');
 
     await client.tsCreate(key, { labels: { kind: label } });
-    await client.tsAdd(key, 1000, 50);
-    await client.tsAdd(key, 2000, 150);
 
-    const filtered = await client.tsMget(
-      { kind: label },
-      { filterByValue: [[100, 200]] },
-    );
-
-    assert.deepStrictEqual(filtered, [{ key, timestamp: 2000, value: 150 }]);
+    assert.deepStrictEqual(await client.tsMget({ kind: label }), [
+      { key, timestamp: null, value: null },
+    ]);
+    assert.strictEqual(await client.tsGet(key), null);
   });
 
   it('receives RESP3 push messages via subscribe', async () => {

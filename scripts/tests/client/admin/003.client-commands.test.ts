@@ -6,6 +6,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
+import { SolidisRequesterError } from '../../../../sources/index.ts';
 import {
   closeClient,
   createClient,
@@ -366,7 +367,7 @@ describe('client-commands', () => {
 
       assert.strictEqual(
         settlement.error.message,
-        `[BLPOP ${blockKey} 0] Unexpected reply: RespError: UNBLOCKED client unblocked via CLIENT UNBLOCK`,
+        '[BLPOP] UNBLOCKED client unblocked via CLIENT UNBLOCK',
       );
     } finally {
       await closeClient(blocked);
@@ -378,7 +379,7 @@ describe('client-commands', () => {
       () => client.clientCaching('YES'),
       (error: Error) =>
         error.message ===
-        '[CLIENT CACHING YES] Invalid reply: RespError: ERR CLIENT CACHING can be called only when the client is in tracking mode with OPTIN or OPTOUT mode enabled',
+        '[CLIENT CACHING] ERR CLIENT CACHING can be called only when the client is in tracking mode with OPTIN or OPTOUT mode enabled',
     );
   });
 
@@ -503,16 +504,21 @@ describe('client-commands', () => {
     assert.deepStrictEqual(info.prefixes, []);
   });
 
-  it('switches client reply mode', async () => {
-    assert.strictEqual(await client.clientReply('ON'), 'OK');
-  });
+  it('rejects CLIENT REPLY OFF / SKIP before sending and keeps replies paired', async () => {
+    for (const mode of ['OFF', 'SKIP']) {
+      await assert.rejects(
+        client.send([['CLIENT', 'REPLY', mode]]),
+        (error: Error) =>
+          error instanceof SolidisRequesterError &&
+          error.message ===
+            'CLIENT REPLY is not supported: it breaks the pairing of requests and replies.',
+      );
+    }
 
-  it('constructs CLIENT REPLY OFF without sending', async () => {
-    const { createCommand } = await import(
-      '../../../../sources/command/client.reply.ts'
-    );
-
-    assert.deepStrictEqual(createCommand('OFF'), ['CLIENT', 'REPLY', 'OFF']);
+    assert.deepStrictEqual(await client.send([['CLIENT', 'REPLY', 'ON']]), [
+      ['OK'],
+    ]);
+    assert.strictEqual(await client.echo('still-paired'), 'still-paired');
   });
 
   it('filters CLIENT LIST by ID', async () => {

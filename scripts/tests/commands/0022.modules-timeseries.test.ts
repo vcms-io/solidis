@@ -444,7 +444,7 @@ describe('modules-timeseries', () => {
     const missingKey = keyspace.key('ts-get-missing');
 
     await assert.rejects(() => client.tsGet(missingKey), {
-      message: `[TS.GET ${missingKey}] Unexpected reply: RespError: ERR TSDB: the key does not exist`,
+      message: '[TS.GET] ERR TSDB: the key does not exist',
     });
   });
 
@@ -516,7 +516,7 @@ describe('modules-timeseries', () => {
     await client.tsAdd(key, now - 1000, 90);
 
     const samples = await client.tsRange(key, now - 4000, now, {
-      filterByValue: [[20, 100]],
+      filterByValue: [20, 100],
       count: 5,
     });
 
@@ -572,7 +572,7 @@ describe('modules-timeseries', () => {
       now - 3000,
       now,
       { device: label },
-      { filterByValue: [[50, 100]], count: 10 },
+      { filterByValue: [50, 100], count: 10 },
     );
 
     assert.deepStrictEqual(results, [
@@ -647,8 +647,8 @@ describe('modules-timeseries', () => {
       aggregation: { type: 'avg', bucketDuration: 1000 },
       latest: true,
       align: 0,
-      filterByTs: [[100, 200]],
-      filterByValue: [[0, 100]],
+      filterByTs: [100, 200],
+      filterByValue: [0, 100],
     });
 
     assert.deepStrictEqual(command, [
@@ -679,7 +679,7 @@ describe('modules-timeseries', () => {
     );
 
     const command = createCommand('key', 0, 9999, {
-      filterByValue: [[10, 50]],
+      filterByValue: [10, 50],
       aggregation: { type: 'max', bucketDuration: 2000 },
     });
 
@@ -722,14 +722,14 @@ describe('modules-timeseries', () => {
       '4096',
       'DUPLICATE_POLICY',
       'LAST',
+      'IGNORE',
+      '1000',
+      '5',
       'LABELS',
       'sensor',
       'temp',
       'location',
       'room',
-      'IGNORE',
-      '1000',
-      '5',
     ]);
   });
 

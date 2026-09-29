@@ -6,6 +6,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
+import { RespError, SolidisCommandError } from '../../../sources/index.ts';
 import {
   closeClient,
   createClient,
@@ -224,12 +225,12 @@ describe('acl', () => {
     if (atLeast72) {
       assert.strictEqual(
         denied.message,
-        `[SET forbidden:key val] Invalid reply: RespError: NOPERM User ${user} has no permissions to run the 'set' command`,
+        `[SET] NOPERM User ${user} has no permissions to run the 'set' command`,
       );
     } else {
       assert.strictEqual(
         denied.message,
-        "[SET forbidden:key val] Invalid reply: RespError: NOPERM this user has no permissions to run the 'set' command or its subcommand",
+        "[SET] NOPERM this user has no permissions to run the 'set' command or its subcommand",
       );
     }
 
@@ -302,15 +303,18 @@ describe('acl', () => {
     const result = await client.aclSave().catch((error: Error) => error);
 
     if (result instanceof Error) {
+      assert.ok(result instanceof SolidisCommandError);
+      assert.ok(result.cause instanceof RespError);
+      assert.strictEqual(result.cause.code, 'ERR');
       if (isValkey && atLeast8) {
         assert.strictEqual(
           result.message,
-          '[ACL SAVE] Invalid reply: RespError: ERR This instance is not configured to use an ACL file. You may want to specify users via the ACL SETUSER command and then issue a CONFIG REWRITE (assuming you have a configuration file set) in order to store users in the configuration.',
+          '[ACL SAVE] ERR This instance is not configured to use an ACL file. You may want to specify users via the ACL SETUSER command and then issue a CONFIG REWRITE (assuming you have a configuration file set) in order to store users in the configuration.',
         );
       } else {
         assert.strictEqual(
           result.message,
-          '[ACL SAVE] Invalid reply: RespError: ERR This Redis instance is not configured to use an ACL file. You may want to specify users via the ACL SETUSER command and then issue a CONFIG REWRITE (assuming you have a Redis configuration file set) in order to store users in the Redis configuration.',
+          '[ACL SAVE] ERR This Redis instance is not configured to use an ACL file. You may want to specify users via the ACL SETUSER command and then issue a CONFIG REWRITE (assuming you have a Redis configuration file set) in order to store users in the Redis configuration.',
         );
       }
       return;

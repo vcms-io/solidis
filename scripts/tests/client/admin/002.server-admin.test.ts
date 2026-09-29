@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
-import { RespError } from '../../../../sources/index.ts';
+import { RespError, SolidisCommandError } from '../../../../sources/index.ts';
 import {
   closeClient,
   createClient,
@@ -222,38 +222,30 @@ describe('server-admin', () => {
   });
 
   it('triggers a background save with BGSAVE', async () => {
-    const result = await client.bgsave().catch((error: Error) => error.message);
-
-    assert.strictEqual(
-      result,
-      '[BGSAVE] Invalid reply: Background saving started',
-    );
+    assert.strictEqual(await client.bgsave(), 'Background saving started');
   });
 
   it('triggers a scheduled background save with BGSAVE SCHEDULE', async () => {
-    const result = await client
-      .bgsave(true)
-      .catch((error: Error) => error.message);
+    const result = await client.bgsave(true).catch((error: Error) => error);
 
-    const expectedMessages = [
-      '[BGSAVE SCHEDULE] Invalid reply: Background saving scheduled',
-      '[BGSAVE SCHEDULE] Invalid reply: RespError: ERR Background save already in progress',
-    ];
+    if (result instanceof Error) {
+      assert.ok(result instanceof SolidisCommandError);
+      assert.ok(result.cause instanceof RespError);
+      assert.strictEqual(result.cause.code, 'ERR');
+      assert.strictEqual(
+        result.message,
+        '[BGSAVE] ERR Background save already in progress',
+      );
+      return;
+    }
 
-    assert.ok(
-      typeof result === 'string' && expectedMessages.includes(result),
-      `BGSAVE SCHEDULE must return a scheduled or already-in-progress reply, got: ${result}`,
-    );
+    assert.strictEqual(result, 'Background saving scheduled');
   });
 
   it('triggers AOF rewrite with BGREWRITEAOF', async () => {
-    const result = await client
-      .bgrewriteaof()
-      .catch((error: Error) => error.message);
-
     assert.strictEqual(
-      result,
-      '[BGREWRITEAOF] Invalid reply: Background append only file rewriting scheduled',
+      await client.bgrewriteaof(),
+      'Background append only file rewriting scheduled',
     );
   });
 
@@ -588,19 +580,31 @@ describe('server-admin', () => {
       ['FAILOVER', 'TO', '10.0.0.2', '6380'],
     );
 
-    assert.deepStrictEqual(
-      createCommand({
-        to: { host: '10.0.0.2', port: 6380, password: 'pw' },
-      }),
-      ['FAILOVER', 'TO', '10.0.0.2', '6380', 'pw'],
-    );
+    /**
+     * FAILOVER TO accepts only a host and a port, so credentials that older
+     * callers may still pass must never be appended to the command.
+     */
+    const toWithPassword = { host: '10.0.0.2', port: 6380, password: 'pw' };
+    const toWithCredentials = {
+      host: '10.0.0.2',
+      port: 6380,
+      username: 'user',
+      password: 'pw',
+    };
 
-    assert.deepStrictEqual(
-      createCommand({
-        to: { host: '10.0.0.2', port: 6380, username: 'user', password: 'pw' },
-      }),
-      ['FAILOVER', 'TO', '10.0.0.2', '6380', 'user', 'pw'],
-    );
+    assert.deepStrictEqual(createCommand({ to: toWithPassword }), [
+      'FAILOVER',
+      'TO',
+      '10.0.0.2',
+      '6380',
+    ]);
+
+    assert.deepStrictEqual(createCommand({ to: toWithCredentials }), [
+      'FAILOVER',
+      'TO',
+      '10.0.0.2',
+      '6380',
+    ]);
 
     assert.deepStrictEqual(createCommand({ force: true }), [
       'FAILOVER',
@@ -641,9 +645,12 @@ describe('server-admin', () => {
     const result = await client.configRewrite().catch((error: Error) => error);
 
     if (result instanceof Error) {
+      assert.ok(result instanceof SolidisCommandError);
+      assert.ok(result.cause instanceof RespError);
+      assert.strictEqual(result.cause.code, 'ERR');
       assert.strictEqual(
         result.message,
-        '[CONFIG REWRITE] Invalid reply: RespError: ERR The server is running without a config file',
+        '[CONFIG REWRITE] ERR The server is running without a config file',
       );
       return;
     }
@@ -684,9 +691,12 @@ describe('server-admin', () => {
     const result = await client.objectFreq(key).catch((error: Error) => error);
 
     if (result instanceof Error) {
+      assert.ok(result instanceof SolidisCommandError);
+      assert.ok(result.cause instanceof RespError);
+      assert.strictEqual(result.cause.code, 'ERR');
       assert.strictEqual(
         result.message,
-        `[OBJECT FREQ ${key}] Invalid reply: RespError: ERR An LFU maxmemory policy is not selected, access frequency not tracked. Please note that when switching between policies at runtime LRU and LFU data will take some time to adjust.`,
+        '[OBJECT FREQ] ERR An LFU maxmemory policy is not selected, access frequency not tracked. Please note that when switching between policies at runtime LRU and LFU data will take some time to adjust.',
       );
       return;
     }
@@ -758,8 +768,9 @@ describe('server-admin', () => {
     await assert.rejects(
       () => client.latencyGraph('command'),
       (error: Error) =>
+        error instanceof SolidisCommandError &&
         error.message ===
-        "[LATENCY GRAPH command] Invalid reply: RespError: ERR No samples available for event 'command'",
+          "[LATENCY GRAPH] ERR No samples available for event 'command'",
     );
   });
 
@@ -796,8 +807,11 @@ describe('server-admin', () => {
     await assert.rejects(
       () => client.functionKill(),
       (error: Error) =>
+        error instanceof SolidisCommandError &&
+        error.cause instanceof RespError &&
+        error.cause.code === 'NOTBUSY' &&
         error.message ===
-        '[FUNCTION KILL] Invalid reply: RespError: NOTBUSY No scripts in execution right now.',
+          '[FUNCTION KILL] NOTBUSY No scripts in execution right now.',
     );
   });
 

@@ -83,19 +83,26 @@ describe('scripting', () => {
 
   it('surfaces a NOSCRIPT error for an unknown EVALSHA', async () => {
     /**
-     * EVAL/EVALSHA pass the raw reply through without a type guard, so a
-     * server error arrives as a RespError value rather than a thrown
-     * exception.
+     * EVAL/EVALSHA pass successful replies through untouched, but a server
+     * error rejects like any other typed command: a SolidisCommandError whose
+     * cause is the RespError carrying the NOSCRIPT code.
      */
-    const result = await client.evalsha('0'.repeat(40), [], []);
+    const result = await client
+      .evalsha('0'.repeat(40), [], [])
+      .catch((error: unknown) => error);
 
-    assert.ok(result instanceof RespError);
+    assert.ok(result instanceof SolidisCommandError);
+    assert.ok(result.cause instanceof RespError);
+    assert.strictEqual(result.cause.code, 'NOSCRIPT');
     if (capabilities.isValkey && capabilities.atLeast(8, 0)) {
-      assert.strictEqual(result.message, 'NOSCRIPT No matching script.');
+      assert.strictEqual(
+        result.message,
+        '[EVALSHA] NOSCRIPT No matching script.',
+      );
     } else {
       assert.strictEqual(
         result.message,
-        'NOSCRIPT No matching script. Please use EVAL.',
+        '[EVALSHA] NOSCRIPT No matching script. Please use EVAL.',
       );
     }
   });
@@ -163,9 +170,11 @@ describe('scripting', () => {
     const result = await client.scriptKill().catch((error: unknown) => error);
 
     assert.ok(result instanceof SolidisCommandError);
+    assert.ok(result.cause instanceof RespError);
+    assert.strictEqual(result.cause.code, 'NOTBUSY');
     assert.strictEqual(
       result.message,
-      '[SCRIPT KILL] Invalid reply: RespError: NOTBUSY No scripts in execution right now.',
+      '[SCRIPT KILL] NOTBUSY No scripts in execution right now.',
     );
   });
 });

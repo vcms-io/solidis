@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
+import { SolidisPubSub, SolidisPubSubError } from '../../../sources/index.ts';
 import {
   closeClient,
   createClient,
@@ -11,7 +12,7 @@ import {
   waitFor,
 } from '../utils/index.ts';
 
-import type { StringOrBuffer } from '../../../sources/index.ts';
+import type { SolidisData, StringOrBuffer } from '../../../sources/index.ts';
 import type { FeaturedClient } from '../utils/client.ts';
 
 describe('pubsub', () => {
@@ -315,319 +316,6 @@ describe('pubsub', () => {
     assert.strictEqual(counts[channel], 1);
   });
 
-  it('dispatches message events via SolidisPubSub', async () => {
-    const { SolidisPubSub } = await import(
-      '../../../sources/modules/pubsub.ts'
-    );
-
-    const pubsub = new SolidisPubSub();
-    const events: unknown[] = [];
-
-    const emit = (event: string, ...parameters: unknown[]) => {
-      events.push([event, ...parameters]);
-      return true;
-    };
-
-    pubsub.dispatchPubSubEvent(
-      [Buffer.from('message'), Buffer.from('ch1'), Buffer.from('hello')],
-      emit,
-    );
-
-    assert.strictEqual(events.length, 1);
-    assert.deepStrictEqual(events[0], ['message', 'ch1', Buffer.from('hello')]);
-  });
-
-  it('dispatches pmessage events via SolidisPubSub', async () => {
-    const { SolidisPubSub } = await import(
-      '../../../sources/modules/pubsub.ts'
-    );
-
-    const pubsub = new SolidisPubSub();
-    const events: unknown[] = [];
-
-    const emit = (event: string, ...parameters: unknown[]) => {
-      events.push([event, ...parameters]);
-      return true;
-    };
-
-    pubsub.dispatchPubSubEvent(
-      [
-        Buffer.from('pmessage'),
-        Buffer.from('ch:*'),
-        Buffer.from('ch:1'),
-        Buffer.from('data'),
-      ],
-      emit,
-    );
-
-    assert.strictEqual(events.length, 1);
-    assert.deepStrictEqual(events[0], [
-      'pmessage',
-      'ch:*',
-      'ch:1',
-      Buffer.from('data'),
-    ]);
-  });
-
-  it('tracks subscribe/unsubscribe state in SolidisPubSub', async () => {
-    const { SolidisPubSub } = await import(
-      '../../../sources/modules/pubsub.ts'
-    );
-
-    const pubsub = new SolidisPubSub();
-    const emit = () => true;
-
-    pubsub.dispatchPubSubEvent(
-      [Buffer.from('subscribe'), Buffer.from('news'), 1],
-      emit,
-    );
-
-    assert.strictEqual(pubsub.subscribedChannels.has('news'), true);
-
-    pubsub.dispatchPubSubEvent(
-      [Buffer.from('unsubscribe'), Buffer.from('news'), 0],
-      emit,
-    );
-
-    assert.strictEqual(pubsub.subscribedChannels.has('news'), false);
-  });
-
-  it('tracks ssubscribe/sunsubscribe state in SolidisPubSub', async () => {
-    const { SolidisPubSub } = await import(
-      '../../../sources/modules/pubsub.ts'
-    );
-
-    const pubsub = new SolidisPubSub();
-    const emit = () => true;
-
-    pubsub.dispatchPubSubEvent(
-      [Buffer.from('ssubscribe'), Buffer.from('shard-ch'), 1],
-      emit,
-    );
-
-    assert.strictEqual(pubsub.subscribedShardChannels.has('shard-ch'), true);
-
-    pubsub.dispatchPubSubEvent(
-      [Buffer.from('sunsubscribe'), Buffer.from('shard-ch'), 0],
-      emit,
-    );
-
-    assert.strictEqual(pubsub.subscribedShardChannels.has('shard-ch'), false);
-  });
-
-  it('tracks psubscribe/punsubscribe state in SolidisPubSub', async () => {
-    const { SolidisPubSub } = await import(
-      '../../../sources/modules/pubsub.ts'
-    );
-
-    const pubsub = new SolidisPubSub();
-    const emit = () => true;
-
-    pubsub.dispatchPubSubEvent(
-      [Buffer.from('psubscribe'), Buffer.from('user:*'), 1],
-      emit,
-    );
-
-    assert.strictEqual(pubsub.subscribedPatterns.has('user:*'), true);
-
-    pubsub.dispatchPubSubEvent(
-      [Buffer.from('punsubscribe'), Buffer.from('user:*'), 0],
-      emit,
-    );
-
-    assert.strictEqual(pubsub.subscribedPatterns.has('user:*'), false);
-  });
-
-  it('reports hasActiveSubscriptions correctly in SolidisPubSub', async () => {
-    const { SolidisPubSub } = await import(
-      '../../../sources/modules/pubsub.ts'
-    );
-
-    const pubsub = new SolidisPubSub();
-
-    assert.strictEqual(pubsub.hasActiveSubscriptions, false);
-
-    pubsub.dispatchPubSubEvent(
-      [Buffer.from('subscribe'), Buffer.from('test'), 1],
-      () => true,
-    );
-
-    assert.strictEqual(pubsub.hasActiveSubscriptions, true);
-  });
-
-  it('emits error on invalid message type in SolidisPubSub', async () => {
-    const { SolidisPubSub } = await import(
-      '../../../sources/modules/pubsub.ts'
-    );
-
-    const pubsub = new SolidisPubSub();
-    const errors: unknown[] = [];
-
-    const emit = (event: string, ...parameters: unknown[]) => {
-      if (event === 'error') {
-        errors.push(parameters[0]);
-      }
-      return true;
-    };
-
-    pubsub.dispatchPubSubEvent([Buffer.from('message'), null, null], emit);
-
-    assert.strictEqual(errors.length, 1);
-
-    if (!(errors[0] instanceof Error)) {
-      assert.fail('expected an Error instance for message:type');
-    }
-
-    assert.strictEqual(errors[0].message, 'message:type');
-  });
-
-  it('emits error on unknown subscription event in SolidisPubSub', async () => {
-    const { SolidisPubSub } = await import(
-      '../../../sources/modules/pubsub.ts'
-    );
-
-    const pubsub = new SolidisPubSub();
-    const errors: unknown[] = [];
-
-    const emit = (event: string, ...parameters: unknown[]) => {
-      if (event === 'error') {
-        errors.push(parameters[0]);
-      }
-      return true;
-    };
-
-    pubsub.dispatchPubSubEvent(
-      [Buffer.from('unknownevent'), Buffer.from('ch'), 1],
-      emit,
-    );
-
-    assert.strictEqual(errors.length, 1);
-
-    if (!(errors[0] instanceof Error)) {
-      assert.fail('expected an Error instance for unknownevent:event');
-    }
-
-    assert.strictEqual(errors[0].message, 'unknownevent:event');
-  });
-
-  it('emits error on malformed subscription (non-number count)', async () => {
-    const { SolidisPubSub } = await import(
-      '../../../sources/modules/pubsub.ts'
-    );
-
-    const pubsub = new SolidisPubSub();
-    const errors: unknown[] = [];
-
-    const emit = (event: string, ...parameters: unknown[]) => {
-      if (event === 'error') {
-        errors.push(parameters[0]);
-      }
-      return true;
-    };
-
-    pubsub.dispatchPubSubEvent(
-      [Buffer.from('subscribe'), Buffer.from('ch'), Buffer.from('nan')],
-      emit,
-    );
-
-    assert.strictEqual(errors.length, 1);
-
-    if (!(errors[0] instanceof Error)) {
-      assert.fail('expected an Error instance for subscribe:type');
-    }
-
-    assert.strictEqual(errors[0].message, 'subscribe:type');
-  });
-
-  it('emits error on pmessage with invalid types', async () => {
-    const { SolidisPubSub } = await import(
-      '../../../sources/modules/pubsub.ts'
-    );
-
-    const pubsub = new SolidisPubSub();
-    const errors: unknown[] = [];
-
-    const emit = (event: string, ...parameters: unknown[]) => {
-      if (event === 'error') {
-        errors.push(parameters[0]);
-      }
-      return true;
-    };
-
-    pubsub.dispatchPubSubEvent(
-      [Buffer.from('pmessage'), null, null, null],
-      emit,
-    );
-
-    assert.strictEqual(errors.length, 1);
-
-    if (!(errors[0] instanceof Error)) {
-      assert.fail('expected an Error instance for pmessage:type');
-    }
-
-    assert.strictEqual(errors[0].message, 'pmessage:type');
-  });
-
-  it('does not allow external mutation of subscribedChannels to corrupt state', async () => {
-    const { SolidisPubSub } = await import(
-      '../../../sources/modules/pubsub.ts'
-    );
-
-    const pubsub = new SolidisPubSub();
-    const emit = () => true;
-
-    pubsub.dispatchPubSubEvent(
-      [Buffer.from('subscribe'), Buffer.from('real-channel'), 1],
-      emit,
-    );
-
-    const exposedSet = pubsub.subscribedChannels;
-
-    assert.strictEqual(exposedSet.has('real-channel'), true);
-
-    if (!(exposedSet instanceof Set)) {
-      assert.fail('expected subscribedChannels to be a Set instance');
-    }
-
-    /** Mutate the returned copy to verify it does not affect the internal set. */
-    const mutableCopy = new Set(exposedSet);
-    mutableCopy.add('phantom-channel');
-    mutableCopy.delete('real-channel');
-
-    const internalSet = pubsub.subscribedChannels;
-
-    assert.strictEqual(internalSet.has('real-channel'), true);
-    assert.strictEqual(internalSet.has('phantom-channel'), false);
-    assert.strictEqual(mutableCopy.has('phantom-channel'), true);
-    assert.strictEqual(mutableCopy.has('real-channel'), false);
-  });
-
-  it('returns the same Set reference from subscribedChannels on consecutive accesses', async () => {
-    const { SolidisPubSub } = await import(
-      '../../../sources/modules/pubsub.ts'
-    );
-
-    const pubsub = new SolidisPubSub();
-    const emit = () => true;
-
-    pubsub.dispatchPubSubEvent(
-      [Buffer.from('subscribe'), Buffer.from('identity-channel'), 1],
-      emit,
-    );
-
-    const firstAccess = pubsub.subscribedChannels;
-    const secondAccess = pubsub.subscribedChannels;
-
-    assert.strictEqual(
-      firstAccess,
-      secondAccess,
-      'consecutive accesses to subscribedChannels must return the same ' +
-        'Set reference — the current implementation creates a new Set ' +
-        'copy on every property access, which wastes allocations during ' +
-        'recovery when the getter is called twice in sequence',
-    );
-  });
-
   it('handles PSUBSCRIBE and PUNSUBSCRIBE for pattern channels', async () => {
     const messages: string[] = [];
 
@@ -644,5 +332,351 @@ describe('pubsub', () => {
     assert.deepStrictEqual(messages, ['pattern-msg']);
 
     await subscriber.punsubscribe(keyspace.key('pattern:*'));
+  });
+
+  it('unsubscribes from every channel when called without arguments', async () => {
+    const channels = [
+      keyspace.key('all', 'first'),
+      keyspace.key('all', 'second'),
+      keyspace.key('all', 'third'),
+    ];
+    const unsubscribed: [string, number][] = [];
+    const key = keyspace.key('all', 'key');
+
+    subscriber.on('unsubscribe', (channel, count) => {
+      unsubscribed.push([channel, count]);
+    });
+
+    await subscriber.subscribe(...channels);
+    await subscriber.unsubscribe();
+
+    assert.deepStrictEqual(
+      unsubscribed.map(([channel]) => channel).sort(),
+      [...channels].sort(),
+    );
+    assert.deepStrictEqual(
+      unsubscribed.map(([, count]) => count),
+      [2, 1, 0],
+    );
+    assert.strictEqual(await subscriber.set(key, 'normal-mode'), 'OK');
+    assert.strictEqual(await subscriber.get(key), 'normal-mode');
+  });
+
+  it('resolves an argument-less unsubscribe when nothing is subscribed', async () => {
+    const events: unknown[] = [];
+
+    subscriber.on('unsubscribe', (...parameters) => {
+      events.push(parameters);
+    });
+
+    await subscriber.unsubscribe();
+    await subscriber.punsubscribe();
+
+    assert.deepStrictEqual(events, []);
+    assert.strictEqual(await subscriber.echo('aligned'), 'aligned');
+  });
+
+  it('keeps patterns subscribed when only channels are unsubscribed', async () => {
+    const channel = keyspace.key('mixed', 'channel');
+    const pattern = `${keyspace.namespace}:mixed:pattern:*`;
+    const patternChannel = keyspace.key('mixed', 'pattern', 'hit');
+    const received: string[] = [];
+
+    subscriber.on('pmessage', (_pattern, _channel, message) => {
+      received.push(`${message}`);
+    });
+
+    await subscriber.subscribe(channel);
+    await subscriber.psubscribe(pattern);
+    await subscriber.unsubscribe();
+
+    assert.strictEqual(await publisher.publish(channel, 'dropped'), 0);
+    assert.strictEqual(await publisher.publish(patternChannel, 'kept'), 1);
+
+    await waitFor(() => received.length === 1);
+
+    assert.deepStrictEqual(received, ['kept']);
+  });
+
+  it('survives a message listener that throws', async () => {
+    const channel = keyspace.key('throwing');
+    const received: string[] = [];
+    const errors: unknown[] = [];
+    const failure = new Error('listener failure');
+
+    subscriber.on('error', (error) => {
+      errors.push(error);
+    });
+    subscriber.on('message', (_channel, message) => {
+      received.push(`${message}`);
+
+      if (received.length === 1) {
+        throw failure;
+      }
+    });
+
+    await subscriber.subscribe(channel);
+    await publisher.publish(channel, 'first');
+    await publisher.publish(channel, 'second');
+
+    await waitFor(() => received.length === 2);
+
+    assert.deepStrictEqual(received, ['first', 'second']);
+
+    const [error] = errors;
+
+    assert.strictEqual(errors.length, 1);
+    assert.ok(error instanceof SolidisPubSubError);
+    assert.strictEqual(error.message, "A 'message' listener threw");
+    assert.strictEqual(error.cause, failure);
+  });
+
+  it('delivers every message published during a burst in order', async () => {
+    const channel = keyspace.key('burst');
+    const total = 500;
+    const received: string[] = [];
+
+    subscriber.on('message', (_channel, message) => {
+      received.push(`${message}`);
+    });
+
+    await subscriber.subscribe(channel);
+
+    await publisher.send(
+      Array.from({ length: total }, (_, index) => [
+        'PUBLISH',
+        channel,
+        `${index}`,
+      ]),
+    );
+
+    await waitFor(() => received.length === total, { timeout: 5000 });
+
+    assert.deepStrictEqual(
+      received,
+      Array.from({ length: total }, (_, index) => `${index}`),
+    );
+  });
+
+  describe('SolidisPubSub', () => {
+    function createPubSub() {
+      const events: unknown[][] = [];
+      const pubSub = new SolidisPubSub((event, ...parameters) => {
+        events.push([event, ...parameters]);
+
+        return true;
+      });
+
+      return { events, pubSub };
+    }
+
+    function getErrorMessages(events: unknown[][]) {
+      return events
+        .filter(([event]) => event === 'error')
+        .map(([, error]) => {
+          if (!(error instanceof SolidisPubSubError)) {
+            assert.fail('expected a SolidisPubSubError');
+          }
+
+          return error.message;
+        });
+    }
+
+    for (const eventName of ['message', 'smessage'] as const) {
+      it(`dispatches ${eventName} events with a text channel and raw payload`, () => {
+        const { events, pubSub } = createPubSub();
+
+        pubSub.dispatchMessage(eventName, [
+          Buffer.from(eventName),
+          Buffer.from('ch1'),
+          Buffer.from('hello'),
+        ]);
+        pubSub.dispatchMessage(eventName, [eventName, 'ch2', 'plain']);
+
+        assert.deepStrictEqual(events, [
+          [eventName, 'ch1', Buffer.from('hello')],
+          [eventName, 'ch2', 'plain'],
+        ]);
+      });
+    }
+
+    it('dispatches pmessage events with pattern, channel and payload', () => {
+      const { events, pubSub } = createPubSub();
+
+      pubSub.dispatchMessage('pmessage', [
+        Buffer.from('pmessage'),
+        Buffer.from('ch:*'),
+        Buffer.from('ch:1'),
+        Buffer.from('data'),
+      ]);
+
+      assert.deepStrictEqual(events, [
+        ['pmessage', 'ch:*', 'ch:1', Buffer.from('data')],
+      ]);
+    });
+
+    const malformedMessages: [
+      'message' | 'smessage' | 'pmessage',
+      SolidisData[],
+    ][] = [
+      ['message', ['message', null, null]],
+      ['message', ['message', 'channel', 42]],
+      ['message', ['message', 7, 'payload']],
+      ['smessage', ['smessage', 'channel', ['nested']]],
+      ['pmessage', ['pmessage', null, null, null]],
+      ['pmessage', ['pmessage', 'pattern', null, 'payload']],
+      ['pmessage', ['pmessage', 'pattern', 'channel', null]],
+    ];
+
+    for (const [eventName, reply] of malformedMessages) {
+      it(`reports a malformed ${eventName} ${JSON.stringify(reply)} without emitting it`, () => {
+        const { events, pubSub } = createPubSub();
+
+        pubSub.dispatchMessage(eventName, reply);
+
+        assert.strictEqual(events.length, 1);
+        assert.deepStrictEqual(getErrorMessages(events), [
+          `Malformed '${eventName}' event`,
+        ]);
+      });
+    }
+
+    const subscriptionPairs = [
+      ['subscribe', 'unsubscribe'],
+      ['ssubscribe', 'sunsubscribe'],
+      ['psubscribe', 'punsubscribe'],
+    ] as const;
+
+    for (const [subscribeName, unsubscribeName] of subscriptionPairs) {
+      it(`tracks ${subscribeName}/${unsubscribeName} in a set of its own`, () => {
+        const { events, pubSub } = createPubSub();
+
+        pubSub.dispatchSubscriptionChange(subscribeName, [
+          Buffer.from(subscribeName),
+          Buffer.from('target'),
+          1,
+        ]);
+
+        assert.deepStrictEqual(
+          [...pubSub.getSubscriptions(subscribeName)],
+          ['target'],
+        );
+        assert.strictEqual(
+          pubSub.getSubscriptions(unsubscribeName),
+          pubSub.getSubscriptions(subscribeName),
+        );
+
+        for (const [otherName] of subscriptionPairs) {
+          if (otherName !== subscribeName) {
+            assert.strictEqual(pubSub.getSubscriptions(otherName).size, 0);
+          }
+        }
+
+        assert.strictEqual(pubSub.hasActiveSubscriptions, true);
+
+        pubSub.dispatchSubscriptionChange(unsubscribeName, [
+          unsubscribeName,
+          'target',
+          0,
+        ]);
+
+        assert.strictEqual(pubSub.getSubscriptions(subscribeName).size, 0);
+        assert.strictEqual(pubSub.hasActiveSubscriptions, false);
+        assert.deepStrictEqual(events, [
+          [subscribeName, 'target', 1],
+          [unsubscribeName, 'target', 0],
+        ]);
+      });
+    }
+
+    it('reports a subscription change with a non-numeric count without tracking it', () => {
+      const { events, pubSub } = createPubSub();
+
+      pubSub.dispatchSubscriptionChange('subscribe', [
+        Buffer.from('subscribe'),
+        Buffer.from('ch'),
+        Buffer.from('nan'),
+      ]);
+
+      assert.deepStrictEqual(getErrorMessages(events), [
+        "Malformed 'subscribe' event",
+      ]);
+      assert.strictEqual(pubSub.hasActiveSubscriptions, false);
+    });
+
+    it('silently accepts an unsubscribe confirmation without a channel', () => {
+      const { events, pubSub } = createPubSub();
+
+      pubSub.dispatchSubscriptionChange('unsubscribe', [
+        'unsubscribe',
+        null,
+        0,
+      ]);
+
+      assert.deepStrictEqual(events, []);
+    });
+
+    it('clears one kind of subscription or all of them', () => {
+      const { pubSub } = createPubSub();
+
+      pubSub.dispatchSubscriptionChange('subscribe', ['subscribe', 'a', 1]);
+      pubSub.dispatchSubscriptionChange('psubscribe', ['psubscribe', 'p:*', 2]);
+      pubSub.dispatchSubscriptionChange('ssubscribe', ['ssubscribe', 's', 1]);
+      pubSub.clearSubscriptions('punsubscribe');
+
+      assert.strictEqual(pubSub.getSubscriptions('psubscribe').size, 0);
+      assert.strictEqual(pubSub.getSubscriptions('subscribe').size, 1);
+      assert.strictEqual(pubSub.getSubscriptions('ssubscribe').size, 1);
+
+      pubSub.clear();
+
+      assert.strictEqual(pubSub.hasActiveSubscriptions, false);
+    });
+
+    it('returns the live subscription set on every access', () => {
+      const { pubSub } = createPubSub();
+      const subscriptions = pubSub.getSubscriptions('subscribe');
+
+      pubSub.dispatchSubscriptionChange('subscribe', [
+        'subscribe',
+        'identity-channel',
+        1,
+      ]);
+
+      assert.strictEqual(pubSub.getSubscriptions('subscribe'), subscriptions);
+      assert.strictEqual(subscriptions.has('identity-channel'), true);
+    });
+
+    it('turns a throwing listener into a SolidisPubSubError carrying the cause', () => {
+      const errors: unknown[] = [];
+      const failure = new Error('listener failure');
+      const pubSub = new SolidisPubSub((event, ...parameters) => {
+        if (event === 'error') {
+          errors.push(parameters[0]);
+
+          return true;
+        }
+
+        throw failure;
+      });
+
+      pubSub.dispatchMessage('message', ['message', 'ch', 'payload']);
+      pubSub.dispatchSubscriptionChange('subscribe', ['subscribe', 'ch', 1]);
+
+      assert.strictEqual(errors.length, 2);
+
+      for (const [index, eventName] of ['message', 'subscribe'].entries()) {
+        const error = errors[index];
+
+        if (!(error instanceof SolidisPubSubError)) {
+          assert.fail('expected a SolidisPubSubError');
+        }
+
+        assert.strictEqual(error.message, `A '${eventName}' listener threw`);
+        assert.strictEqual(error.cause, failure);
+      }
+
+      assert.strictEqual(pubSub.getSubscriptions('subscribe').has('ch'), true);
+    });
   });
 });

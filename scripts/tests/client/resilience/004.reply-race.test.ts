@@ -1,4 +1,4 @@
-/** Reply race: fire-and-forget dispatch in resolveRepliesInChunks desynchronises reply correlation. */
+/** Reply race: replies split across socket chunks must stay attributed to their own pipelines. */
 
 import assert from 'node:assert/strict';
 import { afterEach, describe, it } from 'node:test';
@@ -37,7 +37,7 @@ describe('reply-race', () => {
     }
   });
 
-  it('attributes every reply to the correct pipeline across chunked processing', async () => {
+  it('attributes every reply to the correct pipeline across socket chunks', async () => {
     const server = await startMockServer();
 
     const commandCount = 200;
@@ -65,8 +65,6 @@ describe('reply-race', () => {
     const client = trackMockClient(
       new SolidisFeaturedClient(
         mockClientOptions(server.port, {
-          maxProcessRepliesPerChunk: 1,
-          maxProcessReplyBytesPerChunk: 12,
           maxCommandsPerPipeline: commandCount,
           commandTimeout: 10000,
         }),
@@ -125,8 +123,6 @@ describe('reply-race', () => {
     const client = trackMockClient(
       new SolidisFeaturedClient(
         mockClientOptions(server.port, {
-          maxProcessRepliesPerChunk: 1,
-          maxProcessReplyBytesPerChunk: 14,
           maxCommandsPerPipeline: commandCount,
           commandTimeout: 10000,
         }),

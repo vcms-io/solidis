@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
+import { RespError, SolidisCommandError } from '../../../sources/index.ts';
 import {
   closeClient,
   createClient,
@@ -10,6 +11,7 @@ import {
   delay,
 } from '../utils/index.ts';
 
+import type { StringOrBuffer } from '../../../sources/index.ts';
 import type { FeaturedClient } from '../utils/index.ts';
 
 describe('transactions', () => {
@@ -41,11 +43,7 @@ describe('transactions', () => {
      * EXEC must return each queued command's reply in submission order; a
      * misaligned or mistyped reply array would slip past a length-only check.
      */
-    assert.strictEqual(results.length, 4);
-    assert.strictEqual(results[0], 'OK');
-    assert.strictEqual(results[1], 1);
-    assert.strictEqual(results[2], 2);
-    assert.deepStrictEqual(results[3], Buffer.from('hello'));
+    assert.deepStrictEqual(results, ['OK', 1, 2, Buffer.from('hello')]);
     assert.strictEqual(await client.get(counter), '2');
     assert.strictEqual(await client.get(value), 'hello');
   });
@@ -70,6 +68,32 @@ describe('transactions', () => {
     assert.strictEqual(await client.get(key), 'original');
   });
 
+  it('keeps accepting commands after a discard', async () => {
+    const discarded = keyspace.key('reuse', 'discarded');
+    const committed = keyspace.key('reuse', 'committed');
+
+    const transaction = client.multi();
+
+    transaction.set(discarded, 'no');
+    transaction.discard();
+    transaction.set(committed, 'yes');
+
+    assert.deepStrictEqual(await transaction.exec(), ['OK']);
+    assert.strictEqual(await client.get(discarded), null);
+    assert.strictEqual(await client.get(committed), 'yes');
+  });
+
+  it('empties the queue once exec has run', async () => {
+    const key = keyspace.key('drained');
+    const transaction = client.multi();
+
+    transaction.incr(key);
+
+    assert.deepStrictEqual(await transaction.exec(), [1]);
+    assert.deepStrictEqual(await transaction.exec(), []);
+    assert.strictEqual(await client.get(key), '1');
+  });
+
   it('aborts EXEC when a watched key changes', async () => {
     const key = keyspace.key('watch', 'changed');
 
@@ -85,13 +109,7 @@ describe('transactions', () => {
       const transaction = lockClient.multi();
       transaction.set(key, 'should-not-apply');
 
-      const results = await transaction.exec();
-
-      /**
-       * A WATCH-aborted EXEC replies with a nil array, surfaced here as a
-       * single null entry rather than the per-command reply list.
-       */
-      assert.deepStrictEqual(results, [null]);
+      assert.strictEqual(await transaction.exec(), null);
       assert.strictEqual(await client.get(key), 'modified-by-other');
     } finally {
       await closeClient(lockClient);
@@ -115,6 +133,34 @@ describe('transactions', () => {
 
       assert.deepStrictEqual(results, [2]);
       assert.strictEqual(await client.get(key), '2');
+    } finally {
+      await closeClient(lockClient);
+    }
+  });
+
+  it('distinguishes an aborted EXEC from a committed transaction of nulls', async () => {
+    const key = keyspace.key('watch', 'null-reply');
+    const missing = keyspace.key('watch', 'missing');
+
+    const transaction = client.multi();
+
+    transaction.get(missing);
+
+    assert.deepStrictEqual(await transaction.exec(), [null]);
+
+    await client.set(key, '1');
+
+    const lockClient = await createClient();
+
+    try {
+      await lockClient.watch(key);
+      await client.set(key, '2');
+
+      const aborted = lockClient.multi();
+
+      aborted.get(missing);
+
+      assert.strictEqual(await aborted.exec(), null);
     } finally {
       await closeClient(lockClient);
     }
@@ -147,6 +193,7 @@ describe('transactions', () => {
 
   it('implements a safe compare-and-swap loop with WATCH', async () => {
     const key = keyspace.key('cas');
+    const workerCount = 5;
 
     await client.set(key, '0');
 
@@ -161,11 +208,9 @@ describe('transactions', () => {
 
         const results = await transaction.exec();
 
-        /**
-         * Success yields the per-command reply list; a WATCH abort yields a
-         * single null entry, in which case we retry the read-modify-write.
-         */
-        if (results.length === 1 && results[0] === 'OK') {
+        if (results !== null) {
+          assert.deepStrictEqual(results, ['OK']);
+
           return;
         }
 
@@ -174,23 +219,103 @@ describe('transactions', () => {
     };
 
     const workers = await Promise.all(
-      Array.from({ length: 5 }, () => createClient()),
+      Array.from({ length: workerCount }, () => createClient()),
     );
 
     try {
       await Promise.all(workers.map((worker) => increment(worker)));
 
-      assert.strictEqual(await client.get(key), '5');
+      assert.strictEqual(await client.get(key), `${workerCount}`);
     } finally {
       await Promise.all(workers.map((worker) => closeClient(worker)));
     }
   });
 
-  it('multi guard rejects on object without extend method', async () => {
+  it('keeps runtime errors inline in the EXEC reply', async () => {
+    const key = keyspace.key('runtime-error');
+    const transaction = client.multi();
+
+    transaction.set(key, 'text');
+    transaction.incr(key);
+    transaction.get(key);
+
+    const results = await transaction.exec();
+
+    if (results === null) {
+      assert.fail('an unwatched transaction must not abort');
+    }
+
+    assert.strictEqual(results.length, 3);
+    assert.strictEqual(results[0], 'OK');
+    assert.ok(results[1] instanceof RespError);
+    assert.strictEqual(results[1].code, 'ERR');
+    assert.deepStrictEqual(results[2], Buffer.from('text'));
+  });
+
+  it('rejects EXEC when the server discards the transaction at queue time', async () => {
+    const key = keyspace.key('execabort');
+    const transaction = client.multi();
+
+    transaction.set(key, 'never');
+    transaction.del();
+
+    await assert.rejects(transaction.exec(), (error: unknown) => {
+      assert.ok(error instanceof SolidisCommandError);
+      assert.match(error.message, /^\[EXEC\] EXECABORT /);
+      assert.ok(error.cause instanceof RespError);
+      assert.strictEqual(error.cause.code, 'EXECABORT');
+
+      return true;
+    });
+
+    assert.strictEqual(await client.get(key), null);
+    assert.strictEqual(await client.ping(), 'PONG');
+  });
+
+  it('never queues direct client calls made while a transaction is open', async () => {
+    const key = keyspace.key('direct');
+    const transaction = client.multi();
+
+    transaction.set(key, 'queued');
+
+    assert.strictEqual(await client.set(key, 'direct'), 'OK');
+    assert.strictEqual(await client.get(key), 'direct');
+    assert.deepStrictEqual(await transaction.exec(), ['OK']);
+    assert.strictEqual(await client.get(key), 'queued');
+  });
+
+  it('keeps interleaved transactions on one client separate', async () => {
+    const first = keyspace.key('interleaved', 'first');
+    const second = keyspace.key('interleaved', 'second');
+
+    const left = client.multi();
+    const right = client.multi();
+
+    for (let index = 0; index < 10; index += 1) {
+      left.incr(first);
+      right.incrby(second, 2);
+    }
+
+    const [leftResults, rightResults] = await Promise.all([
+      left.exec(),
+      right.exec(),
+    ]);
+
+    assert.deepStrictEqual(
+      leftResults,
+      Array.from({ length: 10 }, (_, index) => index + 1),
+    );
+    assert.deepStrictEqual(
+      rightResults,
+      Array.from({ length: 10 }, (_, index) => (index + 1) * 2),
+    );
+  });
+
+  it('multi rejects an object without a send method', async () => {
     const { multi } = await import('../../../sources/command/multi.ts');
 
     assert.throws(() => multi.call({}), {
-      message: '[MULTI] Extend method is not implemented',
+      message: '[MULTI] Send method is not implemented',
     });
   });
 
@@ -206,6 +331,7 @@ describe('transactions', () => {
     });
 
     assert.strictEqual(await client.get(key), null);
+    assert.deepStrictEqual(await transaction.exec(), []);
   });
 
   it('handles discard on an empty pipeline gracefully', async () => {
@@ -221,5 +347,27 @@ describe('transactions', () => {
     const value = (transaction as Record<string, unknown>).nonExistentProperty;
 
     assert.strictEqual(value, undefined);
+  });
+
+  it('rejects an EXEC reply that is neither a reply list nor null', async () => {
+    const { multi } = await import('../../../sources/command/multi.ts');
+    const { set } = await import('../../../sources/command/set.ts');
+
+    const sender = {
+      multi,
+      set,
+      send: async (commands: StringOrBuffer[][]) =>
+        commands.map((_, index) => [
+          index === commands.length - 1 ? 'unexpected' : 'QUEUED',
+        ]),
+    };
+    const transaction = sender.multi();
+
+    transaction.set('key', 'value');
+
+    await assert.rejects(transaction.exec(), {
+      name: 'SolidisCommandError',
+      message: '[EXEC] Unexpected reply: string',
+    });
   });
 });

@@ -211,12 +211,12 @@ describe('modules-bloom-cuckoo', () => {
     assert.deepStrictEqual(info, {
       size: 1080,
       numberOfBuckets: 512,
-      numberOfFilter: 0,
+      numberOfFilter: 1,
       numberOfItemsInserted: 1,
       numberOfItemsDeleted: 0,
       bucketSize: 2,
       expansionRate: 1,
-      maxIteration: 0,
+      maxIteration: 20,
     });
   });
 
@@ -451,7 +451,7 @@ describe('modules-bloom-cuckoo', () => {
     await assert.rejects(
       () => client.bfInsert(nocreateKey, ['x'], { nocreate: true }),
       {
-        message: `[BF.INSERT ${nocreateKey} NOCREATE ITEMS x] Invalid reply: RespError: ERR not found`,
+        message: '[BF.INSERT] ERR not found',
       },
     );
   });
@@ -469,12 +469,12 @@ describe('modules-bloom-cuckoo', () => {
     assert.deepStrictEqual(await client.cfInfo(key), {
       size: 1080,
       numberOfBuckets: 256,
-      numberOfFilter: 0,
+      numberOfFilter: 1,
       numberOfItemsInserted: 0,
       numberOfItemsDeleted: 0,
       bucketSize: 4,
       expansionRate: 2,
-      maxIteration: 0,
+      maxIteration: 20,
     });
   });
 

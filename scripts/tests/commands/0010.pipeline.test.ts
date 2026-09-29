@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
+import { RespError } from '../../../sources/index.ts';
 import {
   closeClient,
   createClient,
@@ -10,7 +11,7 @@ import {
   range,
 } from '../utils/index.ts';
 
-import type { SolidisData } from '../../../sources/index.ts';
+import type { SolidisData, StringOrBuffer } from '../../../sources/index.ts';
 import type { FeaturedClient } from '../utils/index.ts';
 
 function unwrap(replies: SolidisData[][], index: number): SolidisData {
@@ -146,18 +147,100 @@ describe('pipeline', () => {
     });
   });
 
-  it('queues command when pipeQueue is present (transaction context)', async () => {
-    const { guard } = await import('../../../sources/command/utils/command.ts');
+  it('queues a command only while the client has an active transaction queue', async () => {
+    const { guard, SolidisTransactionQueues } = await import(
+      '../../../sources/command/utils/command.ts'
+    );
 
-    const fakeClient = {
-      send: () => Promise.resolve([]),
-      pipeQueue: [] as string[][],
-    };
+    const fakeClient = { send: () => Promise.resolve([]) };
+    const queue: StringOrBuffer[][] = [];
 
-    const result = guard(fakeClient, ['SET', 'key', 'value']);
+    SolidisTransactionQueues.set(fakeClient, queue);
 
-    assert.strictEqual(result, false);
-    assert.strictEqual(fakeClient.pipeQueue.length, 1);
-    assert.deepStrictEqual(fakeClient.pipeQueue[0], ['SET', 'key', 'value']);
+    try {
+      assert.strictEqual(guard(fakeClient, ['SET', 'key', 'value']), false);
+      assert.strictEqual(guard(fakeClient), true);
+    } finally {
+      SolidisTransactionQueues.delete(fakeClient);
+    }
+
+    assert.strictEqual(guard(fakeClient, ['GET', 'key']), true);
+    assert.deepStrictEqual(queue, [['SET', 'key', 'value']]);
+  });
+
+  it('returns every reply of a featured pipeline in order', async () => {
+    const key = keyspace.key('featured');
+    const counter = keyspace.key('featured', 'counter');
+
+    const replies = await client.pipeline([
+      ['SET', key, 'value'],
+      ['INCR', counter],
+      ['INCR', counter],
+      ['GET', key],
+    ]);
+
+    assert.deepStrictEqual(replies, ['OK', 1, 2, Buffer.from('value')]);
+  });
+
+  it('keeps command errors inline in a featured pipeline', async () => {
+    const key = keyspace.key('featured', 'error');
+
+    const [status, error, value] = await client.pipeline([
+      ['SET', key, 'text'],
+      ['INCR', key],
+      ['GET', key],
+    ]);
+
+    assert.strictEqual(status, 'OK');
+    assert.ok(error instanceof RespError);
+    assert.strictEqual(error.code, 'ERR');
+    assert.deepStrictEqual(value, Buffer.from('text'));
+  });
+
+  it('resolves an empty batch without a round trip', async () => {
+    assert.deepStrictEqual(await client.send([]), []);
+    assert.deepStrictEqual(await client.pipeline([]), []);
+  });
+
+  it('rejects a batch containing an empty command before sending any of it', async () => {
+    const key = keyspace.key('empty-command');
+
+    await assert.rejects(client.send([['SET', key, 'value'], []]), {
+      name: 'SolidisRequesterError',
+      message: 'Cannot send an empty command.',
+    });
+
+    assert.strictEqual(await client.get(key), null);
+    assert.strictEqual(await client.echo('aligned'), 'aligned');
+  });
+
+  for (const command of [
+    ['MONITOR'],
+    ['sync'],
+    ['PSYNC', '?', '-1'],
+    ['CLIENT', 'REPLY', 'OFF'],
+    ['client', 'reply', 'skip'],
+  ]) {
+    it(`rejects ${command.join(' ')} because it breaks reply pairing`, async () => {
+      const key = keyspace.key('unsupported', command.join('-'));
+
+      await assert.rejects(client.send([['SET', key, 'value'], command]), {
+        name: 'SolidisRequesterError',
+        message:
+          /is not supported: it breaks the pairing of requests and replies\.$/,
+      });
+
+      assert.strictEqual(await client.get(key), null);
+      assert.strictEqual(await client.echo('aligned'), 'aligned');
+    });
+  }
+
+  it('allows CLIENT REPLY ON because every command still gets a reply', async () => {
+    const replies = await client.send([
+      ['CLIENT', 'REPLY', 'ON'],
+      ['ECHO', 'after'],
+    ]);
+
+    assert.deepStrictEqual(replies, [['OK'], [Buffer.from('after')]]);
   });
 });

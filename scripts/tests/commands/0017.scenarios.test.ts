@@ -227,7 +227,7 @@ describe('scenarios', () => {
 
       const results = await transaction.exec();
 
-      return results.length > 0 && results[0] !== null;
+      return results !== null && results.length > 0;
     };
 
     assert.strictEqual(await transfer(60), true);

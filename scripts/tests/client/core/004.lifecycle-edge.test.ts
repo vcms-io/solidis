@@ -4,7 +4,10 @@ import assert from 'node:assert/strict';
 import { after, describe, it } from 'node:test';
 
 import { SolidisFeaturedClient } from '../../../../sources/client/featured.ts';
+import { get } from '../../../../sources/command/get.ts';
+import { set } from '../../../../sources/command/set.ts';
 import {
+  SolidisClient,
   SolidisClientError,
   SolidisConnectionError,
 } from '../../../../sources/index.ts';
@@ -62,25 +65,10 @@ describe('lifecycle-edge', () => {
     // because no TLS listener is bound on SOLIDIS_TEST_HOST.
     await assert.rejects(
       () => client.connect(),
-      (error: Error) => {
-        if (error instanceof SolidisClientError) {
-          if (error.message === 'Connection failed after 0 retries.') {
-            const original = error.getOriginalError();
-
-            return (
-              original instanceof SolidisConnectionError &&
-              original.message === 'Connection timeout (500 ms).'
-            );
-          }
-
-          return false;
-        }
-
-        return (
-          error instanceof SolidisConnectionError &&
-          error.message === 'Connection failed after 0 retries.'
-        );
-      },
+      (error: Error) =>
+        error instanceof SolidisConnectionError &&
+        error.message === 'Connection failed after 0 retries.' &&
+        error.getOriginalError() instanceof SolidisConnectionError,
     );
 
     client.quit();
@@ -390,13 +378,10 @@ describe('lifecycle-edge', () => {
 
     const error = await errorPromise;
 
-    if (!(error instanceof SolidisClientError)) {
-      assert.fail('expected SolidisClientError for connection refusal');
+    if (!(error instanceof SolidisConnectionError)) {
+      assert.fail('expected SolidisConnectionError for connection refusal');
     }
-    assert.strictEqual(
-      error.message,
-      'SolidisConnectionError: Error: connect ECONNREFUSED 127.0.0.1:1',
-    );
+    assert.strictEqual(error.message, 'connect ECONNREFUSED 127.0.0.1:1');
   });
 
   it('guarantees initialization completes before a concurrent connect resolves', async () => {
@@ -520,5 +505,34 @@ describe('lifecycle-edge', () => {
 
     client.quit();
     await server.close();
+  });
+
+  it('binds extension functions to a bare client and skips everything else', async () => {
+    const bare = new SolidisClient(buildClientOptions({ lazyConnect: true }));
+    const key = `solidis:test:extend:${Date.now()}`;
+
+    bare.on('error', () => {});
+
+    const extended = bare.extend({
+      get,
+      set,
+      label: 'not a function',
+      constructor() {
+        return 'replaced';
+      },
+    });
+
+    try {
+      assert.strictEqual(extended, bare);
+      assert.strictEqual(extended.constructor, SolidisClient);
+      assert.strictEqual('label' in extended, false);
+      assert.strictEqual(await extended.set(key, 'value'), 'OK');
+
+      const { get: detachedGet } = extended;
+
+      assert.strictEqual(await detachedGet(key), 'value');
+    } finally {
+      bare.quit();
+    }
   });
 });

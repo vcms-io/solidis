@@ -113,7 +113,7 @@ describe('strings', () => {
       (error: Error) => {
         assert.strictEqual(
           error.message,
-          `[INCR ${key}] Invalid reply: RespError: ERR value is not an integer or out of range`,
+          '[INCR] ERR value is not an integer or out of range',
         );
         return true;
       },
@@ -448,7 +448,7 @@ describe('strings', () => {
       (error: Error) => {
         assert.strictEqual(
           error.message,
-          `[SET ${key} value IFEQ item] Invalid reply: RespError: WRONGTYPE Operation against a key holding the wrong kind of value`,
+          '[SET] WRONGTYPE Operation against a key holding the wrong kind of value',
         );
         return true;
       },
@@ -662,7 +662,7 @@ describe('strings', () => {
       (error: Error) => {
         assert.strictEqual(
           error.message,
-          `[DIGEST ${key}] Invalid reply: RespError: WRONGTYPE Operation against a key holding the wrong kind of value`,
+          '[DIGEST] WRONGTYPE Operation against a key holding the wrong kind of value',
         );
         return true;
       },
@@ -672,7 +672,7 @@ describe('strings', () => {
       (error: Error) => {
         assert.strictEqual(
           error.message,
-          `[DELEX ${key} IFEQ item] Invalid reply: RespError: ERR Key should be of string type if conditions are specified`,
+          '[DELEX] ERR Key should be of string type if conditions are specified',
         );
         return true;
       },

@@ -1,6 +1,7 @@
 /** Fragility & recovery: hostile payloads, protocol corruption, and fault accounting. */
 
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import net from 'node:net';
 import { after, afterEach, before, describe, it } from 'node:test';
 
@@ -9,6 +10,7 @@ import {
   RespError,
   SolidisClientError,
   SolidisCommandError,
+  SolidisConnectionError,
   SolidisParserError,
   SolidisRequesterError,
 } from '../../../../sources/index.ts';
@@ -29,6 +31,38 @@ import type { FeaturedClient, ServerCapabilities } from '../../utils/index.ts';
 
 const buildLargeEchoCommands = (count: number, payloadSize: number) =>
   Array.from({ length: count }, () => ['ECHO', 'x'.repeat(payloadSize)]);
+
+const connectCapturingSocket = async (
+  client: FeaturedClient,
+): Promise<net.Socket> => {
+  const originalConnect = Reflect.get(net, 'connect');
+  let capturedSocket: net.Socket | undefined;
+
+  Reflect.set(
+    net,
+    'connect',
+    function captureConnect(
+      ...connectArguments: Parameters<typeof net.connect>
+    ) {
+      const socket = originalConnect.apply(net, connectArguments);
+      capturedSocket = socket;
+      return socket;
+    },
+  );
+
+  try {
+    await client.connect();
+  } finally {
+    Reflect.set(net, 'connect', originalConnect);
+  }
+
+  assert.ok(
+    capturedSocket instanceof net.Socket,
+    'failed to capture the client socket via net.connect interception',
+  );
+
+  return capturedSocket;
+};
 
 describe('fragility', () => {
   const keyspace = createKeyspace('fragility');
@@ -81,12 +115,21 @@ describe('fragility', () => {
       assert.strictEqual(await client.get(key), probe);
     };
 
-    it('recovers from an empty command frame via timeout', async () => {
+    it('rejects an empty command frame immediately and stays healthy', async () => {
+      const startTime = Date.now();
+
       await assert.rejects(
         () => client.send([[]]),
         (error: Error) =>
           error instanceof SolidisRequesterError &&
-          error.message === 'Command(s) timed out after 300 ms.',
+          error.message === 'Cannot send an empty command.',
+      );
+
+      const elapsed = Date.now() - startTime;
+
+      assert.ok(
+        elapsed < 300,
+        `expected rejection before the 300 ms command timeout but took ${elapsed}ms`,
       );
 
       await assertStillHealthy('empty-frame');
@@ -380,7 +423,7 @@ describe('fragility', () => {
       assert.deepStrictEqual(await client.send([['PING']]), [['PONG']]);
     });
 
-    it('grows the parser buffer when a bulk reply exceeds the initial capacity', async () => {
+    it('reassembles a large bulk reply split across several socket chunks', async () => {
       const server = await startMockServer();
       const payloadSize = 200_000;
       const payload = 'z'.repeat(payloadSize);
@@ -397,10 +440,7 @@ describe('fragility', () => {
       const client = trackMockClient(
         new SolidisFeaturedClient(
           mockClientOptions(server.port, {
-            parser: {
-              buffer: { initial: 65536, shiftThreshold: 32768 },
-              maxBulkStringLength: 1048576,
-            },
+            parser: { maxBulkStringLength: 1048576 },
           }),
         ),
       );
@@ -412,7 +452,7 @@ describe('fragility', () => {
       assert.deepStrictEqual(reply, Buffer.from(payload, 'latin1'));
     });
 
-    it('shifts the parser buffer after many small replies accumulate readOffset', async () => {
+    it('reassembles a split simple reply followed by many complete replies', async () => {
       const server = await startMockServer();
 
       server.onData((socket) => {
@@ -421,14 +461,7 @@ describe('fragility', () => {
       });
 
       const client = trackMockClient(
-        new SolidisFeaturedClient(
-          mockClientOptions(server.port, {
-            parser: {
-              buffer: { initial: 512, shiftThreshold: 16 },
-              maxBulkStringLength: 1048576,
-            },
-          }),
-        ),
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
       );
 
       await client.connect();
@@ -479,8 +512,8 @@ describe('fragility', () => {
       await assert.rejects(
         () => client.get(keyspace.key('vanish')),
         (error: Error) =>
-          error instanceof SolidisClientError &&
-          error.message === 'SolidisConnectionError: Connection closed.',
+          error instanceof SolidisConnectionError &&
+          error.message === 'Connection closed.',
       );
     });
 
@@ -572,14 +605,13 @@ describe('fragility', () => {
 
       assert.strictEqual(blockOutcome.rejected, true);
 
-      if (!(blockOutcome.error instanceof SolidisClientError)) {
-        assert.fail('forced disconnect must reject with SolidisClientError');
+      if (!(blockOutcome.error instanceof SolidisConnectionError)) {
+        assert.fail(
+          'forced disconnect must reject with SolidisConnectionError',
+        );
       }
 
-      assert.strictEqual(
-        blockOutcome.error.message,
-        'SolidisConnectionError: Connection closed.',
-      );
+      assert.strictEqual(blockOutcome.error.message, 'Connection closed.');
 
       await waitFor(
         async () => {
@@ -792,10 +824,10 @@ describe('fragility', () => {
       await assert.rejects(
         () => client.connect(),
         (error: Error) =>
-          error instanceof SolidisClientError &&
-          error.message.startsWith(
-            'SolidisConnectionError: Error: connect ECONNREFUSED 127.0.0.1:',
-          ),
+          error instanceof SolidisConnectionError &&
+          error.message === 'Connection failed after 0 retries.' &&
+          error.cause instanceof SolidisConnectionError &&
+          error.cause.message === `connect ECONNREFUSED 127.0.0.1:${deadPort}`,
       );
 
       client.quit();
@@ -928,7 +960,10 @@ describe('fragility', () => {
         'connect() must reject once maxReadyCheckRetries is exhausted ' +
           'while the server keeps reporting loading:1',
       );
-      assert.strictEqual(connectOutcome.error.message, 'Ready check failed');
+      assert.strictEqual(
+        connectOutcome.error.message,
+        'Ready check failed: still loading after 10 retries',
+      );
     });
 
     it('does not emit ready when the ready check encounters an error', async () => {
@@ -989,10 +1024,7 @@ describe('fragility', () => {
       if (!(caught instanceof SolidisCommandError)) {
         assert.fail('expected SolidisCommandError for ACL LOG parse failure');
       }
-      assert.strictEqual(
-        caught.message,
-        '[ACL LOG] Unexpected reply: not-an-array',
-      );
+      assert.strictEqual(caught.message, '[ACL LOG] Unexpected reply: string');
 
       assert.strictEqual(caught.getOriginalError(), undefined);
     });
@@ -1067,7 +1099,7 @@ describe('fragility', () => {
         'Command B was rejected at ' +
           `${resultB.elapsed}ms instead of its own timeout at ` +
           `~${commandTimeout + staggerDelay}ms — Command A's timeout ` +
-          `at ~${commandTimeout}ms triggered recoveryFromFault which ` +
+          `at ~${commandTimeout}ms reset the connection, which ` +
           'cascade-rejects ALL pending pipelines, cutting short ' +
           "Command B's legitimate timeout window",
       );
@@ -1110,7 +1142,7 @@ describe('fragility', () => {
   });
 
   describe('connection lifecycle guards', () => {
-    it('throws when a quit client retries connection during #tryConnectWithRetry', async () => {
+    it('rejects connect when the client is quit during connection retries', async () => {
       const server = await startMockServer();
       const deadPort = server.port;
 
@@ -1142,11 +1174,10 @@ describe('fragility', () => {
 
       const result = await connectPromise;
 
-      assert.ok(result instanceof SolidisClientError);
-      assert.ok(
-        result.message.startsWith(
-          'SolidisConnectionError: Error: connect ECONNREFUSED 127.0.0.1:',
-        ),
+      assert.ok(result instanceof SolidisConnectionError);
+      assert.strictEqual(
+        result.message,
+        'Cannot connect: user quit the connection.',
         'connect() must reject when quit is called during retry',
       );
     });
@@ -1285,7 +1316,7 @@ describe('fragility', () => {
   });
 
   describe('recovery step failure', () => {
-    it('absorbs a recovery step error and continues operating', async () => {
+    it('fails the handshake when the database recovery step is rejected', async () => {
       const server = await startMockServer();
 
       let selectReceived = false;
@@ -1325,26 +1356,45 @@ describe('fragility', () => {
         ),
       );
 
-      await client.connect();
+      let readyFired = false;
+
+      client.on('ready', () => {
+        readyFired = true;
+      });
+
+      await assert.rejects(
+        () => client.connect(),
+        (error: Error) =>
+          error instanceof SolidisCommandError &&
+          error.message === '[SELECT] ERR invalid DB index' &&
+          error.cause instanceof RespError &&
+          error.cause.code === 'ERR',
+      );
 
       assert.strictEqual(
         selectReceived,
         true,
         'SELECT 15 must have been sent as a recovery step',
       );
+      assert.strictEqual(
+        readyFired,
+        false,
+        'ready must not fire when a recovery step fails',
+      );
 
-      const result = await client.send([['PING']]);
-
-      assert.deepStrictEqual(
-        result,
-        [['PONG']],
-        'client must remain functional after a failed recovery step',
+      await assert.rejects(
+        () => client.send([['PING']]),
+        (error: Error) =>
+          error instanceof SolidisClientError &&
+          error.message === 'Not connected with redis server.' &&
+          error.cause instanceof SolidisCommandError &&
+          error.cause.message === '[SELECT] ERR invalid DB index',
       );
     });
   });
 
-  describe('recoveryFromFault idempotency', () => {
-    it('does not double-reject when recoveryFromFault is called twice rapidly', async () => {
+  describe('connection fault idempotency', () => {
+    it('does not double-reject when the connection closes twice rapidly', async () => {
       const { SolidisRequester } = await import(
         '../../../../sources/modules/requester.ts'
       );
@@ -1355,15 +1405,22 @@ describe('fragility', () => {
         '../../../../sources/common/constants.ts'
       );
 
-      const mockConnection = {
-        socket: null,
-        reset() {},
-      };
+      const written: Buffer[] = [];
+      const emit = () => true;
+      const mockConnection = Object.assign(new EventEmitter(), {
+        isConnected: true,
+        write(buffer: Buffer) {
+          written.push(buffer);
+
+          return true;
+        },
+      });
 
       const requester = new SolidisRequester({
         ...SolidisDefaultOptions,
         connection: mockConnection as never,
-        pubSub: new SolidisPubSub(),
+        pubSub: new SolidisPubSub(emit),
+        emit,
       });
 
       const pending = requester
@@ -1378,8 +1435,12 @@ describe('fragility', () => {
         }
       });
 
-      requester.recoveryFromFault(new Error('first fault'));
-      requester.recoveryFromFault(new Error('second fault'));
+      await waitFor(() => written.length > 0, {
+        description: 'COMMAND-A written to the connection',
+      });
+
+      mockConnection.emit('close', new Error('first fault'));
+      mockConnection.emit('close', new Error('second fault'));
 
       const result = await pending;
 
@@ -1387,12 +1448,12 @@ describe('fragility', () => {
       assert.strictEqual(
         result.message,
         'first fault',
-        'pending command should be rejected after fault recovery',
+        'in-flight command should be rejected with the first close error',
       );
       assert.strictEqual(
         rejectionCount,
         1,
-        'command must be rejected exactly once despite two recoveryFromFault calls',
+        'command must be rejected exactly once despite two close events',
       );
     });
   });
@@ -1602,8 +1663,7 @@ describe('fragility', () => {
         () => client.tsMrange(0, 9999, { kind: 'test' }),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message ===
-            '[TS.MRANGE 0 9999 FILTER kind=test] Invalid reply: not-an-array',
+          error.message === '[TS.MRANGE] Unexpected reply: string',
       );
     });
 
@@ -1639,8 +1699,7 @@ describe('fragility', () => {
         () => client.tsMrange(0, 9999, { kind: 'test' }),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message ===
-            '[TS.MRANGE 0 9999 FILTER kind=test] Invalid reply: not-an-array',
+          error.message === '[TS.MRANGE] Unexpected reply: string',
       );
     });
   });
@@ -1667,7 +1726,7 @@ describe('fragility', () => {
         },
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[SCAN] Unexpected reply: not-an-array',
+          error.message === '[SCAN] Unexpected reply: string',
       );
     });
 
@@ -1692,7 +1751,7 @@ describe('fragility', () => {
         },
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[SCAN] Invalid reply: not-array',
+          error.message === '[SCAN] Unexpected reply: string',
       );
     });
 
@@ -1713,8 +1772,7 @@ describe('fragility', () => {
         () => client.xread(['stream'], ['0']),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message ===
-            '[XREAD STREAMS stream 0] Unexpected reply: not-an-array',
+          error.message === '[XREAD] Unexpected reply: string',
       );
     });
 
@@ -1735,7 +1793,7 @@ describe('fragility', () => {
         () => client.xread(['stream'], ['0']),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[XREAD STREAMS stream 0] Invalid reply: scalar',
+          error.message === '[XREAD] Unexpected reply: string',
       );
     });
 
@@ -1758,7 +1816,7 @@ describe('fragility', () => {
         () => client.xread(['stream'], ['0']),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[XREAD STREAMS stream 0] Invalid reply: bad',
+          error.message === '[XREAD] Unexpected reply: string',
       );
     });
 
@@ -1779,8 +1837,7 @@ describe('fragility', () => {
         () => client.xrange('stream', '-', '+'),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message ===
-            '[XRANGE stream - +] Unexpected reply: not-an-array',
+          error.message === '[XRANGE] Unexpected reply: string',
       );
     });
 
@@ -1801,7 +1858,7 @@ describe('fragility', () => {
         () => client.xrange('stream', '-', '+'),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[STREAM] Invalid reply: scalar',
+          error.message === '[XRANGE] Unexpected reply: string',
       );
     });
 
@@ -1822,8 +1879,7 @@ describe('fragility', () => {
         () => client.tsRange('key', 0, 9999),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message ===
-            '[TS.RANGE key 0 9999] Unexpected reply: not-an-array',
+          error.message === '[TS.RANGE] Unexpected reply: string',
       );
     });
 
@@ -1844,7 +1900,7 @@ describe('fragility', () => {
         () => client.tsRange('key', 0, 9999),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[TS.RANGE key 0 9999] Invalid reply: scalar',
+          error.message === '[TS.RANGE] Unexpected reply: string',
       );
     });
 
@@ -1870,7 +1926,7 @@ describe('fragility', () => {
           ),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[GEOSEARCH] Unexpected reply: not-an-array',
+          error.message === '[GEOSEARCH] Unexpected reply: string',
       );
     });
 
@@ -1896,7 +1952,7 @@ describe('fragility', () => {
           ),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[GEOSEARCH] Unexpected reply: 999',
+          error.message === '[GEOSEARCH] Unexpected reply: number',
       );
     });
 
@@ -1917,7 +1973,7 @@ describe('fragility', () => {
         () => client.lmpop(['key'], 'LEFT'),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[LMPOP 1 key LEFT] Unexpected reply: not-an-array',
+          error.message === '[LMPOP] Unexpected reply: string',
       );
     });
 
@@ -1938,7 +1994,7 @@ describe('fragility', () => {
         () => client.lmpop(['key'], 'LEFT'),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[LMPOP 1 key LEFT] Unexpected reply: 999',
+          error.message === '[LMPOP] Unexpected reply: number',
       );
     });
 
@@ -1959,7 +2015,7 @@ describe('fragility', () => {
         () => client.lmpop(['key'], 'LEFT'),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[LMPOP 1 key LEFT] Unexpected reply: bad',
+          error.message === '[LMPOP] Unexpected reply: string',
       );
     });
 
@@ -1980,8 +2036,7 @@ describe('fragility', () => {
         () => client.bfScandump('key', 0),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message ===
-            '[BF.SCANDUMP key 0] Unexpected reply: not-an-array',
+          error.message === '[BF.SCANDUMP] Unexpected reply: string',
       );
     });
 
@@ -2004,8 +2059,7 @@ describe('fragility', () => {
         () => client.bfScandump('key', 0),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message ===
-            '[BF.SCANDUMP key 0] Invalid reply: string-not-buffer',
+          error.message === '[BF.SCANDUMP] Unexpected reply: string',
       );
     });
 
@@ -2026,7 +2080,7 @@ describe('fragility', () => {
         () => client.bfScandump('key', 0),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[BF.SCANDUMP key 0] Invalid reply: null',
+          error.message === '[BF.SCANDUMP] Unexpected reply: null',
       );
     });
 
@@ -2047,8 +2101,7 @@ describe('fragility', () => {
         () => client.tsMrange(0, 9999, { kind: 'test' }),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message ===
-            '[TS.MRANGE 0 9999 FILTER kind=test] Unexpected reply: not-an-array',
+          error.message === '[TS.MRANGE] Unexpected reply: string',
       );
     });
 
@@ -2074,8 +2127,7 @@ describe('fragility', () => {
         () => client.tsMrange(0, 9999, { kind: 'test' }),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message ===
-            '[TS.MRANGE 0 9999 FILTER kind=test] Invalid reply: 999',
+          error.message === '[TS.MRANGE] Unexpected reply: number',
       );
     });
 
@@ -2098,8 +2150,7 @@ describe('fragility', () => {
         () => client.tsMrange(0, 9999, { kind: 'test' }),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message ===
-            '[TS.MRANGE 0 9999 FILTER kind=test] Invalid reply: bad',
+          error.message === '[TS.MRANGE] Unexpected reply: string',
       );
     });
 
@@ -2120,18 +2171,40 @@ describe('fragility', () => {
         () => client.tsMrange(0, 9999, { kind: 'test' }),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message ===
-            '[TS.MRANGE 0 9999 FILTER kind=test] Invalid reply: scalar',
+          error.message === '[TS.MRANGE] Unexpected reply: string',
       );
     });
 
-    it('throws SolidisCommandError when time series samples contain NaN values', async () => {
+    it('parses nan time series sample values as NaN', async () => {
       const server = await startMockServer();
 
       server.onData((socket) => {
         socket.write(
           Buffer.from(
-            '*1\r\n*2\r\n$3\r\nkey\r\n*1\r\n*2\r\n$3\r\nNaN\r\n$3\r\nNaN\r\n',
+            '*1\r\n*2\r\n$3\r\nkey\r\n*1\r\n*2\r\n:1000\r\n$3\r\nnan\r\n',
+            'latin1',
+          ),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      assert.deepStrictEqual(await client.tsMrange(0, 9999, { kind: 'test' }), [
+        { key: 'key', samples: [{ timestamp: 1000, value: Number.NaN }] },
+      ]);
+    });
+
+    it('throws SolidisCommandError when time series samples contain non-numeric values', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(
+          Buffer.from(
+            '*1\r\n*2\r\n$3\r\nkey\r\n*1\r\n*2\r\n:1000\r\n$3\r\nbad\r\n',
             'latin1',
           ),
         );
@@ -2147,8 +2220,7 @@ describe('fragility', () => {
         () => client.tsMrange(0, 9999, { kind: 'test' }),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message ===
-            '[TS.MRANGE 0 9999 FILTER kind=test] Invalid reply: NaN/NaN',
+          error.message === '[TS.MRANGE] Unexpected reply: Buffer(3)',
       );
     });
 
@@ -2169,7 +2241,7 @@ describe('fragility', () => {
         () => client.moduleList(),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[MODULE] Unexpected reply: scalar',
+          error.message === '[MODULE] Unexpected reply: string',
       );
     });
 
@@ -2190,8 +2262,7 @@ describe('fragility', () => {
         () => client.moduleList(),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message ===
-            '[MODULE] Invalid reply: Missing required MODULE fields: ',
+          error.message === '[MODULE] Unexpected reply: missing name or ver',
       );
     });
 
@@ -2304,7 +2375,7 @@ describe('fragility', () => {
         () => client.role(),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[ROLE] Unexpected reply: sentinel,',
+          error.message === '[ROLE] Unexpected reply: Array(2)',
       );
     });
 
@@ -2327,7 +2398,7 @@ describe('fragility', () => {
         () => client.role(),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[ROLE] Invalid reply: master,bad,',
+          error.message === '[ROLE] Unexpected reply: Array(3)',
       );
     });
 
@@ -2348,7 +2419,7 @@ describe('fragility', () => {
         () => client.xpending('stream', 'grp'),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[XPENDING stream grp] Unexpected reply: not-array',
+          error.message === '[XPENDING] Unexpected reply: string',
       );
     });
 
@@ -2369,7 +2440,7 @@ describe('fragility', () => {
         () => client.xpending('stream', 'grp'),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[XPENDING stream grp] Invalid reply: 0,0',
+          error.message === '[XPENDING] Unexpected reply: Array(2)',
       );
     });
 
@@ -2395,7 +2466,7 @@ describe('fragility', () => {
         () => client.xpending('stream', 'grp'),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[XPENDING stream grp] Invalid reply: bad',
+          error.message === '[XPENDING] Unexpected reply: string',
       );
     });
 
@@ -2421,7 +2492,7 @@ describe('fragility', () => {
         () => client.xpending('stream', 'grp'),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[XPENDING stream grp] Invalid reply: only-one',
+          error.message === '[XPENDING] Unexpected reply: string',
       );
     });
 
@@ -2442,8 +2513,7 @@ describe('fragility', () => {
         () => client.xpending('stream', 'grp', '-', '+', 10),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message ===
-            '[XPENDING stream grp - + 10] Invalid reply: scalar',
+          error.message === '[XPENDING] Unexpected reply: string',
       );
     });
 
@@ -2465,7 +2535,7 @@ describe('fragility', () => {
         (error: Error) =>
           error instanceof SolidisCommandError &&
           error.message ===
-            '[COMMAND GETKEYSANDFLAGS SET k v] Invalid reply: scalar',
+            '[COMMAND GETKEYSANDFLAGS] Unexpected reply: string',
       );
     });
 
@@ -2489,7 +2559,7 @@ describe('fragility', () => {
         (error: Error) =>
           error instanceof SolidisCommandError &&
           error.message ===
-            '[COMMAND GETKEYSANDFLAGS SET k v] Invalid reply: 999',
+            '[COMMAND GETKEYSANDFLAGS] Unexpected reply: number',
       );
     });
 
@@ -2511,7 +2581,7 @@ describe('fragility', () => {
         (error: Error) =>
           error instanceof SolidisCommandError &&
           error.message ===
-            '[COMMAND GETKEYSANDFLAGS SET k v] Unexpected reply: not-array',
+            '[COMMAND GETKEYSANDFLAGS] Unexpected reply: string',
       );
     });
 
@@ -2532,7 +2602,7 @@ describe('fragility', () => {
         () => client.latencyHistogram('ping'),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[LATENCY HISTOGRAM ping] Unexpected reply: scalar',
+          error.message === '[LATENCY HISTOGRAM] Unexpected reply: string',
       );
     });
 
@@ -2555,7 +2625,7 @@ describe('fragility', () => {
         () => client.latencyHistogram('ping'),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[LATENCY HISTOGRAM ping] Invalid reply: 1,2',
+          error.message === '[LATENCY HISTOGRAM] Unexpected reply: Array(2)',
       );
     });
 
@@ -2581,7 +2651,7 @@ describe('fragility', () => {
         () => client.latencyHistogram('ping'),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[LATENCY HISTOGRAM ping] Invalid reply: bad',
+          error.message === '[LATENCY HISTOGRAM] Unexpected reply: string',
       );
     });
 
@@ -2602,7 +2672,7 @@ describe('fragility', () => {
         () => client.aclGetuser('default'),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[ACL GETUSER default] Unexpected reply: scalar',
+          error.message === '[ACL GETUSER] Unexpected reply: string',
       );
     });
 
@@ -2624,7 +2694,7 @@ describe('fragility', () => {
         (error: Error) =>
           error instanceof SolidisCommandError &&
           error.message ===
-            '[ACL GETUSER default] Invalid reply: flags & passwords required',
+            '[ACL GETUSER] Unexpected reply: flags and passwords are required',
       );
     });
 
@@ -2645,7 +2715,7 @@ describe('fragility', () => {
         () => client.tsMget({ kind: 'test' }),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[TS.MGET FILTER kind=test] Invalid reply: scalar',
+          error.message === '[TS.MGET] Unexpected reply: string',
       );
     });
 
@@ -2671,7 +2741,7 @@ describe('fragility', () => {
         () => client.tsMget({ kind: 'test' }),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[TS.MGET FILTER kind=test] Invalid reply: 999',
+          error.message === '[TS.MGET] Unexpected reply: number',
       );
     });
 
@@ -2694,7 +2764,7 @@ describe('fragility', () => {
         () => client.tsMget({ kind: 'test' }),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[TS.MGET FILTER kind=test] Invalid reply: bad',
+          error.message === '[TS.MGET] Unexpected reply: string',
       );
     });
 
@@ -2715,8 +2785,7 @@ describe('fragility', () => {
         () => client.tsMget({ kind: 'test' }),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message ===
-            '[TS.MGET FILTER kind=test] Unexpected reply: scalar',
+          error.message === '[TS.MGET] Unexpected reply: string',
       );
     });
 
@@ -2742,7 +2811,7 @@ describe('fragility', () => {
         () => client.role(),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[ROLE] Invalid reply: master,100,not-an-array',
+          error.message === '[ROLE] Unexpected reply: Array(3)',
       );
     });
 
@@ -2792,7 +2861,7 @@ describe('fragility', () => {
         () => client.xinfoStream('stream', true),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[XINFO STREAM stream FULL] Invalid reply: bad',
+          error.message === '[XINFO STREAM] Unexpected reply: string',
       );
     });
 
@@ -2834,7 +2903,7 @@ describe('fragility', () => {
         () => client.latencyHistogram('ping'),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[LATENCY HISTOGRAM ping] Invalid reply: not-a-map',
+          error.message === '[LATENCY HISTOGRAM] Unexpected reply: string',
       );
     });
 
@@ -2860,7 +2929,7 @@ describe('fragility', () => {
         () => client.aclGetuser('default'),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[ACL GETUSER default] Invalid reply: bad',
+          error.message === '[ACL GETUSER] Unexpected reply: string',
       );
     });
 
@@ -2902,8 +2971,7 @@ describe('fragility', () => {
         () => client.tsMget({ kind: 'test' }),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message ===
-            '[TS.MGET FILTER kind=test] Invalid reply: not-an-array',
+          error.message === '[TS.MGET] Unexpected reply: string',
       );
     });
 
@@ -2945,8 +3013,7 @@ describe('fragility', () => {
         () => client.tsMget({ kind: 'test' }),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message ===
-            '[TS.MGET FILTER kind=test] Invalid reply: not-a-pair',
+          error.message === '[TS.MGET] Unexpected reply: string',
       );
     });
 
@@ -2972,7 +3039,7 @@ describe('fragility', () => {
         () => client.xinfoStream('stream', true),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[XINFO STREAM stream FULL] Invalid reply: bad',
+          error.message === '[XINFO STREAM] Unexpected reply: string',
       );
     });
   });
@@ -3049,7 +3116,7 @@ describe('fragility', () => {
         () => client.latencyLatest(),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[LATENCY LATEST] Invalid reply: bad',
+          error.message === '[LATENCY LATEST] Unexpected reply: string',
       );
     });
 
@@ -3070,7 +3137,7 @@ describe('fragility', () => {
         () => client.latencyHistory('command'),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[LATENCY HISTORY command] Invalid reply: bad,bad',
+          error.message === '[LATENCY HISTORY] Unexpected reply: Array(2)',
       );
     });
 
@@ -3091,7 +3158,7 @@ describe('fragility', () => {
         () => client.latencyLatest(),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[LATENCY LATEST] Unexpected reply: scalar',
+          error.message === '[LATENCY LATEST] Unexpected reply: string',
       );
     });
 
@@ -3112,8 +3179,7 @@ describe('fragility', () => {
         () => client.latencyHistory('command'),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message ===
-            '[LATENCY HISTORY command] Unexpected reply: scalar',
+          error.message === '[LATENCY HISTORY] Unexpected reply: string',
       );
     });
 
@@ -3158,7 +3224,6 @@ describe('fragility', () => {
       const client = trackMockClient(
         new SolidisFeaturedClient(
           mockClientOptions(server.port, {
-            maxSocketWriteSizePerOnce: 32,
             commandTimeout: 200,
             autoReconnect: false,
           }),
@@ -3178,44 +3243,38 @@ describe('fragility', () => {
     it('rejects with connection error when the server drops during a backpressured write', async () => {
       const server = await startMockServer();
 
-      server.onData((socket) => {
-        socket.pause();
-      });
-
       const client = trackMockClient(
         new SolidisFeaturedClient(
           mockClientOptions(server.port, {
-            maxSocketWriteSizePerOnce: 32,
-            socketWriteTimeout: 5000,
+            commandTimeout: 5000,
             autoReconnect: false,
           }),
         ),
       );
 
-      await client.connect();
+      const socket = await connectCapturingSocket(client);
+
+      socket.cork();
 
       const pending = client
-        .send(buildLargeEchoCommands(50, 200))
+        .send(buildLargeEchoCommands(5, 50000))
         .catch((error: Error) => error);
 
-      await waitFor(() => server.received.length > 0, {
-        description: 'client started writing to the paused mock server',
+      await waitFor(() => socket.writableNeedDrain, {
+        description: 'client write is waiting for the socket to drain',
       });
 
       server.destroySockets();
 
       const result = await pending;
 
-      assert.ok(result instanceof SolidisClientError);
-      assert.strictEqual(
-        result.message,
-        'SolidisConnectionError: Connection closed.',
-      );
+      assert.ok(result instanceof SolidisConnectionError);
+      assert.strictEqual(result.message, 'Connection closed.');
     });
   });
 
   describe('requester inflight guard paths', () => {
-    it('silently discards replies when the inflight queue is empty', async () => {
+    it('reports extra replies that arrive with no pending request', async () => {
       const server = await startMockServer();
 
       server.onData((socket) => {
@@ -3225,16 +3284,27 @@ describe('fragility', () => {
       const client = trackMockClient(
         new SolidisFeaturedClient(mockClientOptions(server.port)),
       );
+      const errors: Error[] = [];
+
+      client.on('error', (error) => errors.push(error));
 
       await client.connect();
 
       const result = await client.send([['PING']]);
 
       assert.deepStrictEqual(result, [['OK']]);
+      assert.deepStrictEqual(
+        errors.map((error) => error.message),
+        [
+          'Received reply with no pending request',
+          'Received reply with no pending request',
+        ],
+      );
 
       const probe = await client.send([['PING']]);
 
       assert.deepStrictEqual(probe, [['OK']]);
+      assert.strictEqual(errors.length, 4);
     });
 
     it('rejects unsent requests held in the schedule queue on fault recovery', async () => {
@@ -3248,30 +3318,45 @@ describe('fragility', () => {
         '../../../../sources/common/constants.ts'
       );
 
-      const mockConnection = {
-        socket: null,
-        reset() {},
-      };
+      const written: Buffer[] = [];
+      const emit = () => true;
+      const mockConnection = Object.assign(new EventEmitter(), {
+        isConnected: true,
+        write(buffer: Buffer) {
+          written.push(buffer);
+
+          return true;
+        },
+      });
 
       const requester = new SolidisRequester({
         ...SolidisDefaultOptions,
         connection: mockConnection as never,
-        pubSub: new SolidisPubSub(),
+        pubSub: new SolidisPubSub(emit),
+        emit,
       });
 
       const pending = requester
         .send([['QUEUED-CMD']])
         .catch((error: Error) => error);
 
-      requester.recoveryFromFault(new Error('forced recovery'));
+      mockConnection.emit('close', new Error('forced recovery'));
 
       const result = await pending;
 
       assert.ok(result instanceof Error);
       assert.strictEqual(result.message, 'forced recovery');
+
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      assert.deepStrictEqual(
+        written,
+        [],
+        'a request rejected before its flush must never be written',
+      );
     });
 
-    it('rejects pipeline when socket becomes null during flush', async () => {
+    it('rejects the pipeline when the connection is not connected at flush time', async () => {
       const { SolidisRequester } = await import(
         '../../../../sources/modules/requester.ts'
       );
@@ -3282,15 +3367,22 @@ describe('fragility', () => {
         '../../../../sources/common/constants.ts'
       );
 
-      const mockConnection = {
-        socket: null,
-        reset() {},
-      };
+      const written: Buffer[] = [];
+      const emit = () => true;
+      const mockConnection = Object.assign(new EventEmitter(), {
+        isConnected: false,
+        write(buffer: Buffer) {
+          written.push(buffer);
+
+          return true;
+        },
+      });
 
       const requester = new SolidisRequester({
         ...SolidisDefaultOptions,
         connection: mockConnection as never,
-        pubSub: new SolidisPubSub(),
+        pubSub: new SolidisPubSub(emit),
+        emit,
       });
 
       const result = await requester
@@ -3298,10 +3390,11 @@ describe('fragility', () => {
         .catch((error: Error) => error);
 
       assert.ok(result instanceof SolidisRequesterError);
-      assert.strictEqual(result.message, 'Socket is not connected');
+      assert.strictEqual(result.message, 'Socket is not connected.');
+      assert.deepStrictEqual(written, []);
     });
 
-    it('consumes remaining replies for a timed-out pipeline without desync', async () => {
+    it('resets the connection when its only pipeline times out, so a late reply cannot shift the next one', async () => {
       const server = await startMockServer();
 
       let commandIndex = 0;
@@ -3328,12 +3421,20 @@ describe('fragility', () => {
           }),
         ),
       );
+      const closeErrors: Error[] = [];
+
+      client.on('close', (error) => closeErrors.push(error));
 
       await client.connect();
 
       const firstResult = await client
         .send([['SLOW']])
         .catch((error: Error) => ({ rejected: true, error }));
+
+      assert.deepStrictEqual(
+        closeErrors.map((error) => error.message),
+        ['Connection reset because a command timed out.'],
+      );
 
       assert.ok(
         typeof firstResult === 'object' &&
@@ -3360,26 +3461,33 @@ describe('fragility', () => {
     it('drains every reply for a timed-out multi-command pipeline', async () => {
       const server = await startMockServer();
 
-      let replyCount = 0;
+      server.onData(() => {});
 
-      server.onData(() => {
-        replyCount += 1;
-      });
+      const commandTimeout = 300;
+      const staggerDelay = 150;
 
       const client = trackMockClient(
         new SolidisFeaturedClient(
           mockClientOptions(server.port, {
-            commandTimeout: 100,
+            commandTimeout,
             autoReconnect: false,
           }),
         ),
       );
+
+      const closeErrors: Error[] = [];
+
+      client.on('close', (error) => closeErrors.push(error));
 
       await client.connect();
 
       const pending = client
         .send([['SLOW-A'], ['SLOW-B'], ['SLOW-C']])
         .catch((error: Error) => ({ rejected: true as const, error }));
+
+      await delay(staggerDelay);
+
+      const next = client.send([['PING']]).catch((error: Error) => error);
 
       const timedOut = await pending;
 
@@ -3393,67 +3501,48 @@ describe('fragility', () => {
       assert.ok(timedOut.error instanceof SolidisRequesterError);
       assert.strictEqual(
         timedOut.error.message,
-        'Command(s) timed out after 100 ms.',
+        'Command(s) timed out after 300 ms.',
       );
 
-      server.send(Buffer.from('+A\r\n+B\r\n+C\r\n', 'latin1'));
+      server.send(Buffer.from('+A\r\n+B\r\n+C\r\n+OK\r\n', 'latin1'));
 
-      await waitFor(() => replyCount >= 1, {
-        description: 'client must receive late replies before next command',
-      });
-
-      server.onData((socket) => {
-        socket.write(Buffer.from('+OK\r\n', 'latin1'));
-      });
-
-      assert.deepStrictEqual(await client.send([['PING']]), [['OK']]);
+      assert.deepStrictEqual(
+        await next,
+        [['OK']],
+        'the in-flight PING must get its own reply once A, B and C are drained',
+      );
+      assert.deepStrictEqual(
+        closeErrors,
+        [],
+        'the connection must stay open while another pipeline is in flight',
+      );
     });
 
-    it('rejects with socketWriteTimeout error when socket never drains', async () => {
+    it('rejects with the command timeout when the socket never drains', async () => {
       const server = await startMockServer();
 
       server.onData((socket) => {
         socket.pause();
       });
 
-      const originalConnect = Reflect.get(net, 'connect');
-      let capturedSocket: net.Socket | undefined;
-
-      Reflect.set(
-        net,
-        'connect',
-        function captureConnect(
-          ...connectArguments: Parameters<typeof net.connect>
-        ) {
-          const socket = originalConnect.apply(net, connectArguments);
-          capturedSocket = socket;
-          return socket;
-        },
-      );
-
-      const socketWriteTimeout = 200;
+      const commandTimeout = 200;
 
       const client = trackMockClient(
         new SolidisFeaturedClient(
           mockClientOptions(server.port, {
-            maxSocketWriteSizePerOnce: 65536,
-            socketWriteTimeout,
-            commandTimeout: 30000,
+            commandTimeout,
             autoReconnect: false,
           }),
         ),
       );
 
-      await client.connect();
+      const closeErrors: Error[] = [];
 
-      Reflect.set(net, 'connect', originalConnect);
+      client.on('close', (error) => closeErrors.push(error));
 
-      assert.ok(
-        capturedSocket instanceof net.Socket,
-        'failed to capture the client socket via net.connect interception',
-      );
+      const socket = await connectCapturingSocket(client);
 
-      capturedSocket.cork();
+      socket.cork();
 
       const startTime = Date.now();
 
@@ -3464,61 +3553,72 @@ describe('fragility', () => {
       const elapsed = Date.now() - startTime;
 
       assert.ok(result instanceof SolidisRequesterError);
-      assert.strictEqual(result.message, 'Socket timed out');
+      assert.strictEqual(result.message, 'Command(s) timed out after 200 ms.');
       assert.ok(
         elapsed < 5000,
-        `expected rejection well before commandTimeout (30 s) but took ${elapsed} ms`,
+        `expected rejection shortly after commandTimeout (${commandTimeout} ms) but took ${elapsed} ms`,
       );
       assert.ok(
-        elapsed >= socketWriteTimeout,
-        `expected at least socketWriteTimeout (${socketWriteTimeout} ms) to elapse but took ${elapsed} ms`,
+        elapsed >= commandTimeout,
+        `expected at least commandTimeout (${commandTimeout} ms) to elapse but took ${elapsed} ms`,
       );
+
+      assert.strictEqual(
+        closeErrors.length,
+        1,
+        'the connection stuck behind the undrained write must be reset',
+      );
+      assert.ok(closeErrors[0] instanceof SolidisRequesterError);
+      assert.strictEqual(
+        closeErrors[0].message,
+        'Connection reset because a command timed out.',
+      );
+      assert.strictEqual(closeErrors[0].cause, result);
     });
 
-    it('rejects when socket emits error during chunked write', async () => {
+    it('rejects when the socket emits an error during a write', async () => {
       const server = await startMockServer();
-
-      let destroyed = false;
-
-      server.onData((socket) => {
-        if (!destroyed) {
-          destroyed = true;
-          socket.destroy(new Error('forced socket error'));
-        }
-      });
 
       const client = trackMockClient(
         new SolidisFeaturedClient(
           mockClientOptions(server.port, {
-            maxSocketWriteSizePerOnce: 16,
             commandTimeout: 3000,
             autoReconnect: false,
           }),
         ),
       );
 
-      await client.connect();
+      const socket = await connectCapturingSocket(client);
+
+      socket.cork();
 
       const startTime = Date.now();
 
-      const result = await client
-        .send(buildLargeEchoCommands(50, 200))
+      const pending = client
+        .send(buildLargeEchoCommands(5, 50000))
         .catch((error: Error) => error);
+
+      await waitFor(() => socket.writableNeedDrain, {
+        description: 'client write is waiting for the socket to drain',
+      });
+
+      socket.destroy(new Error('forced socket error'));
+
+      const result = await pending;
 
       const elapsed = Date.now() - startTime;
 
-      assert.ok(result instanceof SolidisClientError);
-      assert.strictEqual(
-        result.message,
-        'SolidisConnectionError: Connection closed.',
-      );
+      assert.ok(result instanceof SolidisConnectionError);
+      assert.strictEqual(result.message, 'Connection closed.');
+      assert.ok(result.cause instanceof Error);
+      assert.strictEqual(result.cause.message, 'forced socket error');
       assert.ok(
         elapsed < 3000,
         `socket error must be detected before commandTimeout (took ${elapsed}ms)`,
       );
     });
 
-    it('receives late replies for a timed-out pipeline and keeps sync', async () => {
+    it('resets the connection after a pipeline times out, so late replies never reach the next command', async () => {
       const server = await startMockServer();
 
       let lateRepliesSent = false;
@@ -3539,6 +3639,9 @@ describe('fragility', () => {
           }),
         ),
       );
+      const closeErrors: Error[] = [];
+
+      client.on('close', (error) => closeErrors.push(error));
 
       await client.connect();
 
@@ -3557,6 +3660,10 @@ describe('fragility', () => {
       assert.strictEqual(
         timedOutResult.error.message,
         'Command(s) timed out after 200 ms.',
+      );
+      assert.deepStrictEqual(
+        closeErrors.map((error) => error.message),
+        ['Connection reset because a command timed out.'],
       );
 
       server.send(Buffer.from('+LATE-1\r\n+LATE-2\r\n', 'latin1'));

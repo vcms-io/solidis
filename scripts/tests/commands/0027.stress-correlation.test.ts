@@ -1,7 +1,8 @@
-/** Reply-correlation stress with degenerate requester limits. */
+/** Reply-correlation stress with degenerate pipelines, fragmented sockets and large payloads. */
 
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
+import net from 'node:net';
 import { after, before, describe, it } from 'node:test';
 
 import {
@@ -10,6 +11,7 @@ import {
   createClient,
   createKeyspace,
   range,
+  resolveConnectionTarget,
 } from '../utils/index.ts';
 
 import type { SolidisClientOptions } from '../../../sources/index.ts';
@@ -21,16 +23,71 @@ interface BurstResult {
   errors: number;
 }
 
+function relay(from: net.Socket, to: net.Socket, chunkSize: number) {
+  from.on('data', (data: Buffer) => {
+    for (let offset = 0; offset < data.length; offset += chunkSize) {
+      to.write(data.subarray(offset, offset + chunkSize));
+    }
+  });
+}
+
 describe('stress-correlation', () => {
   const keyspace = createKeyspace('stress-correlation');
   const tracked: FeaturedClient[] = [];
+  const proxies: net.Server[] = [];
+  const proxySockets = new Set<net.Socket>();
 
   before(() => {});
 
   after(async () => {
     await Promise.all(tracked.map((client) => closeClient(client)));
     await closeAllClients();
+
+    for (const socket of proxySockets) {
+      socket.destroy();
+    }
+
+    await Promise.all(
+      proxies.map(
+        (proxy) =>
+          new Promise<void>((resolve) => {
+            proxy.close(() => resolve());
+          }),
+      ),
+    );
   });
+
+  async function startFragmentingProxy(
+    requestChunkSize: number,
+    replyChunkSize: number,
+  ) {
+    const target = resolveConnectionTarget();
+    const proxy = net.createServer((downstream) => {
+      const upstream = net.connect({ host: target.host, port: target.port });
+
+      for (const socket of [downstream, upstream]) {
+        proxySockets.add(socket);
+        socket.setNoDelay(true);
+        socket.on('error', () => {});
+        socket.on('close', () => {
+          proxySockets.delete(socket);
+          downstream.destroy();
+          upstream.destroy();
+        });
+      }
+
+      relay(downstream, upstream, requestChunkSize);
+      relay(upstream, downstream, replyChunkSize);
+    });
+
+    proxies.push(proxy);
+
+    await new Promise<void>((resolve) => {
+      proxy.listen(0, '127.0.0.1', resolve);
+    });
+
+    return { port: (proxy.address() as net.AddressInfo).port };
+  }
 
   const make = async (
     options: SolidisClientOptions,
@@ -200,49 +257,90 @@ describe('stress-correlation', () => {
     assertClean('maxCommandsPerPipeline=1', await burst(client, 3000));
   });
 
-  it('stays correlated with one reply per processing chunk', async () => {
-    const client = await make({ maxProcessRepliesPerChunk: 1 });
+  it('stays correlated when a proxy fragments every reply', async () => {
+    const proxy = await startFragmentingProxy(Number.POSITIVE_INFINITY, 3);
+    const client = await make({ host: '127.0.0.1', port: proxy.port });
 
-    assertClean('maxProcessRepliesPerChunk=1', await burst(client, 3000));
+    assertClean('reply-fragments=3', await burst(client, 3000));
   });
 
-  it('stays correlated with byte-at-a-time socket writes', async () => {
-    const client = await make({
-      maxSocketWriteSizePerOnce: 1,
-      commandTimeout: 0,
-      socketWriteTimeout: 120000,
+  it('stays correlated when a proxy fragments every request', async () => {
+    const proxy = await startFragmentingProxy(1, Number.POSITIVE_INFINITY);
+    const client = await make({ host: '127.0.0.1', port: proxy.port });
+
+    assertClean('request-fragments=1', await burst(client, 500));
+  });
+
+  for (const [label, replyChunkSize] of [
+    ['direct', Number.POSITIVE_INFINITY],
+    ['fragmented', 1000],
+  ] as const) {
+    it(`keeps payloads around the zero-copy threshold intact (${label})`, async () => {
+      const proxy = await startFragmentingProxy(
+        Number.POSITIVE_INFINITY,
+        replyChunkSize,
+      );
+      const client = await make({ host: '127.0.0.1', port: proxy.port });
+      const threshold = 64 * 1024;
+      const payloads = range(40).map((index) =>
+        randomBytes(threshold - 512 + ((index * 97) % 1024)),
+      );
+      const keys = payloads.map((_, index) =>
+        keyspace.key('zero-copy', label, index),
+      );
+
+      await client.send(
+        keys.map((key, index) => ['SET', key, payloads[index]]),
+      );
+
+      const replies = await client.send(keys.map((key) => ['GET', key]));
+
+      for (const [index, [reply]] of replies.entries()) {
+        assert.ok(Buffer.isBuffer(reply));
+        assert.ok(reply.equals(payloads[index]), `payload #${index}`);
+      }
+
+      const mixed = await Promise.all(
+        keys.map(async (key, index) => {
+          const [[[value]], echo] = await Promise.all([
+            client.send([['GET', key]]),
+            client.echo(`small-${index}`),
+          ]);
+
+          return (
+            Buffer.isBuffer(value) &&
+            value.equals(payloads[index]) &&
+            echo === `small-${index}`
+          );
+        }),
+      );
+
+      assert.deepStrictEqual(
+        mixed,
+        keys.map(() => true),
+      );
     });
+  }
 
-    assertClean('maxSocketWriteSizePerOnce=1', await burst(client, 500));
-  });
-
-  it('stays correlated with a tiny, constantly-resized parser buffer', async () => {
+  it('stays correlated with every degenerate setting at once', async () => {
+    const proxy = await startFragmentingProxy(2, 2);
     const client = await make({
-      parser: { buffer: { initial: 64, shiftThreshold: 16 } },
-    });
-
-    assertClean('tiny-parser-buffer', await burst(client, 3000));
-  });
-
-  it('stays correlated with every limit cranked to its worst case at once', async () => {
-    const client = await make({
+      host: '127.0.0.1',
+      port: proxy.port,
       maxCommandsPerPipeline: 1,
-      maxProcessRepliesPerChunk: 1,
-      maxSocketWriteSizePerOnce: 1,
       commandTimeout: 0,
-      socketWriteTimeout: 120000,
-      parser: { buffer: { initial: 32, shiftThreshold: 8 } },
     });
 
     assertClean('all-degenerate', await burst(client, 500));
   });
 
-  it('stays correlated across 24 degenerate clients pounding in parallel', async () => {
+  it('stays correlated across 12 degenerate clients pounding in parallel', async () => {
+    const proxy = await startFragmentingProxy(5, 7);
     const clients = await Promise.all(
       range(12).map((index) =>
         make({
           maxCommandsPerPipeline: 1 + (index % 3),
-          maxProcessRepliesPerChunk: 1 + (index % 4),
+          ...(index % 2 === 0 ? { host: '127.0.0.1', port: proxy.port } : {}),
         }),
       ),
     );

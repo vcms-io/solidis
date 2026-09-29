@@ -172,6 +172,10 @@ describe('modules-json', () => {
 
     const keys = await client.jsonObjkeys(key, '$');
 
+    if (keys === null) {
+      assert.fail('JSON.OBJKEYS must return the keys of an existing object');
+    }
+
     assert.deepStrictEqual(
       keys.map((entry) => {
         if (!Array.isArray(entry)) {
@@ -644,6 +648,10 @@ describe('modules-json', () => {
     await client.jsonSet(key, '$', '{"alpha":1,"beta":2}');
 
     const keys = await client.jsonObjkeys(key);
+
+    if (keys === null) {
+      assert.fail('JSON.OBJKEYS must return the keys of an existing object');
+    }
 
     assert.deepStrictEqual([...keys].sort(), ['alpha', 'beta']);
   });

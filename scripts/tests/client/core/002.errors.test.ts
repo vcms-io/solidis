@@ -8,8 +8,9 @@ import { after, before, describe, it } from 'node:test';
 
 import { SolidisFeaturedClient } from '../../../../sources/client/featured.ts';
 import {
-  checkReplyIsMessageEvent,
   checkReplyIsPubSubEvent,
+  getPubSubEventName,
+  isMessageEventName,
   RespError,
   SolidisClientError,
   SolidisCommandError,
@@ -66,7 +67,19 @@ describe('errors', () => {
     }
     assert.strictEqual(
       caught.message,
-      `[LPUSH ${key} x] Invalid reply: RespError: WRONGTYPE Operation against a key holding the wrong kind of value`,
+      '[LPUSH] WRONGTYPE Operation against a key holding the wrong kind of value',
+    );
+
+    const cause = caught.getOriginalError();
+
+    if (!(cause instanceof RespError)) {
+      assert.fail('expected the server RespError as the cause');
+    }
+    assert.strictEqual(caught.cause, cause);
+    assert.strictEqual(cause.code, 'WRONGTYPE');
+    assert.strictEqual(
+      cause.message,
+      'WRONGTYPE Operation against a key holding the wrong kind of value',
     );
   });
 
@@ -79,8 +92,7 @@ describe('errors', () => {
       client.incr(key),
       (error: Error) =>
         error instanceof SolidisCommandError &&
-        error.message ===
-          `[INCR ${key}] Invalid reply: RespError: ERR value is not an integer or out of range`,
+        error.message === '[INCR] ERR value is not an integer or out of range',
     );
   });
 
@@ -151,7 +163,7 @@ describe('errors', () => {
     }
   });
 
-  it('wraps connection failures as SolidisClientError', async () => {
+  it('wraps connection failures as SolidisConnectionError', async () => {
     const failing = new SolidisFeaturedClient(
       buildClientOptions({
         host: '127.0.0.1',
@@ -172,12 +184,19 @@ describe('errors', () => {
       caught = error;
     }
 
-    if (!(caught instanceof SolidisClientError)) {
-      assert.fail('expected SolidisClientError for connection refusal');
+    if (!(caught instanceof SolidisConnectionError)) {
+      assert.fail('expected SolidisConnectionError for connection refusal');
+    }
+    assert.strictEqual(caught.message, 'Connection failed after 0 retries.');
+
+    const attemptError = caught.getOriginalError();
+
+    if (!(attemptError instanceof SolidisConnectionError)) {
+      assert.fail('expected the last attempt error as the cause');
     }
     assert.strictEqual(
-      caught.message,
-      'SolidisConnectionError: Error: connect ECONNREFUSED 127.0.0.1:1',
+      attemptError.message,
+      'connect ECONNREFUSED 127.0.0.1:1',
     );
 
     failing.quit();
@@ -231,7 +250,7 @@ describe('errors', () => {
 
     assert.strictEqual(
       message,
-      `[LPUSH ${key} x] Invalid reply: RespError: WRONGTYPE Operation against a key holding the wrong kind of value`,
+      '[LPUSH] WRONGTYPE Operation against a key holding the wrong kind of value',
     );
   });
 
@@ -249,7 +268,9 @@ describe('errors', () => {
 
     assert.strictEqual(solidisError.name, 'SolidisError');
     assert.strictEqual(solidisError.message, 'wrapped');
-    assert.strictEqual(solidisError.stack, original.stack);
+    assert.notStrictEqual(solidisError.stack, original.stack);
+    assert.match(solidisError.stack ?? '', /^SolidisError: wrapped\n/);
+    assert.strictEqual(solidisError.cause, original);
     assert.strictEqual(solidisError.getOriginalError(), original);
   });
 
@@ -327,7 +348,7 @@ describe('errors', () => {
     assert.throws(
       () => processPairedArray(['key1', 'val1', 'key2'], () => {}),
       (error: Error) =>
-        error.message === 'Invalid reply: expected even-length array, got 3',
+        error.message === 'Unexpected reply: expected even-length array, got 3',
     );
   });
 
@@ -351,12 +372,8 @@ describe('errors', () => {
     );
 
     assert.strictEqual(
-      checkReplyIsMessageEvent([
-        'message',
-        Buffer.from('ch'),
-        Buffer.from('data'),
-      ]),
-      false,
+      getPubSubEventName(['message', Buffer.from('ch'), Buffer.from('data')]),
+      undefined,
     );
   });
 
@@ -367,11 +384,11 @@ describe('errors', () => {
 
     assert.throws(
       () => tryReplyToBoolean('yes'),
-      (error: Error) => error.message === 'Invalid reply: yes',
+      (error: Error) => error.message === 'Unexpected reply: string',
     );
     assert.throws(
       () => tryReplyToBoolean(42),
-      (error: Error) => error.message === 'Invalid reply: 42',
+      (error: Error) => error.message === 'Unexpected reply: number',
     );
   });
 
@@ -382,7 +399,7 @@ describe('errors', () => {
 
     assert.throws(
       () => tryReplyToBooleanArray('not-an-array'),
-      (error: Error) => error.message === 'Invalid reply: not-an-array',
+      (error: Error) => error.message === 'Unexpected reply: string',
     );
   });
 
@@ -394,7 +411,7 @@ describe('errors', () => {
     assert.strictEqual(tryReplyToBinaryString('hello'), 'hello');
     assert.throws(
       () => tryReplyToBinaryString(42),
-      (error: Error) => error.message === 'Invalid reply: 42',
+      (error: Error) => error.message === 'Unexpected reply: number',
     );
   });
 
@@ -405,11 +422,11 @@ describe('errors', () => {
 
     assert.throws(
       () => tryReplyToNumber('not-a-number'),
-      (error: Error) => error.message === 'Invalid reply: not-a-number',
+      (error: Error) => error.message === 'Unexpected reply: string',
     );
     assert.throws(
       () => tryReplyToNumber({}),
-      (error: Error) => error.message === 'Invalid reply: [object Object]',
+      (error: Error) => error.message === 'Unexpected reply: object',
     );
   });
 
@@ -420,7 +437,7 @@ describe('errors', () => {
 
     assert.throws(
       () => processPairedArray(42, () => {}),
-      (error: Error) => error.message === 'Invalid reply: 42',
+      (error: Error) => error.message === 'Unexpected reply: number',
     );
   });
 
@@ -431,11 +448,11 @@ describe('errors', () => {
 
     assert.throws(
       () => tryReplyArray('not-an-array'),
-      (error: Error) => error.message === 'Invalid reply: not-an-array',
+      (error: Error) => error.message === 'Unexpected reply: string',
     );
     assert.throws(
       () => tryReplyArray(42),
-      (error: Error) => error.message === 'Invalid reply: 42',
+      (error: Error) => error.message === 'Unexpected reply: number',
     );
   });
 
@@ -446,7 +463,7 @@ describe('errors', () => {
 
     assert.throws(
       () => tryReplyToStringArray(42),
-      (error: Error) => error.message === 'Invalid reply: 42',
+      (error: Error) => error.message === 'Unexpected reply: number',
     );
   });
 
@@ -457,7 +474,7 @@ describe('errors', () => {
 
     assert.throws(
       () => tryReplyToSortedSetMembers('bad'),
-      (error: Error) => error.message === 'Unexpected reply: bad',
+      (error: Error) => error.message === 'Unexpected reply: string',
     );
   });
 
@@ -468,7 +485,7 @@ describe('errors', () => {
 
     assert.throws(
       () => tryReplyToStringsOrSortedSetMembers('bad', 'ZRANGE', true),
-      (error: Error) => error.message === '[ZRANGE] Unexpected reply: bad',
+      (error: Error) => error.message === '[ZRANGE] Unexpected reply: string',
     );
   });
 
@@ -479,7 +496,7 @@ describe('errors', () => {
 
     assert.throws(
       () => tryReplyToKeyMemberScoreOrNull([1, 2, 3], 'BZPOPMIN'),
-      (error: Error) => error.message === '[BZPOPMIN] Unexpected reply: 1,2,3',
+      (error: Error) => error.message === '[BZPOPMIN] Unexpected reply: number',
     );
   });
 
@@ -493,13 +510,13 @@ describe('errors', () => {
       true,
     );
 
-    assert.strictEqual(
-      checkReplyIsMessageEvent([
-        Buffer.from('message'),
-        Buffer.from('ch'),
-        Buffer.from('data'),
-      ]),
-      true,
-    );
+    const eventName = getPubSubEventName([
+      Buffer.from('message'),
+      Buffer.from('ch'),
+      Buffer.from('data'),
+    ]);
+
+    assert.strictEqual(eventName, 'message');
+    assert.strictEqual(isMessageEventName(eventName), true);
   });
 });
