@@ -20,7 +20,7 @@ function parseJsonType(
   }
 
   const value = item instanceof Buffer ? item.toString() : item;
-  const matched = RespJsonType.find((t) => t === value);
+  const matched = RespJsonType.find((type) => type === value);
 
   if (matched !== undefined) {
     return matched;
@@ -47,27 +47,18 @@ export async function jsonType<T>(
     this,
     createCommand(key, path),
     (reply, command) => {
-      if (Array.isArray(reply)) {
-        if (
-          reply.length === 1 &&
-          !Array.isArray(reply[0]) &&
-          !path?.startsWith('$')
-        ) {
-          return parseJsonType(reply[0], command);
-        }
+      const value =
+        Array.isArray(reply) &&
+        reply.length === 1 &&
+        (!path?.startsWith('$') || reply[0] === null || Array.isArray(reply[0]))
+          ? reply[0]
+          : reply;
 
-        if (
-          path !== undefined &&
-          reply.length === 1 &&
-          Array.isArray(reply[0])
-        ) {
-          return reply[0].map((item) => parseJsonType(item, command));
-        }
-
-        return reply.map((item) => parseJsonType(item, command));
+      if (Array.isArray(value)) {
+        return value.map((item) => parseJsonType(item, command));
       }
 
-      return parseJsonType(reply, command);
+      return parseJsonType(value, command);
     },
   );
 }

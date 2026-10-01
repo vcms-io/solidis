@@ -118,16 +118,13 @@ describe('hashes', () => {
 
     const single = await client.hrandfield(key);
 
-    if (single === null || typeof single !== 'string') {
-      assert.fail('expected non-null string from hrandfield');
+    if (single === null) {
+      assert.fail('expected a field from hrandfield');
     }
     assert.ok(['a', 'b', 'c'].includes(single));
 
     const several = await client.hrandfield(key, 2);
 
-    if (several === null || !Array.isArray(several)) {
-      assert.fail('expected non-null array from hrandfield');
-    }
     assert.strictEqual(several.length, 2);
     for (const field of several) {
       assert.ok(['a', 'b', 'c'].includes(field));
@@ -136,7 +133,41 @@ describe('hashes', () => {
 
     const withValues = await client.hrandfield(key, 3, true);
 
-    assert.deepStrictEqual(withValues, { a: '1', b: '2', c: '3' });
+    assert.deepStrictEqual(
+      withValues.toSorted((left, right) =>
+        left.field.localeCompare(right.field),
+      ),
+      [
+        { field: 'a', value: '1' },
+        { field: 'b', value: '2' },
+        { field: 'c', value: '3' },
+      ],
+    );
+
+    const repeated = await client.hrandfield(key, -12, true);
+    const values: Record<string, string> = { a: '1', b: '2', c: '3' };
+
+    assert.strictEqual(repeated.length, 12);
+    for (const { field, value } of repeated) {
+      assert.strictEqual(values[field], value);
+    }
+
+    assert.deepStrictEqual(
+      await client
+        .hrandfield(key, undefined, true)
+        .then((entries) =>
+          entries.map(({ field, value }) => values[field] === value),
+        ),
+      [true],
+    );
+    assert.strictEqual(
+      await client.hrandfield(keyspace.key('randfield-missing')),
+      null,
+    );
+    assert.deepStrictEqual(
+      await client.hrandfield(keyspace.key('randfield-missing'), 2, true),
+      [],
+    );
   });
 
   it('iterates a large hash with HSCAN', async () => {

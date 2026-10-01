@@ -6,6 +6,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
+import { RespError } from '../../../sources/index.ts';
 import {
   closeClient,
   createClient,
@@ -202,6 +203,45 @@ describe('modules-timeseries', () => {
     ]);
   });
 
+  it('reports rejected TS.MADD samples inline and keeps the stored ones', async (context) => {
+    if (!available) {
+      context.skip('module not loaded on this server');
+      return;
+    }
+
+    const key = keyspace.key('madd-partial');
+    const text = keyspace.key('madd-partial-text');
+
+    await client.tsCreate(key, { duplicatePolicy: 'BLOCK' });
+    await client.tsAdd(key, 1000, 1);
+
+    const results = await client.tsMadd(key, [
+      { timestamp: 2000, value: 2 },
+      { timestamp: 1000, value: 5 },
+      { timestamp: 3000, value: 3 },
+    ]);
+
+    assert.strictEqual(results.length, 3);
+    assert.strictEqual(results[0], 2000);
+    assert.ok(results[1] instanceof RespError);
+    assert.match(results[1].message, /DUPLICATE_POLICY|BLOCK/);
+    assert.strictEqual(results[2], 3000);
+    assert.deepStrictEqual(await client.tsRange(key, 0, 4000), [
+      { timestamp: 1000, value: 1 },
+      { timestamp: 2000, value: 2 },
+      { timestamp: 3000, value: 3 },
+    ]);
+
+    await client.set(text, 'value');
+
+    const [failure, ...rest] = await client.tsMadd(text, [
+      { timestamp: 1000, value: 1 },
+    ]);
+
+    assert.ok(failure instanceof RespError);
+    assert.deepStrictEqual(rest, []);
+  });
+
   it('queries samples in reverse with TS.REVRANGE', async (context) => {
     if (!available) {
       context.skip('module not loaded on this server');
@@ -240,18 +280,16 @@ describe('modules-timeseries', () => {
     assert.strictEqual(info.totalSamples, 1);
     assert.strictEqual(info.firstTimestamp, 1000);
     assert.strictEqual(info.lastTimestamp, 1000);
-    if (!Array.isArray(info.labels)) {
-      assert.fail('expected labels to be an array');
-    }
-    assert.deepStrictEqual(
-      info.labels.map((pair: unknown) => {
-        if (!Array.isArray(pair) || pair.length !== 2) {
-          assert.fail('expected label entry to be a [key, value] pair');
-        }
-        return [String(pair[0]), String(pair[1])];
-      }),
-      [['env', 'test']],
-    );
+    assert.deepStrictEqual(info.labels, { env: 'test' });
+    assert.strictEqual(info.chunkType, 'compressed');
+    assert.strictEqual(info.sourceKey, null);
+    assert.deepStrictEqual(info.rules, []);
+    assert.ok(info.memoryUsage > 0);
+    assert.ok(info.chunkSize > 0);
+    assert.strictEqual(info.chunkCount, 1);
+    assert.strictEqual(info.retentionTime, 0);
+    assert.strictEqual(info.ignoreMaxTimeDiff, 0);
+    assert.strictEqual(info.ignoreMaxValDiff, 0);
   });
 
   it('alters series metadata with TS.ALTER', async (context) => {
@@ -271,18 +309,7 @@ describe('modules-timeseries', () => {
 
     const altered = await client.tsInfo(key);
 
-    if (!Array.isArray(altered.labels)) {
-      assert.fail('expected labels to be an array');
-    }
-    assert.deepStrictEqual(
-      altered.labels.map((pair: unknown) => {
-        if (!Array.isArray(pair) || pair.length !== 2) {
-          assert.fail('expected label entry to be a [key, value] pair');
-        }
-        return [String(pair[0]), String(pair[1])];
-      }),
-      [['env', 'prod']],
-    );
+    assert.deepStrictEqual(altered.labels, { env: 'prod' });
   });
 
   it('creates and deletes compaction rules with TS.CREATERULE / TS.DELETERULE', async (context) => {
@@ -307,15 +334,16 @@ describe('modules-timeseries', () => {
     const sourceInfo = await client.tsInfo(sourceKey);
     const destinationInfo = await client.tsInfo(destinationKey);
 
-    if (!Array.isArray(sourceInfo.rules)) {
-      assert.fail('expected rules to be an array');
-    }
-    assert.strictEqual(sourceInfo.rules.length, 1);
-    assert.strictEqual(String(sourceInfo.rules[0][0]), destinationKey);
-    assert.strictEqual(sourceInfo.rules[0][1], 60000);
-    assert.strictEqual(sourceInfo.rules[0][2], 'AVG');
-    assert.strictEqual(sourceInfo.rules[0][3], 0);
-    assert.strictEqual(String(destinationInfo.sourceKey), sourceKey);
+    assert.deepStrictEqual(sourceInfo.rules, [
+      {
+        key: destinationKey,
+        bucketDuration: 60000,
+        aggregator: 'AVG',
+        alignment: 0,
+      },
+    ]);
+    assert.strictEqual(sourceInfo.sourceKey, null);
+    assert.strictEqual(destinationInfo.sourceKey, sourceKey);
     assert.deepStrictEqual(destinationInfo.rules, []);
 
     assert.strictEqual(
@@ -469,14 +497,14 @@ describe('modules-timeseries', () => {
 
     const sourceInfo = await client.tsInfo(source);
 
-    if (!Array.isArray(sourceInfo.rules)) {
-      assert.fail('expected rules to be an array');
-    }
-    assert.strictEqual(sourceInfo.rules.length, 1);
-    assert.strictEqual(String(sourceInfo.rules[0][0]), destination);
-    assert.strictEqual(sourceInfo.rules[0][1], 60000);
-    assert.strictEqual(sourceInfo.rules[0][2], 'AVG');
-    assert.strictEqual(sourceInfo.rules[0][3], 0);
+    assert.deepStrictEqual(sourceInfo.rules, [
+      {
+        key: destination,
+        bucketDuration: 60000,
+        aggregator: 'AVG',
+        alignment: 0,
+      },
+    ]);
   });
 
   it('queries TS.MGET with LATEST option', async (context) => {

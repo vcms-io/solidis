@@ -7,6 +7,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
+import { RespError } from '../../../sources/index.ts';
 import {
   closeClient,
   createClient,
@@ -181,6 +182,39 @@ describe('modules-bloom-cuckoo', () => {
     assert.strictEqual(await client.bfExists(key, 'x'), true);
     assert.strictEqual(await client.bfExists(key, 'y'), true);
     assert.strictEqual(await client.bfExists(key, 'z'), true);
+  });
+
+  it('reports items rejected by a full non-scaling filter inline', async (context) => {
+    if (!bloomAvailable) {
+      context.skip('RedisBloom not loaded');
+      return;
+    }
+
+    const key = keyspace.key('bloom-full');
+
+    assert.strictEqual(
+      await client.bfReserve(key, 0.0001, 2, undefined, true),
+      'OK',
+    );
+
+    const added = await client.bfMadd(key, ['a', 'b', 'c', 'd']);
+    const inserted = await client.bfInsert(key, ['e', 'f'], {
+      nocreate: true,
+    });
+
+    assert.ok(added.length < 4);
+
+    for (const results of [added, inserted]) {
+      const failure = results.at(-1);
+
+      assert.ok(failure instanceof RespError);
+      assert.match(failure.message, /full/);
+      assert.ok(
+        results.slice(0, -1).every((result) => result === 0 || result === 1),
+      );
+    }
+
+    assert.strictEqual(await client.bfExists(key, 'a'), true);
   });
 
   it('adds only if not existing with CF.ADDNX', async (context) => {

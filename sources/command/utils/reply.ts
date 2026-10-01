@@ -1,4 +1,4 @@
-import { SolidisCommandError } from '../../common/utils/error.ts';
+import { RespError, SolidisCommandError } from '../../common/utils/error.ts';
 import { formatDouble, parseDouble } from '../../common/utils/number.ts';
 import { getCommandName } from '../../common/utils/request.ts';
 import { RespOK } from '../../types/resp.ts';
@@ -371,6 +371,15 @@ export function tryReplyToNumberArray(
     nullable
       ? tryReplyToNumberOrNull(value, commandName)
       : tryReplyToNumber(value, commandName),
+  );
+}
+
+export function tryReplyToNumberOrErrorArray(
+  reply: unknown,
+  commandName?: CommandName,
+): (number | RespError)[] {
+  return tryReplyArray(reply, commandName).map((item) =>
+    item instanceof RespError ? item : tryReplyToNumber(item, commandName),
   );
 }
 

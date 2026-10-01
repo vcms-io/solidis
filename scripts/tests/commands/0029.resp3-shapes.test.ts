@@ -332,9 +332,10 @@ describe('resp3-shapes', () => {
 
     await client.hset(key, 'field', 'value');
 
-    assert.deepStrictEqual(await client.hrandfield(key, 1, true), {
-      field: 'value',
-    });
+    assert.deepStrictEqual(await client.hrandfield(key, -2, true), [
+      { field: 'field', value: 'value' },
+      { field: 'field', value: 'value' },
+    ]);
   });
 
   it('reads a RESP3 map from CLIENT TRACKINGINFO', async () => {

@@ -84,15 +84,8 @@ function parseDocFlags(
   );
 }
 
-function parseHistory(
-  history: unknown,
-  command: StringOrBuffer[],
-): string[] | undefined {
-  if (!Array.isArray(history)) {
-    return undefined;
-  }
-
-  return history.map((entry) => {
+function parseHistory(history: unknown, command: StringOrBuffer[]) {
+  return tryReplyArray(history, command).map((entry) => {
     if (!Array.isArray(entry) || entry.length !== 2) {
       throw newUnexpectedReplyError(entry, command);
     }

@@ -297,30 +297,44 @@ describe('keys-generic', () => {
     });
   });
 
-  it('uses EXPIREAT with NX option', async (context) => {
+  it('uses EXPIREAT with every expire mode', async (context) => {
     if (!atLeast7) {
       context.skip('requires Redis 7.0+');
       return;
     }
 
-    const key = keyspace.key('expireat-nx');
+    const key = keyspace.key('expireat-modes');
     const future = Math.floor(Date.now() / 1000) + 3600;
 
     await client.set(key, 'val');
 
-    assert.strictEqual(
-      await client.expireat(key, future, { notExists: true }),
-      1,
-    );
+    assert.strictEqual(await client.expireat(key, future, 'XX'), 0);
+    assert.strictEqual(await client.ttl(key), -1);
+
+    assert.strictEqual(await client.expireat(key, future, 'NX'), 1);
     const expireatNxTtl = await client.ttl(key);
     assert.ok(expireatNxTtl >= 3599 && expireatNxTtl <= 3600);
 
-    assert.strictEqual(
-      await client.expireat(key, future + 100, { notExists: true }),
-      0,
+    assert.strictEqual(await client.expireat(key, future + 100, 'NX'), 0);
+    assert.strictEqual(await client.expireat(key, future - 100, 'GT'), 0);
+    assert.strictEqual(await client.expireat(key, future + 100, 'LT'), 0);
+    const expireatUnchangedTtl = await client.ttl(key);
+    assert.ok(expireatUnchangedTtl >= 3599 && expireatUnchangedTtl <= 3600);
+
+    assert.strictEqual(await client.expireat(key, future + 100, 'GT'), 1);
+    assert.ok((await client.ttl(key)) > 3600);
+
+    assert.strictEqual(await client.expireat(key, future - 100, 'LT'), 1);
+    assert.ok((await client.ttl(key)) < 3600);
+
+    assert.strictEqual(await client.expireat(key, future, 'XX'), 1);
+    assert.deepStrictEqual(
+      [
+        await client.expireat(key, future),
+        await client.expireat(keyspace.key('expireat-missing'), future),
+      ],
+      [1, 0],
     );
-    const expireatNxUnchangedTtl = await client.ttl(key);
-    assert.ok(expireatNxUnchangedTtl >= 3599 && expireatNxUnchangedTtl <= 3600);
   });
 
   it('uses PEXPIRE with GT mode', async (context) => {

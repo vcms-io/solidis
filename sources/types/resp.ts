@@ -186,6 +186,10 @@ export interface RespGeoRadius {
   hash?: number;
   position?: RespGeoPosition;
 }
+export interface RespHashEntry {
+  field: string;
+  value: string;
+}
 export interface RespHelloInfo {
   server: string;
   version: string;
@@ -436,6 +440,28 @@ export interface RespStreamReadResult {
 export interface RespStreamGroupReadResult {
   stream: string;
   entries: (RespStreamEntry | RespStreamDeletedEntry)[];
+}
+export interface RespTimeSeriesInfo {
+  totalSamples: number;
+  memoryUsage: number;
+  firstTimestamp: number;
+  lastTimestamp: number;
+  retentionTime: number;
+  chunkCount: number;
+  chunkSize: number;
+  chunkType: string;
+  duplicatePolicy: string | null;
+  labels: Record<string, string>;
+  sourceKey: string | null;
+  rules: RespTimeSeriesRule[];
+  ignoreMaxTimeDiff: number;
+  ignoreMaxValDiff: number;
+}
+export interface RespTimeSeriesRule {
+  key: string;
+  bucketDuration: number;
+  aggregator: string;
+  alignment: number;
 }
 export interface RespWaitAOF {
   localFsynced: number;

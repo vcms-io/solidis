@@ -1,6 +1,6 @@
-import { executeCommand, tryReplyToNumberArray } from './utils/index.ts';
+import { executeCommand, tryReplyToNumberOrErrorArray } from './utils/index.ts';
 
-import type { CommandBloomFilterInsertOptions } from '../index.ts';
+import type { CommandBloomFilterInsertOptions, RespError } from '../index.ts';
 
 export function createCommand(
   key: string,
@@ -41,10 +41,10 @@ export async function bfInsert<T>(
   key: string,
   items: string[],
   options?: CommandBloomFilterInsertOptions,
-): Promise<number[]> {
+): Promise<(number | RespError)[]> {
   return await executeCommand(
     this,
     createCommand(key, items, options),
-    tryReplyToNumberArray,
+    tryReplyToNumberOrErrorArray,
   );
 }
