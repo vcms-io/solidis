@@ -25,15 +25,17 @@ function writeAsciiNumber(buffer: Buffer, value: number, offset: number) {
 }
 
 export function commandsToBuffer(commands: StringOrBuffer[][]): Buffer {
+  const argumentLengths: number[] = [];
+
   let totalLength = 0;
 
   for (const commandArguments of commands) {
     totalLength += 3 + getNumberText(commandArguments.length).length;
 
     for (const argument of commandArguments) {
-      const argumentLength = Buffer.isBuffer(argument)
-        ? argument.length
-        : Buffer.byteLength(argument);
+      const argumentLength = Buffer.byteLength(argument);
+
+      argumentLengths.push(argumentLength);
 
       totalLength += 5 + getNumberText(argumentLength).length + argumentLength;
     }
@@ -42,6 +44,7 @@ export function commandsToBuffer(commands: StringOrBuffer[][]): Buffer {
   const result = Buffer.allocUnsafe(totalLength);
 
   let offset = 0;
+  let argumentIndex = 0;
 
   for (const commandArguments of commands) {
     result[offset] = ASTERISK;
@@ -50,20 +53,18 @@ export function commandsToBuffer(commands: StringOrBuffer[][]): Buffer {
     offset = writeCRLF(result, offset);
 
     for (const argument of commandArguments) {
-      const isBuffer = Buffer.isBuffer(argument);
-      const argumentLength = isBuffer
-        ? argument.length
-        : Buffer.byteLength(argument);
+      const argumentLength = argumentLengths[argumentIndex];
 
+      argumentIndex += 1;
       result[offset] = DOLLAR;
 
       offset = writeAsciiNumber(result, argumentLength, offset + 1);
       offset = writeCRLF(result, offset);
 
-      if (isBuffer) {
+      if (Buffer.isBuffer(argument)) {
         argument.copy(result, offset);
       } else {
-        result.write(argument, offset, 'utf8');
+        result.write(argument, offset);
       }
 
       offset += argumentLength;

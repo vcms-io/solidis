@@ -130,7 +130,7 @@ export interface SolidisSubRequest {
   command: StringOrBuffer[];
   kind: SolidisCommandKind | undefined;
   span: number;
-  isLast: boolean;
+  index: number;
 }
 
 export interface SolidisPipeline {
