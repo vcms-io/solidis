@@ -6,10 +6,12 @@ import { RespOK } from '../../types/resp.ts';
 import type {
   CommandGeoRadiusOptions,
   CommandGeoSearchOptions,
+  CommandIntegerOptions,
 } from '../../types/command.ts';
 import type {
   RespConfigInfo,
   RespGeoRadius,
+  RespInteger,
   RespModuleInfo,
   RespSortedSetMember,
   RespStreamDeletedEntry,
@@ -19,7 +21,6 @@ import type {
 } from '../../types/resp.ts';
 import type {
   SolidisData,
-  SolidisInteger,
   SolidisRecursiveStringRecord,
   StringOrBuffer,
 } from '../../types/solidis.ts';
@@ -209,29 +210,22 @@ export function tryReplyNumberOrNull(
   return reply === null ? null : tryReplyNumber(reply, commandName);
 }
 
-function hasBigIntegers(client: unknown) {
-  return (
-    typeof client === 'object' &&
-    client !== null &&
-    'bigIntegers' in client &&
-    client.bigIntegers === true
-  );
-}
-
-export function tryReplyToInteger<T>(
+export function tryReplyToInteger<
+  Options extends CommandIntegerOptions | undefined,
+>(
   reply: unknown,
   commandName: CommandName | undefined,
-  client: T,
-): SolidisInteger<T> {
-  if (!hasBigIntegers(client)) {
-    return tryReplyNumber(reply, commandName) as SolidisInteger<T>;
+  options: Options | undefined,
+): RespInteger<Options> {
+  if (options?.bigint !== true) {
+    return tryReplyNumber(reply, commandName) as RespInteger<Options>;
   }
 
   return (
     typeof reply === 'bigint'
       ? reply
       : BigInt(tryReplyNumber(reply, commandName))
-  ) as SolidisInteger<T>;
+  ) as RespInteger<Options>;
 }
 
 export function tryReplyToNumber(

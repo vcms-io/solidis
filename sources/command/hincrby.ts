@@ -1,6 +1,6 @@
 import { executeIntegerCommand } from './utils/index.ts';
 
-import type { SolidisInteger } from '../index.ts';
+import type { CommandIntegerOptions, RespInteger } from '../index.ts';
 
 export function createCommand(
   key: string,
@@ -10,14 +10,19 @@ export function createCommand(
   return ['HINCRBY', key, field, `${increment}`];
 }
 
-export async function hincrby<T>(
+export async function hincrby<
+  T,
+  Options extends CommandIntegerOptions | undefined = undefined,
+>(
   this: T,
   key: string,
   field: string,
   increment: number | bigint,
-): Promise<SolidisInteger<T>> {
+  options?: Options,
+): Promise<RespInteger<Options>> {
   return await executeIntegerCommand(
     this,
     createCommand(key, field, increment),
+    options,
   );
 }

@@ -6,7 +6,8 @@ import {
 
 import type {
   CommandBitfieldRoGetOperationOption,
-  SolidisInteger,
+  CommandIntegerOptions,
+  RespInteger,
 } from '../index.ts';
 
 export function createCommand(
@@ -22,17 +23,21 @@ export function createCommand(
   return command;
 }
 
-export async function bitfieldRo<T>(
+export async function bitfieldRo<
+  T,
+  Options extends CommandIntegerOptions | undefined = undefined,
+>(
   this: T,
   key: string,
   operations: CommandBitfieldRoGetOperationOption[],
-): Promise<SolidisInteger<T>[]> {
+  options?: Options,
+): Promise<RespInteger<Options>[]> {
   return await executeCommand(
     this,
     createCommand(key, operations),
     (reply, command) =>
       tryReplyArray(reply, command).map((value) =>
-        tryReplyToInteger(value, command, this),
+        tryReplyToInteger(value, command, options),
       ),
   );
 }

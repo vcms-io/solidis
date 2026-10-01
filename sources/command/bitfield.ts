@@ -6,8 +6,9 @@ import {
 
 import type {
   CommandBitfieldOperationOption,
+  CommandIntegerOptions,
   RespBitfieldOverflow,
-  SolidisInteger,
+  RespInteger,
 } from '../index.ts';
 
 export function createCommand(
@@ -36,12 +37,16 @@ export function createCommand(
   return command;
 }
 
-export async function bitfield<T>(
+export async function bitfield<
+  T,
+  Options extends CommandIntegerOptions | undefined = undefined,
+>(
   this: T,
   key: string,
   operations: CommandBitfieldOperationOption[],
   overflow?: RespBitfieldOverflow,
-): Promise<(SolidisInteger<T> | null)[] | null> {
+  options?: Options,
+): Promise<(RespInteger<Options> | null)[] | null> {
   return await executeCommand(
     this,
     createCommand(key, operations, overflow),
@@ -51,7 +56,7 @@ export async function bitfield<T>(
       }
 
       return tryReplyArray(reply, command).map((value) =>
-        value === null ? null : tryReplyToInteger(value, command, this),
+        value === null ? null : tryReplyToInteger(value, command, options),
       );
     },
   );

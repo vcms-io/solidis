@@ -173,6 +173,10 @@ export interface CommandGetExOptions {
   persist?: boolean;
 }
 
+export interface CommandIntegerOptions {
+  bigint?: boolean;
+}
+
 export interface CommandJsonSetOptions {
   nx?: boolean;
   xx?: boolean;

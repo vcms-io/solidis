@@ -17,7 +17,6 @@ export const SolidisDefaultOptions: SolidisClientFrozenOptions = {
     ssubscribe: true,
     psubscribe: true,
   },
-  bigIntegers: false,
   clientName: 'solidis',
   commandTimeout: 5000,
   connectionTimeout: 2000,

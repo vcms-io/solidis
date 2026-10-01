@@ -29,6 +29,11 @@ export type RespBitOperation = 'AND' | 'OR' | 'XOR' | 'NOT';
 export type RespBitfield = `i${number}` | `u${number}`;
 export type RespBitfieldOverflow = 'WRAP' | 'SAT' | 'FAIL';
 export type RespHashField = Record<string, string>;
+export type RespInteger<Options> = Options extends { bigint: true }
+  ? bigint
+  : Options extends undefined | { bigint?: false }
+    ? number
+    : number | bigint;
 export type RespSetMember = string;
 export type RespListMember = string;
 export type RespAclLogKey =

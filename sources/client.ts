@@ -22,7 +22,6 @@ import { SolidisRequester } from './modules/requester.ts';
 import { SolidisProtocols } from './types/solidis.ts';
 
 import type {
-  SolidisBigIntegers,
   SolidisClientEventHandlers,
   SolidisClientExtensions,
   SolidisClientFrozenOptions,
@@ -37,11 +36,7 @@ function sleep(milliseconds: number) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-export class SolidisClient<
-  Options extends SolidisClientOptions = SolidisClientOptions,
-> extends EventEmitter {
-  public readonly bigIntegers: SolidisBigIntegers<Options>;
-
+export class SolidisClient extends EventEmitter {
   readonly #options: SolidisClientFrozenOptions;
   readonly #pubSub: SolidisPubSub;
   readonly #connection: SolidisConnection;
@@ -65,13 +60,12 @@ export class SolidisClient<
 
   [key: string]: unknown;
 
-  constructor(options?: Options) {
+  constructor(options: SolidisClientOptions = {}) {
     super();
 
     const emit = this.emit.bind(this);
 
-    this.#options = resolveClientOptions(options ?? {});
-    this.bigIntegers = this.#options.bigIntegers as SolidisBigIntegers<Options>;
+    this.#options = resolveClientOptions(options);
     this.#debugMemory = this.#options.debug
       ? new SolidisDebugMemory(this.#options.debugMaxEntries)
       : undefined;

@@ -53,7 +53,6 @@ export interface SolidisClientOptions {
     ssubscribe?: boolean;
     psubscribe?: boolean;
   };
-  bigIntegers?: boolean;
   clientName?: string;
   commandTimeout?: number;
   connectionTimeout?: number;
@@ -79,18 +78,6 @@ export interface SolidisClientOptions {
   rejectOnPartialPipelineError?: boolean;
   tls?: tls.ConnectionOptions;
 }
-
-export type SolidisBigIntegers<Options> = Options extends {
-  bigIntegers: true;
-}
-  ? true
-  : boolean;
-
-export type SolidisInteger<Client> = Client extends {
-  readonly bigIntegers: true;
-}
-  ? bigint
-  : number;
 
 export type SolidisClientFrozenOptions = Readonly<
   DeepRequired<Omit<SolidisClientOptions, 'tls'>> & {

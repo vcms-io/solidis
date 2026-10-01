@@ -19,6 +19,7 @@ import type {
   CommandGeoSearchByOptions,
   CommandGeoSearchFromOptions,
   CommandGeoSearchOptions,
+  CommandIntegerOptions,
   CommandScanOptions,
   CommandSetOptions,
   CommandSortOptions,
@@ -28,10 +29,9 @@ import type {
   CommandZRangeOptions,
   CommandZRangeStoreOptions,
 } from '../../types/command.ts';
-import type { RespOK } from '../../types/resp.ts';
+import type { RespInteger, RespOK } from '../../types/resp.ts';
 import type {
   SolidisData,
-  SolidisInteger,
   SolidisSendOptions,
   StringOrBuffer,
 } from '../../types/solidis.ts';
@@ -427,18 +427,25 @@ export function buildPubSubExecutor(commandName: string) {
   };
 }
 
-export async function executeIntegerCommand<T>(
+export async function executeIntegerCommand<
+  T,
+  Options extends CommandIntegerOptions | undefined,
+>(
   client: T,
   command: StringOrBuffer[],
-): Promise<SolidisInteger<T>> {
+  options: Options | undefined,
+): Promise<RespInteger<Options>> {
   return await executeCommand(client, command, (reply, commandName) =>
-    tryReplyToInteger(reply, commandName, client),
+    tryReplyToInteger(reply, commandName, options),
   );
 }
 
 export function buildKeyIntegerExecutor(commandName: string) {
-  return async function <T>(this: T, key: string): Promise<SolidisInteger<T>> {
-    return await executeIntegerCommand(this, [commandName, key]);
+  return async function <
+    T,
+    Options extends CommandIntegerOptions | undefined = undefined,
+  >(this: T, key: string, options?: Options): Promise<RespInteger<Options>> {
+    return await executeIntegerCommand(this, [commandName, key], options);
   };
 }
 
