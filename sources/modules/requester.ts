@@ -111,10 +111,8 @@ export class SolidisRequester {
 
   #parser: SolidisParser;
   #pendingRequests: SolidisRequest[] = [];
-  #writeQueue: SolidisPipeline[] = [];
   #inflightQueue: SolidisPipeline[] = [];
   #flushHandle: NodeJS.Immediate | undefined;
-  #isWaitingForDrain = false;
   #protocol: SolidisProtocols = SolidisProtocols.RESP2;
   #database: number;
 
@@ -127,7 +125,6 @@ export class SolidisRequester {
     this.#debug = generateDebugHandle(options.debugMemory);
 
     connection.on('data', (chunk) => this.#receive(chunk));
-    connection.on('drain', () => this.#resumeWriting());
     connection.on('close', (error) => this.#fail(error));
     connection.on('end', () =>
       this.#fail(new SolidisClientError('The client was quit.')),
@@ -216,7 +213,6 @@ export class SolidisRequester {
     }
 
     this.#enqueue(requests);
-    this.#write();
   }
 
   #enqueue(requests: SolidisRequest[]) {
@@ -287,8 +283,8 @@ export class SolidisRequester {
   }
 
   #seal(draft: SolidisPipelineDraft) {
+    const buffer = commandsToBuffer(draft.commands);
     const pipeline: SolidisPipeline = {
-      buffer: commandsToBuffer(draft.commands),
       subRequests: draft.subRequests,
       subRequestIndex: 0,
       subReplies: [],
@@ -306,35 +302,11 @@ export class SolidisRequester {
 
     this.#debug?.(
       'debug',
-      `Requester serialized: ${sanitizeCommandsBufferForDebug(pipeline.buffer, draft.commands)}`,
+      `Requester serialized: ${sanitizeCommandsBufferForDebug(buffer, draft.commands)}`,
     );
 
-    this.#writeQueue.push(pipeline);
-  }
-
-  #write() {
-    const { connection } = this.#options;
-
-    while (!this.#isWaitingForDrain) {
-      const pipeline = this.#writeQueue.shift();
-
-      if (pipeline === undefined) {
-        return;
-      }
-
-      if (pipeline.isTimedOut) {
-        continue;
-      }
-
-      this.#inflightQueue.push(pipeline);
-      this.#isWaitingForDrain = !connection.write(pipeline.buffer);
-    }
-  }
-
-  #resumeWriting() {
-    this.#isWaitingForDrain = false;
-
-    this.#write();
+    this.#inflightQueue.push(pipeline);
+    this.#options.connection.write(buffer);
   }
 
   #receive(chunk: Buffer) {
@@ -551,16 +523,14 @@ export class SolidisRequester {
   }
 
   #fail(error: Error) {
-    const pipelines = [...this.#writeQueue, ...this.#inflightQueue];
+    const pipelines = this.#inflightQueue;
     const requests = this.#pendingRequests;
 
     clearImmediate(this.#flushHandle);
 
     this.#flushHandle = undefined;
     this.#pendingRequests = [];
-    this.#writeQueue = [];
     this.#inflightQueue = [];
-    this.#isWaitingForDrain = false;
     this.#parser = new SolidisParser(this.#options);
     this.#protocol = SolidisProtocols.RESP2;
 

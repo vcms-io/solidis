@@ -737,14 +737,11 @@ describe('debug-requester', () => {
   describe('requester internals', () => {
     class FakeConnection extends EventEmitter {
       public isConnected = true;
-      public writeResult = true;
       public readonly writes: Buffer[] = [];
       public readonly resets: Error[] = [];
 
       public write(buffer: Buffer) {
         this.writes.push(buffer);
-
-        return this.writeResult;
       }
 
       public reset(error: Error) {
@@ -930,12 +927,10 @@ describe('debug-requester', () => {
       assert.deepStrictEqual(await next, [['PONG']]);
     });
 
-    it('rejects queued, in-flight and unflushed requests when the connection closes', async () => {
+    it('rejects in-flight and unflushed requests when the connection closes', async () => {
       const { connection, requester } = createRequester({
         maxCommandsPerPipeline: 1,
       });
-
-      connection.writeResult = false;
 
       const inflight = settle(
         requester.send([
@@ -946,7 +941,7 @@ describe('debug-requester', () => {
 
       await flushed();
 
-      assert.strictEqual(connection.writes.length, 1);
+      assert.strictEqual(connection.writes.length, 2);
 
       const unflushed = settle(requester.send([['ECHO', 'c']]));
       const error = new SolidisConnectionError('Connection closed.');
@@ -958,15 +953,13 @@ describe('debug-requester', () => {
 
       await flushed();
 
-      assert.strictEqual(connection.writes.length, 1);
+      assert.strictEqual(connection.writes.length, 2);
     });
 
-    it('holds pipelines back until the socket drains', async () => {
+    it('writes every pipeline of a flush without waiting for the socket to drain', async () => {
       const { connection, requester } = createRequester({
         maxCommandsPerPipeline: 1,
       });
-
-      connection.writeResult = false;
 
       const pending = requester.send([
         ['ECHO', 'a'],
@@ -976,12 +969,11 @@ describe('debug-requester', () => {
 
       await flushed();
 
-      assert.strictEqual(connection.writes.length, 1);
-
-      connection.writeResult = true;
-      connection.emit('drain');
-
-      assert.strictEqual(connection.writes.length, 3);
+      assert.deepStrictEqual(connection.writes, [
+        commandsToBuffer([['ECHO', 'a']]),
+        commandsToBuffer([['ECHO', 'b']]),
+        commandsToBuffer([['ECHO', 'c']]),
+      ]);
 
       connection.reply('+a\r\n+b\r\n+c\r\n');
 
@@ -1230,10 +1222,8 @@ describe('debug-requester', () => {
       assert.strictEqual(error.message, 'Command(s) timed out after 150 ms.');
     });
 
-    it('skips a pipeline that timed out before the socket drained', async () => {
+    it('keeps the connection when a pipeline behind a blocking command times out', async () => {
       const { connection, requester } = createRequester({ commandTimeout: 30 });
-
-      connection.writeResult = false;
 
       const blocking = requester.send([['BLPOP', 'k', '0']], {
         blockingTimeout: 0,
@@ -1244,17 +1234,23 @@ describe('debug-requester', () => {
         message: 'Command(s) timed out after 30 ms.',
       });
 
-      connection.writeResult = true;
-      connection.emit('drain');
-
       assert.deepStrictEqual(connection.writes, [
         commandsToBuffer([['BLPOP', 'k', '0']]),
+        commandsToBuffer([['ECHO', 'late']]),
       ]);
       assert.strictEqual(connection.resets.length, 0);
 
-      connection.reply('*-1\r\n');
+      connection.reply('*-1\r\n$4\r\nlate\r\n');
 
       assert.deepStrictEqual(await blocking, [[null]]);
+
+      const next = requester.send([['PING']]);
+
+      await flushed();
+
+      connection.reply('+PONG\r\n');
+
+      assert.deepStrictEqual(await next, [['PONG']]);
     });
 
     it('tracks the selected database only after the server accepts SELECT', async () => {

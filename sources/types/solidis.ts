@@ -134,7 +134,6 @@ export interface SolidisSubRequest {
 }
 
 export interface SolidisPipeline {
-  buffer: Buffer;
   subRequests: SolidisSubRequest[];
   subRequestIndex: number;
   subReplies: SolidisData[];
