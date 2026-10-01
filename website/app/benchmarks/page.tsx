@@ -307,8 +307,8 @@ export default function BenchmarksPage() {
                 descriptionKey: 'pipelineCoalescingDesc',
               },
               {
-                titleKey: 'chunkedWrites',
-                descriptionKey: 'chunkedWritesDesc',
+                titleKey: 'coalescedWrites',
+                descriptionKey: 'coalescedWritesDesc',
               },
             ].map((item) => (
               <div key={item.titleKey} className="card-base p-4">

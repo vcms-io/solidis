@@ -326,7 +326,7 @@ _100,000 iterations × 10,000 concurrency · 1 KB payload · 10 repeats_
 - `setImmediate` pipeline coalescing
 - Linear-time incremental RESP parser
 - Zero-copy views for bulk replies of 64KB and more
-- Whole-pipeline socket writes with drain backpressure
+- Pipelines written as soon as they are built, merged into `writev` by Node
 
 </td>
 <td width="50%" valign="top">
