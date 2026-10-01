@@ -83,8 +83,17 @@ jobs:
       - name: Build Package
         run: npm run build
 
+      - name: Pack Package
+        id: pack
+        run: |
+          TARBALL=$(npm pack --ignore-scripts)
+          echo "tarball=$TARBALL" >> $GITHUB_OUTPUT
+
+      - name: Verify Package
+        run: npm run --silent node:ts ./scripts/workflows/release/verify.ts "${{ steps.pack.outputs.tarball }}"
+
       - name: Publish to NPM
-        run: npm publish --provenance --access public
+        run: npm publish "./${{ steps.pack.outputs.tarball }}" --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 

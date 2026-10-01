@@ -46,7 +46,7 @@ jobs:
           --health-timeout 3s
           --health-retries 30
     permissions:
-      contents: read
+      contents: write
       pull-requests: write
     steps:
       - uses: actions/checkout@v6
@@ -78,3 +78,26 @@ jobs:
           ${{ github.repository }}
           ${{ github.event.pull_request.number }}
           ${{ github.token }}
+      - name: Update badge
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: >-
+          npm run --silent node:ts ./scripts/workflows/coverage/badge.ts
+          /tmp/coverage.txt README.md README.ko.md
+      - name: Create pull request
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "docs: update coverage badge"
+          branch: coverage/update
+          delete-branch: true
+          title: "docs: update coverage badge"
+          body: |
+            Automated coverage badge update triggered by changes on `main`.
+
+            - Ran the coverage suite against `redis/redis-stack-server`
+            - Updated the coverage badge in `README.md` and `README.ko.md` to the rounded line coverage
+          labels: coverage,automated
+          add-paths: |
+            README.md
+            README.ko.md
