@@ -4,6 +4,7 @@ import { getCommandName } from '../../common/utils/request.ts';
 import { RespOK } from '../../types/resp.ts';
 
 import type {
+  CommandBufferOptions,
   CommandGeoRadiusOptions,
   CommandGeoSearchOptions,
   CommandIntegerOptions,
@@ -12,12 +13,14 @@ import type {
   RespConfigInfo,
   RespGeoRadius,
   RespInteger,
+  RespLmpop,
   RespModuleInfo,
   RespSortedSetMember,
   RespStreamDeletedEntry,
   RespStreamEntry,
   RespStreamGroupReadResult,
   RespStreamReadResult,
+  RespString,
 } from '../../types/resp.ts';
 import type {
   SolidisData,
@@ -160,6 +163,40 @@ export function tryReplyToStringOrNull(
   commandName?: CommandName,
 ): string | null {
   return reply === null ? null : tryReplyToString(reply, commandName);
+}
+
+export function tryReplyToStringOrBuffer<
+  Options extends CommandBufferOptions | undefined,
+>(
+  reply: unknown,
+  commandName: CommandName | undefined,
+  options: Options | undefined,
+): RespString<Options> {
+  if (options?.buffer !== true) {
+    return tryReplyToString(reply, commandName) as RespString<Options>;
+  }
+
+  if (Buffer.isBuffer(reply)) {
+    return reply as RespString<Options>;
+  }
+
+  if (typeof reply === 'string') {
+    return Buffer.from(reply) as RespString<Options>;
+  }
+
+  throw newUnexpectedReplyError(reply, commandName);
+}
+
+export function tryReplyToStringOrBufferOrNull<
+  Options extends CommandBufferOptions | undefined,
+>(
+  reply: unknown,
+  commandName: CommandName | undefined,
+  options: Options | undefined,
+): RespString<Options> | null {
+  return reply === null
+    ? null
+    : tryReplyToStringOrBuffer(reply, commandName, options);
 }
 
 export function tryReplyToBinaryString(
@@ -341,6 +378,30 @@ export function tryReplyToStringArray(
   );
 }
 
+export function tryReplyToStringOrBufferArray<
+  Options extends CommandBufferOptions | undefined,
+>(
+  reply: unknown,
+  commandName: CommandName | undefined,
+  options: Options | undefined,
+): RespString<Options>[] {
+  return tryReplyArray(reply, commandName).map((item) =>
+    tryReplyToStringOrBuffer(item, commandName, options),
+  );
+}
+
+export function tryReplyToNullableStringOrBufferArray<
+  Options extends CommandBufferOptions | undefined,
+>(
+  reply: unknown,
+  commandName: CommandName | undefined,
+  options: Options | undefined,
+): (RespString<Options> | null)[] {
+  return tryReplyArray(reply, commandName).map((item) =>
+    tryReplyToStringOrBufferOrNull(item, commandName, options),
+  );
+}
+
 export function tryReplyToNullableStringArray(
   reply: unknown,
   commandName?: CommandName,
@@ -424,10 +485,13 @@ export function tryReplyToStringsOrSortedSetMembers(
     : tryReplyToStringArray(reply, commandName);
 }
 
-export function tryReplyToKeyValuePairOrNull(
+export function tryReplyToKeyValuePairOrNull<
+  Options extends CommandBufferOptions | undefined,
+>(
   reply: unknown,
-  commandName?: CommandName,
-): [string, string] | null {
+  commandName: CommandName | undefined,
+  options: Options | undefined,
+): [key: string, value: RespString<Options>] | null {
   if (reply === null) {
     return null;
   }
@@ -440,7 +504,7 @@ export function tryReplyToKeyValuePairOrNull(
 
   return [
     tryReplyToString(pair[0], commandName),
-    tryReplyToString(pair[1], commandName),
+    tryReplyToStringOrBuffer(pair[1], commandName, options),
   ];
 }
 
@@ -550,21 +614,35 @@ export function tryReplyToMap(
   return map;
 }
 
-export function tryReplyToStringRecord(
+export function tryReplyToStringOrBufferRecord<
+  Options extends CommandBufferOptions | undefined,
+>(
   fields: unknown,
-  commandName?: CommandName,
-): Record<string, string> {
-  const result: Record<string, string> = {};
+  commandName: CommandName | undefined,
+  options: Options | undefined,
+): Record<string, RespString<Options>> {
+  const result: Record<string, RespString<Options>> = {};
 
   processPairedArray(
     fields,
     (key, value) => {
-      setRecordEntry(result, key, tryReplyToString(value, commandName));
+      setRecordEntry(
+        result,
+        key,
+        tryReplyToStringOrBuffer(value, commandName, options),
+      );
     },
     commandName,
   );
 
   return result;
+}
+
+export function tryReplyToStringRecord(
+  fields: unknown,
+  commandName?: CommandName,
+): Record<string, string> {
+  return tryReplyToStringOrBufferRecord(fields, commandName, undefined);
 }
 
 export function tryReplyToStringRecordRecursively(
@@ -898,11 +976,16 @@ export function tryReplyToScanDump(
   throw newUnexpectedReplyError(data, commandName);
 }
 
-export function tryReplyToKeyStringElementsOrNull(
+export function tryReplyToKeyStringElementsOrNull<
+  Options extends CommandBufferOptions | undefined,
+>(
   reply: unknown,
   commandName: CommandName,
-) {
-  return tryReplyToKeyElementsOrNull(reply, commandName, tryReplyToStringArray);
+  options: Options | undefined,
+): RespLmpop<RespString<Options>> | null {
+  return tryReplyToKeyElementsOrNull(reply, commandName, (elements) =>
+    tryReplyToStringOrBufferArray(elements, commandName, options),
+  );
 }
 
 export function tryReplyToKeySortedSetMembersOrNull(

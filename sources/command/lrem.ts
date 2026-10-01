@@ -1,6 +1,12 @@
 import { executeCommand, tryReplyNumber } from './utils/index.ts';
 
-export function createCommand(key: string, count: number, element: string) {
+import type { StringOrBuffer } from '../index.ts';
+
+export function createCommand(
+  key: string,
+  count: number,
+  element: StringOrBuffer,
+) {
   return ['LREM', key, `${count}`, element];
 }
 
@@ -8,7 +14,7 @@ export async function lrem<T>(
   this: T,
   key: string,
   count: number,
-  element: string,
+  element: StringOrBuffer,
 ): Promise<number> {
   return await executeCommand(
     this,

@@ -8,11 +8,14 @@ import {
   tryReplyToScan,
   tryReplyToString,
   tryReplyToStringArray,
+  tryReplyToStringOrBufferArray,
+  tryReplyToStringOrBufferOrNull,
   tryReplyToStringOrNull,
 } from './reply.ts';
 
 import type { SolidisClient } from '../../client.ts';
 import type {
+  CommandBufferOptions,
   CommandCuckooFilterInsertOptions,
   CommandExpireMode,
   CommandGeoRadiusOptions,
@@ -29,7 +32,7 @@ import type {
   CommandZRangeOptions,
   CommandZRangeStoreOptions,
 } from '../../types/command.ts';
-import type { RespInteger, RespOK } from '../../types/resp.ts';
+import type { RespInteger, RespOK, RespString } from '../../types/resp.ts';
 import type {
   SolidisData,
   SolidisSendOptions,
@@ -471,18 +474,46 @@ export function buildKeyStringOrNullExecutor(...commandParts: string[]) {
   };
 }
 
+export function buildKeyStringOrBufferExecutor(commandName: string) {
+  return async function <
+    T,
+    Options extends CommandBufferOptions | undefined = undefined,
+  >(
+    this: T,
+    key: string,
+    options?: Options,
+  ): Promise<RespString<Options> | null> {
+    return await executeCommand(this, [commandName, key], (reply, command) =>
+      tryReplyToStringOrBufferOrNull(reply, command, options),
+    );
+  };
+}
+
 export function buildKeyPopExecutor(commandName: string) {
-  async function pop<T>(this: T, key: string): Promise<string | null>;
-  async function pop<T>(
+  async function pop<
+    T,
+    Options extends CommandBufferOptions | undefined = undefined,
+  >(
+    this: T,
+    key: string,
+    count?: undefined,
+    options?: Options,
+  ): Promise<RespString<Options> | null>;
+  async function pop<
+    T,
+    Options extends CommandBufferOptions | undefined = undefined,
+  >(
     this: T,
     key: string,
     count: number,
-  ): Promise<string[] | null>;
-  async function pop<T>(
+    options?: Options,
+  ): Promise<RespString<Options>[] | null>;
+  async function pop<T, Options extends CommandBufferOptions | undefined>(
     this: T,
     key: string,
     count?: number,
-  ): Promise<string | string[] | null> {
+    options?: Options,
+  ): Promise<RespString<Options> | RespString<Options>[] | null> {
     const command = [commandName, key];
 
     if (count !== undefined) {
@@ -491,10 +522,10 @@ export function buildKeyPopExecutor(commandName: string) {
 
     return await executeCommand(this, command, (reply, commandName) => {
       if (count === undefined || reply === null) {
-        return tryReplyToStringOrNull(reply, commandName);
+        return tryReplyToStringOrBufferOrNull(reply, commandName, options);
       }
 
-      return tryReplyToStringArray(reply, commandName);
+      return tryReplyToStringOrBufferArray(reply, commandName, options);
     });
   }
 

@@ -1,11 +1,23 @@
-import { executeCommand, tryReplyToStringRecord } from './utils/index.ts';
+import {
+  executeCommand,
+  tryReplyToStringOrBufferRecord,
+} from './utils/index.ts';
 
-import type { RespHashField } from '../index.ts';
+import type { CommandBufferOptions, RespString } from '../index.ts';
 
 export function createCommand(key: string) {
   return ['HGETALL', key];
 }
 
-export async function hgetall<T>(this: T, key: string): Promise<RespHashField> {
-  return await executeCommand(this, createCommand(key), tryReplyToStringRecord);
+export async function hgetall<
+  T,
+  Options extends CommandBufferOptions | undefined = undefined,
+>(
+  this: T,
+  key: string,
+  options?: Options,
+): Promise<Record<string, RespString<Options>>> {
+  return await executeCommand(this, createCommand(key), (reply, command) =>
+    tryReplyToStringOrBufferRecord(reply, command, options),
+  );
 }

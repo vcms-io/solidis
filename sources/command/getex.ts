@@ -1,10 +1,10 @@
 import {
   appendExpireOptions,
   executeCommand,
-  tryReplyToStringOrNull,
+  tryReplyToStringOrBufferOrNull,
 } from './utils/index.ts';
 
-import type { CommandGetExOptions } from '../index.ts';
+import type { CommandGetExOptions, RespString } from '../index.ts';
 
 export function createCommand(key: string, options?: CommandGetExOptions) {
   const command = ['GETEX', key];
@@ -20,14 +20,17 @@ export function createCommand(key: string, options?: CommandGetExOptions) {
   return command;
 }
 
-export async function getex<T>(
+export async function getex<
+  T,
+  Options extends CommandGetExOptions | undefined = undefined,
+>(
   this: T,
   key: string,
-  options?: CommandGetExOptions,
-): Promise<string | null> {
+  options?: Options,
+): Promise<RespString<Options> | null> {
   return await executeCommand(
     this,
     createCommand(key, options),
-    tryReplyToStringOrNull,
+    (reply, command) => tryReplyToStringOrBufferOrNull(reply, command, options),
   );
 }

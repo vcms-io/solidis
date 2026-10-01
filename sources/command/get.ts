@@ -1,3 +1,3 @@
-import { buildKeyStringOrNullExecutor } from './utils/index.ts';
+import { buildKeyStringOrBufferExecutor } from './utils/index.ts';
 
-export const get = buildKeyStringOrNullExecutor('GET');
+export const get = buildKeyStringOrBufferExecutor('GET');

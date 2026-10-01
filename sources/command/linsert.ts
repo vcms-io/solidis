@@ -1,12 +1,12 @@
 import { executeCommand, tryReplyNumber } from './utils/index.ts';
 
-import type { CommandBeforeOrAfterOption } from '../index.ts';
+import type { CommandBeforeOrAfterOption, StringOrBuffer } from '../index.ts';
 
 export function createCommand(
   key: string,
   position: CommandBeforeOrAfterOption,
-  pivot: string,
-  element: string,
+  pivot: StringOrBuffer,
+  element: StringOrBuffer,
 ) {
   return ['LINSERT', key, position, pivot, element];
 }
@@ -15,8 +15,8 @@ export async function linsert<T>(
   this: T,
   key: string,
   position: CommandBeforeOrAfterOption,
-  pivot: string,
-  element: string,
+  pivot: StringOrBuffer,
+  element: StringOrBuffer,
 ): Promise<number> {
   return await executeCommand(
     this,

@@ -3,7 +3,12 @@ import {
   tryReplyToKeyStringElementsOrNull,
 } from './utils/index.ts';
 
-import type { CommandLeftOrRightOption, RespLmpop } from '../index.ts';
+import type {
+  CommandBufferOptions,
+  CommandLeftOrRightOption,
+  RespLmpop,
+  RespString,
+} from '../index.ts';
 
 export function createCommand(
   keys: string[],
@@ -19,15 +24,20 @@ export function createCommand(
   return command;
 }
 
-export async function lmpop<T>(
+export async function lmpop<
+  T,
+  Options extends CommandBufferOptions | undefined = undefined,
+>(
   this: T,
   keys: string[],
   direction: CommandLeftOrRightOption,
   count?: number,
-): Promise<RespLmpop | null> {
+  options?: Options,
+): Promise<RespLmpop<RespString<Options>> | null> {
   return await executeCommand(
     this,
     createCommand(keys, direction, count),
-    tryReplyToKeyStringElementsOrNull,
+    (reply, command) =>
+      tryReplyToKeyStringElementsOrNull(reply, command, options),
   );
 }

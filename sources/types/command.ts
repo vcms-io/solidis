@@ -104,6 +104,10 @@ export type CommandClientUnblockOptions = CommandExclusiveOptions<
   { timeout?: boolean } | { error?: boolean }
 >;
 
+export interface CommandBufferOptions {
+  buffer?: boolean;
+}
+
 export interface CommandCopyOptions {
   destinationDatabase?: number;
   replace?: boolean;
@@ -208,7 +212,8 @@ export type CommandGeoSearchStoreOptions = CommandGeoOrderOptions &
 
 export type CommandGetExOptions = CommandExclusiveOptions<
   CommandExpireAlternatives | { persist?: boolean }
->;
+> &
+  CommandBufferOptions;
 
 export interface CommandIntegerOptions {
   bigint?: boolean;

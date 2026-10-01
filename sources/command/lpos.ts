@@ -1,13 +1,13 @@
 import { executeCommand, tryReplyToNumberArray } from './utils/index.ts';
 
-import type { CommandLposOptions } from '../index.ts';
+import type { CommandLposOptions, StringOrBuffer } from '../index.ts';
 
 export function createCommand(
   key: string,
-  element: string,
+  element: StringOrBuffer,
   options?: CommandLposOptions,
 ) {
-  const command = ['LPOS', key, element];
+  const command: StringOrBuffer[] = ['LPOS', key, element];
 
   if (options) {
     if (options.rank !== undefined) {
@@ -27,7 +27,7 @@ export function createCommand(
 export async function lpos<T>(
   this: T,
   key: string,
-  element: string,
+  element: StringOrBuffer,
   options?: CommandLposOptions,
 ): Promise<number | number[] | null> {
   return await executeCommand(

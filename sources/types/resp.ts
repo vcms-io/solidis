@@ -1,5 +1,5 @@
 import type { CommandExclusiveOptions } from './command.ts';
-import type { SolidisData } from './solidis.ts';
+import type { SolidisData, StringOrBuffer } from './solidis.ts';
 
 export const RespDataTypes = {
   STRING: 'STRING',
@@ -35,6 +35,11 @@ export type RespInteger<Options> = Options extends { bigint: true }
   : Options extends undefined | { bigint?: false }
     ? number
     : number | bigint;
+export type RespString<Options> = Options extends { buffer: true }
+  ? Buffer
+  : Options extends undefined | { buffer?: false }
+    ? string
+    : StringOrBuffer;
 export type RespSetMember = string;
 export type RespListMember = string;
 export type RespAclLogKey =
@@ -221,9 +226,9 @@ export interface RespLCSMatches {
   matches: RespLCSMatch[];
   length: number;
 }
-export interface RespLmpop {
+export interface RespLmpop<Element = string> {
   key: string;
-  elements: string[];
+  elements: Element[];
 }
 export interface RespMemoryStats {
   peak: {
