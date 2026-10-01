@@ -37,14 +37,14 @@ export interface CommandBitfieldSetOperationOption {
   operation: 'SET';
   type: RespBitfield;
   offset: number;
-  value: number;
+  value: number | bigint;
 }
 
 export interface CommandBitfieldIncrbyOperationOption {
   operation: 'INCRBY';
   type: RespBitfield;
   offset: number;
-  increment: number;
+  increment: number | bigint;
 }
 
 export type CommandBitfieldOperationOption =

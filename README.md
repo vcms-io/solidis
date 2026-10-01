@@ -126,6 +126,23 @@ When that deadline passes, the connection is reset so the server cannot pop a va
 
 </details>
 
+<details>
+<summary>&nbsp;&nbsp;<b>Integers beyond 2^53</b></summary>
+
+<br/>
+
+```typescript
+const client = new SolidisFeaturedClient({ bigIntegers: true });
+
+const views = await client.incr('views'); // bigint
+```
+
+INCR, INCRBY, DECR, DECRBY, HINCRBY, BITFIELD and BITFIELD_RO return `number` by default and reject a result beyond `Number.MAX_SAFE_INTEGER`.
+The server has already applied the command by then, so the error's `cause` carries the exact `bigint`.
+With `bigIntegers: true` they always return `bigint`; their types follow when the option is the literal `true` and the commands are called as methods.
+
+</details>
+
 <br/>
 
 <div id="benchmark">
@@ -357,6 +374,7 @@ const client = new SolidisClient({
   // Protocol & Recovery
   clientName: 'solidis',
   protocol: 'RESP2',                      // 'RESP2' | 'RESP3'
+  bigIntegers: false,                     // true: counters and bitfields return bigint
   autoReconnect: true,
   enableReadyCheck: true,
   maxReadyCheckRetries: 100,

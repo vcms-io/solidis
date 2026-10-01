@@ -1,6 +1,13 @@
-import { executeCommand, tryReplyToNumberArray } from './utils/index.ts';
+import {
+  executeCommand,
+  tryReplyArray,
+  tryReplyToInteger,
+} from './utils/index.ts';
 
-import type { CommandBitfieldRoGetOperationOption } from '../index.ts';
+import type {
+  CommandBitfieldRoGetOperationOption,
+  SolidisInteger,
+} from '../index.ts';
 
 export function createCommand(
   key: string,
@@ -19,10 +26,13 @@ export async function bitfieldRo<T>(
   this: T,
   key: string,
   operations: CommandBitfieldRoGetOperationOption[],
-): Promise<number[]> {
+): Promise<SolidisInteger<T>[]> {
   return await executeCommand(
     this,
     createCommand(key, operations),
-    tryReplyToNumberArray,
+    (reply, command) =>
+      tryReplyArray(reply, command).map((value) =>
+        tryReplyToInteger(value, command, this),
+      ),
   );
 }

@@ -1,11 +1,13 @@
 import {
   executeCommand,
-  tryReplyToNullableNumberArray,
+  tryReplyArray,
+  tryReplyToInteger,
 } from './utils/index.ts';
 
 import type {
   CommandBitfieldOperationOption,
   RespBitfieldOverflow,
+  SolidisInteger,
 } from '../index.ts';
 
 export function createCommand(
@@ -39,7 +41,7 @@ export async function bitfield<T>(
   key: string,
   operations: CommandBitfieldOperationOption[],
   overflow?: RespBitfieldOverflow,
-): Promise<(number | null)[] | null> {
+): Promise<(SolidisInteger<T> | null)[] | null> {
   return await executeCommand(
     this,
     createCommand(key, operations, overflow),
@@ -48,7 +50,9 @@ export async function bitfield<T>(
         return null;
       }
 
-      return tryReplyToNullableNumberArray(reply, command);
+      return tryReplyArray(reply, command).map((value) =>
+        value === null ? null : tryReplyToInteger(value, command, this),
+      );
     },
   );
 }

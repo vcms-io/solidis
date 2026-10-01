@@ -1,17 +1,15 @@
-import { executeCommand, tryReplyNumber } from './utils/index.ts';
+import { executeIntegerCommand } from './utils/index.ts';
 
-export function createCommand(key: string, decrement: number) {
+import type { SolidisInteger } from '../index.ts';
+
+export function createCommand(key: string, decrement: number | bigint) {
   return ['DECRBY', key, `${decrement}`];
 }
 
 export async function decrby<T>(
   this: T,
   key: string,
-  decrement: number,
-): Promise<number> {
-  return await executeCommand(
-    this,
-    createCommand(key, decrement),
-    tryReplyNumber,
-  );
+  decrement: number | bigint,
+): Promise<SolidisInteger<T>> {
+  return await executeIntegerCommand(this, createCommand(key, decrement));
 }

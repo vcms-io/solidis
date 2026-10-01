@@ -385,8 +385,10 @@ import { SolidisClient } from '../index.ts';
 
 import type { SolidisClientOptions } from '../index.ts';
 
-export class SolidisFeaturedClient extends SolidisClient {
-  constructor(options?: SolidisClientOptions) {
+export class SolidisFeaturedClient<
+  Options extends SolidisClientOptions = SolidisClientOptions,
+> extends SolidisClient<Options> {
+  constructor(options?: Options) {
     super(options);
 
     for (const method of Object.getOwnPropertyNames(this)) {

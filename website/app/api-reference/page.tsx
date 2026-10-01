@@ -330,6 +330,7 @@ await client.subscribe('news');`}
   database: 0,
   clientName: 'solidis',
   protocol: 'RESP2',
+  bigIntegers: false,
   autoReconnect: true,
   autoRecovery: {
     database: true,

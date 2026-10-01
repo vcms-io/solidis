@@ -4,6 +4,7 @@ import {
   newCommandError,
   tryReplyNumber,
   tryReplyOK,
+  tryReplyToInteger,
   tryReplyToScan,
   tryReplyToString,
   tryReplyToStringArray,
@@ -30,6 +31,7 @@ import type {
 import type { RespOK } from '../../types/resp.ts';
 import type {
   SolidisData,
+  SolidisInteger,
   SolidisSendOptions,
   StringOrBuffer,
 } from '../../types/solidis.ts';
@@ -422,6 +424,21 @@ export function buildHelpExecutor(group: string) {
 export function buildPubSubExecutor(commandName: string) {
   return async function <T>(this: T, ...channels: string[]): Promise<void> {
     await executeCommand(this, [commandName, ...channels]);
+  };
+}
+
+export async function executeIntegerCommand<T>(
+  client: T,
+  command: StringOrBuffer[],
+): Promise<SolidisInteger<T>> {
+  return await executeCommand(client, command, (reply, commandName) =>
+    tryReplyToInteger(reply, commandName, client),
+  );
+}
+
+export function buildKeyIntegerExecutor(commandName: string) {
+  return async function <T>(this: T, key: string): Promise<SolidisInteger<T>> {
+    return await executeIntegerCommand(this, [commandName, key]);
   };
 }
 

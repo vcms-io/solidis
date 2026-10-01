@@ -126,6 +126,23 @@ const job = await worker.blpop(['jobs'], 0); // 타임아웃 0은 무한 대기
 
 </details>
 
+<details>
+<summary>&nbsp;&nbsp;<b>2^53을 넘는 정수</b></summary>
+
+<br/>
+
+```typescript
+const client = new SolidisFeaturedClient({ bigIntegers: true });
+
+const views = await client.incr('views'); // bigint
+```
+
+INCR, INCRBY, DECR, DECRBY, HINCRBY, BITFIELD, BITFIELD_RO는 기본적으로 `number`를 반환하고, 결과가 `Number.MAX_SAFE_INTEGER`를 넘으면 에러를 냅니다.
+이때 서버에는 이미 반영된 상태이므로, 에러의 `cause`에 정확한 `bigint` 값이 담깁니다.
+`bigIntegers: true`를 주면 항상 `bigint`를 반환하고, 옵션을 리터럴 `true`로 넘기고 메서드로 호출하면 반환 타입도 그에 맞춰집니다.
+
+</details>
+
 <br/>
 
 <div id="benchmark">
@@ -357,6 +374,7 @@ const client = new SolidisClient({
   // 프로토콜 / 복구
   clientName: 'solidis',
   protocol: 'RESP2',                      // 'RESP2' | 'RESP3'
+  bigIntegers: false,                     // true: 카운터와 비트필드 결과를 bigint로 반환
   autoReconnect: true,
   enableReadyCheck: true,
   maxReadyCheckRetries: 100,

@@ -19,6 +19,7 @@ import type {
 } from '../../types/resp.ts';
 import type {
   SolidisData,
+  SolidisInteger,
   SolidisRecursiveStringRecord,
   StringOrBuffer,
 } from '../../types/solidis.ts';
@@ -194,6 +195,7 @@ export function tryReplyNumber(
     throw newCommandError(
       `${UnexpectedReplyPrefix}: integer exceeds Number.MAX_SAFE_INTEGER`,
       commandName,
+      reply,
     );
   }
 
@@ -205,6 +207,31 @@ export function tryReplyNumberOrNull(
   commandName?: CommandName,
 ): number | null {
   return reply === null ? null : tryReplyNumber(reply, commandName);
+}
+
+function hasBigIntegers(client: unknown) {
+  return (
+    typeof client === 'object' &&
+    client !== null &&
+    'bigIntegers' in client &&
+    client.bigIntegers === true
+  );
+}
+
+export function tryReplyToInteger<T>(
+  reply: unknown,
+  commandName: CommandName | undefined,
+  client: T,
+): SolidisInteger<T> {
+  if (!hasBigIntegers(client)) {
+    return tryReplyNumber(reply, commandName) as SolidisInteger<T>;
+  }
+
+  return (
+    typeof reply === 'bigint'
+      ? reply
+      : BigInt(tryReplyNumber(reply, commandName))
+  ) as SolidisInteger<T>;
 }
 
 export function tryReplyToNumber(
