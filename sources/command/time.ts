@@ -1,4 +1,8 @@
-import { executeCommand, newUnexpectedReplyError } from './utils/index.ts';
+import {
+  executeCommand,
+  tryReplyToNumber,
+  tryReplyTuple,
+} from './utils/index.ts';
 
 export function createCommand() {
   return ['TIME'];
@@ -8,15 +12,11 @@ export async function time<T>(
   this: T,
 ): Promise<[seconds: number, microseconds: number]> {
   return await executeCommand(this, createCommand(), (reply, command) => {
-    if (Array.isArray(reply) && reply.length === 2) {
-      const seconds = Number(`${reply[0]}`);
-      const microseconds = Number(`${reply[1]}`);
+    const [seconds, microseconds] = tryReplyTuple(reply, 2, command);
 
-      if (!Number.isNaN(seconds) && !Number.isNaN(microseconds)) {
-        return [seconds, microseconds];
-      }
-    }
-
-    throw newUnexpectedReplyError(reply, command);
+    return [
+      tryReplyToNumber(seconds, command),
+      tryReplyToNumber(microseconds, command),
+    ];
   });
 }

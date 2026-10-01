@@ -1,6 +1,5 @@
 import {
   executeCommand,
-  newUnexpectedReplyError,
   tryReplyArray,
   tryReplyToMap,
   tryReplyToString,
@@ -19,22 +18,13 @@ function parseFunction(
   functionData: unknown,
   command: StringOrBuffer[],
 ): RespFunctionListFunction {
-  const result: RespFunctionListFunction = {
-    name: '',
-    description: null,
-    flags: [],
-  };
-
   const map = tryReplyToMap(functionData, command);
-  const name = tryReplyToString(map.get('name'), command);
-  const description = tryReplyToStringOrNull(map.get('description'));
-  const flags = tryReplyToStringArray(map.get('flags'), command);
 
-  result.name = name;
-  result.description = description;
-  result.flags = flags;
-
-  return result;
+  return {
+    name: tryReplyToString(map.get('name'), command),
+    description: tryReplyToStringOrNull(map.get('description'), command),
+    flags: tryReplyToStringArray(map.get('flags'), command),
+  };
 }
 
 function parseLibrary(
@@ -42,27 +32,17 @@ function parseLibrary(
   withCode: boolean,
   command: StringOrBuffer[],
 ): RespFunctionListItem {
+  const map = tryReplyToMap(library, command);
   const result: RespFunctionListItem = {
-    libraryName: '',
-    engine: '',
-    functions: [],
+    libraryName: tryReplyToString(map.get('library_name'), command),
+    engine: tryReplyToString(map.get('engine'), command),
+    functions: tryReplyArray(map.get('functions'), command).map(
+      (functionData) => parseFunction(functionData, command),
+    ),
   };
 
-  const map = tryReplyToMap(library, command);
-
-  const libraryName = tryReplyToString(map.get('library_name'), command);
-  const engine = tryReplyToString(map.get('engine'), command);
-  const functions = tryReplyArray(map.get('functions'), command);
-
-  result.libraryName = libraryName;
-  result.engine = engine;
-  result.functions = functions.map((functionData) =>
-    parseFunction(functionData, command),
-  );
-
   if (withCode) {
-    const code = tryReplyToString(map.get('library_code'));
-    result.code = code;
+    result.code = tryReplyToString(map.get('library_code'), command);
   }
 
   return result;
@@ -86,17 +66,9 @@ export async function functionList<T>(
   this: T,
   options?: CommandFunctionListOptions,
 ): Promise<RespFunctionListItem[]> {
-  return await executeCommand(
-    this,
-    createCommand(options),
-    (reply, command) => {
-      if (!Array.isArray(reply)) {
-        throw newUnexpectedReplyError(reply, command);
-      }
-
-      return reply.map((library) =>
-        parseLibrary(library, options?.withCode ?? false, command),
-      );
-    },
+  return await executeCommand(this, createCommand(options), (reply, command) =>
+    tryReplyArray(reply, command).map((library) =>
+      parseLibrary(library, options?.withCode === true, command),
+    ),
   );
 }

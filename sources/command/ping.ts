@@ -15,13 +15,10 @@ export async function ping<T>(this: T, message?: string): Promise<string> {
     this,
     createCommand(message),
     (reply, command) => {
-      if (!Array.isArray(reply)) {
-        return tryReplyToString(reply, command);
-      }
+      const isSubscribed = Array.isArray(reply);
+      const text = tryReplyToString(isSubscribed ? reply[1] : reply, command);
 
-      const echoed = tryReplyToString(reply[1], command);
-
-      return message === undefined ? 'PONG' : echoed;
+      return isSubscribed && message === undefined ? 'PONG' : text;
     },
   );
 }

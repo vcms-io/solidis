@@ -3,6 +3,7 @@ import {
   buildJsonKeyPathCommand,
   executeCommand,
   newUnexpectedReplyError,
+  tryReplyToString,
 } from './utils/index.ts';
 
 import type { StringOrBuffer } from '../index.ts';
@@ -19,7 +20,7 @@ function parseJsonType(
     return null;
   }
 
-  const value = item instanceof Buffer ? item.toString() : item;
+  const value = tryReplyToString(item, command);
   const matched = RespJsonType.find((type) => type === value);
 
   if (matched !== undefined) {

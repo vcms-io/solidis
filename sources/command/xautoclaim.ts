@@ -1,7 +1,7 @@
 import {
   executeCommand,
-  newUnexpectedReplyError,
-  tryReplyToStreamEntry,
+  tryReplyArray,
+  tryReplyToStreamEntries,
   tryReplyToString,
   tryReplyToStringArray,
 } from './utils/index.ts';
@@ -44,30 +44,18 @@ export async function xautoclaim<T>(
     this,
     createCommand(key, group, consumer, minIdleTime, start, count, justid),
     (reply, command) => {
-      if (Array.isArray(reply) && (reply.length === 2 || reply.length === 3)) {
-        const [nextId, entries, deletedIds] = reply;
+      const [nextId, entries, deletedIds] = tryReplyArray(reply, command);
 
-        if (
-          (typeof nextId === 'string' || nextId instanceof Buffer) &&
-          Array.isArray(entries)
-        ) {
-          return {
-            nextId: `${nextId}`,
-            entries: justid
-              ? entries.map((entry) => ({
-                  id: tryReplyToString(entry, command),
-                  fields: {},
-                }))
-              : entries.map((entry) => tryReplyToStreamEntry(entry, command)),
-            deletedIds:
-              deletedIds === undefined
-                ? []
-                : tryReplyToStringArray(deletedIds, command),
-          };
-        }
-      }
-
-      throw newUnexpectedReplyError(reply, command);
+      return {
+        nextId: tryReplyToString(nextId, command),
+        entries: justid
+          ? tryReplyToStringArray(entries, command).map((id) => ({
+              id,
+              fields: {},
+            }))
+          : tryReplyToStreamEntries(entries, command),
+        deletedIds: tryReplyToStringArray(deletedIds ?? [], command),
+      };
     },
   );
 }

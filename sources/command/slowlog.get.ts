@@ -1,4 +1,10 @@
-import { executeCommand, newUnexpectedReplyError } from './utils/index.ts';
+import {
+  executeCommand,
+  tryReplyArray,
+  tryReplyNumber,
+  tryReplyToString,
+  tryReplyToStringArray,
+} from './utils/index.ts';
 
 import type { RespSlowLogEntry } from '../index.ts';
 
@@ -16,16 +22,8 @@ export async function slowlogGet<T>(
   this: T,
   count?: number,
 ): Promise<RespSlowLogEntry[]> {
-  return await executeCommand(this, createCommand(count), (reply, command) => {
-    if (!Array.isArray(reply)) {
-      throw newUnexpectedReplyError(reply, command);
-    }
-
-    return reply.map((log) => {
-      if (!Array.isArray(log) || log.length < 6) {
-        throw newUnexpectedReplyError(log, command);
-      }
-
+  return await executeCommand(this, createCommand(count), (reply, command) =>
+    tryReplyArray(reply, command).map((log) => {
       const [
         id,
         timestamp,
@@ -33,32 +31,16 @@ export async function slowlogGet<T>(
         commandArguments,
         clientIpPort,
         clientName,
-      ] = log;
-
-      if (
-        typeof id !== 'number' ||
-        typeof timestamp !== 'number' ||
-        typeof duration !== 'number' ||
-        !Array.isArray(commandArguments) ||
-        (typeof clientIpPort !== 'string' &&
-          !(clientIpPort instanceof Buffer)) ||
-        (typeof clientName !== 'string' && !(clientName instanceof Buffer))
-      ) {
-        throw newUnexpectedReplyError(log, command);
-      }
+      ] = tryReplyArray(log, command);
 
       return {
-        id,
-        timestamp,
-        duration,
-        commandArguments: commandArguments.map((argument) =>
-          typeof argument === 'string' || argument instanceof Buffer
-            ? `${argument}`
-            : String(argument),
-        ),
-        clientIpPort: `${clientIpPort}`,
-        clientName: `${clientName}`,
+        id: tryReplyNumber(id, command),
+        timestamp: tryReplyNumber(timestamp, command),
+        duration: tryReplyNumber(duration, command),
+        commandArguments: tryReplyToStringArray(commandArguments, command),
+        clientIpPort: tryReplyToString(clientIpPort, command),
+        clientName: tryReplyToString(clientName, command),
       };
-    });
-  });
+    }),
+  );
 }

@@ -4,10 +4,6 @@ export class SolidisError extends Error {
 
     this.name = 'SolidisError';
   }
-
-  public getOriginalError(): unknown {
-    return this.cause;
-  }
 }
 
 export class RespError extends SolidisError {

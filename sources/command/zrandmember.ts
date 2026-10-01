@@ -1,7 +1,7 @@
 import {
   executeCommand,
-  newUnexpectedReplyError,
   tryReplyToSortedSetMembers,
+  tryReplyToString,
   tryReplyToStringArray,
 } from './utils/index.ts';
 
@@ -39,23 +39,15 @@ export async function zrandmember<T>(
         return null;
       }
 
-      if (count === undefined && !withScores) {
-        if (!(typeof reply === 'string' || reply instanceof Buffer)) {
-          throw newUnexpectedReplyError(reply, command);
-        }
-
-        return `${reply}`;
+      if (withScores) {
+        return tryReplyToSortedSetMembers(reply, command);
       }
 
-      if (!Array.isArray(reply)) {
-        throw newUnexpectedReplyError(reply, command);
+      if (count === undefined) {
+        return tryReplyToString(reply, command);
       }
 
-      if (!withScores) {
-        return tryReplyToStringArray(reply, command);
-      }
-
-      return tryReplyToSortedSetMembers(reply, command);
+      return tryReplyToStringArray(reply, command);
     },
   );
 }

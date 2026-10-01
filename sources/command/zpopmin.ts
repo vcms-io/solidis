@@ -1,7 +1,4 @@
-import {
-  executeCommand,
-  tryReplyToSortedSetMembersOrNull,
-} from './utils/index.ts';
+import { executeCommand, tryReplyToSortedSetMembers } from './utils/index.ts';
 
 import type { RespSortedSetMember } from '../index.ts';
 
@@ -19,10 +16,10 @@ export async function zpopmin<T>(
   this: T,
   key: string,
   count?: number,
-): Promise<RespSortedSetMember[] | null> {
+): Promise<RespSortedSetMember[]> {
   return await executeCommand(
     this,
     createCommand(key, count),
-    tryReplyToSortedSetMembersOrNull,
+    tryReplyToSortedSetMembers,
   );
 }

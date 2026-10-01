@@ -15,6 +15,12 @@ import type {
   SolidisSocket,
 } from '../types/solidis.ts';
 
+function createQuitError() {
+  return new SolidisConnectionError(
+    'Cannot connect: user quit the connection.',
+  );
+}
+
 interface SolidisConnectionWaiter {
   resolve: () => void;
   reject: (error: Error) => void;
@@ -57,9 +63,7 @@ export class SolidisConnection extends EventEmitter {
 
   public connect(): Promise<void> {
     if (this.#isQuitted) {
-      return Promise.reject(
-        new SolidisConnectionError('Cannot connect: user quit the connection.'),
-      );
+      return Promise.reject(createQuitError());
     }
 
     if (this.#isConnected) {
@@ -127,9 +131,7 @@ export class SolidisConnection extends EventEmitter {
     this.#retryTimer = undefined;
 
     this.#destroySocket();
-    this.#rejectWaiters(
-      new SolidisConnectionError('Cannot connect: user quit the connection.'),
-    );
+    this.#rejectWaiters(createQuitError());
     this.emit('end');
   }
 
@@ -156,13 +158,14 @@ export class SolidisConnection extends EventEmitter {
       return 0;
     }
 
-    const half =
-      Math.min(
+    return Math.round(
+      (Math.min(
         connectionRetryDelay * 2 ** (this.#failedAttempts - 1),
         maxConnectionRetryDelay,
-      ) / 2;
-
-    return Math.round(half + Math.random() * half);
+      ) *
+        (1 + Math.random())) /
+        2,
+    );
   }
 
   #attempt() {

@@ -1,4 +1,4 @@
-import { executeCommand, newUnexpectedReplyError } from './utils/index.ts';
+import { executeCommand, tryReplyArray, tryReplyTuple } from './utils/index.ts';
 
 import type {
   RespStreamPendingEntry,
@@ -21,7 +21,7 @@ export function createCommand(
       command.push('IDLE', `${idleTime}`);
     }
 
-    command.push(start, end ?? '+', count === undefined ? '10' : `${count}`);
+    command.push(start, end ?? '+', `${count ?? 10}`);
 
     if (consumer !== undefined) {
       command.push(consumer);
@@ -45,67 +45,44 @@ export async function xpending<T>(
     this,
     createCommand(key, group, start, end, count, consumer, idleTime),
     (reply, command) => {
-      if (!Array.isArray(reply)) {
-        throw newUnexpectedReplyError(reply, command);
-      }
-
-      if (start === undefined) {
-        if (reply.length !== 4) {
-          throw newUnexpectedReplyError(reply, command);
-        }
-
-        const [pending, minId, maxId, consumers] = reply;
-
-        /**
-         * When the group has no pending entries the server replies with a nil
-         * id range and a nil consumers list, which is a valid (empty) summary.
-         */
-        if (consumers === null) {
-          return {
-            pending: Number(pending),
-            minId: minId === null ? null : String(minId),
-            maxId: maxId === null ? null : String(maxId),
-            consumers: [],
-          };
-        }
-
-        if (!Array.isArray(consumers)) {
-          throw newUnexpectedReplyError(consumers, command);
-        }
-
-        return {
-          pending: Number(pending),
-          minId: minId === null ? null : String(minId),
-          maxId: maxId === null ? null : String(maxId),
-          consumers: consumers.map((consumer) => {
-            if (!Array.isArray(consumer) || consumer.length !== 2) {
-              throw newUnexpectedReplyError(consumer, command);
-            }
-
-            const [name, count] = consumer;
+      if (start !== undefined) {
+        return tryReplyArray(reply, command).map(
+          (entry): RespStreamPendingEntry => {
+            const [id, owner, deliveryTime, deliveryCount] = tryReplyTuple(
+              entry,
+              4,
+              command,
+            );
 
             return {
-              name: String(name),
-              count: Number(count),
+              id: String(id),
+              consumer: String(owner),
+              deliveryTime: Number(deliveryTime),
+              deliveryCount: Number(deliveryCount),
             };
-          }),
-        };
+          },
+        );
       }
 
-      return reply.map((entry): RespStreamPendingEntry => {
-        if (!Array.isArray(entry) || entry.length !== 4) {
-          throw newUnexpectedReplyError(entry, command);
-        }
+      const [pending, minId, maxId, consumers] = tryReplyTuple(
+        reply,
+        4,
+        command,
+      );
 
-        const [id, consumer, deliveryTime, deliveryCount] = entry;
+      return {
+        pending: Number(pending),
+        minId: minId === null ? null : String(minId),
+        maxId: maxId === null ? null : String(maxId),
+        consumers:
+          consumers === null
+            ? []
+            : tryReplyArray(consumers, command).map((entry) => {
+                const [name, total] = tryReplyTuple(entry, 2, command);
 
-        return {
-          id: String(id),
-          consumer: String(consumer),
-          deliveryTime: Number(deliveryTime),
-          deliveryCount: Number(deliveryCount),
-        };
-      });
+                return { name: String(name), count: Number(total) };
+              }),
+      };
     },
   );
 }

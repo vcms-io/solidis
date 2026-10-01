@@ -46,18 +46,13 @@ export async function bitfield<
   operations: CommandBitfieldOperationOption[],
   overflow?: RespBitfieldOverflow,
   options?: Options,
-): Promise<(RespInteger<Options> | null)[] | null> {
+): Promise<(RespInteger<Options> | null)[]> {
   return await executeCommand(
     this,
     createCommand(key, operations, overflow),
-    (reply, command) => {
-      if (reply === null) {
-        return null;
-      }
-
-      return tryReplyArray(reply, command).map((value) =>
+    (reply, command) =>
+      tryReplyArray(reply, command).map((value) =>
         value === null ? null : tryReplyToInteger(value, command, options),
-      );
-    },
+      ),
   );
 }

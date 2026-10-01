@@ -390,7 +390,7 @@ export class SolidisFeaturedClient extends SolidisClient {
     super(options);
 
     for (const method of Object.getOwnPropertyNames(this)) {
-      if (method !== 'constructor' && typeof this[method] === 'function') {
+      if (typeof this[method] === 'function') {
         this[method] = this[method].bind(this);
       }
     }

@@ -70,12 +70,11 @@ describe('errors', () => {
       '[LPUSH] WRONGTYPE Operation against a key holding the wrong kind of value',
     );
 
-    const cause = caught.getOriginalError();
+    const cause = caught.cause;
 
     if (!(cause instanceof RespError)) {
       assert.fail('expected the server RespError as the cause');
     }
-    assert.strictEqual(caught.cause, cause);
     assert.strictEqual(cause.code, 'WRONGTYPE');
     assert.strictEqual(
       cause.message,
@@ -189,7 +188,7 @@ describe('errors', () => {
     }
     assert.strictEqual(caught.message, 'Connection failed after 0 retries.');
 
-    const attemptError = caught.getOriginalError();
+    const attemptError = caught.cause;
 
     if (!(attemptError instanceof SolidisConnectionError)) {
       assert.fail('expected the last attempt error as the cause');
@@ -315,13 +314,12 @@ describe('errors', () => {
     assert.notStrictEqual(solidisError.stack, original.stack);
     assert.match(solidisError.stack ?? '', /^SolidisError: wrapped\n/);
     assert.strictEqual(solidisError.cause, original);
-    assert.strictEqual(solidisError.getOriginalError(), original);
   });
 
   it('creates SolidisError without original error', () => {
     const solidisError = new SolidisError('no original');
 
-    assert.strictEqual(solidisError.getOriginalError(), undefined);
+    assert.strictEqual(solidisError.cause, undefined);
   });
 
   it('wraps non-Error with wrapWithError', () => {

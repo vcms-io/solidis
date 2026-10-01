@@ -1,4 +1,9 @@
-import { executeCommand, newUnexpectedReplyError } from './utils/index.ts';
+import {
+  executeCommand,
+  tryReplyArray,
+  tryReplyNumber,
+  tryReplyToString,
+} from './utils/index.ts';
 
 import type { RespLatencyLatest } from '../index.ts';
 
@@ -7,38 +12,26 @@ export function createCommand() {
 }
 
 export async function latencyLatest<T>(this: T): Promise<RespLatencyLatest[]> {
-  return await executeCommand(this, createCommand(), (reply, command) => {
-    if (Array.isArray(reply)) {
-      return reply.map((item) => {
-        if (Array.isArray(item) && item.length >= 4) {
-          const [event, timestamp, latency, maximumLatency, sum, count] = item;
-          if (
-            (typeof event === 'string' || event instanceof Buffer) &&
-            typeof timestamp === 'number' &&
-            typeof latency === 'number' &&
-            typeof maximumLatency === 'number'
-          ) {
-            const entry: RespLatencyLatest = {
-              event: `${event}`,
-              timestamp,
-              latency,
-              maximumLatency,
-            };
+  return await executeCommand(this, createCommand(), (reply, command) =>
+    tryReplyArray(reply, command).map((item) => {
+      const [event, timestamp, latency, maximumLatency, sum, count] =
+        tryReplyArray(item, command);
+      const entry: RespLatencyLatest = {
+        event: tryReplyToString(event, command),
+        timestamp: tryReplyNumber(timestamp, command),
+        latency: tryReplyNumber(latency, command),
+        maximumLatency: tryReplyNumber(maximumLatency, command),
+      };
 
-            if (typeof sum === 'number') {
-              entry.sum = sum;
-            }
-            if (typeof count === 'number') {
-              entry.count = count;
-            }
+      if (sum !== undefined) {
+        entry.sum = tryReplyNumber(sum, command);
+      }
 
-            return entry;
-          }
-        }
-        throw newUnexpectedReplyError(item, command);
-      });
-    }
+      if (count !== undefined) {
+        entry.count = tryReplyNumber(count, command);
+      }
 
-    throw newUnexpectedReplyError(reply, command);
-  });
+      return entry;
+    }),
+  );
 }

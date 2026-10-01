@@ -22,11 +22,7 @@ import type {
   RespStreamReadResult,
   RespString,
 } from '../../types/resp.ts';
-import type {
-  SolidisData,
-  SolidisRecursiveStringRecord,
-  StringOrBuffer,
-} from '../../types/solidis.ts';
+import type { SolidisData, StringOrBuffer } from '../../types/solidis.ts';
 
 type CommandName = string | StringOrBuffer[];
 
@@ -162,7 +158,7 @@ export function tryReplyToStringOrNull(
   reply: unknown,
   commandName?: CommandName,
 ): string | null {
-  return reply === null ? null : tryReplyToString(reply, commandName);
+  return tryReplyToStringOrBufferOrNull(reply, commandName, undefined);
 }
 
 export function tryReplyToStringOrBuffer<
@@ -176,15 +172,11 @@ export function tryReplyToStringOrBuffer<
     return tryReplyToString(reply, commandName) as RespString<Options>;
   }
 
-  if (Buffer.isBuffer(reply)) {
-    return reply as RespString<Options>;
-  }
-
-  if (typeof reply === 'string') {
-    return Buffer.from(reply) as RespString<Options>;
-  }
-
-  throw newUnexpectedReplyError(reply, commandName);
+  return (
+    Buffer.isBuffer(reply)
+      ? reply
+      : Buffer.from(tryReplyToString(reply, commandName))
+  ) as RespString<Options>;
 }
 
 export function tryReplyToStringOrBufferOrNull<
@@ -352,29 +344,26 @@ export function tryReplyArray(
   throw newUnexpectedReplyError(reply, commandName);
 }
 
-export function tryReplyToStringArray(
+export function tryReplyTuple(
   reply: unknown,
-  commandName: CommandName | undefined,
-  nullable: true,
-): (string | null)[];
-export function tryReplyToStringArray(
-  reply: unknown,
-  commandName: CommandName | undefined,
-  nullable: false,
-): string[];
+  length: number,
+  commandName?: CommandName,
+): unknown[] {
+  const tuple = tryReplyArray(reply, commandName);
+
+  if (tuple.length !== length) {
+    throw newUnexpectedReplyError(reply, commandName);
+  }
+
+  return tuple;
+}
+
 export function tryReplyToStringArray(
   reply: unknown,
   commandName?: CommandName,
-): string[];
-export function tryReplyToStringArray(
-  reply: unknown,
-  commandName?: CommandName,
-  nullable = false,
-): string[] | (string | null)[] {
+): string[] {
   return tryReplyArray(reply, commandName).map((item) =>
-    nullable
-      ? tryReplyToStringOrNull(item, commandName)
-      : tryReplyToString(item, commandName),
+    tryReplyToString(item, commandName),
   );
 }
 
@@ -406,7 +395,7 @@ export function tryReplyToNullableStringArray(
   reply: unknown,
   commandName?: CommandName,
 ): (string | null)[] {
-  return tryReplyToStringArray(reply, commandName, true);
+  return tryReplyToNullableStringOrBufferArray(reply, commandName, undefined);
 }
 
 export function tryReplyToNumberArray(
@@ -468,13 +457,6 @@ export function tryReplyToSortedSetMembers(
   return result;
 }
 
-export function tryReplyToSortedSetMembersOrNull(
-  reply: unknown,
-  commandName?: CommandName,
-): RespSortedSetMember[] | null {
-  return reply === null ? null : tryReplyToSortedSetMembers(reply, commandName);
-}
-
 export function tryReplyToStringsOrSortedSetMembers(
   reply: unknown,
   commandName: CommandName | undefined,
@@ -496,15 +478,11 @@ export function tryReplyToKeyValuePairOrNull<
     return null;
   }
 
-  const pair = tryReplyArray(reply, commandName);
-
-  if (pair.length !== 2) {
-    throw newUnexpectedReplyError(reply, commandName);
-  }
+  const [key, value] = tryReplyTuple(reply, 2, commandName);
 
   return [
-    tryReplyToString(pair[0], commandName),
-    tryReplyToStringOrBuffer(pair[1], commandName, options),
+    tryReplyToString(key, commandName),
+    tryReplyToStringOrBuffer(value, commandName, options),
   ];
 }
 
@@ -516,16 +494,12 @@ export function tryReplyToKeyMemberScoreOrNull(
     return null;
   }
 
-  const triple = tryReplyArray(reply, commandName);
-
-  if (triple.length !== 3) {
-    throw newUnexpectedReplyError(reply, commandName);
-  }
+  const [key, member, score] = tryReplyTuple(reply, 3, commandName);
 
   return [
-    tryReplyToString(triple[0], commandName),
-    tryReplyToString(triple[1], commandName),
-    tryReplyToDoubleString(triple[2], commandName),
+    tryReplyToString(key, commandName),
+    tryReplyToString(member, commandName),
+    tryReplyToDoubleString(score, commandName),
   ];
 }
 
@@ -553,11 +527,7 @@ export function tryReplyToJsonNumberText(
   reply: unknown,
   path: string,
   commandName?: CommandName,
-): string | null {
-  if (reply === null) {
-    return null;
-  }
-
+): string {
   if (!Array.isArray(reply)) {
     return tryReplyToString(reply, commandName);
   }
@@ -643,31 +613,6 @@ export function tryReplyToStringRecord(
   commandName?: CommandName,
 ): Record<string, string> {
   return tryReplyToStringOrBufferRecord(fields, commandName, undefined);
-}
-
-export function tryReplyToStringRecordRecursively(
-  reply: unknown,
-  commandName?: CommandName,
-) {
-  const result: SolidisRecursiveStringRecord = {};
-
-  processPairedArray(
-    reply,
-    (key, value) => {
-      if (Array.isArray(value) || value instanceof Map) {
-        setRecordEntry(
-          result,
-          key,
-          tryReplyToStringRecordRecursively(value, commandName),
-        );
-      } else if (typeof value === 'string' || Buffer.isBuffer(value)) {
-        setRecordEntry(result, key, tryReplyToString(value, commandName));
-      }
-    },
-    commandName,
-  );
-
-  return result;
 }
 
 export function tryReplyToModuleInfo(modules: unknown): RespModuleInfo {
@@ -759,33 +704,19 @@ export function tryReplyToScan(
   reply: unknown,
   commandName?: CommandName,
 ): [cursor: string, elements: unknown[]] {
-  const scan = tryReplyArray(reply, commandName);
-
-  if (scan.length !== 2) {
-    throw newUnexpectedReplyError(reply, commandName);
-  }
+  const [cursor, elements] = tryReplyTuple(reply, 2, commandName);
 
   return [
-    tryReplyToString(scan[0], commandName),
-    tryReplyArray(scan[1], commandName),
+    tryReplyToString(cursor, commandName),
+    tryReplyArray(elements, commandName),
   ];
-}
-
-function tryReplyToStreamPair(entry: unknown, commandName?: CommandName) {
-  const pair = tryReplyArray(entry, commandName);
-
-  if (pair.length !== 2) {
-    throw newUnexpectedReplyError(entry, commandName);
-  }
-
-  return pair;
 }
 
 export function tryReplyToStreamEntry(
   entry: unknown,
   commandName?: CommandName,
 ): RespStreamEntry {
-  const [id, fields] = tryReplyToStreamPair(entry, commandName);
+  const [id, fields] = tryReplyTuple(entry, 2, commandName);
 
   return {
     id: tryReplyToString(id, commandName),
@@ -797,7 +728,7 @@ export function tryReplyToStreamEntryOrDeleted(
   entry: unknown,
   commandName?: CommandName,
 ): RespStreamEntry | RespStreamDeletedEntry {
-  const [id, fields] = tryReplyToStreamPair(entry, commandName);
+  const [id, fields] = tryReplyTuple(entry, 2, commandName);
 
   if (fields === null) {
     return { id: tryReplyToString(id, commandName), fields };
@@ -817,7 +748,7 @@ function tryReplyToStreams<T>(
   const streams = reply instanceof Map ? Array.from(reply.entries()) : reply;
 
   return tryReplyArray(streams, commandName).map((stream) => {
-    const [name, entries] = tryReplyToStreamPair(stream, commandName);
+    const [name, entries] = tryReplyTuple(stream, 2, commandName);
 
     return {
       stream: tryReplyToString(name, commandName),
@@ -867,15 +798,11 @@ export function tryReplyToTimeSeriesSamples(
   commandName?: CommandName,
 ): Array<{ timestamp: number; value: number }> {
   return tryReplyArray(reply, commandName).map((sample) => {
-    const pair = tryReplyArray(sample, commandName);
-
-    if (pair.length !== 2) {
-      throw newUnexpectedReplyError(sample, commandName);
-    }
+    const [timestamp, value] = tryReplyTuple(sample, 2, commandName);
 
     return {
-      timestamp: tryReplyToNumber(pair[0], commandName),
-      value: tryReplyToNumber(pair[1], commandName),
+      timestamp: tryReplyToNumber(timestamp, commandName),
+      value: tryReplyToNumber(value, commandName),
     };
   });
 }
@@ -898,10 +825,6 @@ export function tryReplyToTimeSeriesMultiRangeResults(
   return series.map((item) => {
     const fields = tryReplyArray(item, commandName);
 
-    if (fields.length < 2) {
-      throw newUnexpectedReplyError(item, commandName);
-    }
-
     return {
       key: tryReplyToString(fields[0], commandName),
       samples: tryReplyToTimeSeriesSamples(fields.at(-1), commandName),
@@ -918,15 +841,11 @@ export function tryReplyToKeyElementsOrNull<T>(
     return null;
   }
 
-  const pair = tryReplyArray(reply, commandName);
-
-  if (pair.length !== 2) {
-    throw newUnexpectedReplyError(reply, commandName);
-  }
+  const [key, elements] = tryReplyTuple(reply, 2, commandName);
 
   return {
-    key: tryReplyToString(pair[0], commandName),
-    elements: parseElements(tryReplyArray(pair[1], commandName), commandName),
+    key: tryReplyToString(key, commandName),
+    elements: parseElements(tryReplyArray(elements, commandName), commandName),
   };
 }
 
@@ -962,15 +881,10 @@ export function tryReplyToScanDump(
   commandName?: CommandName,
   nullable?: boolean,
 ): [nextIterator: number, data: Buffer | null] {
-  const pair = tryReplyArray(reply, commandName);
-  const data = pair[1];
-
-  if (pair.length !== 2) {
-    throw newUnexpectedReplyError(reply, commandName);
-  }
+  const [iterator, data] = tryReplyTuple(reply, 2, commandName);
 
   if (Buffer.isBuffer(data) || (data === null && nullable)) {
-    return [tryReplyToNumber(pair[0], commandName), data];
+    return [tryReplyToNumber(iterator, commandName), data];
   }
 
   throw newUnexpectedReplyError(data, commandName);

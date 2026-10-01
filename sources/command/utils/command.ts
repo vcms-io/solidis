@@ -48,11 +48,12 @@ export function assertSender(
   client: unknown,
   command?: StringOrBuffer[],
 ): asserts client is Pick<SolidisClient, 'send'> {
-  if (typeof client !== 'object' || client === null) {
-    throw newCommandError('Invalid client', command);
-  }
-
-  if (!('send' in client) || typeof client.send !== 'function') {
+  if (
+    typeof client !== 'object' ||
+    client === null ||
+    !('send' in client) ||
+    typeof client.send !== 'function'
+  ) {
     throw newCommandError('Send method is not implemented', command);
   }
 }

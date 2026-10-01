@@ -139,10 +139,13 @@ describe('pipeline', () => {
     const { guard } = await import('../../../sources/command/utils/command.ts');
 
     assert.throws(() => guard(null, ['TEST']), {
-      message: '[TEST] Invalid client',
+      message: '[TEST] Send method is not implemented',
     });
 
     assert.throws(() => guard({}, ['TEST']), {
+      message: '[TEST] Send method is not implemented',
+    });
+    assert.throws(() => guard({ send: 'not a function' }, ['TEST']), {
       message: '[TEST] Send method is not implemented',
     });
   });

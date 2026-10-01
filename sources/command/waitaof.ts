@@ -1,4 +1,8 @@
-import { executeCommand, newUnexpectedReplyError } from './utils/index.ts';
+import {
+  executeCommand,
+  tryReplyNumber,
+  tryReplyTuple,
+} from './utils/index.ts';
 
 import type { RespWaitAOF } from '../index.ts';
 
@@ -20,21 +24,16 @@ export async function waitaof<T>(
     this,
     createCommand(numlocal, numreplicas, timeout),
     (reply, command) => {
-      if (Array.isArray(reply) && reply.length === 2) {
-        const [localFsynced, replicasAcknowledged] = reply;
+      const [localFsynced, replicasAcknowledged] = tryReplyTuple(
+        reply,
+        2,
+        command,
+      );
 
-        if (
-          typeof localFsynced === 'number' &&
-          typeof replicasAcknowledged === 'number'
-        ) {
-          return {
-            localFsynced,
-            replicasAcknowledged,
-          };
-        }
-      }
-
-      throw newUnexpectedReplyError(reply, command);
+      return {
+        localFsynced: tryReplyNumber(localFsynced, command),
+        replicasAcknowledged: tryReplyNumber(replicasAcknowledged, command),
+      };
     },
     { blockingTimeout: timeout },
   );

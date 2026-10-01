@@ -9,7 +9,7 @@ export async function jsonNummultby<T>(
   key: string,
   path: string,
   value: number,
-): Promise<string | null> {
+): Promise<string> {
   return await executeCommand(
     this,
     createCommand(key, path, value),

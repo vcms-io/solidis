@@ -25,10 +25,6 @@ export type SolidisData =
   | Map<string, SolidisData>
   | Set<SolidisData>;
 
-export type SolidisRecursiveStringRecord = {
-  [key: string]: string | undefined | SolidisRecursiveStringRecord;
-};
-
 export const SolidisProtocols = {
   RESP2: 'RESP2',
   RESP3: 'RESP3',

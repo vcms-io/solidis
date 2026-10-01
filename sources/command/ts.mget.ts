@@ -1,9 +1,9 @@
 import {
   executeCommand,
-  newUnexpectedReplyError,
   tryReplyArray,
   tryReplyToNumber,
   tryReplyToString,
+  tryReplyTuple,
 } from './utils/index.ts';
 
 import type { CommandTimeSeriesMGetOptions } from '../index.ts';
@@ -48,18 +48,19 @@ export async function tsMget<T>(
 
       return series.map((item) => {
         const fields = tryReplyArray(item, command);
+        const key = tryReplyToString(fields[0], command);
         const sample = tryReplyArray(fields.at(-1), command);
 
-        if (fields.length < 2 || (sample.length !== 0 && sample.length !== 2)) {
-          throw newUnexpectedReplyError(item, command);
+        if (sample.length === 0) {
+          return { key, timestamp: null, value: null };
         }
 
+        const [timestamp, value] = tryReplyTuple(sample, 2, command);
+
         return {
-          key: tryReplyToString(fields[0], command),
-          timestamp:
-            sample.length === 0 ? null : tryReplyToNumber(sample[0], command),
-          value:
-            sample.length === 0 ? null : tryReplyToNumber(sample[1], command),
+          key,
+          timestamp: tryReplyToNumber(timestamp, command),
+          value: tryReplyToNumber(value, command),
         };
       });
     },

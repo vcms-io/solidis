@@ -98,13 +98,12 @@ export class SolidisClient extends EventEmitter {
 
   public get uri() {
     const { host, port, tls, authentication } = this.#options;
-    const prefix = tls ? 'rediss' : 'redis';
+    const credentials =
+      authentication.username && authentication.password
+        ? `${authentication.username}:***@`
+        : '';
 
-    if (authentication.username && authentication.password) {
-      return `${prefix}://${authentication.username}:***@${host}:${port}`;
-    }
-
-    return `${prefix}://${host}:${port}`;
+    return `${tls ? 'rediss' : 'redis'}://${credentials}${host}:${port}`;
   }
 
   public async send(
@@ -186,8 +185,10 @@ export class SolidisClient extends EventEmitter {
       this.emit('reconnecting', attempt, delay),
     );
     connection.on('error', (error) => this.emit('error', error));
-    connection.on('drain', () => this.emit('drain'));
-    connection.on('end', () => this.emit('end'));
+
+    for (const event of ['drain', 'end'] as const) {
+      connection.on(event, () => this.emit(event));
+    }
   }
 
   #onConnect() {
@@ -295,7 +296,7 @@ export class SolidisClient extends EventEmitter {
         isAuthenticated = password !== '';
         isNamed = clientName !== '';
       } catch (error) {
-        const cause = error instanceof Error ? error.cause : undefined;
+        const { cause } = wrapWithError(error);
 
         if (
           cause instanceof RespError &&

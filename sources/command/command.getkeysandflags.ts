@@ -1,7 +1,9 @@
 import {
   executeCommand,
-  newUnexpectedReplyError,
+  tryReplyArray,
+  tryReplyToString,
   tryReplyToStringArray,
+  tryReplyTuple,
 } from './utils/index.ts';
 
 import type { RespCommandKeyFlag } from '../index.ts';
@@ -18,27 +20,14 @@ export async function commandGetkeysandflags<T>(
   return await executeCommand(
     this,
     createCommand(command, parameters),
-    (reply, command) => {
-      if (Array.isArray(reply)) {
-        return reply.map((item) => {
-          if (!Array.isArray(item) || item.length !== 2) {
-            throw newUnexpectedReplyError(item, command);
-          }
+    (reply, commandName) =>
+      tryReplyArray(reply, commandName).map((item) => {
+        const [key, flags] = tryReplyTuple(item, 2, commandName);
 
-          const [key, flags] = item;
-
-          if (!(typeof key === 'string' || key instanceof Buffer)) {
-            throw newUnexpectedReplyError(key, command);
-          }
-
-          return {
-            key: `${key}`,
-            flags: tryReplyToStringArray(flags, command),
-          };
-        });
-      }
-
-      throw newUnexpectedReplyError(reply, command);
-    },
+        return {
+          key: tryReplyToString(key, commandName),
+          flags: tryReplyToStringArray(flags, commandName),
+        };
+      }),
   );
 }

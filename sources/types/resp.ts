@@ -42,23 +42,6 @@ export type RespString<Options> = Options extends { buffer: true }
     : StringOrBuffer;
 export type RespSetMember = string;
 export type RespListMember = string;
-export type RespAclLogKey =
-  | 'count'
-  | 'reason'
-  | 'context'
-  | 'object'
-  | 'username'
-  | 'age-seconds'
-  | 'client-info'
-  | 'entry-id'
-  | 'timestamp-created'
-  | 'timestamp-last-updated';
-export type RespAclLogNumberKey =
-  | 'count'
-  | 'ageSeconds'
-  | 'entryId'
-  | 'timestampCreated'
-  | 'timestampLastUpdated';
 export const RespJsonType = [
   'null',
   'boolean',

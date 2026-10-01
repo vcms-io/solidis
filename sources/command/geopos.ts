@@ -1,7 +1,8 @@
 import {
   executeCommand,
-  newUnexpectedReplyError,
+  tryReplyArray,
   tryReplyToNumber,
+  tryReplyTuple,
 } from './utils/index.ts';
 
 import type { RespGeoPosition } from '../index.ts';
@@ -18,31 +19,18 @@ export async function geopos<T>(
   return await executeCommand(
     this,
     createCommand(key, members),
-    (reply, command) => {
-      if (!Array.isArray(reply)) {
-        throw newUnexpectedReplyError(reply, command);
-      }
-
-      return reply.map((position) => {
+    (reply, command) =>
+      tryReplyArray(reply, command).map((position) => {
         if (position === null) {
           return null;
         }
 
-        if (!Array.isArray(position) || position.length !== 2) {
-          throw newUnexpectedReplyError(position, command);
-        }
+        const [longitude, latitude] = tryReplyTuple(position, 2, command);
 
-        const [longitude, latitude] = position;
-
-        /**
-         * RESP2 encodes coordinates as bulk strings; RESP3 returns native
-         * doubles. tryReplyToNumber normalises both shapes.
-         */
         return {
           longitude: tryReplyToNumber(longitude, command),
           latitude: tryReplyToNumber(latitude, command),
         };
-      });
-    },
+      }),
   );
 }

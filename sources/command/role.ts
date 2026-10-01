@@ -1,4 +1,11 @@
-import { executeCommand, newUnexpectedReplyError } from './utils/index.ts';
+import {
+  executeCommand,
+  newUnexpectedReplyError,
+  tryReplyArray,
+  tryReplyNumber,
+  tryReplyToString,
+  tryReplyTuple,
+} from './utils/index.ts';
 
 import type { RespRole } from '../index.ts';
 
@@ -8,45 +15,37 @@ export function createCommand() {
 
 export async function role<T>(this: T): Promise<RespRole> {
   return await executeCommand(this, createCommand(), (reply, command) => {
-    if (Array.isArray(reply) && reply.length >= 1) {
-      const role = `${reply[0]}`;
+    const name = tryReplyToString(tryReplyArray(reply, command)[0], command);
 
-      if (role === 'master' && reply.length === 3) {
-        const [, replicationOffset, slaves] = reply;
+    if (name === 'master') {
+      const [, replicationOffset, replicas] = tryReplyTuple(reply, 3, command);
 
-        if (typeof replicationOffset !== 'number' || !Array.isArray(slaves)) {
-          throw newUnexpectedReplyError(reply, command);
-        }
+      return {
+        role: 'master',
+        replicationOffset: tryReplyNumber(replicationOffset, command),
+        slaves: tryReplyArray(replicas, command).map((replica) => {
+          const [ip, port, offset] = tryReplyTuple(replica, 3, command);
 
-        return {
-          role: 'master',
-          replicationOffset,
-          slaves: slaves.map((slave) => {
-            if (!Array.isArray(slave) || slave.length !== 3) {
-              throw newUnexpectedReplyError(reply, command);
-            }
-            const [ip, port, offset] = slave;
-            return {
-              ip: String(ip),
-              port: Number(port),
-              offset: Number(offset),
-            };
-          }),
-        };
-      }
+          return {
+            ip: String(ip),
+            port: Number(port),
+            offset: Number(offset),
+          };
+        }),
+      };
+    }
 
-      if (role === 'slave' && reply.length === 5) {
-        const [, masterHost, masterPort, replicationState, replicationOffset] =
-          reply;
+    if (name === 'slave') {
+      const [, masterHost, masterPort, replicationState, replicationOffset] =
+        tryReplyTuple(reply, 5, command);
 
-        return {
-          role: 'slave',
-          masterHost: String(masterHost),
-          masterPort: Number(masterPort),
-          replicationState: String(replicationState),
-          replicationOffset: Number(replicationOffset),
-        };
-      }
+      return {
+        role: 'slave',
+        masterHost: String(masterHost),
+        masterPort: Number(masterPort),
+        replicationState: String(replicationState),
+        replicationOffset: Number(replicationOffset),
+      };
     }
 
     throw newUnexpectedReplyError(reply, command);

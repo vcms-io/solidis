@@ -1,9 +1,11 @@
 import {
   executeCommand,
-  newUnexpectedReplyError,
+  tryReplyArray,
   tryReplyToMap,
   tryReplyToNumberOrNull,
+  tryReplyToStreamEntries,
   tryReplyToStreamEntry,
+  tryReplyTuple,
 } from './utils/index.ts';
 
 import type {
@@ -36,30 +38,26 @@ function parseConsumer(
 ): RespStreamGroupConsumer {
   const result = tryReplyToMap(info, command);
 
-  const pending = result.get('pending');
-
-  if (!Array.isArray(pending)) {
-    throw newUnexpectedReplyError(pending, command);
-  }
-
   return {
     name: String(result.get('name')),
     seenTime: Number(result.get('seen-time')),
     activeTime: Number(result.get('active-time')),
     pelCount: Number(result.get('pel-count')),
-    pending: pending.map((entry): RespStreamConsumerPending => {
-      if (!Array.isArray(entry) || entry.length !== 3) {
-        throw newUnexpectedReplyError(entry, command);
-      }
+    pending: tryReplyArray(result.get('pending'), command).map(
+      (entry): RespStreamConsumerPending => {
+        const [id, deliveryTime, deliveryCount] = tryReplyTuple(
+          entry,
+          3,
+          command,
+        );
 
-      const [id, deliveryTime, deliveryCount] = entry;
-
-      return {
-        id: String(id),
-        deliveryTime: Number(deliveryTime),
-        deliveryCount: Number(deliveryCount),
-      };
-    }),
+        return {
+          id: String(id),
+          deliveryTime: Number(deliveryTime),
+          deliveryCount: Number(deliveryCount),
+        };
+      },
+    ),
   };
 }
 
@@ -68,18 +66,6 @@ function parseGroup(
   command: StringOrBuffer[],
 ): RespStreamGroupDetail {
   const result = tryReplyToMap(info, command);
-
-  const pending = result.get('pending');
-
-  if (!Array.isArray(pending)) {
-    throw newUnexpectedReplyError(pending, command);
-  }
-
-  const consumers = result.get('consumers');
-
-  if (!Array.isArray(consumers)) {
-    throw newUnexpectedReplyError(consumers, command);
-  }
 
   return {
     name: String(result.get('name')),
@@ -90,21 +76,25 @@ function parseGroup(
     ),
     lag: tryReplyToNumberOrNull(result.get('lag') ?? null, command),
     pelCount: Number(result.get('pel-count')),
-    pending: pending.map((entry): RespStreamGroupPending => {
-      if (!Array.isArray(entry) || entry.length !== 4) {
-        throw newUnexpectedReplyError(entry, command);
-      }
+    pending: tryReplyArray(result.get('pending'), command).map(
+      (entry): RespStreamGroupPending => {
+        const [id, consumer, deliveryTime, deliveryCount] = tryReplyTuple(
+          entry,
+          4,
+          command,
+        );
 
-      const [id, consumer, deliveryTime, deliveryCount] = entry;
-
-      return {
-        id: String(id),
-        consumer: String(consumer),
-        deliveryTime: Number(deliveryTime),
-        deliveryCount: Number(deliveryCount),
-      };
-    }),
-    consumers: consumers.map((consumer) => parseConsumer(consumer, command)),
+        return {
+          id: String(id),
+          consumer: String(consumer),
+          deliveryTime: Number(deliveryTime),
+          deliveryCount: Number(deliveryCount),
+        };
+      },
+    ),
+    consumers: tryReplyArray(result.get('consumers'), command).map((consumer) =>
+      parseConsumer(consumer, command),
+    ),
   };
 }
 
@@ -147,23 +137,13 @@ export async function xinfoStream<T>(
         };
       }
 
-      const entries = result.get('entries');
-
-      if (!Array.isArray(entries)) {
-        throw newUnexpectedReplyError(entries, command);
-      }
-
-      const groups = result.get('groups');
-
-      if (!Array.isArray(groups)) {
-        throw newUnexpectedReplyError(groups, command);
-      }
-
       return {
         ...baseInformation,
         recordedFirstEntryId: String(result.get('recorded-first-entry-id')),
-        entries: entries.map((entry) => tryReplyToStreamEntry(entry, command)),
-        groups: groups.map((group) => parseGroup(group, command)),
+        entries: tryReplyToStreamEntries(result.get('entries'), command),
+        groups: tryReplyArray(result.get('groups'), command).map((group) =>
+          parseGroup(group, command),
+        ),
       };
     },
   );

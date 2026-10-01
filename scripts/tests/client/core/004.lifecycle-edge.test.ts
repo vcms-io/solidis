@@ -68,7 +68,7 @@ describe('lifecycle-edge', () => {
       (error: Error) =>
         error instanceof SolidisConnectionError &&
         error.message === 'Connection failed after 0 retries.' &&
-        error.getOriginalError() instanceof SolidisConnectionError,
+        error.cause instanceof SolidisConnectionError,
     );
 
     client.quit();

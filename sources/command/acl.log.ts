@@ -1,56 +1,12 @@
 import {
   executeCommand,
-  newUnexpectedReplyError,
   processPairedArray,
+  tryReplyArray,
   tryReplyToNumber,
   tryReplyToString,
 } from './utils/index.ts';
 
-import type {
-  RespAclLogEntry,
-  RespAclLogKey,
-  RespAclLogNumberKey,
-} from '../index.ts';
-
-const checkAclLogKey = (key: string): key is RespAclLogKey => {
-  return [
-    'count',
-    'reason',
-    'context',
-    'object',
-    'username',
-    'age-seconds',
-    'client-info',
-    'entry-id',
-    'timestamp-created',
-    'timestamp-last-updated',
-  ].includes(key);
-};
-
-const checkAclLogNumberKey = (
-  resultKey: keyof RespAclLogEntry,
-): resultKey is RespAclLogNumberKey => {
-  return [
-    'count',
-    'ageSeconds',
-    'entryId',
-    'timestampCreated',
-    'timestampLastUpdated',
-  ].includes(resultKey);
-};
-
-const logKeyToResultKeyMap = {
-  count: 'count',
-  reason: 'reason',
-  context: 'context',
-  object: 'object',
-  username: 'username',
-  'age-seconds': 'ageSeconds',
-  'client-info': 'clientInfo',
-  'entry-id': 'entryId',
-  'timestamp-created': 'timestampCreated',
-  'timestamp-last-updated': 'timestampLastUpdated',
-} as const;
+import type { RespAclLogEntry } from '../index.ts';
 
 export function createCommand(count?: number | 'RESET') {
   const command = ['ACL', 'LOG'];
@@ -71,11 +27,7 @@ export async function aclLog<T>(
       return [];
     }
 
-    if (!Array.isArray(reply)) {
-      throw newUnexpectedReplyError(reply, command);
-    }
-
-    return reply.map((entry) => {
+    return tryReplyArray(reply, command).map((entry) => {
       const result: RespAclLogEntry = {
         count: 0,
         reason: '',
@@ -92,20 +44,32 @@ export async function aclLog<T>(
       processPairedArray(
         entry,
         (key, value) => {
-          const logKey = key.toLowerCase();
-
-          if (!checkAclLogKey(logKey)) {
-            throw newUnexpectedReplyError(logKey, command);
+          switch (key) {
+            case 'count':
+              result.count = tryReplyToNumber(value, command);
+              break;
+            case 'age-seconds':
+              result.ageSeconds = tryReplyToNumber(value, command);
+              break;
+            case 'entry-id':
+              result.entryId = tryReplyToNumber(value, command);
+              break;
+            case 'timestamp-created':
+              result.timestampCreated = tryReplyToNumber(value, command);
+              break;
+            case 'timestamp-last-updated':
+              result.timestampLastUpdated = tryReplyToNumber(value, command);
+              break;
+            case 'reason':
+            case 'context':
+            case 'object':
+            case 'username':
+              result[key] = tryReplyToString(value, command);
+              break;
+            case 'client-info':
+              result.clientInfo = tryReplyToString(value, command);
+              break;
           }
-
-          const resultKey = logKeyToResultKeyMap[logKey];
-
-          if (checkAclLogNumberKey(resultKey)) {
-            result[resultKey] = tryReplyToNumber(value, command);
-            return;
-          }
-
-          result[resultKey] = tryReplyToString(value, command);
         },
         command,
       );

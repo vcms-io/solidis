@@ -179,10 +179,8 @@ describe('big-integers', () => {
           undefined,
           { bigint: true },
         );
-        const isNullableBigIntList: IsEqual<
-          typeof written,
-          (bigint | null)[] | null
-        > = true;
+        const isNullableBigIntList: IsEqual<typeof written, (bigint | null)[]> =
+          true;
 
         assert.strictEqual(isNullableBigIntList, true);
         assert.deepStrictEqual(written, [0n, exact]);

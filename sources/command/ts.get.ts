@@ -1,15 +1,17 @@
 import {
   executeCommand,
-  newUnexpectedReplyError,
   tryReplyArray,
   tryReplyToNumber,
+  tryReplyTuple,
 } from './utils/index.ts';
 
 export function createCommand(key: string, latest?: boolean) {
   const command = ['TS.GET', key];
+
   if (latest) {
     command.push('LATEST');
   }
+
   return command;
 }
 
@@ -22,23 +24,15 @@ export async function tsGet<T>(
     this,
     createCommand(key, latest),
     (reply, command) => {
-      if (reply === null) {
+      if (tryReplyArray(reply, command).length === 0) {
         return null;
       }
 
-      const sample = tryReplyArray(reply, command);
-
-      if (sample.length === 0) {
-        return null;
-      }
-
-      if (sample.length !== 2) {
-        throw newUnexpectedReplyError(reply, command);
-      }
+      const [timestamp, value] = tryReplyTuple(reply, 2, command);
 
       return [
-        tryReplyToNumber(sample[0], command),
-        tryReplyToNumber(sample[1], command),
+        tryReplyToNumber(timestamp, command),
+        tryReplyToNumber(value, command),
       ];
     },
   );

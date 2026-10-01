@@ -328,28 +328,4 @@ describe('server', () => {
       'version',
     ]);
   });
-
-  it('parses recursive string record from reply', async () => {
-    const { tryReplyToStringRecordRecursively } = await import(
-      '../../../../sources/command/utils/reply.ts'
-    );
-
-    const result = tryReplyToStringRecordRecursively([
-      'name',
-      'get',
-      'summary',
-      'Get the value of a key',
-      'arguments',
-      ['key', 'string'],
-    ]);
-
-    assert.strictEqual(result.name, 'get');
-    assert.strictEqual(result.summary, 'Get the value of a key');
-    assert.deepStrictEqual(result.arguments, { key: 'string' });
-    assert.deepStrictEqual(Object.keys(result).sort(), [
-      'arguments',
-      'name',
-      'summary',
-    ]);
-  });
 });

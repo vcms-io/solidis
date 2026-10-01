@@ -1026,7 +1026,7 @@ describe('fragility', () => {
       }
       assert.strictEqual(caught.message, '[ACL LOG] Unexpected reply: string');
 
-      assert.strictEqual(caught.getOriginalError(), undefined);
+      assert.strictEqual(caught.cause, undefined);
     });
   });
 
@@ -2398,7 +2398,7 @@ describe('fragility', () => {
         () => client.role(),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[ROLE] Unexpected reply: Array(3)',
+          error.message === '[ROLE] Unexpected reply: Buffer(3)',
       );
     });
 
@@ -2625,7 +2625,7 @@ describe('fragility', () => {
         () => client.latencyHistogram('ping'),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[LATENCY HISTOGRAM] Unexpected reply: Array(2)',
+          error.message === '[LATENCY HISTOGRAM] Unexpected reply: undefined',
       );
     });
 
@@ -2693,8 +2693,7 @@ describe('fragility', () => {
         () => client.aclGetuser('default'),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message ===
-            '[ACL GETUSER] Unexpected reply: flags and passwords are required',
+          error.message === '[ACL GETUSER] Unexpected reply: undefined',
       );
     });
 
@@ -2811,7 +2810,7 @@ describe('fragility', () => {
         () => client.role(),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[ROLE] Unexpected reply: Array(3)',
+          error.message === '[ROLE] Unexpected reply: string',
       );
     });
 
@@ -3137,7 +3136,7 @@ describe('fragility', () => {
         () => client.latencyHistory('command'),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[LATENCY HISTORY] Unexpected reply: Array(2)',
+          error.message === '[LATENCY HISTORY] Unexpected reply: string',
       );
     });
 

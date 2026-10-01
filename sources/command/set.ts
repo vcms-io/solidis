@@ -2,7 +2,7 @@ import {
   buildSetCommand,
   executeCommand,
   tryReplyOK,
-  tryReplyToString,
+  tryReplyToStringOrBuffer,
 } from './utils/index.ts';
 
 import type { CommandSetOptions, RespOK, StringOrBuffer } from '../index.ts';
@@ -30,14 +30,9 @@ export async function set<T>(
       }
 
       if (options?.returnOldValue === true) {
-        if (
-          options.returnOldValueAsBuffer === true &&
-          (reply instanceof Buffer || typeof reply === 'string')
-        ) {
-          return Buffer.isBuffer(reply) ? reply : Buffer.from(reply);
-        }
-
-        return tryReplyToString(reply, command);
+        return tryReplyToStringOrBuffer(reply, command, {
+          buffer: options.returnOldValueAsBuffer,
+        });
       }
 
       return tryReplyOK(reply, command);

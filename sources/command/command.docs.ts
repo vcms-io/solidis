@@ -1,11 +1,11 @@
 import {
   executeCommand,
-  newUnexpectedReplyError,
   processPairedArray,
   setRecordEntry,
   tryReplyArray,
   tryReplyToMap,
   tryReplyToStringArray,
+  tryReplyTuple,
 } from './utils/index.ts';
 
 import type {
@@ -86,11 +86,7 @@ function parseDocFlags(
 
 function parseHistory(history: unknown, command: StringOrBuffer[]) {
   return tryReplyArray(history, command).map((entry) => {
-    if (!Array.isArray(entry) || entry.length !== 2) {
-      throw newUnexpectedReplyError(entry, command);
-    }
-
-    const [version, description] = entry;
+    const [version, description] = tryReplyTuple(entry, 2, command);
 
     return `${String(version)}: ${String(description)}`;
   });

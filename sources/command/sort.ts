@@ -1,8 +1,8 @@
 import {
   buildSortCommand,
   executeCommand,
+  tryReplyToNullableStringArray,
   tryReplyToNumber,
-  tryReplyToStringArray,
 } from './utils/index.ts';
 
 import type { CommandSortOptions, CommandSortStoreOptions } from '../index.ts';
@@ -43,7 +43,7 @@ export async function sort<T>(
         return tryReplyToNumber(reply, command);
       }
 
-      return tryReplyToStringArray(reply, command, true);
+      return tryReplyToNullableStringArray(reply, command);
     },
   );
 }

@@ -1,9 +1,9 @@
 import {
   buildJsonKeyPathCommand,
   executeCommand,
-  newUnexpectedReplyError,
+  tryReplyArray,
+  tryReplyToNullableStringArray,
   tryReplyToString,
-  tryReplyToStringArray,
 } from './utils/index.ts';
 
 export function createCommand(key: string, path?: string) {
@@ -32,17 +32,13 @@ export async function jsonObjkeys<T>(
         return null;
       }
 
-      if (!Array.isArray(reply)) {
-        throw newUnexpectedReplyError(reply, command);
-      }
-
-      return reply.map((entry) => {
+      return tryReplyArray(reply, command).map((entry) => {
         if (entry === null) {
           return null;
         }
 
         if (Array.isArray(entry)) {
-          return tryReplyToStringArray(entry, command, true);
+          return tryReplyToNullableStringArray(entry, command);
         }
 
         return tryReplyToString(entry, command);
