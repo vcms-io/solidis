@@ -118,7 +118,7 @@ describe('stream-integrity', () => {
   });
 
   it('returns RESP2 list data shaped like pub/sub frames as plain data', async () => {
-    const client = await track(createClient());
+    const client = await track(createClient({ protocol: 'RESP2' }));
     const key = keyspace.key('lookalike');
     const channel = keyspace.key('lookalike', 'channel');
     const events: unknown[] = [];

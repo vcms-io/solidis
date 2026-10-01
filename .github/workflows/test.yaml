@@ -28,13 +28,14 @@ jobs:
       - run: npm run lint
 
   integration:
-    name: Integration (${{ matrix.label }})
+    name: Integration (${{ matrix.server.label }}, ${{ matrix.protocol }})
     runs-on: ubuntu-latest
     needs: lint
     strategy:
       fail-fast: false
       matrix:
-        include:
+        protocol: [RESP2, RESP3]
+        server:
           - label: redis-8
             image: redis:8-alpine
           - label: redis-7
@@ -59,7 +60,7 @@ jobs:
             image: valkey/valkey-bundle:8-alpine
     services:
       server:
-        image: ${{ matrix.image }}
+        image: ${{ matrix.server.image }}
         ports:
           - 6379:6379
         options: >-
@@ -79,4 +80,5 @@ jobs:
         env:
           SOLIDIS_TEST_HOST: 127.0.0.1
           SOLIDIS_TEST_PORT: 6379
-          SOLIDIS_TEST_LABEL: ${{ matrix.label }}
+          SOLIDIS_TEST_LABEL: ${{ matrix.server.label }}-${{ matrix.protocol }}
+          SOLIDIS_TEST_PROTOCOL: ${{ matrix.protocol }}

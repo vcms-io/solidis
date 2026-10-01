@@ -4,6 +4,8 @@
  * continuous-integration matrix (Redis and Valkey) without code changes.
  */
 
+import { SolidisProtocols } from '../../../sources/index.ts';
+
 import type { SolidisClientOptions } from '../../../sources/index.ts';
 
 export interface TestConnectionTarget {
@@ -12,6 +14,7 @@ export interface TestConnectionTarget {
   port: number;
   username?: string;
   password?: string;
+  protocol?: SolidisProtocols;
 }
 
 function readNumber(value: string | undefined, fallback: number): number {
@@ -22,6 +25,25 @@ function readNumber(value: string | undefined, fallback: number): number {
   const parsed = Number.parseInt(value, 10);
 
   return Number.isNaN(parsed) ? fallback : parsed;
+}
+
+function readProtocol(value: string | undefined) {
+  if (value === undefined || value.trim() === '') {
+    return undefined;
+  }
+
+  const protocol = value.trim().toUpperCase();
+
+  if (
+    protocol !== SolidisProtocols.RESP2 &&
+    protocol !== SolidisProtocols.RESP3
+  ) {
+    throw new Error(
+      `SOLIDIS_TEST_PROTOCOL must be RESP2 or RESP3, got '${value}'`,
+    );
+  }
+
+  return protocol;
 }
 
 export function resolveConnectionTarget(): TestConnectionTarget {
@@ -37,6 +59,7 @@ export function resolveConnectionTarget(): TestConnectionTarget {
     port,
     username: username && username.length > 0 ? username : undefined,
     password: password && password.length > 0 ? password : undefined,
+    protocol: readProtocol(process.env.SOLIDIS_TEST_PROTOCOL),
   };
 }
 
@@ -54,6 +77,7 @@ export function buildClientOptions(
     host: target.host,
     port: target.port,
     authentication,
+    protocol: target.protocol,
     ...overrides,
   };
 }
