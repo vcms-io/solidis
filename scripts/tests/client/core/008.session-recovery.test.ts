@@ -560,6 +560,23 @@ describe('session-recovery', () => {
           return true;
         });
         assert.ok(Date.now() - startedAt >= 140);
+
+        const quickStartedAt = Date.now();
+
+        await assert.rejects(
+          client.send([['PING']], { timeout: 40 }),
+          (error: unknown) => {
+            assert.ok(error instanceof SolidisClientError);
+            assert.ok(error.cause instanceof SolidisRequesterError);
+            assert.strictEqual(
+              error.cause.message,
+              'Connection was not ready within 40 ms.',
+            );
+
+            return true;
+          },
+        );
+        assert.ok(Date.now() - quickStartedAt < 140);
       } finally {
         client.quit();
       }
@@ -602,7 +619,9 @@ describe('session-recovery', () => {
       }
     });
 
-    it('reconnects with growing delays once the server returns and resets the backoff', async () => {
+    it('reconnects with growing delays once the server returns and resets the backoff', async (context) => {
+      context.mock.method(Math, 'random', () => 1);
+
       let server = await listenPong();
       const { port } = server;
       const client = new SolidisFeaturedClient(

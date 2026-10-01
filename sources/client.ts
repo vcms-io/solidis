@@ -113,7 +113,9 @@ export class SolidisClient extends EventEmitter {
   ): Promise<SolidisData[][]> {
     if (!this.#isReady) {
       try {
-        await this.#connectWithinCommandTimeout();
+        await this.#connectWithin(
+          options?.timeout ?? this.#options.commandTimeout,
+        );
       } catch (error) {
         throw new SolidisClientError('Not connected with redis server.', error);
       }
@@ -172,6 +174,10 @@ export class SolidisClient extends EventEmitter {
 
     this.on('error', (error: Error) => {
       this.#debug?.('error', 'Encountered an error', error);
+
+      if (this.listenerCount('error') === 1) {
+        process.emitWarning(error);
+      }
     });
 
     connection.on('connect', () => this.#onConnect());
@@ -210,30 +216,29 @@ export class SolidisClient extends EventEmitter {
     await this.#initialization;
   }
 
-  async #connectWithinCommandTimeout() {
-    const { commandTimeout } = this.#options;
+  async #connectWithin(timeout: number) {
     const connection = this.connect();
 
-    if (commandTimeout <= 0) {
+    if (timeout <= 0) {
       return await connection;
     }
 
     let timer: NodeJS.Timeout | undefined;
 
-    const timeout = new Promise<never>((_, reject) => {
+    const expiry = new Promise<never>((_, reject) => {
       timer = setTimeout(
         () =>
           reject(
             new SolidisRequesterError(
-              `Connection was not ready within ${commandTimeout} ms.`,
+              `Connection was not ready within ${timeout} ms.`,
             ),
           ),
-        commandTimeout,
+        timeout,
       );
     });
 
     try {
-      await Promise.race([connection, timeout]);
+      await Promise.race([connection, expiry]);
     } finally {
       clearTimeout(timer);
     }

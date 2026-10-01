@@ -1145,6 +1145,91 @@ describe('debug-requester', () => {
       assert.deepStrictEqual(await pending, [['PONG']]);
     });
 
+    it('times a request out after its own timeout in a pipeline of its own', async () => {
+      const { connection, requester } = createRequester({
+        commandTimeout: 1000,
+      });
+
+      const leading = requester.send([['ECHO', 'a']]);
+      const quick = settle(requester.send([['ECHO', 'b']], { timeout: 30 }));
+      const trailing = requester.send([['ECHO', 'c']]);
+      const startedAt = Date.now();
+
+      await flushed();
+
+      assert.deepStrictEqual(connection.writes, [
+        commandsToBuffer([['ECHO', 'a']]),
+        commandsToBuffer([['ECHO', 'b']]),
+        commandsToBuffer([['ECHO', 'c']]),
+      ]);
+
+      const error = await quick;
+
+      assert.ok(error instanceof SolidisRequesterError);
+      assert.strictEqual(error.message, 'Command(s) timed out after 30 ms.');
+      assert.ok(Date.now() - startedAt < 500);
+      assert.strictEqual(connection.resets.length, 0);
+
+      connection.reply('+a\r\n+b\r\n+c\r\n');
+
+      assert.deepStrictEqual(await leading, [['a']]);
+      assert.deepStrictEqual(await trailing, [['c']]);
+    });
+
+    it('keeps consecutive requests with the same timeout in one pipeline', async () => {
+      const { connection, requester } = createRequester({
+        commandTimeout: 1000,
+      });
+
+      const first = requester.send([['ECHO', 'a']], { timeout: 1000 });
+      const second = requester.send([['ECHO', 'b']]);
+      const third = requester.send([['ECHO', 'c']], { timeout: 200 });
+      const fourth = requester.send([['ECHO', 'd']], { timeout: 200 });
+
+      await flushed();
+
+      assert.deepStrictEqual(connection.writes, [
+        commandsToBuffer([
+          ['ECHO', 'a'],
+          ['ECHO', 'b'],
+        ]),
+        commandsToBuffer([
+          ['ECHO', 'c'],
+          ['ECHO', 'd'],
+        ]),
+      ]);
+
+      connection.reply('+a\r\n+b\r\n+c\r\n+d\r\n');
+
+      assert.deepStrictEqual(
+        await Promise.all([first, second, third, fourth]),
+        [[['a']], [['b']], [['c']], [['d']]],
+      );
+    });
+
+    it('lets a request disable or extend the deadline of the client', async () => {
+      const { connection, requester } = createRequester({ commandTimeout: 20 });
+
+      const unlimited = requester.send([['PING']], { timeout: 0 });
+      const blocking = settle(
+        requester.send([['BLPOP', 'k', '0.1']], {
+          timeout: 50,
+          blockingTimeout: 100,
+        }),
+      );
+
+      await delay(80);
+
+      connection.reply('+PONG\r\n');
+
+      assert.deepStrictEqual(await unlimited, [['PONG']]);
+
+      const error = await blocking;
+
+      assert.ok(error instanceof SolidisRequesterError);
+      assert.strictEqual(error.message, 'Command(s) timed out after 150 ms.');
+    });
+
     it('skips a pipeline that timed out before the socket drained', async () => {
       const { connection, requester } = createRequester({ commandTimeout: 30 });
 

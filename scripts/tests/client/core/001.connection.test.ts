@@ -269,7 +269,9 @@ describe('connection', () => {
     track(autoClient);
   });
 
-  it('retries and eventually rejects on persistent failure', async () => {
+  it('retries and eventually rejects on persistent failure', async (context) => {
+    context.mock.method(Math, 'random', () => 1);
+
     const client = new SolidisFeaturedClient(
       buildClientOptions({
         host: '127.0.0.1',
@@ -573,7 +575,9 @@ describe('connection', () => {
       await server.close();
     });
 
-    it('retries with exponential backoff until the server comes back', async () => {
+    it('retries with exponential backoff until the server comes back', async (context) => {
+      context.mock.method(Math, 'random', () => 1);
+
       let acceptCount = 0;
 
       const createServer = () =>
@@ -636,7 +640,9 @@ describe('connection', () => {
       });
     });
 
-    it('emits close with the reset error and reconnects with capped backoff until quit', async () => {
+    it('emits close with the reset error and reconnects with capped backoff until quit', async (context) => {
+      context.mock.method(Math, 'random', () => 1);
+
       const server = new MockRedisServer();
 
       await server.listen();
@@ -693,6 +699,61 @@ describe('connection', () => {
       await delay(100);
 
       assert.strictEqual(reconnecting.length, settled);
+    });
+
+    it('spreads each reconnect delay between half and all of the backoff', async (context) => {
+      async function collectDelays(count: number) {
+        const server = new MockRedisServer();
+
+        await server.listen();
+
+        const connection = new SolidisConnection({
+          ...SolidisDefaultOptions,
+          host: '127.0.0.1',
+          port: server.port,
+          maxConnectionRetries: 0,
+          connectionRetryDelay: 8,
+          maxConnectionRetryDelay: 32,
+          connectionTimeout: 500,
+        });
+        const delays: number[] = [];
+
+        connection.on('error', () => {});
+        connection.on('reconnecting', (_attempt, delay) => {
+          delays.push(delay);
+        });
+
+        await connection.connect();
+        await server.close();
+
+        connection.reset(new Error('reset by the test'));
+        connection.reconnect();
+
+        await waitFor(() => delays.length >= count, {
+          timeout: 5000,
+          description: 'reconnect attempts',
+        });
+
+        connection.quit();
+
+        return delays.slice(0, count);
+      }
+
+      const random = context.mock.method(Math, 'random', () => 0);
+
+      assert.deepStrictEqual(await collectDelays(4), [8, 16, 16, 16]);
+
+      random.mock.restore();
+
+      const caps = [16, 32, 32, 32, 32, 32, 32, 32];
+      const delays = await collectDelays(caps.length);
+
+      for (const [index, delay] of delays.entries()) {
+        assert.ok(
+          delay >= caps[index] / 2 && delay <= caps[index],
+          `delay ${delay} is outside [${caps[index] / 2}, ${caps[index]}]`,
+        );
+      }
     });
 
     it('emits close once and refuses writes when the server drops the socket', async () => {

@@ -202,6 +202,50 @@ describe('errors', () => {
     failing.quit();
   });
 
+  it('warns about errors only while nobody listens for them', async (context) => {
+    const warnings: unknown[] = [];
+    const emitWarning = context.mock.method(
+      process,
+      'emitWarning',
+      (warning: unknown) => {
+        warnings.push(warning);
+      },
+    );
+    const createFailing = () =>
+      new SolidisFeaturedClient(
+        buildClientOptions({
+          host: '127.0.0.1',
+          port: 1,
+          lazyConnect: true,
+          maxConnectionRetries: 0,
+          connectionTimeout: 200,
+        }),
+      );
+
+    const unattended = createFailing();
+
+    await assert.rejects(unattended.connect(), SolidisConnectionError);
+
+    assert.strictEqual(emitWarning.mock.callCount(), 1);
+    assert.ok(warnings[0] instanceof SolidisConnectionError);
+    assert.strictEqual(warnings[0].message, 'connect ECONNREFUSED 127.0.0.1:1');
+
+    const errors: unknown[] = [];
+    const attended = createFailing();
+
+    attended.on('error', (error) => {
+      errors.push(error);
+    });
+
+    await assert.rejects(attended.connect(), SolidisConnectionError);
+
+    assert.strictEqual(emitWarning.mock.callCount(), 1);
+    assert.strictEqual(errors.length, 1);
+
+    unattended.quit();
+    attended.quit();
+  });
+
   it('unwraps nested Solidis errors to their root causes', () => {
     const root = new Error('root cause');
     const wrapped = new SolidisClientError('outer failure', root);

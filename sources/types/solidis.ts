@@ -103,6 +103,7 @@ export type SolidisRequesterOptions = SolidisClientFrozenOptions & {
 };
 
 export interface SolidisSendOptions {
+  timeout?: number;
   blockingTimeout?: number;
 }
 

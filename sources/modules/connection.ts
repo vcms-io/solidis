@@ -156,10 +156,13 @@ export class SolidisConnection extends EventEmitter {
       return 0;
     }
 
-    return Math.min(
-      connectionRetryDelay * 2 ** (this.#failedAttempts - 1),
-      maxConnectionRetryDelay,
-    );
+    const half =
+      Math.min(
+        connectionRetryDelay * 2 ** (this.#failedAttempts - 1),
+        maxConnectionRetryDelay,
+      ) / 2;
+
+    return Math.round(half + Math.random() * half);
   }
 
   #attempt() {

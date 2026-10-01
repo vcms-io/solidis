@@ -188,7 +188,10 @@ export class SolidisRequester {
         replies: [],
         resolve,
         reject,
-        timeout: resolveTimeout(this.#options.commandTimeout, blockingTimeout),
+        timeout: resolveTimeout(
+          options?.timeout ?? this.#options.commandTimeout,
+          blockingTimeout,
+        ),
         isBlocking: blockingTimeout !== undefined,
       });
 
@@ -229,7 +232,9 @@ export class SolidisRequester {
 
       if (
         draft.commands.length > 0 &&
-        (request.isBlocking || draft.isBlocking)
+        (request.isBlocking ||
+          draft.isBlocking ||
+          request.timeout !== draft.timeout)
       ) {
         this.#seal(draft);
 
@@ -254,7 +259,7 @@ export class SolidisRequester {
           span: getReplySpan(command, kind),
           isLast: index === lastIndex,
         });
-        draft.timeout = Math.max(draft.timeout, request.timeout);
+        draft.timeout = request.timeout;
         draft.isBlocking ||= request.isBlocking;
       }
     }
