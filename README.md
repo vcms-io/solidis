@@ -91,6 +91,9 @@ const replies = await client.send([
   ['incr', 'counter'],
   ['get', 'a']
 ]);
+
+// A timeout for this request only, instead of commandTimeout (0 disables it)
+const slow = await client.send([['DEBUG', 'SLEEP', '2']], { timeout: 10_000 });
 ```
 
 </details>
@@ -138,6 +141,40 @@ const views = await client.incr('views', { bigint: true }); // bigint
 INCR, INCRBY, DECR, DECRBY, HINCRBY, BITFIELD and BITFIELD_RO return `number` by default and reject a result beyond `Number.MAX_SAFE_INTEGER`.
 The server has already applied the command by then, so the error's `cause` carries the exact `bigint`.
 Pass `{ bigint: true }` to always receive a `bigint`; the return type follows the option.
+
+</details>
+
+<details>
+<summary>&nbsp;&nbsp;<b>Binary values</b></summary>
+
+<br/>
+
+```typescript
+await client.set('image', Buffer.from([0xff, 0xd8, 0xff, 0xe0]));
+
+const image = await client.get('image', { buffer: true });           // Buffer | null
+const images = await client.mget('image', 'logo', { buffer: true }); // (Buffer | null)[]
+```
+
+Commands store `string` and `Buffer` values byte for byte.
+Reads decode UTF-8 by default; pass `{ buffer: true }` to receive the exact bytes as a `Buffer` from GET, GETDEL, GETEX, GETRANGE, MGET, HGET, HMGET, HGETALL, HVALS, LINDEX, LRANGE, LPOP, RPOP, LMOVE, BLMOVE, RPOPLPUSH, BRPOPLPUSH, BLPOP, BRPOP, LMPOP, BLMPOP.
+The return type follows the option.
+
+</details>
+
+<details>
+<summary>&nbsp;&nbsp;<b>Mutually exclusive options</b></summary>
+
+<br/>
+
+```typescript
+await client.set('key', 'value', { expireInSeconds: 60, setIfKeyNotExists: true });
+
+// Type error: SET accepts one expiration and one condition
+await client.set('key', 'value', { expireInSeconds: 60, keepOriginalTimeToLive: true });
+```
+
+Option types accept only the combinations the command itself accepts: for example one of NX and XX, one of BYSCORE and BYLEX, and no WITHSCORES with BYLEX.
 
 </details>
 
@@ -300,7 +337,7 @@ _100,000 iterations × 10,000 concurrency · 1 KB payload · 10 repeats_
 - All 15 RESP3 reply types (Map, Set, Push, Attribute, BigNumber, ...)
 - RESP3 pushes never consume a command reply
 - Automatic BigInt promotion for unsafe integers
-- Binary-safe, multi-byte character support
+- Binary-safe: `Buffer` values in, `{ buffer: true }` bytes out
 
 </td>
 </tr>
@@ -309,10 +346,10 @@ _100,000 iterations × 10,000 concurrency · 1 KB payload · 10 repeats_
 
 ### <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Shield.png?raw=true" alt="Shield" width="25" height="25" /> Reliability
 
-- Auto-reconnect with exponential backoff
+- Auto-reconnect with jittered exponential backoff
 - Commands wait until the handshake (AUTH, SELECT) is done
 - Auto-recovery: SELECT, Pub/Sub subscriptions
-- Per-pipeline command timeout; blocking commands get their own
+- Command timeout per pipeline or per `send()`; blocking commands get their own
 - Ready check (waits for server loading)
 - Deterministic in-flight rejection on fault
 
@@ -335,6 +372,7 @@ _100,000 iterations × 10,000 concurrency · 1 KB payload · 10 repeats_
 ### <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Activities/Bullseye.png?raw=true" alt="Bullseye" width="25" height="25" /> Type Safety
 
 - TypeScript `strict` with per-command I/O types
+- Mutually exclusive options rejected at compile time
 - Runtime reply guards (`tryReplyToString`, ...)
 - Structured error hierarchy with standard `cause` chains
 
@@ -377,7 +415,7 @@ const client = new SolidisClient({
   maxReadyCheckRetries: 100,
   readyCheckInterval: 100,
   maxConnectionRetries: 20,
-  connectionRetryDelay: 100,              // doubled after every failed attempt
+  connectionRetryDelay: 100,              // doubled after every failed attempt, then jittered to 50–100%
   maxConnectionRetryDelay: 2000,
   autoRecovery: {
     database: true,
@@ -387,7 +425,7 @@ const client = new SolidisClient({
   },
 
   // Timeouts (ms)
-  commandTimeout: 5000,                   // 0 disables it
+  commandTimeout: 5000,                   // 0 disables it; send(commands, { timeout }) overrides it
   connectionTimeout: 2000,
 
   // Performance
@@ -461,7 +499,7 @@ client.on('close', (error) => {});                 // Connection lost (reconnect
 client.on('reconnecting', (attempt, delay) => {}); // Next reconnect attempt scheduled
 client.on('reconnected', () => {});                // Re-established after disconnect
 client.on('end', () => {});                        // Client quit
-client.on('error', (error) => {});                 // Non-fatal error
+client.on('error', (error) => {});                 // Non-fatal error (process.emitWarning() without a listener)
 client.on('message', (channel, message) => {});    // Pub/Sub message
 client.on('pmessage', (pattern, channel, message) => {});
 client.on('smessage', (channel, message) => {});   // Shard channel
@@ -488,6 +526,7 @@ try {
 > [!NOTE]
 > Every error thrown by Solidis is an instance of `SolidisError` and links its origin through the standard `cause`.
 > Messages name the command (`[INCR] ERR ...`) but never include its arguments.
+> TS.MADD, BF.MADD and BF.INSERT store items one by one, so they return a rejected item as a `RespError` in their result instead of rejecting the call.
 
 | Error Class              | When                                                              |
 | :----------------------- | :---------------------------------------------------------------- |

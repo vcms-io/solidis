@@ -91,6 +91,9 @@ const replies = await client.send([
   ['incr', 'counter'],
   ['get', 'a']
 ]);
+
+// commandTimeout 대신 이 요청에만 적용할 타임아웃 (0이면 비활성화)
+const slow = await client.send([['DEBUG', 'SLEEP', '2']], { timeout: 10_000 });
 ```
 
 </details>
@@ -138,6 +141,40 @@ const views = await client.incr('views', { bigint: true }); // bigint
 INCR, INCRBY, DECR, DECRBY, HINCRBY, BITFIELD, BITFIELD_RO는 기본적으로 `number`를 반환하고, 결과가 `Number.MAX_SAFE_INTEGER`를 넘으면 에러를 냅니다.
 이때 서버에는 이미 반영된 상태이므로, 에러의 `cause`에 정확한 `bigint` 값이 담깁니다.
 `{ bigint: true }`를 넘기면 항상 `bigint`를 반환하고, 반환 타입도 옵션을 따라갑니다.
+
+</details>
+
+<details>
+<summary>&nbsp;&nbsp;<b>바이너리 값</b></summary>
+
+<br/>
+
+```typescript
+await client.set('image', Buffer.from([0xff, 0xd8, 0xff, 0xe0]));
+
+const image = await client.get('image', { buffer: true });           // Buffer | null
+const images = await client.mget('image', 'logo', { buffer: true }); // (Buffer | null)[]
+```
+
+커맨드는 `string`과 `Buffer` 값을 바이트 그대로 저장합니다.
+읽을 때는 기본적으로 UTF-8로 디코딩하고, GET, GETDEL, GETEX, GETRANGE, MGET, HGET, HMGET, HGETALL, HVALS, LINDEX, LRANGE, LPOP, RPOP, LMOVE, BLMOVE, RPOPLPUSH, BRPOPLPUSH, BLPOP, BRPOP, LMPOP, BLMPOP에 `{ buffer: true }`를 넘기면 정확한 바이트를 `Buffer`로 받습니다.
+반환 타입도 옵션을 따라갑니다.
+
+</details>
+
+<details>
+<summary>&nbsp;&nbsp;<b>함께 쓸 수 없는 옵션</b></summary>
+
+<br/>
+
+```typescript
+await client.set('key', 'value', { expireInSeconds: 60, setIfKeyNotExists: true });
+
+// 타입 에러: SET은 만료 옵션과 조건 옵션을 하나씩만 받습니다
+await client.set('key', 'value', { expireInSeconds: 60, keepOriginalTimeToLive: true });
+```
+
+옵션 타입은 커맨드가 받아들이는 조합만 허용합니다. 예를 들어 NX와 XX 중 하나만, BYSCORE와 BYLEX 중 하나만 받고, BYLEX에는 WITHSCORES를 쓸 수 없습니다.
 
 </details>
 
@@ -300,7 +337,7 @@ _100,000번 반복 × 10,000 동시 실행 · 1 KB 페이로드 · 10회 측정_
 - 15가지 RESP3 응답 타입 전부 지원 (Map, Set, Push, Attribute, BigNumber, ...)
 - RESP3 push가 커맨드 응답을 가로채지 않음
 - unsafe integer 자동 BigInt 변환
-- 바이너리 세이프, 멀티바이트 문자 정상 처리
+- 바이너리 세이프: `Buffer` 값 저장, `{ buffer: true }`로 바이트 그대로 읽기
 
 </td>
 </tr>
@@ -309,10 +346,10 @@ _100,000번 반복 × 10,000 동시 실행 · 1 KB 페이로드 · 10회 측정_
 
 ### <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Shield.png?raw=true" alt="Shield" width="25" height="25" /> 안정성
 
-- 지수 백오프 기반 자동 재연결
+- 지터를 적용한 지수 백오프 기반 자동 재연결
 - 핸드셰이크(AUTH, SELECT) 완료 전에는 커맨드를 보내지 않음
 - 재연결 시 SELECT, Pub/Sub 구독 자동 복구
-- 파이프라인 단위 커맨드 타임아웃, 블로킹 커맨드는 별도 기한
+- 파이프라인 또는 `send()` 호출 단위 커맨드 타임아웃, 블로킹 커맨드는 별도 기한
 - Ready check로 서버 로딩 완료까지 대기
 - 장애 발생 시 in-flight 요청 즉시 reject
 
@@ -335,6 +372,7 @@ _100,000번 반복 × 10,000 동시 실행 · 1 KB 페이로드 · 10회 측정_
 ### <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Activities/Bullseye.png?raw=true" alt="Bullseye" width="25" height="25" /> 타입 안전성
 
 - TypeScript `strict` 모드, 커맨드별 I/O 타입 정의
+- 함께 쓸 수 없는 옵션은 컴파일 단계에서 거부
 - 런타임 응답 가드 (`tryReplyToString`, ...)
 - 구조화된 에러 계층 + 표준 `cause` 체인
 
@@ -377,7 +415,7 @@ const client = new SolidisClient({
   maxReadyCheckRetries: 100,
   readyCheckInterval: 100,
   maxConnectionRetries: 20,
-  connectionRetryDelay: 100,              // 실패할 때마다 두 배
+  connectionRetryDelay: 100,              // 실패할 때마다 두 배, 그 값의 50–100% 사이에서 지터 적용
   maxConnectionRetryDelay: 2000,
   autoRecovery: {
     database: true,
@@ -387,7 +425,7 @@ const client = new SolidisClient({
   },
 
   // 타임아웃 (ms)
-  commandTimeout: 5000,                   // 0이면 비활성화
+  commandTimeout: 5000,                   // 0이면 비활성화, send(commands, { timeout })로 요청별 지정
   connectionTimeout: 2000,
 
   // 성능 튜닝
@@ -469,7 +507,7 @@ client.on('close', (error) => {});                 // 연결 끊김 (autoReconne
 client.on('reconnecting', (attempt, delay) => {}); // 다음 재연결 시도 예약
 client.on('reconnected', () => {});                // 재연결 성공
 client.on('end', () => {});                        // 클라이언트 종료 (quit)
-client.on('error', (error) => {});                 // 소켓/프로토콜 에러
+client.on('error', (error) => {});                 // 소켓/프로토콜 에러 (리스너가 없으면 process.emitWarning())
 client.on('message', (channel, message) => {});    // Pub/Sub 메시지 수신
 client.on('pmessage', (pattern, channel, message) => {});
 client.on('smessage', (channel, message) => {});   // Shard 채널 메시지
@@ -496,6 +534,7 @@ try {
 > [!NOTE]
 > Solidis가 throw하는 모든 에러는 `SolidisError`를 상속하고, 원인은 표준 `cause`로 연결됩니다.
 > 메시지에는 커맨드 이름(`[INCR] ERR ...`)만 들어가고 인자는 절대 들어가지 않습니다.
+> TS.MADD, BF.MADD, BF.INSERT는 항목을 하나씩 저장하므로, 거부된 항목은 호출 전체를 reject하는 대신 결과 배열 안의 `RespError`로 돌려줍니다.
 
 | 에러 클래스              | 발생 조건                                                 |
 | :----------------------- | :-------------------------------------------------------- |

@@ -377,6 +377,12 @@ await client.subscribe('news');`}
                     <TabsTrigger value="raw-commands">
                       {t('apiReference.rawCommands')}
                     </TabsTrigger>
+                    <TabsTrigger value="binary-values">
+                      {t('apiReference.binaryValues')}
+                    </TabsTrigger>
+                    <TabsTrigger value="big-integers">
+                      {t('apiReference.bigIntegers')}
+                    </TabsTrigger>
                     <TabsTrigger value="debugging">
                       {t('apiReference.debugging')}
                     </TabsTrigger>
@@ -409,11 +415,40 @@ await client.fill(['key1', 'key2', 'key3'], 'value');`}
                   </TabsContent>
                   <TabsContent value="raw-commands" className="space-y-3">
                     <CodeBlock
-                      code={`const result = await client.send([['COMMAND', 'SOME', 'OPTIONS']]);`}
+                      code={`const result = await client.send([['COMMAND', 'SOME', 'OPTIONS']]);
+
+const slow = await client.send([['DEBUG', 'SLEEP', '2']], { timeout: 10_000 });`}
                       language="typescript"
                     />
                     <p className="text-xs text-muted-foreground">
                       {t('apiReference.rawCommandsDesc')}
+                    </p>
+                  </TabsContent>
+                  <TabsContent value="binary-values" className="space-y-3">
+                    <CodeBlock
+                      code={`await client.set('image', Buffer.from([0xff, 0xd8, 0xff, 0xe0]));
+
+const image = await client.get('image', { buffer: true }); // Buffer | null
+const queue = await client.lrange('jobs', 0, -1, { buffer: true }); // Buffer[]`}
+                      language="typescript"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {t('apiReference.binaryValuesDesc')}
+                    </p>
+                  </TabsContent>
+                  <TabsContent value="big-integers" className="space-y-3">
+                    <CodeBlock
+                      code={`const views = await client.incr('views', { bigint: true }); // bigint
+
+try {
+  await client.incr('views');
+} catch (error) {
+  console.log(error.cause); // the exact bigint beyond Number.MAX_SAFE_INTEGER
+}`}
+                      language="typescript"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {t('apiReference.bigIntegersDesc')}
                     </p>
                   </TabsContent>
                   <TabsContent value="debugging" className="space-y-3">
