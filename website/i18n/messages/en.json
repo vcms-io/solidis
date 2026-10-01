@@ -18,11 +18,11 @@
     "whyChoose": "Why Choose Solidis?",
     "whyDescription": "The reasons why teams in production choose Solidis over alternatives.",
     "serverlessReady": "Serverless-Ready Bundle",
-    "serverlessReadyDesc": "Under 29 KB min bundle with zero dependencies. Critical for cold start performance in serverless environments like AWS Lambda and Vercel Edge.",
+    "serverlessReadyDesc": "Under 26 KB min bundle with zero dependencies. Critical for cold start performance in serverless environments like AWS Lambda and Vercel Edge.",
     "twiceAsFast": "2x Faster Than ioredis",
     "twiceAsFastDesc": "Up to 2.1x faster across 15 benchmark categories with binary-safe RESP parsing, automatic pipeline batching, and setImmediate coalescing.",
     "battleTested": "Battle-Tested Stability",
-    "battleTestedDesc": "98%+ test coverage with 2+ years in production and zero error reports. Built to run without surprises.",
+    "battleTestedDesc": "100% test coverage with 2+ years in production and zero error reports. Built to run without surprises.",
     "modernProtocol": "Full RESP2 + RESP3 Support",
     "modernProtocolDesc": "All 15 RESP3 reply types including Map, Set, Push, Attribute, BigNumber. Tree-shakable architecture — import only the commands you need.",
     "highPerformance": "High Performance",
@@ -64,7 +64,7 @@
     "autoReconnect": "Auto Reconnect",
     "autoReconnectDesc": "Configurable exponential backoff with jitter and auto-recovery for subscriptions.",
     "treeShakable": "Tree-Shakable",
-    "treeShakableDesc": "Import only the commands you need. Under 29 KB min bundle.",
+    "treeShakableDesc": "Import only the commands you need. Under 26 KB min bundle.",
     "terminal": "terminal"
   },
   "footer": {
