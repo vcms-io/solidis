@@ -11,7 +11,18 @@ import { dirname, join } from 'node:path';
 type DtsMap = Map<string, Buffer>;
 
 const distributionsPath = join(process.cwd(), './distributions');
+const sourcesPath = join(process.cwd(), './sources');
 const tsbuildinfoPath = join(distributionsPath, 'tsconfig.tsbuildinfo');
+
+async function hasSource(declaration: string) {
+  try {
+    await stat(join(sourcesPath, declaration.replace(/\.d\.ts$/, '.ts')));
+
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 async function collectDts(directory: string) {
   const dtsMap: DtsMap = new Map();
@@ -23,7 +34,11 @@ async function collectDts(directory: string) {
       const fullPath = join(directory, file);
       const fileStatus = await stat(fullPath);
 
-      if (fileStatus.isFile() && file.endsWith('.d.ts')) {
+      if (
+        fileStatus.isFile() &&
+        file.endsWith('.d.ts') &&
+        (await hasSource(file))
+      ) {
         const content = await readFile(fullPath);
 
         dtsMap.set(fullPath, content);
