@@ -284,6 +284,14 @@ function formatElapsedMilliseconds(
   return bold ? `**${text}**` : text;
 }
 
+function formatLatency(milliseconds: number | undefined): string {
+  if (milliseconds === undefined) {
+    return '-';
+  }
+
+  return `${milliseconds.toFixed(2)}ms`;
+}
+
 interface TableBuildResult {
   table: string;
   lastRank: number;
@@ -438,8 +446,8 @@ function buildDetailedMetricsTable(
   const h = locale.detailedMetricsHeaders;
 
   const header = [
-    `| ${h.benchmark} | ${h.library} | ${h.opsPerSec} | ${h.cmdsPerSec} | ${h.elapsed} | ${h.spread} |`,
-    '|:---|:---|---:|---:|---:|---:|',
+    `| ${h.benchmark} | ${h.library} | ${h.opsPerSec} | ${h.cmdsPerSec} | ${h.elapsed} | ${h.spread} | ${h.latencyPercentile50} | ${h.latencyPercentile99} |`,
+    '|:---|:---|---:|---:|---:|---:|---:|---:|',
   ];
 
   const rows: string[] = [];
@@ -481,13 +489,19 @@ function buildDetailedMetricsTable(
         result.spreadPercent !== null
           ? `±${result.spreadPercent.toFixed(1)}%`
           : '-';
+      const latencyPercentile50Text = formatLatency(
+        result.latencyPercentile50Milliseconds,
+      );
+      const latencyPercentile99Text = formatLatency(
+        result.latencyPercentile99Milliseconds,
+      );
       const libraryText =
         result.library === solidisLibrary
           ? `**${result.library}**`
           : result.library;
 
       rows.push(
-        `| ${rowLabel} | ${libraryText} | ${operationsText} | ${commandsText} | ${elapsedText} | ${spreadText} |`,
+        `| ${rowLabel} | ${libraryText} | ${operationsText} | ${commandsText} | ${elapsedText} | ${spreadText} | ${latencyPercentile50Text} | ${latencyPercentile99Text} |`,
       );
 
       isFirstInGroup = false;

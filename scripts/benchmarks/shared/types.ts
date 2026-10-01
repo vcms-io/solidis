@@ -55,6 +55,8 @@ export interface BenchResult {
   commandsPerUnit: number;
   elapsedMs: number | null;
   spreadPercent: number | null;
+  latencyPercentile50Milliseconds?: number;
+  latencyPercentile99Milliseconds?: number;
   unitsPerSecond: number | null;
   commandsPerSecond: number | null;
   samplesMs: number[];
@@ -81,6 +83,7 @@ export interface BenchmarkSnapshot {
 
 export interface CaseRunResult {
   elapsedMs: number;
+  latenciesMilliseconds: Float64Array;
   verificationError?: string;
 }
 

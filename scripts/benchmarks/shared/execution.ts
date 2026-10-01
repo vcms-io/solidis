@@ -31,6 +31,7 @@ async function runCommandUnits(
   ) => Command[],
   payloadAt: PayloadAccessor,
   collected: CollectedUnit[] | null,
+  latenciesMilliseconds: Float64Array | null,
 ): Promise<void> {
   if (units <= 0) {
     return;
@@ -60,7 +61,12 @@ async function runCommandUnits(
           );
         }
 
+        const issuedAt = performance.now();
         const responses = await client.execute(commands);
+
+        if (latenciesMilliseconds) {
+          latenciesMilliseconds[unitIndex] = performance.now() - issuedAt;
+        }
 
         if (collected) {
           collected[unitIndex] = {
@@ -214,6 +220,7 @@ export function createCommandCase(
           options.unit,
           context.payloadPool.at,
           null,
+          null,
         );
 
         logPhase(
@@ -224,6 +231,9 @@ export function createCommandCase(
         const collected: CollectedUnit[] | null = options.verify
           ? new Array(context.config.iterations)
           : null;
+        const latenciesMilliseconds = new Float64Array(
+          context.config.iterations,
+        );
 
         const startedAt = performance.now();
 
@@ -237,6 +247,7 @@ export function createCommandCase(
           options.unit,
           context.payloadPool.at,
           collected,
+          latenciesMilliseconds,
         );
 
         const elapsedMs = performance.now() - startedAt;
@@ -252,7 +263,7 @@ export function createCommandCase(
           );
         }
 
-        return { elapsedMs, verificationError };
+        return { elapsedMs, latenciesMilliseconds, verificationError };
       } finally {
         await clients[0]?.cleanup(context.keyPrefix).catch((error) => {
           logProgress(

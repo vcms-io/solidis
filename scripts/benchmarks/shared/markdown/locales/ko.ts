@@ -36,7 +36,7 @@ export const ko: BenchmarkLocale = {
 
   detailedMetricsTitle: `## ${fluentEmoji('Objects', 'Bar Chart')} 상세 지표`,
   detailedMetricsDescription:
-    '라이브러리별 전체 지표: 초당 작업 수, 초당 명령 수, 소요 시간 중앙값, 분산 (변동 계수).',
+    '라이브러리별 전체 지표: 초당 작업 수, 초당 명령 수, 소요 시간 중앙값, 분산 (변동 계수), 작업당 지연 시간 (p50 / p99).',
   expandDetailedMetrics: '상세 지표 테이블 펼치기',
 
   detailedMetricsHeaders: {
@@ -46,6 +46,8 @@ export const ko: BenchmarkLocale = {
     cmdsPerSec: 'cmds/s',
     elapsed: '소요 시간',
     spread: '분산',
+    latencyPercentile50: 'p50 지연 시간',
+    latencyPercentile99: 'p99 지연 시간',
   },
 
   configurationTitle: `## ${fluentEmoji('Objects', 'Gear')} 설정`,
@@ -76,6 +78,7 @@ export const ko: BenchmarkLocale = {
     '페이로드는 두 라이브러리가 공유하는 **결정론적 의사 난수 풀**을 사용합니다',
     '소요 시간은 전체 반복 샘플의 **중앙값**입니다',
     '분산은 **변동 계수** (σ / 중앙값 × 100%)입니다',
+    '지연 시간은 워밍업을 제외하고 설정된 동시 실행 수에서 **작업 단위**로 요청부터 응답까지 측정하며, **p50 / p99**는 전체 반복 샘플을 합쳐 계산합니다',
     '두 클라이언트 모두 **커맨드 타임아웃, 레디 체크, 재연결을 끈 상태**에서 무제한 오토 파이프라이닝으로 실행됩니다',
   ],
 

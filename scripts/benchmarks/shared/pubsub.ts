@@ -22,6 +22,7 @@ async function runPubSubMessages(
   clients: number,
   concurrency: number,
   payloadOffsetStart: number,
+  latenciesMilliseconds: Float64Array | null,
   publish: (clientIndex: number, payloadOffset: number) => Promise<unknown>,
 ): Promise<void> {
   if (total <= 0) {
@@ -38,8 +39,13 @@ async function runPubSubMessages(
       while (nextPayloadOffset < total) {
         const payloadOffset = nextPayloadOffset;
         nextPayloadOffset += 1;
+        const issuedAt = performance.now();
 
         await publish(clientIndex, payloadOffsetStart + payloadOffset);
+
+        if (latenciesMilliseconds) {
+          latenciesMilliseconds[payloadOffset] = performance.now() - issuedAt;
+        }
       }
     }),
   );
@@ -92,6 +98,7 @@ async function publishAndWaitForDelivery(
   payloadOffsetStart: number,
   getReceived: () => number,
   expectedStart: number,
+  latenciesMilliseconds: Float64Array | null,
   publish: (clientIndex: number, payloadOffset: number) => Promise<unknown>,
 ): Promise<void> {
   const publishBatchSize = getPubSubPublishBatchSize(context, total);
@@ -105,6 +112,8 @@ async function publishAndWaitForDelivery(
       context.config.clients,
       context.config.concurrency,
       payloadOffsetStart + delivered,
+      latenciesMilliseconds?.subarray(delivered, delivered + batchTotal) ??
+        null,
       publish,
     );
 
@@ -153,10 +162,12 @@ export async function runPubSubBenchmark(
       0,
       () => received,
       0,
+      null,
       publish,
     );
     received = 0;
 
+    const latenciesMilliseconds = new Float64Array(context.config.iterations);
     const startedAt = performance.now();
 
     await publishAndWaitForDelivery(
@@ -165,10 +176,14 @@ export async function runPubSubBenchmark(
       context.config.warmup,
       () => received,
       0,
+      latenciesMilliseconds,
       publish,
     );
 
-    return { elapsedMs: performance.now() - startedAt };
+    return {
+      elapsedMs: performance.now() - startedAt,
+      latenciesMilliseconds,
+    };
   } finally {
     await subscriber.close();
     await suite.closeBenchClientPool(publishers);

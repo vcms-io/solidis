@@ -67,10 +67,10 @@ function isValidWorkerData(value: unknown): value is BenchWorkerData {
   );
 }
 
-function createSamplesRecord(
+function createSamplesRecord<T>(
   libraries: readonly LibraryName[],
-): Map<LibraryName, number[]> {
-  const record = new Map<LibraryName, number[]>();
+): Map<LibraryName, T[]> {
+  const record = new Map<LibraryName, T[]>();
 
   for (const library of libraries) {
     record.set(library, []);
@@ -79,10 +79,10 @@ function createSamplesRecord(
   return record;
 }
 
-function getSamplesForLibrary(
-  record: Map<LibraryName, number[]>,
+function getSamplesForLibrary<T>(
+  record: Map<LibraryName, T[]>,
   library: LibraryName,
-): number[] {
+): T[] {
   const samples = record.get(library);
 
   if (!samples) {
@@ -232,7 +232,9 @@ export function createBenchmarkRunner(
           typeof message === 'object' &&
           message !== null &&
           'elapsedMs' in message &&
-          typeof message.elapsedMs === 'number'
+          typeof message.elapsedMs === 'number' &&
+          'latenciesMilliseconds' in message &&
+          message.latenciesMilliseconds instanceof Float64Array
         ) {
           const verificationError =
             'verificationError' in message &&
@@ -240,7 +242,11 @@ export function createBenchmarkRunner(
               ? message.verificationError
               : undefined;
 
-          resolve({ elapsedMs: message.elapsedMs, verificationError });
+          resolve({
+            elapsedMs: message.elapsedMs,
+            latenciesMilliseconds: message.latenciesMilliseconds,
+            verificationError,
+          });
 
           return;
         }
@@ -269,7 +275,10 @@ export function createBenchmarkRunner(
     caseIndex: number,
     caseWallMilliseconds?: number,
   ): Promise<BenchResult[]> {
-    const samplesMilliseconds = createSamplesRecord(suite.libraries);
+    const samplesMilliseconds = createSamplesRecord<number>(suite.libraries);
+    const latencySamplesMilliseconds = createSamplesRecord<Float64Array>(
+      suite.libraries,
+    );
     const verificationErrors = new Map<LibraryName, string>();
     const errors = new Map<LibraryName, unknown>();
 
@@ -299,6 +308,9 @@ export function createBenchmarkRunner(
 
           getSamplesForLibrary(samplesMilliseconds, library).push(
             sampleResult.elapsedMs,
+          );
+          getSamplesForLibrary(latencySamplesMilliseconds, library).push(
+            sampleResult.latenciesMilliseconds,
           );
 
           if (
@@ -333,6 +345,7 @@ export function createBenchmarkRunner(
         library,
         payloadBytes,
         getSamplesForLibrary(samplesMilliseconds, library),
+        getSamplesForLibrary(latencySamplesMilliseconds, library),
         caseWallMilliseconds,
       );
 
@@ -466,6 +479,7 @@ export function createBenchmarkRunner(
 
     parentPort?.postMessage({
       elapsedMs: result.elapsedMs,
+      latenciesMilliseconds: result.latenciesMilliseconds,
       verificationError: result.verificationError,
     });
   }

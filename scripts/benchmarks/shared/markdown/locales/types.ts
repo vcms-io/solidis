@@ -41,6 +41,8 @@ export interface BenchmarkLocale {
     cmdsPerSec: string;
     elapsed: string;
     spread: string;
+    latencyPercentile50: string;
+    latencyPercentile99: string;
   };
 
   configurationTitle: string;

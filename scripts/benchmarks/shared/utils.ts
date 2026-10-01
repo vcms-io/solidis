@@ -253,3 +253,29 @@ export function spreadPercent(samples: number[], center: number): number {
 
   return (Math.sqrt(variance) / center) * 100;
 }
+
+export function sortPooledSamples(samples: Float64Array[]): Float64Array {
+  const length = samples.reduce((total, sample) => total + sample.length, 0);
+  const pooled = new Float64Array(length);
+  let offset = 0;
+
+  for (const sample of samples) {
+    pooled.set(sample, offset);
+    offset += sample.length;
+  }
+
+  return pooled.sort();
+}
+
+export function percentile(
+  sortedSamples: Float64Array,
+  percentage: number,
+): number {
+  if (sortedSamples.length === 0) {
+    return 0;
+  }
+
+  const index = Math.ceil((percentage / 100) * sortedSamples.length) - 1;
+
+  return sortedSamples[Math.max(0, index)];
+}

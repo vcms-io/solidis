@@ -3,6 +3,8 @@ import {
   formatLargeNumber,
   formatPayloadSize,
   median,
+  percentile,
+  sortPooledSamples,
   spreadPercent,
   stripAnsiEscapes,
 } from './utils.ts';
@@ -40,11 +42,13 @@ export function makeResult(
   library: LibraryName,
   payloadBytes: number,
   samplesMilliseconds: number[],
+  latencySamplesMilliseconds: Float64Array[],
   caseWallMilliseconds?: number,
 ): BenchResult {
   const mode = getEffectiveMode(config, benchmarkCase);
   const comparabilityMode = getComparabilityMode(config);
   const elapsedMilliseconds = median(samplesMilliseconds);
+  const latenciesMilliseconds = sortPooledSamples(latencySamplesMilliseconds);
   const unitsPerSecond = config.iterations / (elapsedMilliseconds / 1000);
   const comparable = benchmarkCase.comparableModes.has(comparabilityMode);
 
@@ -60,6 +64,8 @@ export function makeResult(
     commandsPerUnit: benchmarkCase.commandsPerUnit,
     elapsedMs: elapsedMilliseconds,
     spreadPercent: spreadPercent(samplesMilliseconds, elapsedMilliseconds),
+    latencyPercentile50Milliseconds: percentile(latenciesMilliseconds, 50),
+    latencyPercentile99Milliseconds: percentile(latenciesMilliseconds, 99),
     unitsPerSecond,
     commandsPerSecond: unitsPerSecond * benchmarkCase.commandsPerUnit,
     samplesMs: samplesMilliseconds,
@@ -151,6 +157,7 @@ const COLUMN_OPERATIONS = 12;
 const COLUMN_COMMANDS = 12;
 const COLUMN_ELAPSED = 10;
 const COLUMN_SPREAD = 8;
+const COLUMN_LATENCY = 10;
 const COLUMN_RATIO = 14;
 
 const DISPLAY_LINE_WIDTH = 70;
@@ -235,6 +242,14 @@ function formatRatioText(
   return `${ansi.dim}${percentChange}%${ansi.reset}`;
 }
 
+function formatLatency(milliseconds: number | undefined): string {
+  if (milliseconds === undefined) {
+    return '—';
+  }
+
+  return `${milliseconds.toFixed(2)}ms`;
+}
+
 function printResultRow(
   result: ComparedResult,
   baselineLibrary: LibraryName,
@@ -263,6 +278,12 @@ function printResultRow(
     result.spreadPercent !== null
       ? `±${result.spreadPercent.toFixed(1)}%`
       : '—';
+  const latencyPercentile50Text = formatLatency(
+    result.latencyPercentile50Milliseconds,
+  );
+  const latencyPercentile99Text = formatLatency(
+    result.latencyPercentile99Milliseconds,
+  );
   const ratioText = formatRatioText(result, baselineLibrary);
 
   const libraryColor =
@@ -279,6 +300,8 @@ function printResultRow(
       `${padLeft(commandsText, COLUMN_COMMANDS)} ` +
       `${padLeft(elapsedText, COLUMN_ELAPSED)} ` +
       `${padLeft(spreadText, COLUMN_SPREAD)} ` +
+      `${padLeft(latencyPercentile50Text, COLUMN_LATENCY)} ` +
+      `${padLeft(latencyPercentile99Text, COLUMN_LATENCY)} ` +
       `${padLeft(ratioText, COLUMN_RATIO)}` +
       `${verificationNote}`,
   );
@@ -349,6 +372,8 @@ function printResultsTableHeader(): void {
       `${padLeft('commands/s', COLUMN_COMMANDS)} ` +
       `${padLeft('elapsed', COLUMN_ELAPSED)} ` +
       `${padLeft('spread', COLUMN_SPREAD)} ` +
+      `${padLeft('p50', COLUMN_LATENCY)} ` +
+      `${padLeft('p99', COLUMN_LATENCY)} ` +
       `${padLeft('vs base', COLUMN_RATIO)}${ansi.reset}`,
   );
   console.log(
@@ -358,6 +383,8 @@ function printResultsTableHeader(): void {
       `${'─'.repeat(COLUMN_COMMANDS)} ` +
       `${'─'.repeat(COLUMN_ELAPSED)} ` +
       `${'─'.repeat(COLUMN_SPREAD)} ` +
+      `${'─'.repeat(COLUMN_LATENCY)} ` +
+      `${'─'.repeat(COLUMN_LATENCY)} ` +
       `${'─'.repeat(COLUMN_RATIO)}${ansi.reset}`,
   );
 }

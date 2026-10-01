@@ -40,7 +40,7 @@ export const en: BenchmarkLocale = {
 
   detailedMetricsTitle: `## ${fluentEmoji('Objects', 'Bar Chart')} Detailed Metrics`,
   detailedMetricsDescription:
-    'All metrics per library: operations/s, commands/s, median elapsed time, and spread (coefficient of variation).',
+    'All metrics per library: operations/s, commands/s, median elapsed time, spread (coefficient of variation), and per-operation latency (p50 / p99).',
   expandDetailedMetrics: 'Click to expand detailed metrics table',
 
   detailedMetricsHeaders: {
@@ -50,6 +50,8 @@ export const en: BenchmarkLocale = {
     cmdsPerSec: 'cmds/s',
     elapsed: 'Elapsed',
     spread: 'Spread',
+    latencyPercentile50: 'p50 Latency',
+    latencyPercentile99: 'p99 Latency',
   },
 
   configurationTitle: `## ${fluentEmoji('Objects', 'Gear')} Configuration`,
@@ -80,6 +82,7 @@ export const en: BenchmarkLocale = {
     'Payloads use a **deterministic pseudo-random pool** shared by both libraries',
     'Elapsed time is the **median** across all repeat samples',
     'Spread is the **coefficient of variation** (σ / median × 100%)',
+    'Latency is timed **per operation** from issue to resolution at the configured concurrency (warmup excluded), and **p50 / p99** are taken over all repeat samples combined',
     'Both clients run with **command timeouts, ready checks and reconnects disabled** and unbounded auto-pipelining',
   ],
 
