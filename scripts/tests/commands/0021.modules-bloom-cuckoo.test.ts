@@ -535,13 +535,12 @@ describe('modules-bloom-cuckoo', () => {
     ]);
   });
 
-  it('builds CF.INSERT with NOCREATE option (ignores capacity)', async () => {
+  it('builds CF.INSERT with NOCREATE option', async () => {
     const { buildCuckooFilterInsertCommand } = await import(
       '../../../sources/command/utils/command.ts'
     );
 
     const command = buildCuckooFilterInsertCommand('CF.INSERT', 'key', ['a'], {
-      capacity: 500,
       nocreate: true,
     });
 

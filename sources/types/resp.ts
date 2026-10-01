@@ -1,3 +1,4 @@
+import type { CommandExclusiveOptions } from './command.ts';
 import type { SolidisData } from './solidis.ts';
 
 export const RespDataTypes = {
@@ -138,11 +139,9 @@ export interface RespCommandKeyFlag {
   key: string;
   flags: string[];
 }
-export interface RespCommandListFilter {
-  module?: string;
-  aclcat?: string;
-  pattern?: string;
-}
+export type RespCommandListFilter = CommandExclusiveOptions<
+  { module?: string } | { aclcat?: string } | { pattern?: string }
+>;
 export interface RespCuckooFilterInfo {
   size: number;
   numberOfBuckets: number;

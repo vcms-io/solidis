@@ -112,7 +112,7 @@ export function buildCuckooFilterInsertCommand(
   const result = [command, key];
 
   if (options) {
-    if (options.capacity !== undefined && options.nocreate !== true) {
+    if (options.capacity !== undefined) {
       result.push('CAPACITY', `${options.capacity}`);
     }
 

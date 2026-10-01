@@ -14,13 +14,43 @@ export type CommandGeoUnitOption = 'M' | 'KM' | 'FT' | 'MI';
 export type CommandBeforeOrAfterOption = 'BEFORE' | 'AFTER';
 export type CommandExpireMode = 'NX' | 'XX' | 'GT' | 'LT';
 
-export interface CommandBloomFilterInsertOptions {
-  capacity?: number;
-  error?: number;
+type CommandOptionKeys<Options> = Options extends unknown
+  ? keyof Options
+  : never;
+
+type CommandOptionValues<Options, Key> = Options extends unknown
+  ? Key extends keyof Options
+    ? Options[Key]
+    : never
+  : never;
+
+type CommandExclusiveAlternatives<Options, Alternatives> =
+  Options extends unknown
+    ? Options & {
+        [Key in Exclude<
+          CommandOptionKeys<Alternatives>,
+          keyof Options
+        >]?: CommandOptionValues<Alternatives, Key> extends boolean | undefined
+          ? false
+          : never;
+      }
+    : never;
+
+export type CommandExclusiveOptions<Alternatives> =
+  CommandExclusiveAlternatives<Alternatives, Alternatives>;
+
+type CommandExpireAlternatives =
+  | { expireInSeconds?: number }
+  | { expireInMilliseconds?: number }
+  | { expireAtSeconds?: number }
+  | { expireAtMilliseconds?: number };
+
+export type CommandBloomFilterInsertOptions = CommandExclusiveOptions<
+  { capacity?: number; error?: number } | { nocreate?: boolean }
+> & {
   expansion?: number;
   nonScaling?: boolean;
-  nocreate?: boolean;
-}
+};
 
 export interface CommandBitfieldGetOperationOption {
   operation: 'GET';
@@ -61,57 +91,54 @@ export interface CommandClientPauseOptions {
   mode?: 'WRITE' | 'ALL';
 }
 
-export interface CommandClientTrackingOptions {
+export type CommandClientTrackingOptions = CommandExclusiveOptions<
+  | { bcast: true; prefixes?: string[] }
+  | { optin?: boolean }
+  | { optout?: boolean }
+> & {
   redirect?: number;
-  prefixes?: string[];
-  bcast?: boolean;
-  optin?: boolean;
-  optout?: boolean;
   noloop?: boolean;
-}
+};
 
-export interface CommandClientUnblockOptions {
-  timeout?: boolean;
-  error?: boolean;
-}
+export type CommandClientUnblockOptions = CommandExclusiveOptions<
+  { timeout?: boolean } | { error?: boolean }
+>;
 
 export interface CommandCopyOptions {
   destinationDatabase?: number;
   replace?: boolean;
 }
 
-export interface CommandCuckooFilterInsertOptions {
-  capacity?: number;
-  nocreate?: boolean;
+export type CommandCuckooFilterInsertOptions = CommandExclusiveOptions<
+  { capacity?: number } | { nocreate?: boolean }
+>;
+
+export type CommandDelExOptions = CommandExclusiveOptions<
+  | { ifValueEquals?: StringOrBuffer }
+  | { ifValueNotEquals?: StringOrBuffer }
+  | { ifDigestEquals?: string }
+  | { ifDigestNotEquals?: string }
+>;
+
+interface CommandFailoverTarget {
+  host: string;
+  port: number;
 }
 
-export interface CommandDelExOptions {
-  ifValueEquals?: StringOrBuffer;
-  ifValueNotEquals?: StringOrBuffer;
-  ifDigestEquals?: string;
-  ifDigestNotEquals?: string;
-}
-
-export interface CommandFailoverOptions {
-  to?: {
-    host: string;
-    port: number;
-  };
-  force?: boolean;
-  abort?: boolean;
-  timeout?: number;
-}
+export type CommandFailoverOptions = CommandExclusiveOptions<
+  | { to?: CommandFailoverTarget; timeout?: number; force?: false }
+  | { to: CommandFailoverTarget; timeout: number; force: true }
+  | { abort?: boolean }
+>;
 
 export interface CommandFunctionListOptions {
   libraryNamePattern?: string;
   withCode?: boolean;
 }
 
-export interface CommandFunctionRestoreOptions {
-  replace?: boolean;
-  flush?: boolean;
-  append?: boolean;
-}
+export type CommandFunctionRestoreOptions = CommandExclusiveOptions<
+  { replace?: boolean } | { flush?: boolean } | { append?: boolean }
+>;
 
 export interface CommandGeoAddMemberOption {
   longitude: number;
@@ -119,68 +146,77 @@ export interface CommandGeoAddMemberOption {
   member: string;
 }
 
-export interface CommandGeoAddOptions {
-  nx?: boolean;
-  xx?: boolean;
+export type CommandGeoAddOptions = CommandExclusiveOptions<
+  { nx?: boolean } | { xx?: boolean }
+> & {
   ch?: boolean;
-}
+};
 
-export interface CommandGeoSearchOptions {
-  unit?: CommandGeoUnitOption;
-  withCoord?: boolean;
-  withDist?: boolean;
-  withHash?: boolean;
-  count?: number;
-  any?: boolean;
-  asc?: boolean;
-  desc?: boolean;
-}
+type CommandGeoOrderOptions = CommandExclusiveOptions<
+  { asc?: boolean } | { desc?: boolean }
+>;
 
-export interface CommandGeoRadiusOptions extends CommandGeoSearchOptions {
-  store?: string;
-  storedist?: string;
-}
+type CommandGeoCountOptions =
+  | { count?: number; any?: false }
+  | { count: number; any: true };
 
-export interface CommandGeoSearchByOptions {
-  bybox?: {
-    width: number;
-    height: number;
-    unit: CommandGeoUnitOption;
+export type CommandGeoSearchOptions = CommandGeoOrderOptions &
+  CommandGeoCountOptions & {
+    withCoord?: boolean;
+    withDist?: boolean;
+    withHash?: boolean;
   };
-  byradius?: {
-    radius: number;
-    unit: CommandGeoUnitOption;
-  };
-}
 
-export interface CommandGeoSearchFromOptions {
-  frommember?: string;
-  fromlonlat?: {
-    longitude: number;
-    latitude: number;
-  };
-}
-export interface CommandGeoSearchStoreOptions
-  extends Omit<CommandGeoSearchOptions, 'withCoord' | 'withDist' | 'withHash'> {
-  storedist?: boolean;
-}
+export type CommandGeoRadiusOptions = CommandGeoOrderOptions &
+  CommandGeoCountOptions &
+  CommandExclusiveOptions<
+    | { withCoord?: boolean; withDist?: boolean; withHash?: boolean }
+    | { store: string }
+    | { storedist: string }
+  >;
 
-export interface CommandGetExOptions {
-  expireInSeconds?: number;
-  expireInMilliseconds?: number;
-  expireAtSeconds?: number;
-  expireAtMilliseconds?: number;
-  persist?: boolean;
-}
+export type CommandGeoSearchByOptions = CommandExclusiveOptions<
+  | {
+      bybox: {
+        width: number;
+        height: number;
+        unit: CommandGeoUnitOption;
+      };
+    }
+  | {
+      byradius: {
+        radius: number;
+        unit: CommandGeoUnitOption;
+      };
+    }
+>;
+
+export type CommandGeoSearchFromOptions = CommandExclusiveOptions<
+  | { frommember: string }
+  | {
+      fromlonlat: {
+        longitude: number;
+        latitude: number;
+      };
+    }
+>;
+
+export type CommandGeoSearchStoreOptions = CommandGeoOrderOptions &
+  CommandGeoCountOptions & {
+    storedist?: boolean;
+  };
+
+export type CommandGetExOptions = CommandExclusiveOptions<
+  CommandExpireAlternatives | { persist?: boolean }
+>;
 
 export interface CommandIntegerOptions {
   bigint?: boolean;
 }
 
-export interface CommandJsonSetOptions {
-  nx?: boolean;
-  xx?: boolean;
-}
+export type CommandJsonSetOptions = CommandExclusiveOptions<
+  { nx?: boolean } | { xx?: boolean }
+>;
 
 export interface CommandJsonGetOptions {
   indent?: string;
@@ -199,12 +235,12 @@ export interface CommandJsonArrTrimOptions {
   stop: number;
 }
 
-export interface CommandLCSOptions {
-  len?: boolean;
-  idx?: boolean;
+export type CommandLCSOptions = CommandExclusiveOptions<
+  { len?: boolean } | { idx?: boolean }
+> & {
   minmatchlen?: number;
   withmatchlen?: boolean;
-}
+};
 
 export interface CommandLposOptions {
   rank?: number;
@@ -222,23 +258,26 @@ export interface CommandLimitWithScoresOptions {
   withScores?: boolean;
 }
 
-export interface CommandMigrateOptions {
+export type CommandMigrateOptions = CommandExclusiveOptions<
+  | { auth?: string }
+  | {
+      auth2?: {
+        username: string;
+        password: string;
+      };
+    }
+> & {
   copy?: boolean;
   replace?: boolean;
-  auth?: string;
-  auth2?: {
-    username: string;
-    password: string;
-  };
   keys?: string[];
-}
+};
 
-export interface CommandRestoreOptions {
+export type CommandRestoreOptions = CommandExclusiveOptions<
+  { idletime?: number } | { freq?: number }
+> & {
   replace?: boolean;
   absttl?: boolean;
-  idletime?: number;
-  freq?: number;
-}
+};
 
 export interface CommandScanBaseOptions {
   count?: number;
@@ -249,34 +288,30 @@ export interface CommandScanOptions extends CommandScanBaseOptions {
   type?: RespDataTypes;
 }
 
-export interface CommandScriptFlushOptions {
-  sync?: boolean;
-  async?: boolean;
-}
+export type CommandScriptFlushOptions = CommandExclusiveOptions<
+  { sync?: boolean } | { async?: boolean }
+>;
 
-export interface CommandSetOptions {
-  expireInSeconds?: number;
-  expireInMilliseconds?: number;
-  expireAtSeconds?: number;
-  expireAtMilliseconds?: number;
-  keepOriginalTimeToLive?: boolean;
-  setIfKeyNotExists?: boolean;
-  setIfKeyExists?: boolean;
-  setIfValueEquals?: StringOrBuffer;
-  setIfValueNotEquals?: StringOrBuffer;
-  setIfDigestEquals?: string;
-  setIfDigestNotEquals?: string;
-  returnOldValue?: boolean;
-  returnOldValueAsBuffer?: boolean;
-}
+export type CommandSetOptions = CommandExclusiveOptions<
+  CommandExpireAlternatives | { keepOriginalTimeToLive?: boolean }
+> &
+  CommandExclusiveOptions<
+    | { setIfKeyNotExists?: boolean }
+    | { setIfKeyExists?: boolean }
+    | { setIfValueEquals?: StringOrBuffer }
+    | { setIfValueNotEquals?: StringOrBuffer }
+    | { setIfDigestEquals?: string }
+    | { setIfDigestNotEquals?: string }
+  > & {
+    returnOldValue?: boolean;
+    returnOldValueAsBuffer?: boolean;
+  };
 
-export interface CommandShutdownOptions {
-  nosave?: boolean;
-  save?: boolean;
-  now?: boolean;
-  force?: boolean;
-  abort?: boolean;
-}
+export type CommandShutdownOptions = CommandExclusiveOptions<
+  | { nosave?: boolean; now?: boolean; force?: boolean }
+  | { save?: boolean; now?: boolean; force?: boolean }
+  | { abort?: boolean }
+>;
 
 export interface CommandSortOptions {
   by?: string;
@@ -337,17 +372,20 @@ export interface CommandTimeSeriesCreateRuleOptions {
   };
 }
 
-export interface CommandTimeSeriesRangeOptions {
+interface CommandTimeSeriesRangeAggregation {
+  type: string;
+  bucketDuration: number;
+}
+
+export type CommandTimeSeriesRangeOptions = {
   filterByTs?: number[];
   filterByValue?: [number, number];
   count?: number;
-  align?: number;
-  aggregation?: {
-    type: string;
-    bucketDuration: number;
-  };
   latest?: boolean;
-}
+} & (
+  | { aggregation?: CommandTimeSeriesRangeAggregation; align?: undefined }
+  | { aggregation: CommandTimeSeriesRangeAggregation; align?: number }
+);
 
 export interface CommandTimeSeriesMGetOptions {
   latest?: boolean;
@@ -362,13 +400,18 @@ export interface CommandZInterWithScoreOptions extends CommandZInterOptions {
   withScores?: boolean;
 }
 
-export interface CommandZRangeStoreOptions {
-  byScore?: boolean;
-  byLex?: boolean;
+export type CommandZRangeStoreOptions = CommandExclusiveOptions<
+  | { byScore: true; limit?: CommandLimitOptions }
+  | { byLex: true; limit?: CommandLimitOptions }
+  | { byScore?: false; byLex?: false }
+> & {
   reverse?: boolean;
-  limit?: CommandLimitOptions;
-}
+};
 
-export interface CommandZRangeOptions extends CommandZRangeStoreOptions {
-  withScores?: boolean;
-}
+export type CommandZRangeOptions = CommandExclusiveOptions<
+  | { byScore: true; limit?: CommandLimitOptions; withScores?: boolean }
+  | { byLex: true; limit?: CommandLimitOptions }
+  | { byScore?: false; byLex?: false; withScores?: boolean }
+> & {
+  reverse?: boolean;
+};

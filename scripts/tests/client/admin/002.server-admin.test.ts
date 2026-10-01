@@ -606,10 +606,10 @@ describe('server-admin', () => {
       '6380',
     ]);
 
-    assert.deepStrictEqual(createCommand({ force: true }), [
-      'FAILOVER',
-      'FORCE',
-    ]);
+    assert.deepStrictEqual(
+      createCommand({ to: toWithCredentials, timeout: 500, force: true }),
+      ['FAILOVER', 'TO', '10.0.0.2', '6380', 'FORCE', 'TIMEOUT', '500'],
+    );
 
     assert.deepStrictEqual(createCommand({ timeout: 10000 }), [
       'FAILOVER',
@@ -1110,7 +1110,6 @@ describe('server-admin', () => {
         replace: true,
         absttl: true,
         idletime: 50,
-        freq: 10,
       }),
       [
         'RESTORE',
@@ -1121,8 +1120,6 @@ describe('server-admin', () => {
         'ABSTTL',
         'IDLETIME',
         '50',
-        'FREQ',
-        '10',
       ],
     );
   });
@@ -1222,8 +1219,17 @@ describe('server-admin', () => {
     ]);
 
     assert.deepStrictEqual(
-      createCommand('ON', { prefixes: ['user:', 'session:'] }),
-      ['CLIENT', 'TRACKING', 'ON', 'PREFIX', 'user:', 'PREFIX', 'session:'],
+      createCommand('ON', { bcast: true, prefixes: ['user:', 'session:'] }),
+      [
+        'CLIENT',
+        'TRACKING',
+        'ON',
+        'PREFIX',
+        'user:',
+        'PREFIX',
+        'session:',
+        'BCAST',
+      ],
     );
 
     assert.deepStrictEqual(createCommand('ON', { bcast: true }), [
