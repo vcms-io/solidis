@@ -1,0 +1,216 @@
+/** Debug logs, tolerated handshake failures and transport edges that a healthy server never produces. */
+
+import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
+import net from 'node:net';
+import { describe, it } from 'node:test';
+
+import {
+  SolidisClient,
+  SolidisClientError,
+  SolidisConnection,
+  SolidisConnectionError,
+  SolidisDefaultOptions,
+} from '../../../../sources/index.ts';
+import { MockRedisServer, mockClientOptions } from '../../utils/index.ts';
+
+import type { SolidisDebugLog } from '../../../../sources/index.ts';
+
+function collectDebugMessages(client: SolidisClient) {
+  const messages: string[] = [];
+
+  client.on('debug', (entry: SolidisDebugLog) => {
+    messages.push(entry.message);
+  });
+
+  return messages;
+}
+
+async function startServer(reply: (command: string) => string) {
+  const server = new MockRedisServer();
+
+  server.onData((socket, data) => {
+    socket.write(reply(data.toString('latin1')));
+  });
+
+  await server.listen();
+
+  return server;
+}
+
+describe('diagnostics', () => {
+  it('describes plain, authenticated and TLS endpoints without the password', () => {
+    const clients = [
+      new SolidisClient({ host: 'cache', port: 6380, lazyConnect: true }),
+      new SolidisClient({
+        host: 'cache',
+        port: 6380,
+        tls: {},
+        authentication: { username: 'user', password: 'secret' },
+        lazyConnect: true,
+      }),
+    ];
+
+    assert.deepStrictEqual(
+      clients.map((client) => client.uri),
+      ['redis://cache:6380', 'rediss://user:***@cache:6380'],
+    );
+
+    for (const client of clients) {
+      client.quit();
+    }
+  });
+
+  it('logs socket errors and emitted errors when debug is enabled', async () => {
+    const client = new SolidisClient({
+      host: '127.0.0.1',
+      port: 1,
+      lazyConnect: true,
+      maxConnectionRetries: 0,
+      debug: true,
+    });
+    const messages = collectDebugMessages(client);
+
+    client.on('error', () => {});
+
+    try {
+      await assert.rejects(client.connect(), SolidisConnectionError);
+
+      assert.ok(messages.includes('Socket error'));
+      assert.ok(messages.includes('Encountered an error'));
+    } finally {
+      client.quit();
+    }
+  });
+
+  it('tolerates a refused HELLO and CLIENT SETNAME and logs both', async () => {
+    const server = await startServer((command) => {
+      if (command.includes('HELLO')) {
+        return "-ERR unknown command 'HELLO'\r\n";
+      }
+
+      if (command.includes('SETNAME')) {
+        return '-ERR names are disabled\r\n';
+      }
+
+      return '+PONG\r\n';
+    });
+    const client = new SolidisClient(
+      mockClientOptions(server.port, {
+        protocol: 'RESP3',
+        clientName: 'probe',
+        debug: true,
+      }),
+    );
+    const messages = collectDebugMessages(client);
+
+    client.on('error', () => {});
+
+    try {
+      await client.connect();
+
+      assert.deepStrictEqual(await client.send([['PING']]), [['PONG']]);
+      assert.ok(messages.includes('Protocol selection failed'));
+      assert.ok(messages.includes('CLIENT SETNAME "probe" failed'));
+    } finally {
+      client.quit();
+      await server.close();
+    }
+  });
+
+  it('logs a failed initialization and the reset that follows it', async () => {
+    const server = await startServer(
+      () => '-WRONGPASS invalid username-password pair\r\n',
+    );
+    const client = new SolidisClient(
+      mockClientOptions(server.port, {
+        authentication: { password: 'wrong' },
+        debug: true,
+      }),
+    );
+    const messages = collectDebugMessages(client);
+
+    client.on('error', () => {});
+
+    try {
+      await assert.rejects(client.connect(), (error: unknown) => {
+        assert.ok(error instanceof SolidisClientError);
+        assert.strictEqual(error.message, 'Authentication failed');
+
+        return true;
+      });
+
+      assert.ok(messages.includes('Initialization failed'));
+      assert.ok(messages.includes('Connection reset'));
+    } finally {
+      client.quit();
+      await server.close();
+    }
+  });
+
+  it('logs a connection that the server closes', async () => {
+    const server = await startServer(() => '+PONG\r\n');
+    const client = new SolidisClient(
+      mockClientOptions(server.port, { debug: true }),
+    );
+    const messages = collectDebugMessages(client);
+
+    client.on('error', () => {});
+
+    try {
+      await client.connect();
+
+      const closed = new Promise<void>((resolve) => {
+        client.once('close', () => resolve());
+      });
+
+      server.destroySockets();
+      await closed;
+
+      assert.ok(messages.includes('Connection closed'));
+    } finally {
+      client.quit();
+      await server.close();
+    }
+  });
+
+  it('reports a socket that closes before it connects', async (context) => {
+    context.mock.method(net, 'connect', () => {
+      const socket = Object.assign(new EventEmitter(), {
+        destroy() {},
+        setNoDelay() {},
+        setKeepAlive() {},
+      });
+
+      setImmediate(() => socket.emit('close'));
+
+      return socket as unknown as net.Socket;
+    });
+
+    const connection = new SolidisConnection({
+      ...SolidisDefaultOptions,
+      maxConnectionRetries: 0,
+    });
+    const errors: unknown[] = [];
+
+    connection.on('error', (error) => {
+      errors.push(error);
+    });
+
+    await assert.rejects(connection.connect(), (error: unknown) => {
+      assert.ok(error instanceof SolidisConnectionError);
+      assert.strictEqual(error.message, 'Connection failed after 0 retries.');
+      assert.ok(error.cause instanceof SolidisConnectionError);
+      assert.strictEqual(
+        error.cause.message,
+        'Socket closed before connection.',
+      );
+
+      return true;
+    });
+
+    assert.strictEqual(errors.length, 1);
+
+    connection.quit();
+  });
+});

@@ -62,6 +62,12 @@ describe('modules-timeseries', () => {
     const latest = await client.tsGet(key);
 
     assert.deepStrictEqual(latest, [2000, 20]);
+
+    const empty = keyspace.key('latest-empty');
+
+    await client.tsCreate(empty);
+
+    assert.strictEqual(await client.tsGet(empty), null);
   });
 
   it('queries a range of samples', async (context) => {

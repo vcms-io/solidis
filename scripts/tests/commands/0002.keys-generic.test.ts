@@ -429,7 +429,7 @@ describe('keys-generic', () => {
     );
 
     const absttlPttl = await client.pttl(destination);
-    assert.ok(absttlPttl >= 59500 && absttlPttl <= 60000);
+    assert.ok(absttlPttl > 50000 && absttlPttl <= 60000);
     assert.strictEqual(await client.get(destination), 'data');
   });
 

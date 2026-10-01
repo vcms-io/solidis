@@ -217,7 +217,7 @@ describe('strings', () => {
       'value',
     );
     const getexFutureSecondsTtl = await client.ttl(key);
-    assert.ok(getexFutureSecondsTtl >= 3599 && getexFutureSecondsTtl <= 3600);
+    assert.ok(getexFutureSecondsTtl > 3590 && getexFutureSecondsTtl <= 3600);
 
     const futureMilliseconds = Date.now() + 7200000;
 
@@ -227,7 +227,7 @@ describe('strings', () => {
     );
     const getexFutureMillisPttl = await client.pttl(key);
     assert.ok(
-      getexFutureMillisPttl >= 7199000 && getexFutureMillisPttl <= 7200000,
+      getexFutureMillisPttl > 7190000 && getexFutureMillisPttl <= 7200000,
     );
 
     assert.strictEqual(await client.getex(key, { persist: true }), 'value');

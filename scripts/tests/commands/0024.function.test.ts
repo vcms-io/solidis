@@ -127,10 +127,18 @@ describe('function', () => {
     assert.strictEqual(list.length, 1);
     assert.strictEqual(list[0].libraryName, 'solidistest');
     assert.strictEqual(list[0].engine, 'LUA');
+    assert.strictEqual(list[0].code, undefined);
     assert.deepStrictEqual(
       sortFunctionsByName(list[0].functions),
       expectedSolidistestFunctions,
     );
+
+    const [withCode] = await client.functionList({
+      libraryNamePattern: 'solidistest',
+      withCode: true,
+    });
+
+    assert.strictEqual(withCode.code, libraryCode);
   });
 
   it('invokes a function with FCALL', async (context) => {
