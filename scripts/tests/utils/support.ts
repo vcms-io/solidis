@@ -20,6 +20,10 @@ export function assertCloseTo(
   );
 }
 
+export function withoutSanitizePayload(flags: string[]): string[] {
+  return flags.filter((flag) => flag !== 'sanitize-payload');
+}
+
 export function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }

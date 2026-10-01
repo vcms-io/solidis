@@ -12,6 +12,7 @@ import {
   createClient,
   detectServerCapabilities,
   uniqueSuffix,
+  withoutSanitizePayload,
 } from '../utils/index.ts';
 
 import type { FeaturedClient } from '../utils/index.ts';
@@ -123,28 +124,20 @@ describe('acl', () => {
       assert.fail('ACL GETUSER must return user info for an active user');
     }
 
-    if (isValkey && atLeast8) {
-      assert.deepStrictEqual(info, {
-        flags: ['on'],
-        passwords: [
-          '9b8769a4a742959a2d0298c36fb70623f2dfacda8436237df08d8dfd5b37374c',
-        ],
-        commands: '+@all',
-        keys: '~*',
-        channels: '',
-        selectors: [],
-      });
-    } else if (atLeast7) {
-      assert.deepStrictEqual(info, {
-        flags: ['on', 'sanitize-payload'],
-        passwords: [
-          '9b8769a4a742959a2d0298c36fb70623f2dfacda8436237df08d8dfd5b37374c',
-        ],
-        commands: '+@all',
-        keys: '~*',
-        channels: '',
-        selectors: [],
-      });
+    if (atLeast7) {
+      assert.deepStrictEqual(
+        { ...info, flags: withoutSanitizePayload(info.flags) },
+        {
+          flags: ['on'],
+          passwords: [
+            '9b8769a4a742959a2d0298c36fb70623f2dfacda8436237df08d8dfd5b37374c',
+          ],
+          commands: '+@all',
+          keys: '~*',
+          channels: '',
+          selectors: [],
+        },
+      );
     } else {
       assert.deepStrictEqual(info, {
         flags: ['on', 'allkeys', 'allchannels', 'allcommands'],

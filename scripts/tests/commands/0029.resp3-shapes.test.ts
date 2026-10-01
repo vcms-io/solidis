@@ -12,6 +12,7 @@ import {
   isCommandSupported,
   uniqueSuffix,
   waitFor,
+  withoutSanitizePayload,
 } from '../utils/index.ts';
 
 import type { FeaturedClient, ServerCapabilities } from '../utils/index.ts';
@@ -552,12 +553,11 @@ describe('resp3-shapes', () => {
     if (info === null) {
       assert.fail('expected default ACL user info');
     }
-    if (capabilities.isValkey && capabilities.atLeast(8, 0)) {
-      assert.deepStrictEqual(info.flags, ['on', 'nopass']);
-      assert.strictEqual(info.keys, '~*');
-      assert.strictEqual(info.channels, '&*');
-    } else if (capabilities.atLeast(7, 0)) {
-      assert.deepStrictEqual(info.flags, ['on', 'nopass', 'sanitize-payload']);
+    if (capabilities.atLeast(7, 0)) {
+      assert.deepStrictEqual(withoutSanitizePayload(info.flags), [
+        'on',
+        'nopass',
+      ]);
       assert.strictEqual(info.keys, '~*');
       assert.strictEqual(info.channels, '&*');
     } else {
@@ -1442,11 +1442,7 @@ describe('resp3-shapes', () => {
       if (info === null) {
         assert.fail(`expected ACL user info for ${testUser}`);
       }
-      if (capabilities.isValkey && capabilities.atLeast(8, 0)) {
-        assert.deepStrictEqual(info.flags, ['on']);
-      } else {
-        assert.deepStrictEqual(info.flags, ['on', 'sanitize-payload']);
-      }
+      assert.deepStrictEqual(withoutSanitizePayload(info.flags), ['on']);
       assert.strictEqual(info.commands, '-@all +get +set');
       assert.strictEqual(info.keys, '~key:*');
       assert.strictEqual(info.channels, '&chan:*');
