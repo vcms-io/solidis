@@ -25,6 +25,21 @@ export function createCommand(
 export async function zinter<T>(
   this: T,
   keys: string[],
+  options: CommandZInterWithScoreOptions & { withScores: true },
+): Promise<RespSortedSetMember[]>;
+export async function zinter<T>(
+  this: T,
+  keys: string[],
+  options?: CommandZInterWithScoreOptions & { withScores?: false },
+): Promise<string[]>;
+export async function zinter<T>(
+  this: T,
+  keys: string[],
+  options?: CommandZInterWithScoreOptions,
+): Promise<string[] | RespSortedSetMember[]>;
+export async function zinter<T>(
+  this: T,
+  keys: string[],
   options: CommandZInterWithScoreOptions = {},
 ): Promise<string[] | RespSortedSetMember[]> {
   return await executeCommand(

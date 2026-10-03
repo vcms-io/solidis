@@ -4,6 +4,7 @@ import {
   tryReplyArray,
   tryReplyNumber,
   tryReplyToString,
+  tryReplyToStringArray,
   tryReplyTuple,
 } from './utils/index.ts';
 
@@ -45,6 +46,15 @@ export async function role<T>(this: T): Promise<RespRole> {
         masterPort: Number(masterPort),
         replicationState: String(replicationState),
         replicationOffset: Number(replicationOffset),
+      };
+    }
+
+    if (name === 'sentinel') {
+      const [, masterNames] = tryReplyTuple(reply, 2, command);
+
+      return {
+        role: 'sentinel',
+        masterNames: tryReplyToStringArray(masterNames, command),
       };
     }
 

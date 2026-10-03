@@ -4,12 +4,25 @@ import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
 import { bfMadd } from '../../../sources/command/bf.madd.ts';
+import { bzpopmin } from '../../../sources/command/bzpopmin.ts';
+import { cfInsert } from '../../../sources/command/cf.insert.ts';
+import { cfInsertnx } from '../../../sources/command/cf.insertnx.ts';
 import { commandDocs } from '../../../sources/command/command.docs.ts';
+import { createCommand as createCommandListCommand } from '../../../sources/command/command.list.ts';
+import { createCommand as createGeoradiusCommand } from '../../../sources/command/georadius.ts';
+import { createCommand as createGeosearchCommand } from '../../../sources/command/geosearch.ts';
 import { hrandfield } from '../../../sources/command/hrandfield.ts';
+import { jsonNumincrby } from '../../../sources/command/json.numincrby.ts';
 import { jsonType } from '../../../sources/command/json.type.ts';
 import { ping } from '../../../sources/command/ping.ts';
+import { replicaof } from '../../../sources/command/replicaof.ts';
+import { createCommand as createSortCommand } from '../../../sources/command/sort.ts';
 import { tsInfo } from '../../../sources/command/ts.info.ts';
 import { tsMadd } from '../../../sources/command/ts.madd.ts';
+import { xautoclaim } from '../../../sources/command/xautoclaim.ts';
+import { xclaim } from '../../../sources/command/xclaim.ts';
+import { xinfoConsumers } from '../../../sources/command/xinfo.consumers.ts';
+import { xinfoStream } from '../../../sources/command/xinfo.stream.ts';
 import { RespError, SolidisProtocols } from '../../../sources/index.ts';
 import {
   closeClient,
@@ -356,7 +369,11 @@ describe('normalized-replies', () => {
           'c',
           'd',
         ]),
-        [1, 0, full],
+        [1, 0, full, full],
+      );
+      assert.deepStrictEqual(
+        await bfMadd.call(createSender([true, false]), 'key', ['a', 'b', 'c']),
+        [1, 0],
       );
 
       await assert.rejects(
@@ -365,6 +382,213 @@ describe('normalized-replies', () => {
         ]),
         { message: '[TS.MADD] Unexpected reply: Buffer(1)' },
       );
+    });
+
+    it('reports a full cuckoo filter as null on both protocols', async () => {
+      for (const reply of [
+        [1, -1],
+        [true, false],
+      ]) {
+        assert.deepStrictEqual(
+          await cfInsert.call(createSender(reply), 'key', ['a', 'b']),
+          [true, null],
+        );
+      }
+
+      assert.deepStrictEqual(
+        await cfInsertnx.call(createSender([1, 0, -1]), 'key', ['a', 'b', 'c']),
+        [true, false, null],
+      );
+    });
+
+    it('skips the entries Redis 6.2 reports as deleted while claiming', async () => {
+      const entry = [bulk('2-0'), [bulk('f'), bulk('two')]];
+
+      assert.deepStrictEqual(
+        await xautoclaim.call(
+          createSender([bulk('0-0'), [null, entry]]),
+          's',
+          'g',
+          'consumer',
+          0,
+          '0-0',
+        ),
+        {
+          nextId: '0-0',
+          entries: [{ id: '2-0', fields: { f: 'two' } }],
+          deletedIds: [],
+        },
+      );
+      assert.deepStrictEqual(
+        await xclaim.call(createSender([null, entry, null]), 's', 'g', 'c', 0, [
+          '1-0',
+          '2-0',
+          '3-0',
+        ]),
+        [{ id: '2-0', fields: { f: 'two' } }],
+      );
+    });
+
+    it('reports XINFO fields that older servers omit as null', async () => {
+      const stream = new Map<string, SolidisData>([
+        ['length', 1],
+        ['radix-tree-keys', 1],
+        ['radix-tree-nodes', 2],
+        ['last-generated-id', bulk('2-0')],
+        ['groups', 0],
+        ['first-entry', null],
+        ['last-entry', null],
+      ]);
+      const full = new Map<string, SolidisData>([
+        ...stream,
+        ['entries', []],
+        [
+          'groups',
+          [
+            new Map<string, SolidisData>([
+              ['name', bulk('g')],
+              ['last-delivered-id', bulk('0-0')],
+              ['pel-count', 0],
+              ['pending', []],
+              [
+                'consumers',
+                [
+                  new Map<string, SolidisData>([
+                    ['name', bulk('alice')],
+                    ['seen-time', 1],
+                    ['pel-count', 0],
+                    ['pending', []],
+                  ]),
+                ],
+              ],
+            ]),
+          ],
+        ],
+      ]);
+
+      const info = await xinfoStream.call(createSender(stream), 's');
+
+      assert.strictEqual(info.maxDeletedEntryId, null);
+      assert.strictEqual(info.entriesAdded, null);
+
+      const fullInfo = await xinfoStream.call(createSender(full), 's', true);
+
+      assert.ok('recordedFirstEntryId' in fullInfo);
+      assert.strictEqual(fullInfo.recordedFirstEntryId, null);
+      assert.strictEqual(fullInfo.groups[0].entriesRead, null);
+      assert.strictEqual(fullInfo.groups[0].consumers[0].activeTime, null);
+      assert.deepStrictEqual(
+        await xinfoConsumers.call(
+          createSender([
+            new Map<string, SolidisData>([
+              ['name', bulk('alice')],
+              ['pending', 0],
+              ['idle', 5],
+            ]),
+          ]),
+          's',
+          'g',
+        ),
+        [{ name: 'alice', pending: 0, idle: 5, inactive: null }],
+      );
+    });
+
+    it('formats JSON number updates the same way on both protocols', async () => {
+      const exchanges: [SolidisData, string, string][] = [
+        [
+          bulk('[3.0,null,9007199254740993]'),
+          '$..a',
+          '[3,null,9007199254740993]',
+        ],
+        [bulk('[]'), '$.missing', '[]'],
+        [bulk('3.0'), '.a', '3'],
+        [bulk('-1.5e-7'), '.a', '-1.5e-7'],
+        [
+          [3, null, 9007199254740993n, 8.5],
+          '$..a',
+          '[3,null,9007199254740993,8.5]',
+        ],
+        [[4], '.a', '4'],
+      ];
+
+      for (const [reply, path, text] of exchanges) {
+        assert.strictEqual(
+          await jsonNumincrby.call(createSender(reply), 'key', path, 1),
+          text,
+        );
+      }
+
+      await assert.rejects(
+        jsonNumincrby.call(createSender(bulk('[abc]')), 'key', '$.a', 1),
+        { message: '[JSON.NUMINCRBY] Unexpected reply: string' },
+      );
+    });
+
+    it('formats BZPOPMIN scores the same way on both protocols', async () => {
+      for (const score of [bulk('1.5e-6'), 0.0000015]) {
+        assert.deepStrictEqual(
+          await bzpopmin.call(
+            createSender([bulk('key'), bulk('member'), score]),
+            ['key'],
+            0,
+          ),
+          ['key', 'member', '0.0000015'],
+        );
+      }
+
+      assert.deepStrictEqual(
+        await bzpopmin.call(
+          createSender([bulk('key'), bulk('member'), bulk('-inf')]),
+          ['key'],
+          0,
+        ),
+        ['key', 'member', '-inf'],
+      );
+    });
+
+    it('accepts every OK status REPLICAOF answers with', async () => {
+      for (const status of ['OK', 'OK Already connected to specified master']) {
+        assert.strictEqual(
+          await replicaof.call(createSender(status), 'NO', 'ONE'),
+          'OK',
+        );
+      }
+
+      await assert.rejects(
+        replicaof.call(createSender('QUEUED'), 'host', 6379),
+        { message: '[REPLICAOF] Unexpected reply: string' },
+      );
+    });
+
+    it('sends empty-string options instead of dropping them', () => {
+      assert.deepStrictEqual(
+        createGeosearchCommand(
+          'places',
+          { frommember: '' },
+          { byradius: { radius: 1, unit: 'KM' } },
+        ),
+        ['GEOSEARCH', 'places', 'FROMMEMBER', '', 'BYRADIUS', '1', 'km'],
+      );
+      assert.deepStrictEqual(
+        createGeoradiusCommand('places', 0, 0, 1, 'KM', {
+          store: '',
+        }),
+        ['GEORADIUS', 'places', '0', '0', '1', 'km', 'STORE', ''],
+      );
+      assert.deepStrictEqual(createCommandListCommand({ pattern: '' }), [
+        'COMMAND',
+        'LIST',
+        'FILTERBY',
+        'PATTERN',
+        '',
+      ]);
+      assert.deepStrictEqual(createSortCommand('list', { store: '' }), [
+        'SORT',
+        'list',
+        'STORE',
+        '',
+      ]);
+      assert.deepStrictEqual(createSortCommand('list', {}), ['SORT', 'list']);
     });
   });
 

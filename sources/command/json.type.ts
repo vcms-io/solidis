@@ -43,6 +43,11 @@ export async function jsonType<T>(
   this: T,
   key: string,
   path?: string,
+): Promise<RespJsonType | (RespJsonType | null)[] | null>;
+export async function jsonType<T>(
+  this: T,
+  key: string,
+  path?: string,
 ): Promise<RespJsonType | (RespJsonType | null)[] | null> {
   return await executeCommand(
     this,

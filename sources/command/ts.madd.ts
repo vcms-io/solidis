@@ -23,6 +23,7 @@ export async function tsMadd<T>(
   return await executeCommand(
     this,
     createCommand(key, samples),
-    tryReplyToNumberOrErrorArray,
+    (reply, command) =>
+      tryReplyToNumberOrErrorArray(reply, command, samples.length),
   );
 }

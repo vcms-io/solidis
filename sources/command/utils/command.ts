@@ -169,11 +169,11 @@ export function buildGeoRadiusCommand(
 
   appendGeoResultOptions(command, options);
 
-  if (options?.store) {
+  if (options?.store !== undefined) {
     command.push('STORE', options.store);
   }
 
-  if (options?.storedist) {
+  if (options?.storedist !== undefined) {
     command.push('STOREDIST', options.storedist);
   }
 
@@ -188,7 +188,7 @@ export function buildGeoSearchCommand(
 ) {
   const command = [...baseCommand];
 
-  if (from.frommember) {
+  if (from.frommember !== undefined) {
     command.push('FROMMEMBER', from.frommember);
   } else if (from.fromlonlat) {
     command.push(
@@ -515,6 +515,12 @@ export function buildKeyPopExecutor(commandName: string) {
     key: string,
     count?: number,
     options?: Options,
+  ): Promise<RespString<Options> | RespString<Options>[] | null>;
+  async function pop<T, Options extends CommandBufferOptions | undefined>(
+    this: T,
+    key: string,
+    count?: number,
+    options?: Options,
   ): Promise<RespString<Options> | RespString<Options>[] | null> {
     const command = [commandName, key];
 
@@ -620,7 +626,7 @@ export function buildScriptCommand(
 export function buildSortCommand(
   commandName: string,
   key: string,
-  options?: CommandSortOptions,
+  options?: Omit<CommandSortOptions, 'store'>,
 ) {
   const command = [commandName, key];
 

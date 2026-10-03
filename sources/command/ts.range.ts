@@ -4,12 +4,15 @@ import {
   tryReplyToTimeSeriesSamples,
 } from './utils/index.ts';
 
-import type { CommandTimeSeriesRangeOptions } from '../index.ts';
+import type {
+  CommandTimeSeriesRangeOptions,
+  CommandTimeSeriesTimestamp,
+} from '../index.ts';
 
 export function createCommand(
   key: string,
-  fromTimestamp: number,
-  toTimestamp: number,
+  fromTimestamp: CommandTimeSeriesTimestamp,
+  toTimestamp: CommandTimeSeriesTimestamp,
   options: CommandTimeSeriesRangeOptions,
 ) {
   const baseCommand = ['TS.RANGE', key, `${fromTimestamp}`, `${toTimestamp}`];
@@ -20,8 +23,8 @@ export function createCommand(
 export async function tsRange<T>(
   this: T,
   key: string,
-  fromTimestamp: number,
-  toTimestamp: number,
+  fromTimestamp: CommandTimeSeriesTimestamp,
+  toTimestamp: CommandTimeSeriesTimestamp,
   options: CommandTimeSeriesRangeOptions = {},
 ): Promise<Array<{ timestamp: number; value: number }>> {
   return await executeCommand(

@@ -24,7 +24,7 @@ function parseInfo(reply: string): Record<string, string> {
       const trimmedKey = trimmedLine.slice(0, separatorIndex).trim();
       const trimmedValue = trimmedLine.slice(separatorIndex + 1).trim();
 
-      if (separatorIndex !== -1 && trimmedKey && trimmedValue) {
+      if (separatorIndex !== -1 && trimmedKey) {
         record[trimmedKey] = trimmedValue;
       }
     }

@@ -5,6 +5,7 @@ import {
   tryReplyToNumberOrNull,
   tryReplyToStreamEntries,
   tryReplyToStreamEntry,
+  tryReplyToStringOrNull,
   tryReplyTuple,
 } from './utils/index.ts';
 
@@ -41,7 +42,10 @@ function parseConsumer(
   return {
     name: String(result.get('name')),
     seenTime: Number(result.get('seen-time')),
-    activeTime: Number(result.get('active-time')),
+    activeTime: tryReplyToNumberOrNull(
+      result.get('active-time') ?? null,
+      command,
+    ),
     pelCount: Number(result.get('pel-count')),
     pending: tryReplyArray(result.get('pending'), command).map(
       (entry): RespStreamConsumerPending => {
@@ -115,8 +119,14 @@ export async function xinfoStream<T>(
         radixTreeKeys: Number(result.get('radix-tree-keys')),
         radixTreeNodes: Number(result.get('radix-tree-nodes')),
         lastGeneratedId: String(result.get('last-generated-id')),
-        maxDeletedEntryId: String(result.get('max-deleted-entry-id')),
-        entriesAdded: Number(result.get('entries-added')),
+        maxDeletedEntryId: tryReplyToStringOrNull(
+          result.get('max-deleted-entry-id') ?? null,
+          command,
+        ),
+        entriesAdded: tryReplyToNumberOrNull(
+          result.get('entries-added') ?? null,
+          command,
+        ),
         firstEntry: null,
         lastEntry: null,
         groups: Number(result.get('groups')),
@@ -139,7 +149,10 @@ export async function xinfoStream<T>(
 
       return {
         ...baseInformation,
-        recordedFirstEntryId: String(result.get('recorded-first-entry-id')),
+        recordedFirstEntryId: tryReplyToStringOrNull(
+          result.get('recorded-first-entry-id') ?? null,
+          command,
+        ),
         entries: tryReplyToStreamEntries(result.get('entries'), command),
         groups: tryReplyArray(result.get('groups'), command).map((group) =>
           parseGroup(group, command),

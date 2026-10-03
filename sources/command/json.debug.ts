@@ -37,6 +37,12 @@ export async function jsonDebug<T>(
   subcommand: 'MEMORY' | 'HELP',
   key?: string,
   path?: string,
+): Promise<string[] | number | (number | null)[] | null>;
+export async function jsonDebug<T>(
+  this: T,
+  subcommand: 'MEMORY' | 'HELP',
+  key?: string,
+  path?: string,
 ): Promise<string[] | number | (number | null)[] | null> {
   return await executeCommand(
     this,

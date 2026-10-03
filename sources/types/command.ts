@@ -39,6 +39,10 @@ type CommandExclusiveAlternatives<Options, Alternatives> =
 export type CommandExclusiveOptions<Alternatives> =
   CommandExclusiveAlternatives<Alternatives, Alternatives>;
 
+export type CommandExactOptions<Options, Shape> = {
+  [Key in Exclude<keyof Options, CommandOptionKeys<Shape>>]: never;
+};
+
 type CommandExpireAlternatives =
   | { expireInSeconds?: number }
   | { expireInMilliseconds?: number }
@@ -263,6 +267,8 @@ export interface CommandLimitWithScoresOptions {
   withScores?: boolean;
 }
 
+export type CommandTimeSeriesTimestamp = number | '-' | '+';
+
 export type CommandMigrateOptions = CommandExclusiveOptions<
   | { auth?: string }
   | {
@@ -324,9 +330,11 @@ export interface CommandSortOptions {
   get?: string[];
   order?: 'ASC' | 'DESC';
   alpha?: boolean;
+  store?: never;
 }
 
-export interface CommandSortStoreOptions extends CommandSortOptions {
+export interface CommandSortStoreOptions
+  extends Omit<CommandSortOptions, 'store'> {
   store: string;
 }
 
@@ -389,11 +397,22 @@ export type CommandTimeSeriesRangeOptions = {
   latest?: boolean;
 } & (
   | { aggregation?: CommandTimeSeriesRangeAggregation; align?: undefined }
-  | { aggregation: CommandTimeSeriesRangeAggregation; align?: number }
+  | {
+      aggregation: CommandTimeSeriesRangeAggregation;
+      align?: CommandTimeSeriesTimestamp | 'start' | 'end';
+    }
 );
 
 export interface CommandTimeSeriesMGetOptions {
   latest?: boolean;
+}
+
+export interface XclaimOptions {
+  idle?: number;
+  time?: number;
+  retrycount?: number;
+  force?: boolean;
+  justid?: boolean;
 }
 
 export interface CommandZInterOptions {

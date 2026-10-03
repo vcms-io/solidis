@@ -4,15 +4,9 @@ import {
   tryReplyToStringArray,
 } from './utils/index.ts';
 
-import type { RespStreamEntry } from '../index.ts';
+import type { RespStreamEntry, XclaimOptions } from '../index.ts';
 
-export interface XclaimOptions {
-  idle?: number;
-  time?: number;
-  retrycount?: number;
-  force?: boolean;
-  justid?: boolean;
-}
+export type { XclaimOptions };
 
 export function createCommand(
   key: string,

@@ -19,10 +19,13 @@ export async function cfInsert<T>(
   key: string,
   items: string[],
   options?: CommandCuckooFilterInsertOptions,
-): Promise<boolean[]> {
+): Promise<(boolean | null)[]> {
   return await executeCommand(
     this,
     createCommand(key, items, options),
-    tryReplyToCuckooFilterInsertResults,
+    (reply, command) =>
+      tryReplyToCuckooFilterInsertResults(reply, command).map(
+        (result) => result || null,
+      ),
   );
 }

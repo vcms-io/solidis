@@ -2426,11 +2426,35 @@ describe('fragility', () => {
       assert.strictEqual(result.replicationOffset, 500);
     });
 
+    it('reads the masters a sentinel monitors from ROLE', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(
+          Buffer.from(
+            '*2\r\n$8\r\nsentinel\r\n*2\r\n$8\r\nmymaster\r\n$5\r\nother\r\n',
+            'latin1',
+          ),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+
+      await client.connect();
+
+      assert.deepStrictEqual(await client.role(), {
+        role: 'sentinel',
+        masterNames: ['mymaster', 'other'],
+      });
+    });
+
     it('throws SolidisCommandError for unknown ROLE type', async () => {
       const server = await startMockServer();
 
       server.onData((socket) => {
-        socket.write(Buffer.from('*2\r\n$8\r\nsentinel\r\n*0\r\n', 'latin1'));
+        socket.write(Buffer.from('*2\r\n$7\r\nwitness\r\n*0\r\n', 'latin1'));
       });
 
       const client = trackMockClient(

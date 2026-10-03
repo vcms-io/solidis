@@ -45,6 +45,7 @@ export async function bfInsert<T>(
   return await executeCommand(
     this,
     createCommand(key, items, options),
-    tryReplyToNumberOrErrorArray,
+    (reply, command) =>
+      tryReplyToNumberOrErrorArray(reply, command, items.length),
   );
 }

@@ -65,10 +65,15 @@ describe('binary-values', () => {
     describe(`over ${protocol}`, () => {
       let client: FeaturedClient;
       let isAtLeast7 = false;
+      let isAtLeast62 = false;
 
       before(async () => {
         client = await createClient({ protocol });
-        isAtLeast7 = (await detectServerCapabilities(client)).atLeast(7, 0);
+
+        const capabilities = await detectServerCapabilities(client);
+
+        isAtLeast7 = capabilities.atLeast(7, 0);
+        isAtLeast62 = capabilities.atLeast(6, 2);
       });
 
       after(async () => {
@@ -132,7 +137,7 @@ describe('binary-values', () => {
       });
 
       it('reads GETEX values as bytes together with an expiration', async (context) => {
-        if (!isAtLeast7) {
+        if (!isAtLeast62) {
           context.skip('requires Redis 6.2+ with GETEX');
           return;
         }

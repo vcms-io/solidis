@@ -28,6 +28,28 @@ export function createCommand(
 export async function zrandmember<T>(
   this: T,
   key: string,
+): Promise<string | null>;
+export async function zrandmember<T>(
+  this: T,
+  key: string,
+  count: number,
+  withScores?: false,
+): Promise<string[]>;
+export async function zrandmember<T>(
+  this: T,
+  key: string,
+  count: number,
+  withScores: true,
+): Promise<RespSortedSetMember[]>;
+export async function zrandmember<T>(
+  this: T,
+  key: string,
+  count?: number,
+  withScores?: boolean,
+): Promise<string | string[] | RespSortedSetMember[] | null>;
+export async function zrandmember<T>(
+  this: T,
+  key: string,
   count?: number,
   withScores?: boolean,
 ): Promise<string | string[] | RespSortedSetMember[] | null> {

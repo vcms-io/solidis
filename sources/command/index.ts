@@ -270,6 +270,7 @@ export { scriptKill } from './script.kill.ts';
 export { scriptLoad } from './script.load.ts';
 export { sdiff } from './sdiff.ts';
 export { sdiffstore } from './sdiffstore.ts';
+export { select } from './select.ts';
 export { set } from './set.ts';
 export { setbit } from './setbit.ts';
 export { setex } from './setex.ts';

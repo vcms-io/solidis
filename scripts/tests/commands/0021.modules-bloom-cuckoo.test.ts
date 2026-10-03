@@ -202,15 +202,24 @@ describe('modules-bloom-cuckoo', () => {
       nocreate: true,
     });
 
-    assert.ok(added.length < 4);
+    assert.strictEqual(added.length, 4);
+    assert.strictEqual(inserted.length, 2);
 
     for (const results of [added, inserted]) {
-      const failure = results.at(-1);
+      const failureIndex = results.findIndex(
+        (result) => result instanceof RespError,
+      );
+      const failure = results[failureIndex];
 
       assert.ok(failure instanceof RespError);
       assert.match(failure.message, /full/);
       assert.ok(
-        results.slice(0, -1).every((result) => result === 0 || result === 1),
+        results
+          .slice(0, failureIndex)
+          .every((result) => result === 0 || result === 1),
+      );
+      assert.ok(
+        results.slice(failureIndex).every((result) => result === failure),
       );
     }
 

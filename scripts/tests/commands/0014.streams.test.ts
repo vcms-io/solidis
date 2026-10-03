@@ -368,7 +368,7 @@ describe('streams', () => {
       consumer.seenTime > 0,
       'consumer seenTime must be a positive timestamp',
     );
-    if (!Number.isNaN(consumer.activeTime)) {
+    if (consumer.activeTime !== null) {
       assert.ok(
         consumer.activeTime > 0,
         'consumer activeTime must be a positive timestamp',

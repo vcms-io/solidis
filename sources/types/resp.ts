@@ -1,5 +1,5 @@
 import type { CommandExclusiveOptions } from './command.ts';
-import type { SolidisData, StringOrBuffer } from './solidis.ts';
+import type { SolidisData } from './solidis.ts';
 
 export const RespDataTypes = {
   STRING: 'STRING',
@@ -30,16 +30,28 @@ export type RespBitOperation = 'AND' | 'OR' | 'XOR' | 'NOT';
 export type RespBitfield = `i${number}` | `u${number}`;
 export type RespBitfieldOverflow = 'WRAP' | 'SAT' | 'FAIL';
 export type RespHashField = Record<string, string>;
-export type RespInteger<Options> = Options extends { bigint: true }
-  ? bigint
-  : Options extends undefined | { bigint?: false }
-    ? number
-    : number | bigint;
-export type RespString<Options> = Options extends { buffer: true }
-  ? Buffer
-  : Options extends undefined | { buffer?: false }
-    ? string
-    : StringOrBuffer;
+type RespOptionResult<Options, Key extends string, Enabled, Disabled> =
+  Options extends Record<Key, true>
+    ? Enabled
+    : Options extends object
+      ? Key extends keyof Options
+        ? true extends Options[Key]
+          ? Enabled | Disabled
+          : Disabled
+        : Disabled
+      : Disabled;
+export type RespInteger<Options> = RespOptionResult<
+  Options,
+  'bigint',
+  bigint,
+  number
+>;
+export type RespString<Options> = RespOptionResult<
+  Options,
+  'buffer',
+  Buffer,
+  string
+>;
 export type RespSetMember = string;
 export type RespListMember = string;
 export const RespJsonType = [
@@ -56,7 +68,7 @@ export type RespJsonType = (typeof RespJsonType)[number];
 export type RespLatencyEvent =
   | 'active-defrag-cycle'
   | 'aof-fsync-always'
-  | 'aof-stat'
+  | 'aof-fstat'
   | 'aof-rewrite-diff-write'
   | 'aof-rename'
   | 'aof-write'
@@ -65,11 +77,14 @@ export type RespLatencyEvent =
   | 'aof-write-pending-fsync'
   | 'command'
   | 'expire-cycle'
+  | 'expire-del'
   | 'eviction-cycle'
   | 'eviction-del'
+  | 'eviction-lazyfree'
   | 'fast-command'
   | 'fork'
-  | 'rdb-unlink-temp-file';
+  | 'rdb-unlink-temp-file'
+  | 'while-blocked-cron';
 
 export interface RespAclLogEntry {
   count: number;
@@ -320,7 +335,11 @@ export interface RespRoleSlave {
   replicationState: string;
   replicationOffset: number;
 }
-export type RespRole = RespRoleMaster | RespRoleSlave;
+export interface RespRoleSentinel {
+  role: 'sentinel';
+  masterNames: string[];
+}
+export type RespRole = RespRoleMaster | RespRoleSlave | RespRoleSentinel;
 export interface RespSlowLogEntry {
   id: number;
   timestamp: number;
@@ -342,7 +361,7 @@ export interface RespStreamConsumerInfo {
   name: string;
   pending: number;
   idle: number;
-  inactive: number;
+  inactive: number | null;
 }
 export interface RespStreamConsumerPending {
   id: string;
@@ -368,7 +387,7 @@ export interface RespStreamGroupInfo {
 export interface RespStreamGroupConsumer {
   name: string;
   seenTime: number;
-  activeTime: number;
+  activeTime: number | null;
   pelCount: number;
   pending: RespStreamConsumerPending[];
 }
@@ -392,8 +411,8 @@ export interface RespStreamInfoBase {
   radixTreeKeys: number;
   radixTreeNodes: number;
   lastGeneratedId: string;
-  maxDeletedEntryId: string;
-  entriesAdded: number;
+  maxDeletedEntryId: string | null;
+  entriesAdded: number | null;
   firstEntry: RespStreamEntry | null;
   lastEntry: RespStreamEntry | null;
 }
@@ -401,7 +420,7 @@ export interface RespStreamInfo extends RespStreamInfoBase {
   groups: number;
 }
 export interface RespStreamInfoFull extends RespStreamInfoBase {
-  recordedFirstEntryId: string;
+  recordedFirstEntryId: string | null;
   entries: RespStreamEntry[];
   groups: RespStreamGroupDetail[];
 }

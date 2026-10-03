@@ -363,6 +363,7 @@ describe('regressions', () => {
         listener0: 'name=tcp,bind=*,bind=-::*,port=6379',
         redis_version: '8.0.0',
         connected_clients: '1',
+        empty: '',
       });
     });
 
@@ -462,7 +463,7 @@ describe('regressions', () => {
       assert.strictEqual(await client.ping(), 'PONG');
     });
 
-    it('reports false for items a full cuckoo filter rejects', async (context) => {
+    it('reports null for items a full cuckoo filter rejects', async (context) => {
       if (!features.hasFullCuckooFilter) {
         context.skip('non-expanding cuckoo filters not supported');
 
@@ -473,21 +474,21 @@ describe('regressions', () => {
 
       await client.cfReserve(key, 2, 1, 1, 0);
 
-      const results = await client.cfInsert(
-        key,
-        ['a', 'b', 'c', 'd', 'e', 'f'],
-        { nocreate: true },
-      );
+      const items = ['a', 'b', 'c', 'd', 'e', 'f'];
+      const results = await client.cfInsert(key, items, { nocreate: true });
+      const stored = items.filter((_, index) => results[index] === true);
 
       assert.strictEqual(results.length, 6);
       assert.strictEqual(
-        results.every((result) => typeof result === 'boolean'),
+        results.every((result) => result === true || result === null),
         true,
       );
-      assert.strictEqual(results.filter(Boolean).length, 2);
+      assert.strictEqual(stored.length, 2);
       assert.deepStrictEqual(
-        await client.cfInsertnx(key, ['never-fits'], { nocreate: true }),
-        [false],
+        await client.cfInsertnx(key, ['never-fits', stored[0]], {
+          nocreate: true,
+        }),
+        [null, false],
       );
     });
 
@@ -577,7 +578,7 @@ describe('regressions', () => {
       assert.deepStrictEqual(await client.sort(list), ['1', '2', '3']);
     });
 
-    it('reports module types upper-cased', async (context) => {
+    it('reports core types upper-cased and module types as the server names them', async (context) => {
       if (!features.hasJson || !features.hasTimeSeries) {
         context.skip('RedisJSON and RedisTimeSeries not loaded');
 
@@ -590,7 +591,7 @@ describe('regressions', () => {
       await client.jsonSet(json, '$', '{}');
       await client.tsCreate(series);
 
-      assert.strictEqual(await client.type(json), 'REJSON-RL');
+      assert.strictEqual(await client.type(json), 'ReJSON-RL');
       assert.strictEqual(await client.type(series), 'TSDB-TYPE');
       assert.strictEqual(
         await client.type(keyspace.key('type', 'none')),

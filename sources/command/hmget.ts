@@ -26,7 +26,12 @@ export async function hmget<T, Options extends CommandBufferOptions>(
 export async function hmget<T>(
   this: T,
   key: string,
-  ...parameters: (string | CommandBufferOptions)[]
+  ...parameters: (string | CommandBufferOptions | undefined)[]
+): Promise<(StringOrBuffer | null)[]>;
+export async function hmget<T>(
+  this: T,
+  key: string,
+  ...parameters: (string | CommandBufferOptions | undefined)[]
 ): Promise<(StringOrBuffer | null)[]> {
   const fields = parameters.filter(
     (parameter) => typeof parameter === 'string',

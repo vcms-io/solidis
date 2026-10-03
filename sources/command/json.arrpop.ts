@@ -32,6 +32,12 @@ export async function jsonArrpop<T>(
   key: string,
   path?: string,
   index?: number,
+): Promise<string | (string | null)[] | null>;
+export async function jsonArrpop<T>(
+  this: T,
+  key: string,
+  path?: string,
+  index?: number,
 ): Promise<string | (string | null)[] | null> {
   return await executeCommand(
     this,

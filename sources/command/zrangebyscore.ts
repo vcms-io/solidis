@@ -32,6 +32,27 @@ export async function zrangebyscore<T>(
   key: string,
   min: number,
   max: number,
+  options: CommandLimitWithScoresOptions & { withScores: true },
+): Promise<RespSortedSetMember[]>;
+export async function zrangebyscore<T>(
+  this: T,
+  key: string,
+  min: number,
+  max: number,
+  options?: CommandLimitWithScoresOptions & { withScores?: false },
+): Promise<string[]>;
+export async function zrangebyscore<T>(
+  this: T,
+  key: string,
+  min: number,
+  max: number,
+  options?: CommandLimitWithScoresOptions,
+): Promise<string[] | RespSortedSetMember[]>;
+export async function zrangebyscore<T>(
+  this: T,
+  key: string,
+  min: number,
+  max: number,
   options?: CommandLimitWithScoresOptions,
 ): Promise<string[] | RespSortedSetMember[]> {
   return await executeCommand(

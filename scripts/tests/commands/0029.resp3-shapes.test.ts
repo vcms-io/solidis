@@ -730,11 +730,15 @@ describe('resp3-shapes', () => {
       'consumer must have a positive seen-time',
     );
 
-    if (capabilities.atLeast(7, 0)) {
+    const { activeTime } = group.consumers[0];
+
+    if (capabilities.atLeast(7, 2)) {
       assert.ok(
-        group.consumers[0].activeTime > 0,
+        activeTime !== null && activeTime > 0,
         'consumer must have a positive active-time',
       );
+    } else {
+      assert.strictEqual(activeTime, null);
     }
 
     assert.strictEqual(group.consumers[0].pending.length, 1);

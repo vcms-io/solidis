@@ -292,17 +292,6 @@ export function tryReplyToNumberOrNull(
   return reply === null ? null : tryReplyToNumber(reply, commandName);
 }
 
-export function tryReplyToDoubleString(
-  reply: unknown,
-  commandName?: CommandName,
-): string {
-  if (typeof reply === 'number') {
-    return formatDouble(reply);
-  }
-
-  return tryReplyToString(reply, commandName);
-}
-
 export function processPairedArray(
   array: unknown,
   processor: (key: string, value: unknown) => void,
@@ -426,11 +415,19 @@ export function tryReplyToNumberArray(
 
 export function tryReplyToNumberOrErrorArray(
   reply: unknown,
-  commandName?: CommandName,
+  commandName: CommandName | undefined,
+  length: number,
 ): (number | RespError)[] {
-  return tryReplyArray(reply, commandName).map((item) =>
+  const results = tryReplyArray(reply, commandName).map((item) =>
     item instanceof RespError ? item : tryReplyToNumber(item, commandName),
   );
+  const last = results.at(-1);
+
+  while (results.length < length && last instanceof RespError) {
+    results.push(last);
+  }
+
+  return results;
 }
 
 export function tryReplyToNullableNumberArray(
@@ -499,16 +496,16 @@ export function tryReplyToKeyMemberScoreOrNull(
   return [
     tryReplyToString(key, commandName),
     tryReplyToString(member, commandName),
-    tryReplyToDoubleString(score, commandName),
+    formatDouble(tryReplyToNumber(score, commandName)),
   ];
 }
 
 export function tryReplyToCuckooFilterInsertResults(
   reply: unknown,
   commandName?: CommandName,
-): boolean[] {
+): (boolean | null)[] {
   return tryReplyArray(reply, commandName).map((value) =>
-    value === -1 ? false : tryReplyToBoolean(value, commandName),
+    value === -1 ? null : tryReplyToBoolean(value, commandName),
   );
 }
 
@@ -528,17 +525,18 @@ export function tryReplyToJsonNumberText(
   path: string,
   commandName?: CommandName,
 ): string {
-  if (!Array.isArray(reply)) {
-    return tryReplyToString(reply, commandName);
-  }
+  const values = Array.isArray(reply)
+    ? reply
+    : (tryReplyToString(reply, commandName).match(/[^[\],]+/g) ?? []);
+  const texts = values.map((value) => {
+    const text = `${value}`;
 
-  const values = tryReplyToNullableNumberArray(reply, commandName);
+    return text === 'null' || /^-?\d+$/.test(text)
+      ? text
+      : formatDouble(tryReplyToNumber(text, commandName));
+  });
 
-  if (!path.startsWith('$') && values.length === 1) {
-    return `${values[0]}`;
-  }
-
-  return JSON.stringify(values);
+  return path.startsWith('$') ? `[${texts.join(',')}]` : texts[0];
 }
 
 export function tryReplyToNumberScalarOrArray(
@@ -788,9 +786,9 @@ export function tryReplyToStreamEntries(
   reply: unknown,
   commandName?: CommandName,
 ): RespStreamEntry[] {
-  return tryReplyArray(reply, commandName).map((entry) =>
-    tryReplyToStreamEntry(entry, commandName),
-  );
+  return tryReplyArray(reply, commandName)
+    .filter((entry) => entry !== null)
+    .map((entry) => tryReplyToStreamEntry(entry, commandName));
 }
 
 export function tryReplyToTimeSeriesSamples(

@@ -1,4 +1,9 @@
-import { executeCommand, tryReplyArray, tryReplyToMap } from './utils/index.ts';
+import {
+  executeCommand,
+  tryReplyArray,
+  tryReplyToMap,
+  tryReplyToNumberOrNull,
+} from './utils/index.ts';
 
 import type { RespStreamConsumerInfo } from '../index.ts';
 
@@ -22,7 +27,10 @@ export async function xinfoConsumers<T>(
           name: String(result.get('name')),
           pending: Number(result.get('pending')),
           idle: Number(result.get('idle')),
-          inactive: Number(result.get('inactive')),
+          inactive: tryReplyToNumberOrNull(
+            result.get('inactive') ?? null,
+            command,
+          ),
         };
       }),
   );

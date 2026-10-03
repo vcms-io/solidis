@@ -14,6 +14,7 @@ export async function bfMadd<T>(
   return await executeCommand(
     this,
     createCommand(key, items),
-    tryReplyToNumberOrErrorArray,
+    (reply, command) =>
+      tryReplyToNumberOrErrorArray(reply, command, items.length),
   );
 }

@@ -383,7 +383,10 @@ import {
 } from '../command/index.ts';
 import { SolidisClient } from '../index.ts';
 
-import type { SolidisClientOptions } from '../index.ts';
+import type {
+  SolidisClientOptions,
+  SolidisTransactionClient,
+} from '../index.ts';
 
 export class SolidisFeaturedClient extends SolidisClient {
   constructor(options?: SolidisClientOptions) {
@@ -627,7 +630,7 @@ export class SolidisFeaturedClient extends SolidisClient {
   move = move;
   mset = mset;
   msetnx = msetnx;
-  multi = multi;
+  multi: () => SolidisTransactionClient<this> = multi;
   objectEncoding = objectEncoding;
   objectFreq = objectFreq;
   objectHelp = objectHelp;

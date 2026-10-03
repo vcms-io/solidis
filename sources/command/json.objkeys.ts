@@ -23,6 +23,11 @@ export async function jsonObjkeys<T>(
   this: T,
   key: string,
   path?: string,
+): Promise<(string | (string | null)[] | null)[] | null>;
+export async function jsonObjkeys<T>(
+  this: T,
+  key: string,
+  path?: string,
 ): Promise<(string | (string | null)[] | null)[] | null> {
   return await executeCommand(
     this,

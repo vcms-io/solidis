@@ -4,7 +4,11 @@ import {
   tryReplyToStringOrBufferOrNull,
 } from './utils/index.ts';
 
-import type { CommandGetExOptions, RespString } from '../index.ts';
+import type {
+  CommandExactOptions,
+  CommandGetExOptions,
+  RespString,
+} from '../index.ts';
 
 export function createCommand(key: string, options?: CommandGetExOptions) {
   const command = ['GETEX', key];
@@ -26,11 +30,12 @@ export async function getex<
 >(
   this: T,
   key: string,
-  options?: Options,
+  options?: Options & CommandExactOptions<Options, CommandGetExOptions>,
 ): Promise<RespString<Options> | null> {
   return await executeCommand(
     this,
     createCommand(key, options),
-    (reply, command) => tryReplyToStringOrBufferOrNull(reply, command, options),
+    (reply, command) =>
+      tryReplyToStringOrBufferOrNull<Options>(reply, command, options),
   );
 }

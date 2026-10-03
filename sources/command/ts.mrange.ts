@@ -4,11 +4,14 @@ import {
   tryReplyToTimeSeriesMultiRangeResults,
 } from './utils/index.ts';
 
-import type { CommandTimeSeriesRangeOptions } from '../index.ts';
+import type {
+  CommandTimeSeriesRangeOptions,
+  CommandTimeSeriesTimestamp,
+} from '../index.ts';
 
 export function createCommand(
-  fromTimestamp: number,
-  toTimestamp: number,
+  fromTimestamp: CommandTimeSeriesTimestamp,
+  toTimestamp: CommandTimeSeriesTimestamp,
   filter: Record<string, string>,
   options: CommandTimeSeriesRangeOptions,
 ) {
@@ -26,8 +29,8 @@ export function createCommand(
 
 export async function tsMrange<T>(
   this: T,
-  fromTimestamp: number,
-  toTimestamp: number,
+  fromTimestamp: CommandTimeSeriesTimestamp,
+  toTimestamp: CommandTimeSeriesTimestamp,
   filter: Record<string, string>,
   options: CommandTimeSeriesRangeOptions = {},
 ): Promise<

@@ -31,6 +31,12 @@ export async function jsonStrappend<T>(
   key: string,
   value: string,
   path?: string,
+): Promise<number | (number | null)[] | null>;
+export async function jsonStrappend<T>(
+  this: T,
+  key: string,
+  value: string,
+  path?: string,
 ): Promise<number | (number | null)[] | null> {
   return await executeCommand(
     this,

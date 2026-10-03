@@ -49,11 +49,22 @@ export async function migrate<T>(
   this: T,
   host: string,
   port: number,
-  key: string,
-  destinationDb: number,
-  timeout: number,
-  options?: CommandMigrateOptions,
+  ...parameters:
+    | [
+        key: '',
+        destinationDb: number,
+        timeout: number,
+        options: CommandMigrateOptions & { keys: string[] },
+      ]
+    | [
+        key: string,
+        destinationDb: number,
+        timeout: number,
+        options?: CommandMigrateOptions & { keys?: undefined },
+      ]
 ): Promise<RespOK | RespNoKey> {
+  const [key, destinationDb, timeout, options] = parameters;
+
   return await executeCommand(
     this,
     createCommand(host, port, key, destinationDb, timeout, options),

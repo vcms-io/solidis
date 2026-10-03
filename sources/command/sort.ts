@@ -13,7 +13,7 @@ export function createCommand(
 ) {
   const command = buildSortCommand('SORT', key, options);
 
-  if (options && 'store' in options) {
+  if (options?.store !== undefined) {
     command.push('STORE', options.store);
   }
 
@@ -30,6 +30,11 @@ export async function sort<T>(
   key: string,
   options?: CommandSortOptions,
 ): Promise<(string | null)[]>;
+export async function sort<T>(
+  this: T,
+  key: string,
+  options?: CommandSortOptions | CommandSortStoreOptions,
+): Promise<(string | null)[] | number>;
 export async function sort<T>(
   this: T,
   key: string,

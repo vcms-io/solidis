@@ -131,7 +131,8 @@ describe('bitmaps-hyperloglog', () => {
     const { createCommand } = await import('../../../sources/command/bitop.ts');
 
     assert.throws(() => createCommand('NOT', 'dest', ['a', 'b']), {
-      message: 'BITOP NOT accepts exactly one source key',
+      name: 'SolidisCommandError',
+      message: '[BITOP] NOT accepts exactly one source key',
     });
   });
 
