@@ -318,6 +318,14 @@ export class FixedWindowRateLimiter {
           <div className="rounded-lg text-sm overflow-x-auto">
             <CodeBlock
               code={`import { Request, Response, NextFunction } from 'express';
+
+declare global {
+  namespace Express {
+    interface Request {
+      user?: { id: string; role: string };
+    }
+  }
+}
 import { SlidingWindowRateLimiter } from './sliding-window-limiter';
 
 export interface RateLimitOptions {

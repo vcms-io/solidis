@@ -569,6 +569,17 @@ const warmer = new CacheWarmer(cache, db);
 
 app.use(express.json());
 
+// Search users endpoint (with cached results)
+app.get('/api/users/search', async (req, res) => {
+  try {
+    const query = req.query.q as string;
+    const users = await userRepo.searchUsers(query);
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Get user endpoint (with caching)
 app.get('/api/users/:id', async (req, res) => {
   try {
@@ -589,17 +600,6 @@ app.put('/api/users/:id', async (req, res) => {
   try {
     const user = await userRepo.updateUser(req.params.id, req.body);
     res.json(user);
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Search users endpoint (with cached results)
-app.get('/api/users/search', async (req, res) => {
-  try {
-    const query = req.query.q as string;
-    const users = await userRepo.searchUsers(query);
-    res.json(users);
   } catch (error) {
     res.status(500).json({ error: 'Internal server error' });
   }

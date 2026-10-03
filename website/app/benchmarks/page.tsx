@@ -199,7 +199,7 @@ export default function BenchmarksPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
             <div>
               <span className="text-muted-foreground">Node.js</span>
-              <span className="ml-2 font-mono text-foreground">v22.22.3</span>
+              <span className="ml-2 font-mono text-foreground">v22.23.2</span>
             </div>
             <div>
               <span className="text-muted-foreground">Redis</span>

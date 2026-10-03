@@ -122,12 +122,14 @@ export default function GettingStartedPage() {
                 </p>
                 <CodeBlock
                   code={`import { SolidisClient } from '@vcms-io/solidis';
-import { get, set, multi } from '@vcms-io/solidis/command';
+import { del, get, incr, multi, set } from '@vcms-io/solidis/command';
 import type { SolidisClientExtensions } from '@vcms-io/solidis';
 
 const extensions = {
   get,
   set,
+  del,
+  incr,
   multi,
 } satisfies SolidisClientExtensions;
 
@@ -177,14 +179,14 @@ const client = new SolidisFeaturedClient({
               code={`const client = new SolidisClient({
   uri: 'redis://127.0.0.1:6379',
   lazyConnect: true,
-}).extend({ get, set });
-
-await client.connect();
+}).extend({ get, set, del, incr, multi });
 
 client.on('connect', () => console.log('Connected to server'));
 client.on('ready', () => console.log('Client is ready for commands'));
 client.on('error', (err) => console.error('Error occurred: ', err));
 client.on('end', () => console.log('Connection closed'));
+
+await client.connect();
 
 client.quit();`}
               language="typescript"

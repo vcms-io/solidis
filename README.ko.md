@@ -1,7 +1,7 @@
 <h1 align="center"><img src="./assets/solidis.png" alt="Solidis" width="50"/></h1>
 
 <h3 align="center">
-  <b>The fastest Redis client for Node.js.<br/>Zero dependencies, 2x+ faster than ioredis, battle-tested in production.</b>
+  <b>The fastest Redis client for Node.js.<br/>Zero dependencies, up to 2x faster than ioredis, battle-tested in production.</b>
 </h3>
 
 <br/>
@@ -93,8 +93,13 @@ const replies = await client.send([
 ]);
 
 // commandTimeout 대신 이 요청에만 적용할 타임아웃 (0이면 비활성화)
-const slow = await client.send([['DEBUG', 'SLEEP', '2']], { timeout: 10_000 });
+const job = await client.send([['BLPOP', 'jobs', '30']], { timeout: 35_000 });
 ```
+
+`exec()`는 `MULTI`, 쌓인 커맨드, `EXEC`를 한 파이프라인으로 보냅니다. 쌓인 호출이 실패해 reject되는 `exec()`와 `discard()`는 `UNWATCH`를 보내므로, `WATCH`는 트랜잭션과 함께 끝납니다.
+쌓인 호출의 동기 부분만 트랜잭션에 들어갑니다. 응답을 await하는 `extend()` 메서드는 그 뒤의 커맨드를 트랜잭션 밖에서 실행합니다.
+ACL 사용자에게 `@transaction`이 없을 때처럼 서버가 `MULTI`를 거부하면 쌓인 커맨드가 각각 실행되고 `exec()`는 `[MULTI]` 에러로 reject되므로, 무작정 재시도하지 마세요.
+재연결로 `WATCH`가 사라지면 다음 `EXEC`는 `DISCARD`로 바뀌어 `null`을 반환합니다. `send()`로 보낸 `MULTI`가 사라지면 `MULTI`, `EXEC`, `DISCARD`, `RESET` 전까지 다른 커맨드를 거부합니다.
 
 </details>
 
@@ -141,6 +146,7 @@ const views = await client.incr('views', { bigint: true }); // bigint
 INCR, INCRBY, DECR, DECRBY, HINCRBY, BITFIELD, BITFIELD_RO는 기본적으로 `number`를 반환하고, 결과가 `Number.MAX_SAFE_INTEGER`를 넘으면 에러를 냅니다.
 이때 서버에는 이미 반영된 상태이므로, 에러의 `cause`에 정확한 `bigint` 값이 담깁니다.
 `{ bigint: true }`를 넘기면 항상 `bigint`를 반환하고, 반환 타입도 옵션을 따라갑니다.
+INCRBYFLOAT는 JavaScript 숫자처럼 반올림된 `number`를, HINCRBYFLOAT는 서버가 보낸 정확한 텍스트를 반환합니다.
 
 </details>
 
@@ -156,7 +162,8 @@ const image = await client.get('image', { buffer: true });           // Buffer |
 const images = await client.mget('image', 'logo', { buffer: true }); // (Buffer | null)[]
 ```
 
-SET, SETNX, SETEX, PSETEX, GETSET, SETRANGE, APPEND, MSET, MSETNX, HSET, HSETNX, HMSET, LPUSH, RPUSH, LPUSHX, RPUSHX, LSET, LINSERT, LREM, LPOS, RESTORE는 `Buffer` 값을 받아 바이트 그대로 저장합니다. 다른 커맨드는 문자열을 받고, `send()`는 어느 인자에나 `Buffer`를 받습니다.
+SET, SETNX, SETEX, PSETEX, GETSET, SETRANGE, APPEND, MSET, MSETNX, HSET, HSETNX, HMSET, LPUSH, RPUSH, LPUSHX, RPUSHX, LSET, XADD, RESTORE는 `Buffer` 값을 받아 바이트 그대로 저장합니다.
+LINSERT, LREM, LPOS, SMISMEMBER, DELEX, SET은 비교할 값으로, PUBLISH와 SPUBLISH는 메시지로, BF.LOADCHUNK와 CF.LOADCHUNK는 청크로, AUTH와 HELLO는 자격 증명으로 `Buffer`를 받습니다. 그 밖의 인자는 문자열이고, `send()`는 어느 인자에나 `Buffer`를 받습니다.
 읽을 때는 기본적으로 UTF-8로 디코딩하고, GET, GETDEL, GETEX, GETRANGE, MGET, HGET, HMGET, HGETALL, HVALS, LINDEX, LRANGE, LPOP, RPOP, LMOVE, BLMOVE, RPOPLPUSH, BRPOPLPUSH, BLPOP, BRPOP, LMPOP, BLMPOP에 `{ buffer: true }`를 넘기면 정확한 바이트를 `Buffer`로 받습니다.
 반환 타입도 옵션을 따라갑니다.
 
@@ -175,6 +182,20 @@ await client.set('key', 'value', { expireInSeconds: 60, keepOriginalTimeToLive: 
 ```
 
 옵션 타입은 커맨드가 받아들이는 조합만 허용합니다. 예를 들어 NX와 XX 중 하나만, BYSCORE와 BYLEX 중 하나만 받고, BYLEX에는 WITHSCORES를 쓸 수 없습니다.
+
+</details>
+
+<details>
+<summary>&nbsp;&nbsp;<b>스트림 pending 엔트리</b></summary>
+
+<br/>
+
+```typescript
+const pending = await client.xpending('jobs', 'workers', '-', '+', 10);
+```
+
+`xpending()` 엔트리의 `deliveryTime`은 `XPENDING`이 보고하는 유휴 시간, 즉 마지막으로 전달된 뒤 지난 밀리초입니다.
+`xinfoStream(key, true)`의 `deliveryTime`은 `XINFO STREAM FULL`이 보고하는 대로 마지막 전달 시각의 Unix 시간(밀리초)입니다.
 
 </details>
 
@@ -337,7 +358,7 @@ _100,000번 반복 × 10,000 동시 실행 · 1 KB 페이로드 · 10회 측정_
 - 15가지 RESP3 응답 타입 전부 지원 (Map, Set, Push, Attribute, BigNumber, ...)
 - RESP3 push가 커맨드 응답을 가로채지 않음
 - unsafe integer 자동 BigInt 변환
-- 바이너리 세이프: 문자열·해시·리스트 쓰기에 `Buffer` 값, `{ buffer: true }`로 바이트 그대로 읽기
+- 바이너리 세이프: 문자열·해시·리스트·스트림 쓰기에 `Buffer` 값, `{ buffer: true }`로 바이트 그대로 읽기
 
 </td>
 </tr>
@@ -348,8 +369,8 @@ _100,000번 반복 × 10,000 동시 실행 · 1 KB 페이로드 · 10회 측정_
 
 - 지터를 적용한 지수 백오프 기반 자동 재연결
 - 핸드셰이크(AUTH, SELECT) 완료 전에는 커맨드를 보내지 않음
-- 재연결 시 AUTH, SELECT, Pub/Sub 구독 자동 복구
-- 재연결로 WATCH가 사라진 트랜잭션은 커밋하지 않고 버림
+- 재연결 시 AUTH, 프로토콜, SELECT, Pub/Sub 구독 자동 복구
+- 재연결로 WATCH나 MULTI가 사라진 트랜잭션은 커밋하지 않고 버림
 - 파이프라인 또는 `send()` 호출 단위 커맨드 타임아웃, 블로킹 커맨드는 별도 기한
 - Ready check로 서버 로딩 완료까지 대기
 - 장애 발생 시 in-flight 요청 즉시 reject
@@ -508,7 +529,7 @@ client.on('close', (error) => {});                 // 연결 끊김 (autoReconne
 client.on('reconnecting', (attempt, delay) => {}); // 재연결을 시도할 때마다
 client.on('reconnected', () => {});                // 재연결 성공
 client.on('end', () => {});                        // 클라이언트 종료 (quit)
-client.on('error', (error) => {});                 // 소켓/프로토콜 에러 (리스너가 없으면 process.emitWarning())
+client.on('error', (error) => {});                 // 치명적이지 않은 에러 (리스너가 없으면 process.emitWarning())
 client.on('message', (channel, message) => {});    // Pub/Sub 메시지 수신
 client.on('pmessage', (pattern, channel, message) => {});
 client.on('smessage', (channel, message) => {});   // Shard 채널 메시지
@@ -537,14 +558,14 @@ try {
 > 메시지에는 커맨드 이름(`[INCR] ERR ...`)이 붙고 인자는 붙지 않습니다. 서버가 인용해 돌려준 인자는 메시지와 `cause` 모두에서 `'***'`로 바뀌지만, GEOADD 에러의 좌표나 스크립트가 `redis.error_reply()`에 넘긴 텍스트처럼 서버가 따옴표 없이 되풀이한 값은 서버가 보낸 그대로 남습니다.
 > TS.MADD, BF.MADD, BF.INSERT는 항목을 하나씩 저장하므로, 거부된 항목은 호출 전체를 reject하는 대신 결과 배열 안의 `RespError`로 돌려줍니다.
 
-| 에러 클래스              | 발생 조건                                                                      |
-| :----------------------- | :----------------------------------------------------------------------------- |
-| `SolidisCommandError`    | 서버 에러 응답 (`cause`는 `RespError`), 예상과 다른 응답, 커맨드가 거부한 옵션 |
-| `SolidisClientError`     | `commandTimeout` 안에 준비되지 않음, 인증 실패, quit 이후                      |
-| `SolidisConnectionError` | TCP/TLS 연결 실패, 잘못된 포트, 타임아웃, 연결 끊김, 재시도 소진               |
-| `SolidisRequesterError`  | 커맨드 타임아웃, `send()`의 빈 커맨드나 문자열이 아닌 인자, MONITOR            |
-| `SolidisParserError`     | 잘못된 RESP 포맷, bulk string 또는 줄 크기 초과                                |
-| `SolidisPubSubError`     | 잘못된 pub/sub 이벤트, pub/sub 또는 push 리스너 예외                           |
+| 에러 클래스              | 발생 조건                                                                                    |
+| :----------------------- | :------------------------------------------------------------------------------------------- |
+| `SolidisCommandError`    | 서버 에러 응답 (`cause`는 `RespError`), 예상과 다른 응답, 커맨드가 거부한 옵션               |
+| `SolidisClientError`     | `commandTimeout` 안에 준비되지 않음, 핸드셰이크 거부(인증, HELLO, CLIENT SETNAME), quit 이후 |
+| `SolidisConnectionError` | TCP/TLS 연결 실패, 잘못된 포트, 타임아웃, 연결 끊김, 재시도 소진                             |
+| `SolidisRequesterError`  | 커맨드 타임아웃, `send()`의 잘못된 커맨드, MONITOR처럼 거부되는 커맨드                       |
+| `SolidisParserError`     | 잘못된 RESP 포맷, bulk string 또는 줄 크기 초과                                              |
+| `SolidisPubSubError`     | 잘못된 pub/sub 이벤트, pub/sub 또는 push 리스너 예외                                         |
 
 ## 확장
 

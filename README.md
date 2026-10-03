@@ -1,7 +1,7 @@
 <h1 align="center"><img src="./assets/solidis.png" alt="Solidis" width="50"/></h1>
 
 <h3 align="center">
-  <b>The fastest Redis client for Node.js.<br/>Zero dependencies, 2x+ faster than ioredis, battle-tested in production.</b>
+  <b>The fastest Redis client for Node.js.<br/>Zero dependencies, up to 2x faster than ioredis, battle-tested in production.</b>
 </h3>
 
 <br/>
@@ -93,8 +93,13 @@ const replies = await client.send([
 ]);
 
 // A timeout for this request only, instead of commandTimeout (0 disables it)
-const slow = await client.send([['DEBUG', 'SLEEP', '2']], { timeout: 10_000 });
+const job = await client.send([['BLPOP', 'jobs', '30']], { timeout: 35_000 });
 ```
+
+`exec()` sends `MULTI`, the queued commands and `EXEC` in one pipeline. An `exec()` that rejects because a queued call failed, and `discard()`, send `UNWATCH`, so a `WATCH` ends with its transaction.
+Only the synchronous part of a queued call joins the transaction: an `extend()` method that awaits a reply runs its later commands outside it.
+If the server refuses `MULTI`, as for an ACL user without `@transaction`, the queued commands run on their own and `exec()` rejects with the `[MULTI]` error, so do not retry it blindly.
+When a reconnect loses a `WATCH`, the next `EXEC` is sent as `DISCARD` and returns `null`. When it loses a `MULTI` sent with `send()`, other commands are refused until `MULTI`, `EXEC`, `DISCARD` or `RESET`.
 
 </details>
 
@@ -141,6 +146,7 @@ const views = await client.incr('views', { bigint: true }); // bigint
 INCR, INCRBY, DECR, DECRBY, HINCRBY, BITFIELD and BITFIELD_RO return `number` by default and reject a result beyond `Number.MAX_SAFE_INTEGER`.
 The server has already applied the command by then, so the error's `cause` carries the exact `bigint`.
 Pass `{ bigint: true }` to always receive a `bigint`; the return type follows the option.
+INCRBYFLOAT returns a `number`, rounded like any JavaScript number, while HINCRBYFLOAT returns the exact text the server sends.
 
 </details>
 
@@ -156,7 +162,8 @@ const image = await client.get('image', { buffer: true });           // Buffer |
 const images = await client.mget('image', 'logo', { buffer: true }); // (Buffer | null)[]
 ```
 
-SET, SETNX, SETEX, PSETEX, GETSET, SETRANGE, APPEND, MSET, MSETNX, HSET, HSETNX, HMSET, LPUSH, RPUSH, LPUSHX, RPUSHX, LSET, LINSERT, LREM, LPOS, RESTORE take `Buffer` values and store them byte for byte; other commands take strings, and `send()` takes a `Buffer` for any argument.
+SET, SETNX, SETEX, PSETEX, GETSET, SETRANGE, APPEND, MSET, MSETNX, HSET, HSETNX, HMSET, LPUSH, RPUSH, LPUSHX, RPUSHX, LSET, XADD and RESTORE take `Buffer` values and store them byte for byte.
+LINSERT, LREM, LPOS, SMISMEMBER, DELEX and SET also take `Buffer`s for the values they compare, PUBLISH and SPUBLISH for messages, BF.LOADCHUNK and CF.LOADCHUNK for chunks, and AUTH and HELLO for credentials; other arguments are strings, and `send()` takes a `Buffer` for any argument.
 Reads decode UTF-8 by default; pass `{ buffer: true }` to receive the exact bytes as a `Buffer` from GET, GETDEL, GETEX, GETRANGE, MGET, HGET, HMGET, HGETALL, HVALS, LINDEX, LRANGE, LPOP, RPOP, LMOVE, BLMOVE, RPOPLPUSH, BRPOPLPUSH, BLPOP, BRPOP, LMPOP, BLMPOP.
 The return type follows the option.
 
@@ -175,6 +182,20 @@ await client.set('key', 'value', { expireInSeconds: 60, keepOriginalTimeToLive: 
 ```
 
 Option types accept only the combinations the command itself accepts: for example one of NX and XX, one of BYSCORE and BYLEX, and no WITHSCORES with BYLEX.
+
+</details>
+
+<details>
+<summary>&nbsp;&nbsp;<b>Stream pending entries</b></summary>
+
+<br/>
+
+```typescript
+const pending = await client.xpending('jobs', 'workers', '-', '+', 10);
+```
+
+In `xpending()` entries, `deliveryTime` is the idle time `XPENDING` reports: the milliseconds since the entry was last delivered.
+In `xinfoStream(key, true)`, `deliveryTime` is the Unix time of the last delivery in milliseconds, as `XINFO STREAM FULL` reports it.
 
 </details>
 
@@ -337,7 +358,7 @@ _100,000 iterations × 10,000 concurrency · 1 KB payload · 10 repeats_
 - All 15 RESP3 reply types (Map, Set, Push, Attribute, BigNumber, ...)
 - RESP3 pushes never consume a command reply
 - Automatic BigInt promotion for unsafe integers
-- Binary-safe: `Buffer` values for string, hash and list writes, `{ buffer: true }` bytes out
+- Binary-safe: `Buffer` values for string, hash, list and stream writes, `{ buffer: true }` bytes out
 
 </td>
 </tr>
@@ -348,8 +369,8 @@ _100,000 iterations × 10,000 concurrency · 1 KB payload · 10 repeats_
 
 - Auto-reconnect with jittered exponential backoff
 - Commands wait until the handshake (AUTH, SELECT) is done
-- Auto-recovery: AUTH, SELECT, Pub/Sub subscriptions
-- A transaction whose WATCH was lost in a reconnect is discarded, not committed
+- Auto-recovery: AUTH, protocol, SELECT, Pub/Sub subscriptions
+- A transaction whose WATCH or MULTI was lost in a reconnect is discarded, not committed
 - Command timeout per pipeline or per `send()`; blocking commands get their own
 - Ready check (waits for server loading)
 - Deterministic in-flight rejection on fault
@@ -529,14 +550,14 @@ try {
 > Messages name the command (`[INCR] ERR ...`) and add none of its arguments. An argument the server quotes back becomes `'***'`, in the message and in its `cause`; a value the server repeats without quotes, such as the coordinates in a GEOADD error or text a script passes to `redis.error_reply()`, stays as the server sent it.
 > TS.MADD, BF.MADD and BF.INSERT store items one by one, so they return a rejected item as a `RespError` in their result instead of rejecting the call.
 
-| Error Class              | When                                                                                         |
-| :----------------------- | :------------------------------------------------------------------------------------------- |
-| `SolidisCommandError`    | Server error reply (`cause` is the `RespError`), unexpected reply, options a command refuses |
-| `SolidisClientError`     | Not ready within `commandTimeout`, authentication failure, quit                              |
-| `SolidisConnectionError` | TCP/TLS connect failure, invalid port, timeout, connection lost, retries spent               |
-| `SolidisRequesterError`  | Command timeout, an empty command or non-string argument in `send()`, MONITOR                |
-| `SolidisParserError`     | Malformed RESP, oversized bulk string or line                                                |
-| `SolidisPubSubError`     | Malformed pub/sub event, throwing pub/sub or push listener                                   |
+| Error Class              | When                                                                                                 |
+| :----------------------- | :--------------------------------------------------------------------------------------------------- |
+| `SolidisCommandError`    | Server error reply (`cause` is the `RespError`), unexpected reply, options a command refuses         |
+| `SolidisClientError`     | Not ready within `commandTimeout`, a refused handshake (authentication, HELLO, CLIENT SETNAME), quit |
+| `SolidisConnectionError` | TCP/TLS connect failure, invalid port, timeout, connection lost, retries spent                       |
+| `SolidisRequesterError`  | Command timeout, a malformed command in `send()`, a refused command such as MONITOR                  |
+| `SolidisParserError`     | Malformed RESP, oversized bulk string or line                                                        |
+| `SolidisPubSubError`     | Malformed pub/sub event, throwing pub/sub or push listener                                           |
 
 ## Extensions
 

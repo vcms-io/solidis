@@ -199,7 +199,9 @@ export default function HomePage() {
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
             {loading
               ? t('home.loading')
-              : `${starsCount.toLocaleString()} ${t('home.starsOnGitHub')}`}
+              : stats.fallback
+                ? t('home.starOnGitHub')
+                : `${starsCount.toLocaleString()} ${t('home.starsOnGitHub')}`}
           </div>
 
           <h1

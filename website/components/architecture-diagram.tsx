@@ -307,7 +307,7 @@ export function ArchitectureDiagram({
             fontSize="8"
             fontFamily="inherit"
           >
-            all commands
+            383 commands
           </text>
         </g>
       )}

@@ -14,35 +14,6 @@ interface GitHubRelease {
   html_url: string;
 }
 
-const FALLBACK_RELEASES: GitHubRelease[] = [
-  {
-    tag_name: 'v0.0.5',
-    name: 'v0.0.5',
-    published_at: '2024-01-15T00:00:00Z',
-    prerelease: false,
-    draft: false,
-    body: "## What's Changed\n\n* Improved connection pool efficiency by 25%\n* Fixed memory leak in long-running connections\n* Added support for Redis 7.0 features\n* Enhanced error messages for better debugging\n* Updated TypeScript definitions\n\n**Full Changelog**: https://github.com/vcms-io/solidis/compare/v0.0.4...v0.0.5",
-    author: {
-      login: 'github-actions',
-      avatar_url: 'https://avatars.githubusercontent.com/u/41898282?v=4',
-    },
-    html_url: 'https://github.com/vcms-io/solidis/releases/tag/v0.0.5',
-  },
-  {
-    tag_name: 'v0.0.4',
-    name: 'v0.0.4',
-    published_at: '2024-01-08T00:00:00Z',
-    prerelease: false,
-    draft: false,
-    body: "## What's Changed\n\n* Setup Connection with Provided Options & Expose URI by @jay-l-e-e in #8\n* Added support for Redis Streams\n* Implemented automatic retry mechanism\n* New configuration options for fine-tuning\n\n**Full Changelog**: https://github.com/vcms-io/solidis/compare/v0.0.3...v0.0.4",
-    author: {
-      login: 'jay-l-e-e',
-      avatar_url: 'https://avatars.githubusercontent.com/u/12345678?v=4',
-    },
-    html_url: 'https://github.com/vcms-io/solidis/releases/tag/v0.0.4',
-  },
-];
-
 export async function GET() {
   try {
     const controller = new AbortController();
@@ -64,14 +35,14 @@ export async function GET() {
 
     if (response.status === 403) {
       console.warn('GitHub API rate limit exceeded for releases');
-      return NextResponse.json({ releases: FALLBACK_RELEASES, fallback: true });
+      return NextResponse.json({ releases: [], fallback: true });
     }
 
     if (!response.ok) {
       console.error(
         `GitHub Releases API responded with status: ${response.status}`,
       );
-      return NextResponse.json({ releases: FALLBACK_RELEASES, fallback: true });
+      return NextResponse.json({ releases: [], fallback: true });
     }
 
     const releases: GitHubRelease[] = await response.json();
@@ -93,11 +64,7 @@ export async function GET() {
         html_url: release.html_url,
       }));
 
-    return NextResponse.json({
-      releases:
-        filteredReleases.length > 0 ? filteredReleases : FALLBACK_RELEASES,
-      fallback: filteredReleases.length === 0,
-    });
+    return NextResponse.json({ releases: filteredReleases, fallback: false });
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       console.warn('GitHub Releases API request timed out');
@@ -105,6 +72,6 @@ export async function GET() {
       console.error('Error fetching GitHub releases:', error);
     }
 
-    return NextResponse.json({ releases: FALLBACK_RELEASES, fallback: true });
+    return NextResponse.json({ releases: [], fallback: true });
   }
 }

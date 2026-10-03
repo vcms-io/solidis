@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 
-// Fallback data to use when GitHub API is unavailable
+// Returned when the GitHub API is unavailable; the site shows no numbers then
 const FALLBACK_DATA = {
-  stars: 108,
-  forks: 1,
-  watchers: 5,
-  openIssues: 3,
-  lastUpdated: new Date().toISOString(),
+  stars: 0,
+  forks: 0,
+  watchers: 0,
+  openIssues: 0,
+  lastUpdated: '',
   fallback: true,
 };
 
@@ -49,11 +49,11 @@ export async function GET() {
     const data = await response.json();
 
     return NextResponse.json({
-      stars: data.stargazers_count || FALLBACK_DATA.stars,
-      forks: data.forks_count || FALLBACK_DATA.forks,
-      watchers: data.watchers_count || FALLBACK_DATA.watchers,
-      openIssues: data.open_issues_count || FALLBACK_DATA.openIssues,
-      lastUpdated: data.updated_at || FALLBACK_DATA.lastUpdated,
+      stars: data.stargazers_count ?? 0,
+      forks: data.forks_count ?? 0,
+      watchers: data.watchers_count ?? 0,
+      openIssues: data.open_issues_count ?? 0,
+      lastUpdated: data.updated_at ?? '',
       fallback: false,
     });
   } catch (error) {

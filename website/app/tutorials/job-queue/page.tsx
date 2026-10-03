@@ -128,11 +128,7 @@ export class JobQueue {
     };
 
     // Add to sorted set with priority as score (higher = more priority)
-    await this.client.zadd(
-      this.queueName,
-      -job.priority, // Negative for descending order
-      JSON.stringify(job)
-    );
+    await this.client.zadd(this.queueName, job.priority, JSON.stringify(job));
 
     return job.id;
   }
@@ -185,11 +181,7 @@ export class JobQueue {
       await this.client.hdel(this.processingName, jobId);
     } else {
       // Retry: move back to main queue
-      await this.client.zadd(
-        this.queueName,
-        -job.priority,
-        JSON.stringify(job)
-      );
+      await this.client.zadd(this.queueName, job.priority, JSON.stringify(job));
       await this.client.hdel(this.processingName, jobId);
     }
   }

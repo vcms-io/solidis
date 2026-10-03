@@ -417,7 +417,7 @@ await client.fill(['key1', 'key2', 'key3'], 'value');`}
                     <CodeBlock
                       code={`const result = await client.send([['COMMAND', 'SOME', 'OPTIONS']]);
 
-const slow = await client.send([['DEBUG', 'SLEEP', '2']], { timeout: 10_000 });`}
+const job = await client.send([['BLPOP', 'jobs', '30']], { timeout: 35_000 });`}
                       language="typescript"
                     />
                     <p className="text-xs text-muted-foreground">

@@ -129,7 +129,7 @@ export default function SessionStoreTutorial() {
               </TabsList>
               <TabsContent value="npm" className="space-y-4">
                 <CodeBlock
-                  code="npm install @vcms-io/solidis express uuid"
+                  code="npm install @vcms-io/solidis express uuid cookie-parser"
                   language="bash"
                 />
                 <div>
@@ -137,14 +137,14 @@ export default function SessionStoreTutorial() {
                     {t('tutorialSession.tsOptional')}
                   </h4>
                   <CodeBlock
-                    code="npm install -D @types/express @types/uuid typescript"
+                    code="npm install -D @types/express @types/uuid @types/cookie-parser typescript"
                     language="bash"
                   />
                 </div>
               </TabsContent>
               <TabsContent value="yarn" className="space-y-4">
                 <CodeBlock
-                  code="yarn add @vcms-io/solidis express uuid"
+                  code="yarn add @vcms-io/solidis express uuid cookie-parser"
                   language="bash"
                 />
                 <div>
@@ -152,14 +152,14 @@ export default function SessionStoreTutorial() {
                     {t('tutorialSession.tsOptional')}
                   </h4>
                   <CodeBlock
-                    code="yarn add -D @types/express @types/uuid typescript"
+                    code="yarn add -D @types/express @types/uuid @types/cookie-parser typescript"
                     language="bash"
                   />
                 </div>
               </TabsContent>
               <TabsContent value="pnpm" className="space-y-4">
                 <CodeBlock
-                  code="pnpm add @vcms-io/solidis express uuid"
+                  code="pnpm add @vcms-io/solidis express uuid cookie-parser"
                   language="bash"
                 />
                 <div>
@@ -167,7 +167,7 @@ export default function SessionStoreTutorial() {
                     {t('tutorialSession.tsOptional')}
                   </h4>
                   <CodeBlock
-                    code="pnpm add -D @types/express @types/uuid typescript"
+                    code="pnpm add -D @types/express @types/uuid @types/cookie-parser typescript"
                     language="bash"
                   />
                 </div>
