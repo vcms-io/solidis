@@ -85,9 +85,9 @@
     "distributions/**/*.{d.ts,d.cts,mjs,cjs}"
   ],
   "devDependencies": {
-    "@biomejs/biome": "2.5.14",
-    "@napi-rs/canvas": "^1.0.9",
-    "@types/node": "^26.6.3",
+    "@biomejs/biome": "2.5.15",
+    "@napi-rs/canvas": "^1.0.10",
+    "@types/node": "^26.6.4",
     "c8": "^12.0.0",
     "chalk": "^6.0.1",
     "concurrently": "^10.0.5",
@@ -95,7 +95,7 @@
     "esbuild": "^0.28.2",
     "ioredis": "^6.0.0",
     "prettier": "^3.9.9",
-    "redis": "^6.2.1",
+    "redis": "^6.3.0",
     "typescript": "^7.0.2"
   },
   "allowScripts": {
