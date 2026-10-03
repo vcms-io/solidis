@@ -208,6 +208,17 @@ describe('type-contracts', () => {
         aggregation: { type: 'avg', bucketDuration: 1 },
         align: 'start',
       });
+      await client.tsAdd('series', '*', 1);
+      await client.tsMadd('series', [{ timestamp: '*', value: 1 }]);
+      await client.tsDel('series', '-', '+');
+      await client.tsIncrby('series', 1, { timestamp: '*' });
+      await client.tsDecrby('series', 1, { timestamp: 5 });
+      await client.latencyHistogram();
+      await client.bitop('DIFF', 'target', ['a', 'b']);
+      await client.auth(Buffer.from('user'), Buffer.from([0xff]));
+      await client.hello('RESP3', Buffer.from('user'), Buffer.from([0xff]));
+      client.scan({ type: 'ReJSON-RL' });
+      client.scan({ type: 'hash' });
 
       const { multi } = client;
       const options: XclaimOptions = { justid: true };

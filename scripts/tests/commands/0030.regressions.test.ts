@@ -10,9 +10,12 @@ import { createCommand as createBitposCommand } from '../../../sources/command/b
 import { createCommand as createFunctionListCommand } from '../../../sources/command/function.list.ts';
 import { get, incr, info } from '../../../sources/command/index.ts';
 import { createCommand as createJsonArrindexCommand } from '../../../sources/command/json.arrindex.ts';
+import { createCommand as createLatencyHistogramCommand } from '../../../sources/command/latency.histogram.ts';
 import { createCommand as createPubsubChannelsCommand } from '../../../sources/command/pubsub.channels.ts';
 import { createCommand as createPubsubShardchannelsCommand } from '../../../sources/command/pubsub.shardchannels.ts';
 import { createCommand as createSortCommand } from '../../../sources/command/sort.ts';
+import { createCommand as createTsDecrbyCommand } from '../../../sources/command/ts.decrby.ts';
+import { createCommand as createTsIncrbyCommand } from '../../../sources/command/ts.incrby.ts';
 import { buildScanCommand } from '../../../sources/command/utils/index.ts';
 import { createCommand as createZrandmemberCommand } from '../../../sources/command/zrandmember.ts';
 import {
@@ -743,6 +746,26 @@ describe('regressions', () => {
       assert.deepStrictEqual(createSortCommand('list', { store: undefined }), [
         'SORT',
         'list',
+      ]);
+    });
+
+    it('sends TIMESTAMP with TS.INCRBY and TS.DECRBY, and LATENCY HISTOGRAM without events', () => {
+      assert.deepStrictEqual(
+        createTsIncrbyCommand('series', 2, { timestamp: '*' }),
+        ['TS.INCRBY', 'series', '2', 'TIMESTAMP', '*'],
+      );
+      assert.deepStrictEqual(
+        createTsDecrbyCommand('series', 3, { timestamp: 0, retention: 10 }),
+        ['TS.DECRBY', 'series', '3', 'TIMESTAMP', '0', 'RETENTION', '10'],
+      );
+      assert.deepStrictEqual(createTsIncrbyCommand('series', 1, {}), [
+        'TS.INCRBY',
+        'series',
+        '1',
+      ]);
+      assert.deepStrictEqual(createLatencyHistogramCommand(), [
+        'LATENCY',
+        'HISTOGRAM',
       ]);
     });
   });

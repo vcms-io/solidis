@@ -269,6 +269,8 @@ export interface CommandLimitWithScoresOptions {
 
 export type CommandTimeSeriesTimestamp = number | '-' | '+';
 
+export type CommandTimeSeriesSampleTimestamp = number | '*';
+
 export type CommandMigrateOptions = CommandExclusiveOptions<
   | { auth?: string }
   | {
@@ -375,7 +377,9 @@ export type CommandTimeSeriesAddOptions = Omit<
 export type CommandTimeSeriesIncrDecrOptions = Omit<
   CommandTimeSeriesOptions,
   'onDuplicate'
->;
+> & {
+  timestamp?: CommandTimeSeriesSampleTimestamp;
+};
 
 export interface CommandTimeSeriesCreateRuleOptions {
   aggregation: {

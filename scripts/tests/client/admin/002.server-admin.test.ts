@@ -807,8 +807,10 @@ describe('server-admin', () => {
     }
 
     const after = await client.latencyHistogram('ping');
+    const all = await client.latencyHistogram();
 
     assert.ok('ping' in after, 'expected a ping histogram entry');
+    assert.ok('ping' in all, 'expected every command without arguments');
     const additionalPingCalls = after.ping.calls - callsBefore;
 
     assert.ok(

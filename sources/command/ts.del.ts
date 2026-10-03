@@ -1,9 +1,11 @@
 import { executeCommand, tryReplyNumber } from './utils/index.ts';
 
+import type { CommandTimeSeriesTimestamp } from '../index.ts';
+
 export function createCommand(
   key: string,
-  fromTimestamp: number,
-  toTimestamp: number,
+  fromTimestamp: CommandTimeSeriesTimestamp,
+  toTimestamp: CommandTimeSeriesTimestamp,
 ) {
   return ['TS.DEL', key, `${fromTimestamp}`, `${toTimestamp}`];
 }
@@ -11,8 +13,8 @@ export function createCommand(
 export async function tsDel<T>(
   this: T,
   key: string,
-  fromTimestamp: number,
-  toTimestamp: number,
+  fromTimestamp: CommandTimeSeriesTimestamp,
+  toTimestamp: CommandTimeSeriesTimestamp,
 ): Promise<number> {
   return await executeCommand(
     this,

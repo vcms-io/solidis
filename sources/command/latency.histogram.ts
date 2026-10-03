@@ -33,7 +33,7 @@ function parseHistogram(
 
 export async function latencyHistogram<T>(
   this: T,
-  ...events: [string, ...string[]]
+  ...events: string[]
 ): Promise<Record<string, RespLatencyHistogram>> {
   return await executeCommand(
     this,

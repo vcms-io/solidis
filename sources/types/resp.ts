@@ -26,7 +26,15 @@ export type RespDuplicatePolicy =
   | 'MAX'
   | 'SUM';
 export type RespBit = 0 | 1;
-export type RespBitOperation = 'AND' | 'OR' | 'XOR' | 'NOT';
+export type RespBitOperation =
+  | 'AND'
+  | 'OR'
+  | 'XOR'
+  | 'NOT'
+  | 'DIFF'
+  | 'DIFF1'
+  | 'ANDOR'
+  | 'ONE';
 export type RespBitfield = `i${number}` | `u${number}`;
 export type RespBitfieldOverflow = 'WRAP' | 'SAT' | 'FAIL';
 export type RespHashField = Record<string, string>;

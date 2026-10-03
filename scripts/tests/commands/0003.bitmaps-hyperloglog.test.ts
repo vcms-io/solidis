@@ -6,6 +6,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
+import { RespError } from '../../../sources/index.ts';
 import {
   closeClient,
   createClient,
@@ -134,6 +135,44 @@ describe('bitmaps-hyperloglog', () => {
       name: 'SolidisCommandError',
       message: '[BITOP] NOT accepts exactly one source key',
     });
+  });
+
+  it('combines bitmaps with the BITOP operators of Redis 8.2', async (context) => {
+    const first = keyspace.key('bitop-8.2', 'a');
+    const second = keyspace.key('bitop-8.2', 'b');
+    const destination = keyspace.key('bitop-8.2', 'dest');
+
+    await client.set(first, Buffer.from([0xf0]));
+    await client.set(second, Buffer.from([0x3c]));
+
+    const [[probe]] = await client.send([
+      ['BITOP', 'DIFF', destination, first, second],
+    ]);
+
+    if (probe instanceof RespError) {
+      context.skip('BITOP DIFF, DIFF1, ANDOR and ONE require Redis 8.2+');
+
+      return;
+    }
+
+    const results: [Parameters<typeof client.bitop>[0], number][] = [
+      ['DIFF', 0xc0],
+      ['DIFF1', 0x0c],
+      ['ANDOR', 0x30],
+      ['ONE', 0xcc],
+    ];
+
+    for (const [operation, bits] of results) {
+      assert.strictEqual(
+        await client.bitop(operation, destination, [first, second]),
+        1,
+      );
+      assert.deepStrictEqual(
+        await client.getBuffer(destination),
+        Buffer.from([bits]),
+        operation,
+      );
+    }
   });
 
   it('manipulates packed integers with BITFIELD', async () => {

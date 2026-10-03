@@ -160,6 +160,37 @@ describe('modules-timeseries', () => {
     assert.strictEqual(latest[1], 7);
   });
 
+  it('writes samples at explicit and server-chosen timestamps', async (context) => {
+    if (!available) {
+      context.skip('module not loaded on this server');
+      return;
+    }
+
+    const key = keyspace.key('timestamps');
+
+    await client.tsCreate(key, { duplicatePolicy: 'LAST' });
+
+    assert.strictEqual(
+      await client.tsIncrby(key, 5, { timestamp: 1000 }),
+      1000,
+    );
+    assert.strictEqual(
+      await client.tsDecrby(key, 2, { timestamp: 1000 }),
+      1000,
+    );
+    assert.deepStrictEqual(await client.tsGet(key), [1000, 3]);
+
+    const added = await client.tsAdd(key, '*', 1);
+    const [madded] = await client.tsMadd(key, [{ timestamp: '*', value: 2 }]);
+
+    assert.ok(added > 1000);
+    assert.ok(typeof madded === 'number' && madded >= added);
+    assert.strictEqual(
+      await client.tsDel(key, '-', '+'),
+      madded === added ? 2 : 3,
+    );
+  });
+
   it('deletes samples in a range with TS.DEL', async (context) => {
     if (!available) {
       context.skip('module not loaded on this server');

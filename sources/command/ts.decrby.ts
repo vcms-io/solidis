@@ -11,7 +11,13 @@ export function createCommand(
   decrement: number,
   options: CommandTimeSeriesIncrDecrOptions,
 ) {
-  return buildTimeSeriesCommand(['TS.DECRBY', key, `${decrement}`], options);
+  const command = ['TS.DECRBY', key, `${decrement}`];
+
+  if (options.timestamp !== undefined) {
+    command.push('TIMESTAMP', `${options.timestamp}`);
+  }
+
+  return buildTimeSeriesCommand(command, options);
 }
 
 export async function tsDecrby<T>(
