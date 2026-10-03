@@ -3,10 +3,17 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
+import { createCommand as createAclCatCommand } from '../../../sources/command/acl.cat.ts';
+import { createCommand as createAclGenpassCommand } from '../../../sources/command/acl.genpass.ts';
 import { createCommand as createBitcountCommand } from '../../../sources/command/bitcount.ts';
 import { createCommand as createBitposCommand } from '../../../sources/command/bitpos.ts';
+import { createCommand as createFunctionListCommand } from '../../../sources/command/function.list.ts';
 import { get, incr, info } from '../../../sources/command/index.ts';
 import { createCommand as createJsonArrindexCommand } from '../../../sources/command/json.arrindex.ts';
+import { createCommand as createPubsubChannelsCommand } from '../../../sources/command/pubsub.channels.ts';
+import { createCommand as createPubsubShardchannelsCommand } from '../../../sources/command/pubsub.shardchannels.ts';
+import { createCommand as createSortCommand } from '../../../sources/command/sort.ts';
+import { buildScanCommand } from '../../../sources/command/utils/index.ts';
 import { createCommand as createZrandmemberCommand } from '../../../sources/command/zrandmember.ts';
 import {
   formatDouble,
@@ -613,6 +620,11 @@ describe('regressions', () => {
         '3',
       ]);
       assert.deepStrictEqual(await client.sort(list), ['1', '2', '3']);
+      assert.deepStrictEqual(await client.sort(list, { store: undefined }), [
+        '1',
+        '2',
+        '3',
+      ]);
     });
 
     it('reports core types upper-cased and module types as the server names them', async (context) => {
@@ -701,6 +713,37 @@ describe('regressions', () => {
         createJsonArrindexCommand('key', '$.list', '3', { stop: 2 }),
         ['JSON.ARRINDEX', 'key', '$.list', '3', '0', '2'],
       );
+    });
+
+    it('sends empty-string and zero arguments instead of dropping them', () => {
+      assert.deepStrictEqual(createAclCatCommand(''), ['ACL', 'CAT', '']);
+      assert.deepStrictEqual(createAclGenpassCommand(0), [
+        'ACL',
+        'GENPASS',
+        '0',
+      ]);
+      assert.deepStrictEqual(createPubsubChannelsCommand(''), [
+        'PUBSUB',
+        'CHANNELS',
+        '',
+      ]);
+      assert.deepStrictEqual(createPubsubShardchannelsCommand(''), [
+        'PUBSUB',
+        'SHARDCHANNELS',
+        '',
+      ]);
+      assert.deepStrictEqual(
+        createFunctionListCommand({ libraryNamePattern: '' }),
+        ['FUNCTION', 'LIST', 'LIBRARYNAME', ''],
+      );
+      assert.deepStrictEqual(
+        buildScanCommand(['SCAN'], '0', { count: 0, match: '', type: '' }),
+        ['SCAN', '0', 'COUNT', '0', 'MATCH', '', 'TYPE', ''],
+      );
+      assert.deepStrictEqual(createSortCommand('list', { store: undefined }), [
+        'SORT',
+        'list',
+      ]);
     });
   });
 });

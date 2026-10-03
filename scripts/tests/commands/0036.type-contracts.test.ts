@@ -107,7 +107,26 @@ describe('type-contracts', () => {
       Has<Transaction, 'emit'>,
       Has<Transaction, 'watch'>,
       Has<Transaction, 'subscribe'>,
-    ] = [false, false, false, false, false, false, false, false, false, false];
+      Has<Transaction, 'scan'>,
+      Has<Transaction, 'hscan'>,
+      Has<Transaction, 'sscan'>,
+      Has<Transaction, 'zscan'>,
+    ] = [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ];
     const present: [
       Has<Transaction, 'get'>,
       Has<Transaction, 'info'>,
@@ -118,6 +137,20 @@ describe('type-contracts', () => {
 
     assert.ok(!absent.some(Boolean));
     assert.ok(present.every(Boolean));
+  });
+
+  it('hides RESET and the scan iterators of a client from its transactions', () => {
+    const client = new SolidisFeaturedClient({ lazyConnect: true });
+    const transaction = client.multi();
+
+    for (const name of ['reset', 'scan', 'hscan', 'sscan', 'zscan']) {
+      assert.strictEqual(typeof Reflect.get(client, name), 'function', name);
+      assert.strictEqual(Reflect.get(transaction, name), undefined, name);
+    }
+
+    assert.strictEqual(typeof transaction.get, 'function');
+
+    client.quit();
   });
 
   it('adds only functions to a client with extend()', () => {

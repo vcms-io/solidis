@@ -227,9 +227,11 @@ type SolidisFunction = (...parameters: never[]) => unknown;
 export type SolidisTransactionClient<T> = {
   [K in keyof T as K extends SolidisTransactionBannedMethods
     ? never
-    : T[K] extends SolidisFunction
-      ? K
-      : never]: SolidisTransactionMethod<T[K]>;
+    : T[K] extends (...parameters: never[]) => AsyncIterable<unknown>
+      ? never
+      : T[K] extends SolidisFunction
+        ? K
+        : never]: SolidisTransactionMethod<T[K]>;
 } & {
   exec(): Promise<SolidisData[] | null>;
   discard(): void;

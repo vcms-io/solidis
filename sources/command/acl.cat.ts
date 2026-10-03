@@ -3,7 +3,7 @@ import { executeCommand, tryReplyToStringArray } from './utils/index.ts';
 export function createCommand(category?: string) {
   const command = ['ACL', 'CAT'];
 
-  if (category) {
+  if (category !== undefined) {
     command.push(category);
   }
 

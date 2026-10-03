@@ -51,7 +51,7 @@ function parseLibrary(
 export function createCommand(options?: CommandFunctionListOptions) {
   const command = ['FUNCTION', 'LIST'];
 
-  if (options?.libraryNamePattern) {
+  if (options?.libraryNamePattern !== undefined) {
     command.push('LIBRARYNAME', options.libraryNamePattern);
   }
 

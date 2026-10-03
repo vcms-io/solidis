@@ -70,7 +70,11 @@ export function multi<T extends object>(this: T): SolidisTransactionClient<T> {
         default: {
           const method = Reflect.get(client, property);
 
-          if (typeof method !== 'function' || property === 'reset') {
+          if (
+            typeof method !== 'function' ||
+            property === 'reset' ||
+            Reflect.get(method, Symbol.toStringTag) === 'AsyncGeneratorFunction'
+          ) {
             return undefined;
           }
 

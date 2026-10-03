@@ -3,7 +3,7 @@ import { executeCommand, tryReplyToString } from './utils/index.ts';
 export function createCommand(bits?: number) {
   const command = ['ACL', 'GENPASS'];
 
-  if (bits) {
+  if (bits !== undefined) {
     command.push(`${bits}`);
   }
 

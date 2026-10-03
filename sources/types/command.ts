@@ -296,7 +296,7 @@ export interface CommandScanBaseOptions {
 }
 
 export interface CommandScanOptions extends CommandScanBaseOptions {
-  type?: RespDataTypes;
+  type?: RespDataTypes | (string & Record<never, never>);
 }
 
 export type CommandScriptFlushOptions = CommandExclusiveOptions<

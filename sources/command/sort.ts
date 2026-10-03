@@ -44,7 +44,7 @@ export async function sort<T>(
     this,
     createCommand(key, options),
     (reply, command) => {
-      if (options && 'store' in options) {
+      if (options?.store !== undefined) {
         return tryReplyToNumber(reply, command);
       }
 

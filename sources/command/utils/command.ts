@@ -263,15 +263,15 @@ export function buildScanCommand(
 ) {
   const command = [...baseCommand, cursor];
 
-  if (options.count) {
+  if (options.count !== undefined) {
     command.push('COUNT', `${options.count}`);
   }
 
-  if (options.match) {
+  if (options.match !== undefined) {
     command.push('MATCH', options.match);
   }
 
-  if (options.type) {
+  if (options.type !== undefined) {
     command.push('TYPE', options.type);
   }
 
