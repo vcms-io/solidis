@@ -10,7 +10,7 @@
   <a href="https://www.npmjs.com/package/@vcms-io/solidis"><img src="https://img.shields.io/npm/v/@vcms-io/solidis.svg?style=flat-square&labelColor=000&color=f5a623" alt="npm"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/coverage-100%25-brightgreen?style=flat-square&labelColor=000" alt="coverage"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square&labelColor=000" alt="deps"></a>
-  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/min_bundle-<28KB-blue?style=flat-square&labelColor=000" alt="bundle"></a>
+  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/min_bundle-<29KB-blue?style=flat-square&labelColor=000" alt="bundle"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/RESP2%2FRESP3-full-orange?style=flat-square&labelColor=000" alt="RESP"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/ESM%2FCJS-dual-yellow?style=flat-square&labelColor=000" alt="modules"></a>
 </p>
@@ -30,7 +30,7 @@
 <td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Rocket.png?raw=true" alt="Rocket" width="32" height="32" /><br/><strong>0 deps</strong><br/><sub>제로 의존성</sub></td>
 <td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Package.png?raw=true" alt="Package" width="32" height="32" /><br/><strong>383</strong><br/><sub>커맨드</sub></td>
 <td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Test%20Tube.png?raw=true" alt="Test Tube" width="32" height="32" /><br/><strong>25K+</strong><br/><sub>테스트 라인</sub></td>
-<td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Animals/Feather.png?raw=true" alt="Feather" width="32" height="32" /><br/><strong>&lt; 28KB</strong><br/><sub>최소 번들</sub></td>
+<td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Animals/Feather.png?raw=true" alt="Feather" width="32" height="32" /><br/><strong>&lt; 29KB</strong><br/><sub>최소 번들</sub></td>
 </tr>
 </table>
 
@@ -53,7 +53,7 @@ const value = await client.get('key');
 
 > [!TIP]
 > **번들 크기가 중요하다면?** `SolidisClient` + `.extend()`로 쓰는 커맨드만 가져오세요.
-> 트리 쉐이킹 적용 시 **< 28KB**까지 줄일 수 있습니다.
+> 트리 쉐이킹 적용 시 **< 29KB**까지 줄일 수 있습니다.
 
 <details>
 <summary>&nbsp;&nbsp;<b>트리 쉐이킹 클라이언트</b></summary>
@@ -96,7 +96,7 @@ const replies = await client.send([
 const job = await client.send([['BLPOP', 'jobs', '30']], { timeout: 35_000 });
 ```
 
-`exec()`는 `MULTI`, 쌓인 커맨드, `EXEC`를 한 파이프라인으로 보냅니다. 쌓인 호출이 실패해 reject되는 `exec()`와 `discard()`는 `UNWATCH`를 보내므로, `WATCH`는 트랜잭션과 함께 끝납니다.
+`exec()`는 `MULTI`, 쌓인 커맨드, `EXEC`를 한 번의 `send()` 호출로 함께 보냅니다. 쌓인 호출이 실패해 reject되는 `exec()`와 `discard()`는 `UNWATCH`를 보내므로, `WATCH`는 트랜잭션과 함께 끝납니다.
 쌓인 호출의 동기 부분만 트랜잭션에 들어갑니다. 응답을 await하는 `extend()` 메서드는 그 뒤의 커맨드를 트랜잭션 밖에서 실행합니다.
 ACL 사용자에게 `@transaction`이 없을 때처럼 서버가 `MULTI`를 거부하면 쌓인 커맨드가 각각 실행되고 `exec()`는 `[MULTI]` 에러로 reject되므로, 무작정 재시도하지 마세요.
 재연결로 `WATCH`가 사라지면 다음 `EXEC`는 `DISCARD`로 바뀌어 `null`을 반환합니다. `send()`로 보낸 `MULTI`가 사라지면 `MULTI`, `EXEC`, `DISCARD`, `RESET` 전까지 다른 커맨드를 거부합니다.
@@ -186,14 +186,16 @@ await client.set('key', 'value', { expireInSeconds: 60, keepOriginalTimeToLive: 
 </details>
 
 <details>
-<summary>&nbsp;&nbsp;<b>스트림 pending 엔트리</b></summary>
+<summary>&nbsp;&nbsp;<b>스트림</b></summary>
 
 <br/>
 
 ```typescript
+const entries = await client.xrange('jobs', '-', '+');
 const pending = await client.xpending('jobs', 'workers', '-', '+', 10);
 ```
 
+스트림 엔트리의 필드는 레코드에 담기므로, 한 엔트리 안에서 반복되는 필드 이름은 마지막 값만 남고, 정수 형태의 필드 이름은 JavaScript 객체처럼 오름차순으로 앞에 옵니다. `xadd()`도 레코드를 받으며, `send()`는 필드와 값의 쌍을 그대로 반환합니다.
 `xpending()` 엔트리의 `deliveryTime`은 `XPENDING`이 보고하는 유휴 시간, 즉 마지막으로 전달된 뒤 지난 밀리초입니다.
 `xinfoStream(key, true)`의 `deliveryTime`은 `XINFO STREAM FULL`이 보고하는 대로 마지막 전달 시각의 Unix 시간(밀리초)입니다.
 
@@ -558,14 +560,14 @@ try {
 > 메시지에는 커맨드 이름(`[INCR] ERR ...`)이 붙고 인자는 붙지 않습니다. 서버가 인용해 돌려준 인자는 메시지와 `cause` 모두에서 `'***'`로 바뀌지만, GEOADD 에러의 좌표나 스크립트가 `redis.error_reply()`에 넘긴 텍스트처럼 서버가 따옴표 없이 되풀이한 값은 서버가 보낸 그대로 남습니다.
 > TS.MADD, BF.MADD, BF.INSERT는 항목을 하나씩 저장하므로, 거부된 항목은 호출 전체를 reject하는 대신 결과 배열 안의 `RespError`로 돌려줍니다.
 
-| 에러 클래스              | 발생 조건                                                                                    |
-| :----------------------- | :------------------------------------------------------------------------------------------- |
-| `SolidisCommandError`    | 서버 에러 응답 (`cause`는 `RespError`), 예상과 다른 응답, 커맨드가 거부한 옵션               |
-| `SolidisClientError`     | `commandTimeout` 안에 준비되지 않음, 핸드셰이크 거부(인증, HELLO, CLIENT SETNAME), quit 이후 |
-| `SolidisConnectionError` | TCP/TLS 연결 실패, 잘못된 포트, 타임아웃, 연결 끊김, 재시도 소진                             |
-| `SolidisRequesterError`  | 커맨드 타임아웃, `send()`의 잘못된 커맨드, MONITOR처럼 거부되는 커맨드                       |
-| `SolidisParserError`     | 잘못된 RESP 포맷, bulk string 또는 줄 크기 초과                                              |
-| `SolidisPubSubError`     | 잘못된 pub/sub 이벤트, pub/sub 또는 push 리스너 예외                                         |
+| 에러 클래스              | 발생 조건                                                                                                               |
+| :----------------------- | :---------------------------------------------------------------------------------------------------------------------- |
+| `SolidisCommandError`    | 서버 에러 응답 (`cause`는 `RespError`), 예상과 다른 응답, 커맨드가 거부한 옵션                                          |
+| `SolidisClientError`     | `commandTimeout` 안에 준비되지 않음, 핸드셰이크 거부(인증, HELLO, CLIENT SETNAME), quit 이후, 예외를 던진 이벤트 리스너 |
+| `SolidisConnectionError` | TCP/TLS 연결 실패, 잘못된 포트, 타임아웃, 연결 끊김, 재시도 소진                                                        |
+| `SolidisRequesterError`  | 커맨드 타임아웃, `send()`의 잘못된 커맨드, MONITOR처럼 거부되는 커맨드                                                  |
+| `SolidisParserError`     | 잘못된 RESP 포맷, bulk string 또는 줄 크기 초과                                                                         |
+| `SolidisPubSubError`     | 잘못된 pub/sub 이벤트, pub/sub 또는 push 리스너 예외                                                                    |
 
 ## 확장
 

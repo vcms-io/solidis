@@ -10,7 +10,7 @@
   <a href="https://www.npmjs.com/package/@vcms-io/solidis"><img src="https://img.shields.io/npm/v/@vcms-io/solidis.svg?style=flat-square&labelColor=000&color=f5a623" alt="npm"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/coverage-100%25-brightgreen?style=flat-square&labelColor=000" alt="coverage"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square&labelColor=000" alt="deps"></a>
-  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/bundle-<28KB-blue?style=flat-square&labelColor=000" alt="bundle"></a>
+  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/bundle-<29KB-blue?style=flat-square&labelColor=000" alt="bundle"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/RESP2%2FRESP3-full-orange?style=flat-square&labelColor=000" alt="RESP"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/ESM%2FCJS-dual-yellow?style=flat-square&labelColor=000" alt="modules"></a>
 </p>
@@ -30,7 +30,7 @@
 <td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Rocket.png?raw=true" alt="Rocket" width="32" height="32" /><br/><strong>0 deps</strong><br/><sub>zero dependencies</sub></td>
 <td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Package.png?raw=true" alt="Package" width="32" height="32" /><br/><strong>383</strong><br/><sub>commands</sub></td>
 <td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Test%20Tube.png?raw=true" alt="Test Tube" width="32" height="32" /><br/><strong>25K+</strong><br/><sub>lines of tests</sub></td>
-<td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Animals/Feather.png?raw=true" alt="Feather" width="32" height="32" /><br/><strong>&lt; 28KB</strong><br/><sub>min bundle</sub></td>
+<td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Animals/Feather.png?raw=true" alt="Feather" width="32" height="32" /><br/><strong>&lt; 29KB</strong><br/><sub>min bundle</sub></td>
 </tr>
 </table>
 
@@ -53,7 +53,7 @@ const value = await client.get('key');
 
 > [!TIP]
 > **Need a smaller bundle?** Use `SolidisClient` with `.extend()` to import only the commands you use.
-> Minimum bundle drops to **< 28KB** with tree-shaking.
+> Minimum bundle drops to **< 29KB** with tree-shaking.
 
 <details>
 <summary>&nbsp;&nbsp;<b>Tree-shakable client</b></summary>
@@ -96,7 +96,7 @@ const replies = await client.send([
 const job = await client.send([['BLPOP', 'jobs', '30']], { timeout: 35_000 });
 ```
 
-`exec()` sends `MULTI`, the queued commands and `EXEC` in one pipeline. An `exec()` that rejects because a queued call failed, and `discard()`, send `UNWATCH`, so a `WATCH` ends with its transaction.
+`exec()` sends `MULTI`, the queued commands and `EXEC` together, in one `send()` call. An `exec()` that rejects because a queued call failed, and `discard()`, send `UNWATCH`, so a `WATCH` ends with its transaction.
 Only the synchronous part of a queued call joins the transaction: an `extend()` method that awaits a reply runs its later commands outside it.
 If the server refuses `MULTI`, as for an ACL user without `@transaction`, the queued commands run on their own and `exec()` rejects with the `[MULTI]` error, so do not retry it blindly.
 When a reconnect loses a `WATCH`, the next `EXEC` is sent as `DISCARD` and returns `null`. When it loses a `MULTI` sent with `send()`, other commands are refused until `MULTI`, `EXEC`, `DISCARD` or `RESET`.
@@ -186,14 +186,16 @@ Option types accept only the combinations the command itself accepts: for exampl
 </details>
 
 <details>
-<summary>&nbsp;&nbsp;<b>Stream pending entries</b></summary>
+<summary>&nbsp;&nbsp;<b>Streams</b></summary>
 
 <br/>
 
 ```typescript
+const entries = await client.xrange('jobs', '-', '+');
 const pending = await client.xpending('jobs', 'workers', '-', '+', 10);
 ```
 
+Stream entries hold their fields in a record, so a field name that repeats within one entry keeps only its last value, and field names that are integers come first, in ascending order, as in any JavaScript object. `xadd()` takes a record as well; `send()` returns the raw field-value pairs.
 In `xpending()` entries, `deliveryTime` is the idle time `XPENDING` reports: the milliseconds since the entry was last delivered.
 In `xinfoStream(key, true)`, `deliveryTime` is the Unix time of the last delivery in milliseconds, as `XINFO STREAM FULL` reports it.
 
@@ -550,14 +552,14 @@ try {
 > Messages name the command (`[INCR] ERR ...`) and add none of its arguments. An argument the server quotes back becomes `'***'`, in the message and in its `cause`; a value the server repeats without quotes, such as the coordinates in a GEOADD error or text a script passes to `redis.error_reply()`, stays as the server sent it.
 > TS.MADD, BF.MADD and BF.INSERT store items one by one, so they return a rejected item as a `RespError` in their result instead of rejecting the call.
 
-| Error Class              | When                                                                                                 |
-| :----------------------- | :--------------------------------------------------------------------------------------------------- |
-| `SolidisCommandError`    | Server error reply (`cause` is the `RespError`), unexpected reply, options a command refuses         |
-| `SolidisClientError`     | Not ready within `commandTimeout`, a refused handshake (authentication, HELLO, CLIENT SETNAME), quit |
-| `SolidisConnectionError` | TCP/TLS connect failure, invalid port, timeout, connection lost, retries spent                       |
-| `SolidisRequesterError`  | Command timeout, a malformed command in `send()`, a refused command such as MONITOR                  |
-| `SolidisParserError`     | Malformed RESP, oversized bulk string or line                                                        |
-| `SolidisPubSubError`     | Malformed pub/sub event, throwing pub/sub or push listener                                           |
+| Error Class              | When                                                                                                                            |
+| :----------------------- | :------------------------------------------------------------------------------------------------------------------------------ |
+| `SolidisCommandError`    | Server error reply (`cause` is the `RespError`), unexpected reply, options a command refuses                                    |
+| `SolidisClientError`     | Not ready within `commandTimeout`, a refused handshake (authentication, HELLO, CLIENT SETNAME), quit, a throwing event listener |
+| `SolidisConnectionError` | TCP/TLS connect failure, invalid port, timeout, connection lost, retries spent                                                  |
+| `SolidisRequesterError`  | Command timeout, a malformed command in `send()`, a refused command such as MONITOR                                             |
+| `SolidisParserError`     | Malformed RESP, oversized bulk string or line                                                                                   |
+| `SolidisPubSubError`     | Malformed pub/sub event, throwing pub/sub or push listener                                                                      |
 
 ## Extensions
 

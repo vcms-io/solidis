@@ -43,7 +43,7 @@ Delete these options from your configuration. TypeScript reports them as unknown
 
 - `CLIENT REPLY OFF`, `CLIENT REPLY SKIP`, `MONITOR`, `SYNC`, `PSYNC`, `REPLCONF ACK`, `REPLCONF GETACK`, `SCRIPT DEBUG YES` and `SCRIPT DEBUG SYNC`.
 - `SUBSCRIBE`, `UNSUBSCRIBE` and their pattern and shard variants inside a transaction.
-- Empty commands, entries that are not arrays, and commands with an argument that is neither a string nor a `Buffer`, such as `undefined` or a number.
+- A `commands` argument that is not an array, empty commands, entries that are not arrays, and commands with an argument that is neither a string nor a `Buffer`, such as `undefined` or a number.
 - Commands other than `MULTI`, `EXEC`, `DISCARD` and `RESET` after a reconnect lost a `MULTI` sent with `send()`.
 
 `CLIENT REPLY ON` and `SCRIPT DEBUG NO` are still accepted. Use a dedicated tool such as `redis-cli` for monitoring, replication and script debugging.
@@ -172,6 +172,7 @@ const total = await client.incrby('counter', 10n, { bigint: true }); // bigint
 - `zintercard(keys, limit, options)` loses `options`. The server accepts neither `WEIGHTS` nor `AGGREGATE` for `ZINTERCARD`.
 - `migrate()` with `keys` requires `''` as its key, as the server does.
 - `scriptDebug()` accepts only `'NO'`; `send()` refuses `SCRIPT DEBUG YES` and `SCRIPT DEBUG SYNC`.
+- `xpending()` takes `start`, `end` and `count` together (`CommandXpendingRange`) and no longer sends a count of 10 when `count` is missing. The summary form and the range form have their own return types.
 - `zrange()`, `zrangebyscore()`, `zdiff()`, `zinter()`, `zunion()` and `zrandmember()` return `RespSortedSetMember[]` when scores are requested and `string[]` otherwise, instead of a union of both.
 
 #### 6. Fix option combinations the types now reject
@@ -209,6 +210,8 @@ await client.set('key', 'value', { expireInSeconds: 60, expireInMilliseconds: 50
 | `scriptFlush`                                      | `sync` or `async`                                                                                                                                                |
 | `functionRestore`                                  | `replace`, `flush` or `append`                                                                                                                                   |
 | `commandList`                                      | One filter: `module`, `aclcat` or `pattern`                                                                                                                      |
+| `clientList`                                       | `type` or `identifiers`                                                                                                                                          |
+| `bitpos`                                           | `mode` only with `end`                                                                                                                                           |
 | `bfInsert`, `cfInsert`                             | `nocreate` only without `capacity` (and, on `bfInsert`, without `error`)                                                                                         |
 | `migrate`                                          | `auth` or `auth2`                                                                                                                                                |
 | `restore`                                          | `idletime` or `freq`                                                                                                                                             |
@@ -283,13 +286,14 @@ Skip this step unless you construct the internal classes yourself or write custo
 - `maxConnectionRetryDelay` caps the reconnect backoff.
 - The `reconnecting(attempt, delay)` and `push(reply)` events, and the cause as the argument of `close(error)`. `push` carries RESP3 pushes that are not pub/sub messages, such as client tracking invalidations.
 - `expire(key, seconds, mode)`, `lpop(key, count)` and `rpop(key, count)`.
+- `hello()` without a protocol, and BITFIELD offsets such as `'#1'` that count in units of the field type (`CommandBitfieldOffset`).
 - `RespError#code`, and `deletedIds` in the result of `xautoclaim()`.
 - `role()` reads a Sentinel's `ROLE` reply as `{ role: 'sentinel', masterNames }`, `replicaof(host, port)` accepts `'ONE'` as the port for `REPLICAOF NO ONE`, and the time-series range commands accept `'-'` and `'+'` as timestamps and `'start'` and `'end'` for `align`.
 - With RESP2 client tracking redirected to a subscribed client, invalidations on `__redis__:invalidate` are emitted as `push` events shaped like the RESP3 ones.
 - `auth()` and `hello()` accept `Buffer` usernames and passwords, and a password chosen at runtime is sent again byte for byte after a reconnect.
 - `tsIncrby()` and `tsDecrby()` take a `timestamp` option, `tsAdd()` and `tsMadd()` accept `'*'` for the server's clock, `tsDel()` accepts `'-'` and `'+'`, `bitop()` accepts `DIFF`, `DIFF1`, `ANDOR` and `ONE`, `scan()` takes module type names such as `ReJSON-RL` for `type`, and `latencyHistogram()` can be called without commands.
-- Types: `CommandExclusiveOptions`, `CommandExactOptions`, `CommandBufferOptions`, `CommandIntegerOptions`, `CommandScoreBound`, `CommandTimeSeriesTimestamp`, `CommandTimeSeriesSampleTimestamp`, `RespString`, `RespInteger`, `SolidisSendOptions`, `RespHashEntry`, `RespRoleSentinel`, `RespTimeSeriesInfo`, `RespTimeSeriesRule`, `RespStreamDeletedEntry` and `RespStreamGroupReadResult`. `XclaimOptions` is exported from the package root, and `select` from `@vcms-io/solidis/command`.
-- Utilities: `parseConnectionUri()`, `resolveClientOptions()`, `getCommandName()`, `toCommandError()`, `parseDouble()`, `formatDouble()` and `formatDebugLog()`, and for pub/sub event names `SolidisMessageEventNames`, `SolidisSubscribeEventNames`, `SolidisUnsubscribeEventNames`, `SolidisSubscriptionEventNames`, `getPubSubEventName()`, `isMessageEventName()`, `isSubscriptionEventName()` and `isUnsubscribeEventName()`. `SolidisTransactionBannedCommandNames` lists the commands that `multi()` does not expose.
+- Types: `CommandExclusiveOptions`, `CommandExactOptions`, `CommandBufferOptions`, `CommandIntegerOptions`, `CommandScoreBound`, `CommandBitposOptions`, `CommandBitfieldOffset`, `CommandXpendingRange`, `CommandTimeSeriesTimestamp`, `CommandTimeSeriesSampleTimestamp`, `RespString`, `RespInteger`, `SolidisSendOptions`, `RespHashEntry`, `RespRoleSentinel`, `RespTimeSeriesInfo`, `RespTimeSeriesRule`, `RespStreamDeletedEntry` and `RespStreamGroupReadResult`. `XclaimOptions` is exported from the package root, and `select` from `@vcms-io/solidis/command`.
+- Utilities: `parseConnectionUri()`, `resolveClientOptions()`, `getCommandName()`, `toCommandError()`, `parseDouble()`, `formatDouble()` and `formatDebugLog()`, and for pub/sub event names `SolidisMessageEventNames`, `SolidisSubscribeEventNames`, `SolidisUnsubscribeEventNames`, `SolidisSubscriptionEventNames`, `getPubSubEventName()`, `isMessageEventName()`, `isSubscriptionEventName()` and `isUnsubscribeEventName()`. `SolidisTransactionBannedCommandNames` lists the command methods that a transaction leaves out; it also leaves out the scan iterators and the client's own methods, such as `send` and `quit`.
 - The CommonJS entry points have their own declarations (`.d.cts`), so `require()` consumers on `node16` resolution type-check, and the declarations no longer need `esModuleInterop`.
 
 ### Changed
@@ -299,7 +303,7 @@ Skip this step unless you construct the internal classes yourself or write custo
 - After a reconnect, the client restores the database selected at runtime and each kind of subscription, and forgets a kind the server refuses.
 - Blocking commands (`blpop`, `brpop`, `blmove`, `blmpop`, `brpoplpush`, `bzpopmin`, `bzpopmax`, `bzmpop`, `xread` and `xreadgroup` with `block`, `wait` and `waitaof`) run in a pipeline of their own. Their deadline is `commandTimeout` plus their own timeout, and they have none when they block forever.
 - A pipeline that times out while later ones are still waiting keeps its place, and its late replies are discarded when they arrive. The connection is reset when a blocking pipeline times out, when every in-flight pipeline has timed out, or when a second pipeline in a row times out with nothing received since it was written, so a late reply can never reach a later command and a server that stops answering is dropped even under constant traffic.
-- `quit()` rejects pending commands at once with a `SolidisClientError`, and `connect()` after `quit()` rejects with the same message, `The client was quit.`
+- `quit()` rejects pending commands and pending `connect()` calls at once with a `SolidisClientError` whose message is `The client was quit.`, also when a `ready` listener calls it or the ready check is waiting, and `connect()` after `quit()` rejects the same way.
 - Pipelines go to the socket as soon as they are sealed instead of waiting for `drain` after each write.
 - Bulk replies of 64 KB or more are returned as views of the received data instead of copies.
 - `zpopmin`, `zpopmax`, `bitfield`, `jsonNumincrby` and `jsonNummultby` never return `null`. `type()` returns the core types upper-cased and module type names, such as `ReJSON-RL`, as the server reports them.
@@ -313,6 +317,10 @@ Skip this step unless you construct the internal classes yourself or write custo
 - TLS connections send the host name for SNI unless it is an IP address. A `servername` in `tls` still takes precedence.
 - The `error` emitted for a reply that arrives with no pending request carries the reply as its `cause`.
 - `maxBulkStringLength` also limits simple string and error lines.
+- A transaction from a client extended with `multi` also offers the client's own commands, such as `select` and `info`, and the commands of earlier `extend()` calls, and methods that a subclass of the client defines can be queued like commands.
+- `bitcount()` and `bitpos()` fill a missing `start` with `0`, and `bitcount()` a missing `end` with `-1`.
+- `functionFlush()` without an argument sends no mode, so the server's `lazyfree-lazy-user-flush` setting applies, as it does for `scriptFlush()`. Pass `false` for `SYNC`.
+- `debugMaxEntries` and `maxEventListenersForClient` accept any number: a negative value or `NaN` keeps no debug entries and sets no listener limit, a fraction is rounded down, and `Infinity` keeps every entry.
 
 ### Removed
 
@@ -344,6 +352,10 @@ See [Upgrading from 0.4.x](#upgrading-from-04x) for replacements.
 - Replies parsed before a protocol error in the same chunk were rejected with the parser error, although the server had executed their commands.
 - An empty password was treated as none: `auth(user, '')` sent the username as the password, `hello()` skipped `AUTH`, and `authentication: { username, password: '' }` connected as `default`.
 - `jsonArrpop(key, undefined, index)` ignored the index and popped the last element.
+- `send()` with an argument that is not an array threw a `TypeError`, and before the client was ready it broke the handshake for every waiting request.
+- A `HELLO` that names `SETNAME` before `AUTH` did not record the user for reconnects.
+- Commands built from more than about 125,000 items, such as `bfInsert`, `cfInsert`, `hexpire`, `migrate` with `keys`, `pubsubNumsub`, `xread`, `xreadgroup` and the weights of `zinter`, threw a `RangeError` instead of being sent.
+- `bitpos()` with `mode` but without `end` sent `0 -1`, so a search for bit 0 stopped treating the string as padded with zeros.
 - A subscription to a channel name that is not valid UTF-8 was unsubscribed and restored with different bytes.
 - `TYPE` rejected module type names such as `ReJSON-RL`, `INFO` dropped fields with empty values, `REPLICAOF` rejected the reply for an existing primary, and `ROLE` rejected Sentinel replies.
 - `geosearch`, `georadius`, `sort`, `commandList`, `aclCat`, `pubsubChannels`, `pubsubShardchannels`, `functionList` and the scan iterators dropped empty-string options, so `scan({ match: '' })` returned every key, and `aclGenpass(0)` and a scan `count` of `0` were dropped as well. `sort()` rejected `{ store: undefined }`.
@@ -363,16 +375,17 @@ See [Upgrading from 0.4.x](#upgrading-from-04x) for replacements.
 
 ### Security
 
-- Error messages and stack traces no longer list command arguments. A failed `AUTH` used to put the password into the message, and a failed `SET` the value. Arguments the server quotes back in its own message, such as an ACL rule or the arguments of an unknown command, are replaced with `***`.
+- Error messages and stack traces no longer list command arguments. A failed `AUTH` used to put the password into the message, and a failed `SET` the value. Arguments the server quotes back in its own message, such as an ACL rule or the arguments of an unknown command, are replaced with `***`, also when the server joins several of them into one quoted span, as it does for an ACL selector.
 - User data shaped like a pub/sub message can no longer be dispatched as a `message` event on RESP2.
-- Integer and length lines longer than 20 characters and big numbers longer than 4,096 digits are protocol errors, so one reply can no longer stall the event loop for seconds.
+- An integer reply longer than 20 characters or a big number longer than 4,096 digits is returned as an error reply instead of being converted, and a length line longer than 20 characters is a protocol error, so one reply can no longer stall the event loop for seconds.
 
 ### Performance
 
 - The parser handles replies split across socket chunks in linear time.
 - Serialization measures each argument once, and each reply allocates less.
 - In alternating benchmark runs against 0.4.0, throughput is on par or better across the suite.
-- The minimal client with `get` and `set` shrinks from 29,457 to 28,586 bytes, and the featured client from 99,356 to 95,512 bytes.
+- Replies and timeouts for tens of thousands of pipelines in flight take linear time, and masking a long argument in an error message takes time linear in its length.
+- The minimal client with `get` and `set` shrinks from 29,457 to 28,999 bytes, and the featured client from 99,356 to 95,724 bytes.
 
 ## [0.4.0] and earlier
 
