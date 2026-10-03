@@ -1,7 +1,12 @@
 import { executeCommand, tryReplyOK } from './utils/index.ts';
 
-export function createCommand(username?: string, password?: string) {
-  const commands = ['AUTH'];
+import type { StringOrBuffer } from '../index.ts';
+
+export function createCommand(
+  username?: StringOrBuffer,
+  password?: StringOrBuffer,
+) {
+  const commands: StringOrBuffer[] = ['AUTH'];
 
   if (username && password) {
     commands.push(username, password);
@@ -14,7 +19,11 @@ export function createCommand(username?: string, password?: string) {
   return commands;
 }
 
-export async function auth<T>(this: T, username?: string, password?: string) {
+export async function auth<T>(
+  this: T,
+  username?: StringOrBuffer,
+  password?: StringOrBuffer,
+) {
   return await executeCommand(
     this,
     createCommand(username, password),

@@ -6,15 +6,15 @@ import {
   tryReplyToModuleInfo,
 } from './utils/index.ts';
 
-import type { RespHelloInfo } from '../index.ts';
+import type { RespHelloInfo, StringOrBuffer } from '../index.ts';
 
 export function createCommand(
   protocol: SolidisProtocols,
-  username?: string,
-  password?: string,
+  username?: StringOrBuffer,
+  password?: StringOrBuffer,
   clientName?: string,
 ) {
-  const command = ['HELLO'];
+  const command: StringOrBuffer[] = ['HELLO'];
 
   if (protocol !== undefined) {
     command.push(protocol === SolidisProtocols.RESP3 ? '3' : '2');
@@ -36,8 +36,8 @@ export function createCommand(
 export async function hello<T>(
   this: T,
   protocol: SolidisProtocols,
-  username?: string,
-  password?: string,
+  username?: StringOrBuffer,
+  password?: StringOrBuffer,
   clientName?: string,
 ): Promise<RespHelloInfo> {
   return await executeCommand(

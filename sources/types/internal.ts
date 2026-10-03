@@ -35,6 +35,7 @@ export interface SolidisPipeline {
   subReplies: SolidisData[];
   timeout: number;
   timer: NodeJS.Timeout | undefined;
+  receivedChunks: number;
   isBlocking: boolean;
   isTimedOut: boolean;
 }

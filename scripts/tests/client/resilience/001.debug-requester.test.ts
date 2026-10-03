@@ -1031,6 +1031,161 @@ describe('debug-requester', () => {
       assert.strictEqual(connection.writes.length, 0);
     });
 
+    it('refuses an unsupported command whose words end at a NUL byte', async () => {
+      const { connection, requester } = createRequester();
+
+      await assert.rejects(requester.send([['CLIENT', 'REPLY', 'SKIP\0']]), {
+        message:
+          'CLIENT REPLY is not supported: it breaks the pairing of requests and replies.',
+      });
+      await assert.rejects(requester.send([['client', 'reply\0x', 'off']]), {
+        message:
+          'CLIENT REPLY\0X is not supported: it breaks the pairing of requests and replies.',
+      });
+
+      await flushed();
+
+      assert.strictEqual(connection.writes.length, 0);
+    });
+
+    it('checks commands when they are flushed, so changes after send() are seen whole', async () => {
+      const { connection, requester } = createRequester();
+
+      const broken: unknown[] = ['SET', 'a', '1'];
+      const renamed = ['SET', 'b', '2'];
+      const rejected = settle(requester.send([broken as string[]]));
+      const subscribed = requester.send([renamed]);
+      const read = requester.send([['GET', 'b']]);
+
+      broken[2] = undefined;
+      renamed.splice(0, 3, 'SUBSCRIBE', 'news', 'sport');
+
+      const error = await rejected;
+
+      assert.ok(error instanceof SolidisRequesterError);
+      assert.strictEqual(error.message, 'SET takes only strings and Buffers.');
+      assert.deepStrictEqual(connection.writes, [
+        commandsToBuffer([
+          ['SUBSCRIBE', 'news', 'sport'],
+          ['GET', 'b'],
+        ]),
+      ]);
+
+      connection.reply(
+        `${subscribeConfirmation('subscribe', 'news', 1)}${subscribeConfirmation('subscribe', 'sport', 2)}$1\r\n2\r\n`,
+      );
+
+      const [confirmations] = await subscribed;
+
+      assert.strictEqual(confirmations.length, 2);
+      assert.deepStrictEqual(await read, [[Buffer.from('2')]]);
+    });
+
+    it('expands an argument-less UNSUBSCRIBE over more channels than a call takes arguments', async () => {
+      const { connection, requester } = createRequester();
+      const channels = Array.from(
+        { length: 150_000 },
+        (_, index) => `c${index}`,
+      );
+      const subscribing = settle(requester.send([['SUBSCRIBE', ...channels]]));
+      const unsubscribing = settle(requester.send([['UNSUBSCRIBE']]));
+
+      await flushed();
+
+      assert.deepStrictEqual(connection.writes, [
+        commandsToBuffer([
+          ['SUBSCRIBE', ...channels],
+          ['UNSUBSCRIBE', ...channels],
+        ]),
+      ]);
+
+      connection.emit('close', new SolidisConnectionError('lost'));
+
+      await Promise.all([subscribing, unsubscribing]);
+    });
+
+    it('expands an argument-less UNSUBSCRIBE with the exact bytes of binary channels', async () => {
+      const { connection, pubSub, requester } = createRequester();
+      const channel = Buffer.from([0x63, 0xff, 0xfe]);
+
+      pubSub.dispatchSubscriptionChange('subscribe', ['subscribe', channel, 1]);
+
+      const pending = requester.send([['UNSUBSCRIBE']]);
+
+      await flushed();
+
+      assert.deepStrictEqual(connection.writes, [
+        commandsToBuffer([['UNSUBSCRIBE', channel]]),
+      ]);
+
+      connection.emit(
+        'data',
+        Buffer.concat([
+          Buffer.from('*3\r\n$11\r\nunsubscribe\r\n$3\r\n'),
+          channel,
+          Buffer.from('\r\n:0\r\n'),
+        ]),
+      );
+
+      const [[confirmation]] = await pending;
+
+      assert.ok(Array.isArray(confirmation));
+      assert.deepStrictEqual(confirmation[1], channel);
+      assert.deepStrictEqual(pubSub.getSubscriptions('subscribe'), []);
+    });
+
+    it('stops routing a chunk once a listener ends the session', async () => {
+      const { connection, events, requester } = createRequester({}, (event) => {
+        if (event === 'subscribe') {
+          connection.emit('end');
+        }
+      });
+      const pending = settle(requester.send([['SUBSCRIBE', 'a', 'b']]));
+
+      await flushed();
+
+      connection.reply(
+        `${subscribeConfirmation('subscribe', 'a', 1)}${subscribeConfirmation('subscribe', 'b', 2)}`,
+      );
+
+      const error = await pending;
+
+      assert.ok(error instanceof SolidisClientError);
+      assert.strictEqual(getEvents(events, 'subscribe').length, 1);
+      assert.deepStrictEqual(getEvents(events, 'error'), []);
+    });
+
+    it('tracks binary credentials byte for byte', async () => {
+      const { connection, requester } = createRequester();
+      const username = Buffer.from([0xc3, 0x28]);
+      const password = Buffer.from([0xff, 0x00, 0xfe]);
+
+      const authenticated = requester.send([['AUTH', username, password]]);
+
+      await flushed();
+
+      connection.reply('+OK\r\n');
+
+      await authenticated;
+
+      assert.deepStrictEqual(requester.authentication, { username, password });
+
+      const greeted = requester.send([
+        ['HELLO', '2', 'AUTH', password, username],
+      ]);
+
+      await flushed();
+
+      connection.reply('*2\r\n+proto\r\n:2\r\n');
+
+      await greeted;
+
+      assert.deepStrictEqual(requester.authentication, {
+        username: password,
+        password: username,
+      });
+    });
+
     it('keeps replies aligned after a request times out while a later one is pending', async () => {
       const { connection, requester } = createRequester({
         commandTimeout: 200,
@@ -1069,6 +1224,86 @@ describe('debug-requester', () => {
         'Connection reset because a command timed out.',
       );
       assert.ok(reset.cause instanceof SolidisRequesterError);
+    });
+
+    it('resets a connection that stays silent through two timeouts while requests keep coming', async () => {
+      const { connection, requester } = createRequester({
+        commandTimeout: 100,
+      });
+
+      const first = settle(requester.send([['ECHO', 'a']]));
+
+      await delay(40);
+
+      const second = settle(requester.send([['ECHO', 'b']]));
+
+      assert.ok((await first) instanceof SolidisRequesterError);
+      assert.strictEqual(connection.resets.length, 0);
+
+      const third = settle(requester.send([['ECHO', 'c']]));
+      const error = await second;
+
+      assert.ok(error instanceof SolidisRequesterError);
+      assert.strictEqual(error.message, 'Command(s) timed out after 100 ms.');
+
+      const [reset] = connection.resets;
+
+      assert.strictEqual(connection.resets.length, 1);
+      assert.ok(reset instanceof SolidisRequesterError);
+      assert.strictEqual(
+        reset.message,
+        'Connection reset because a command timed out.',
+      );
+      assert.strictEqual(reset.cause, error);
+      assert.strictEqual(await third, reset);
+    });
+
+    it('keeps a connection that delivered data after a timed-out request was sent', async () => {
+      const { connection, requester } = createRequester({
+        commandTimeout: 100,
+      });
+
+      const first = settle(requester.send([['ECHO', 'a']]));
+
+      await delay(40);
+
+      const second = settle(requester.send([['ECHO', 'b']]));
+
+      await flushed();
+
+      connection.reply('$1\r\n');
+
+      assert.ok((await first) instanceof SolidisRequesterError);
+
+      const third = requester.send([['ECHO', 'c']]);
+
+      assert.ok((await second) instanceof SolidisRequesterError);
+      assert.strictEqual(connection.resets.length, 0);
+
+      connection.reply('a\r\n+b\r\n+c\r\n');
+
+      assert.deepStrictEqual(await third, [['c']]);
+    });
+
+    it('keeps the connection when a shorter timeout expires behind a timed-out request', async () => {
+      const { connection, requester } = createRequester({
+        commandTimeout: 200,
+      });
+
+      const first = settle(requester.send([['ECHO', 'a']]));
+
+      await delay(100);
+
+      const quick = settle(requester.send([['ECHO', 'b']], { timeout: 120 }));
+      const trailing = requester.send([['ECHO', 'c']]);
+
+      assert.ok((await first) instanceof SolidisRequesterError);
+      assert.ok((await quick) instanceof SolidisRequesterError);
+      assert.strictEqual(connection.resets.length, 0);
+
+      connection.reply('+a\r\n+b\r\n+c\r\n');
+
+      assert.deepStrictEqual(await trailing, [['c']]);
     });
 
     it('gives a blocking request its own pipeline with an extended deadline', async () => {
@@ -1975,10 +2210,7 @@ describe('debug-requester', () => {
 
       connection.reply('+OK\r\n+QUEUED\r\n+OK\r\n');
 
-      await assert.rejects(discarded, {
-        name: 'SolidisRequesterError',
-        message: 'EXEC was discarded: WATCH was lost with the connection.',
-      });
+      assert.deepStrictEqual(await discarded, [['OK'], ['QUEUED'], [null]]);
 
       assert.deepStrictEqual(
         await exchange(
@@ -2036,7 +2268,7 @@ describe('debug-requester', () => {
 
       connection.reply('+OK\r\n+QUEUED\r\n+OK\r\n');
 
-      await assert.rejects(queuedUnwatch, { name: 'SolidisRequesterError' });
+      assert.deepStrictEqual(await queuedUnwatch, [['OK'], ['QUEUED'], [null]]);
     });
 
     it('rejects in strict mode only on top-level errors, with a redacted SolidisCommandError', async () => {

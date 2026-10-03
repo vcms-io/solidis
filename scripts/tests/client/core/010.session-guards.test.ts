@@ -872,6 +872,39 @@ describe('session-guards', () => {
       }
     });
 
+    it('restores a binary password chosen with auth() after a reconnect', async () => {
+      const user = `solidis-session-guards-binary-${Date.now()}`;
+      const password = Buffer.from([0x70, 0xff, 0xfe, 0x77]);
+
+      await killer.send([
+        [
+          'ACL',
+          'SETUSER',
+          user,
+          'reset',
+          'on',
+          Buffer.concat([Buffer.from('>'), password]),
+          '~*',
+          '&*',
+          '+@all',
+        ],
+      ]);
+
+      const client = await createClient({ connectionRetryDelay: 10 });
+
+      try {
+        assert.strictEqual(await client.auth(user, password), 'OK');
+        assert.strictEqual(await client.aclWhoami(), user);
+
+        await forceReconnect(client);
+
+        assert.strictEqual(await client.aclWhoami(), user);
+      } finally {
+        await closeClient(client);
+        await killer.aclDeluser(user);
+      }
+    });
+
     it('returns to the default session after RESET, also across a reconnect', async () => {
       const client = await createClient({
         protocol: SolidisProtocols.RESP3,
@@ -929,7 +962,7 @@ describe('session-guards', () => {
       }
     });
 
-    it('refuses to commit a transaction whose WATCH was lost in a reconnect', async () => {
+    it('aborts a transaction whose WATCH was lost in a reconnect', async () => {
       const client = await createClient({ connectionRetryDelay: 10 });
       const key = keyspace.key('watched-balance');
 
@@ -943,10 +976,7 @@ describe('session-guards', () => {
 
         transaction.set(key, '90');
 
-        await assert.rejects(transaction.exec(), {
-          name: 'SolidisRequesterError',
-          message: 'EXEC was discarded: WATCH was lost with the connection.',
-        });
+        assert.strictEqual(await transaction.exec(), null);
         assert.strictEqual(await killer.get(key), '500');
 
         const retry = client.multi();
