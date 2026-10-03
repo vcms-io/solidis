@@ -420,13 +420,13 @@ describe('streams', () => {
     await client.xadd(keyA, '2-1', { source: 'a' });
     await client.xadd(keyB, '1-1', { source: 'b' });
 
-    const result = await client.xread([keyA, keyB], ['0', '0'], 10);
+    const result = await client.xread([keyA, keyB], ['0', '0'], 1);
 
     if (result === null) {
       assert.fail('expected non-null xread result');
     }
     assert.strictEqual(result.length, 2);
-    assert.strictEqual(result[0].entries.length, 2);
+    assert.strictEqual(result[0].entries.length, 1);
     assert.deepStrictEqual(result[0].entries[0].fields, { source: 'a' });
     assert.strictEqual(result[1].entries.length, 1);
     assert.deepStrictEqual(result[1].entries[0].fields, { source: 'b' });

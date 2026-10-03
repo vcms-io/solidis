@@ -601,20 +601,37 @@ describe('modules-timeseries', () => {
 
     await client.tsCreate(key);
 
-    const now = Date.now();
+    for (const [timestamp, value] of [
+      [1005, 1],
+      [1015, 2],
+      [1025, 3],
+    ]) {
+      await client.tsAdd(key, timestamp, value);
+    }
 
-    await client.tsAdd(key, now - 2000, 5);
-    await client.tsAdd(key, now - 1000, 15);
+    const aggregation = { type: 'sum', bucketDuration: 10 } as const;
 
-    const samples = await client.tsRevrange(key, now - 3000, now, {
-      latest: true,
-      count: 10,
-    });
-
-    assert.deepStrictEqual(samples, [
-      { timestamp: now - 1000, value: 15 },
-      { timestamp: now - 2000, value: 5 },
-    ]);
+    assert.deepStrictEqual(
+      await client.tsRevrange(key, 1005, 1030, {
+        latest: true,
+        count: 10,
+        aggregation,
+        align: 'start',
+      }),
+      [
+        { timestamp: 1025, value: 3 },
+        { timestamp: 1015, value: 2 },
+        { timestamp: 1005, value: 1 },
+      ],
+    );
+    assert.deepStrictEqual(
+      await client.tsRevrange(key, 1005, 1030, { aggregation }),
+      [
+        { timestamp: 1020, value: 3 },
+        { timestamp: 1010, value: 2 },
+        { timestamp: 1000, value: 1 },
+      ],
+    );
   });
 
   it('queries TS.MRANGE with FILTER_BY_VALUE', async (context) => {
