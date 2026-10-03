@@ -80,26 +80,27 @@ export class SolidisConnection extends EventEmitter {
       return Promise.resolve();
     }
 
+    const attempts = this.#options.maxConnectionRetries + 1;
+
+    this.#remainingReconnects = attempts;
+
     return new Promise<void>((resolve, reject) => {
-      this.#waiters.push({
-        resolve,
-        reject,
-        remainingAttempts: this.#options.maxConnectionRetries + 1,
-      });
+      this.#waiters.push({ resolve, reject, remainingAttempts: attempts });
 
       this.#startAttempts();
     });
   }
 
   public reconnect() {
-    if (this.#isQuitted || this.#isConnected) {
+    if (
+      this.#isQuitted ||
+      this.#isConnected ||
+      this.#remainingReconnects <= 0
+    ) {
       return;
     }
 
-    if (!this.#isReconnecting) {
-      this.#isReconnecting = true;
-      this.#remainingReconnects = this.#options.maxConnectionRetries + 1;
-    }
+    this.#isReconnecting = true;
 
     this.#startAttempts();
   }
@@ -121,9 +122,8 @@ export class SolidisConnection extends EventEmitter {
 
     this.#debug?.('warn', 'Connection reset', error);
 
-    this.#countFailure();
     this.#destroySocket();
-    this.emit('close', error);
+    this.#lose(error);
   }
 
   public resetBackoff() {
@@ -184,9 +184,25 @@ export class SolidisConnection extends EventEmitter {
 
   #attempt() {
     const { host, port, connectionTimeout, tls: tlsOptions } = this.#options;
-    const socket = tlsOptions
-      ? tls.connect({ ...tlsOptions, host, port })
-      : net.connect({ host, port });
+
+    let socket: SolidisSocket;
+
+    this.#retryTimer = undefined;
+
+    try {
+      socket = tlsOptions
+        ? tls.connect({ ...tlsOptions, host, port })
+        : net.connect({ host, port });
+    } catch (error) {
+      const failure = wrapWithSolidisConnectionError(error);
+
+      this.#isReconnecting = false;
+      this.#rejectWaiters(failure);
+      this.emit('error', failure);
+
+      return;
+    }
+
     const timer =
       connectionTimeout > 0
         ? setTimeout(() => this.#onAttemptTimeout(socket), connectionTimeout)
@@ -194,7 +210,6 @@ export class SolidisConnection extends EventEmitter {
 
     let failure: unknown;
 
-    this.#retryTimer = undefined;
     this.#socket = socket;
 
     socket.once(tlsOptions ? 'secureConnect' : 'connect', () => {
@@ -241,7 +256,6 @@ export class SolidisConnection extends EventEmitter {
     socket.setKeepAlive(true);
 
     this.#isConnected = true;
-    this.#isReconnecting = false;
     this.#readyAt = Number.POSITIVE_INFINITY;
     this.#waiters = [];
 
@@ -285,14 +299,9 @@ export class SolidisConnection extends EventEmitter {
 
     this.#isConnected = false;
 
-    this.#countFailure();
-
     this.#debug?.('info', 'Connection closed');
 
-    this.emit(
-      'close',
-      new SolidisConnectionError('Connection closed.', failure),
-    );
+    this.#lose(new SolidisConnectionError('Connection closed.', failure));
   }
 
   #onAttemptTimeout(socket: SolidisSocket) {
@@ -312,10 +321,7 @@ export class SolidisConnection extends EventEmitter {
   }
 
   #onAttemptFailed(error: SolidisConnectionError) {
-    const { maxConnectionRetries } = this.#options;
-
     this.#failedAttempts += 1;
-    this.#remainingReconnects -= 1;
 
     this.#waiters = this.#waiters.filter((waiter) => {
       waiter.remainingAttempts -= 1;
@@ -324,18 +330,14 @@ export class SolidisConnection extends EventEmitter {
         return true;
       }
 
-      waiter.reject(createRetryError(maxConnectionRetries, error));
+      waiter.reject(
+        createRetryError(this.#options.maxConnectionRetries, error),
+      );
 
       return false;
     });
 
-    if (this.#isReconnecting && this.#remainingReconnects <= 0) {
-      this.#isReconnecting = false;
-
-      this.emit('error', createRetryError(maxConnectionRetries, error));
-    } else {
-      this.emit('error', error);
-    }
+    this.emit('error', this.#spendReconnect(error) ?? error);
 
     if (this.#waiters.length > 0 || this.#isReconnecting) {
       this.#startAttempts();
@@ -344,15 +346,41 @@ export class SolidisConnection extends EventEmitter {
     }
   }
 
-  #countFailure() {
-    if (
-      performance.now() - this.#readyAt >=
-      this.#options.maxConnectionRetryDelay
-    ) {
+  #lose(error: Error) {
+    const { maxConnectionRetries, maxConnectionRetryDelay } = this.#options;
+
+    let exhaustion: SolidisConnectionError | undefined;
+
+    if (performance.now() - this.#readyAt >= maxConnectionRetryDelay) {
       this.#failedAttempts = 0;
+      this.#remainingReconnects = maxConnectionRetries + 1;
     } else {
       this.#failedAttempts += 1;
+
+      exhaustion = this.#spendReconnect(error);
     }
+
+    this.emit('close', error);
+
+    if (exhaustion) {
+      this.emit('error', exhaustion);
+    }
+  }
+
+  #spendReconnect(cause: unknown) {
+    if (!this.#isReconnecting) {
+      return undefined;
+    }
+
+    this.#remainingReconnects -= 1;
+
+    if (this.#remainingReconnects > 0) {
+      return undefined;
+    }
+
+    this.#isReconnecting = false;
+
+    return createRetryError(this.#options.maxConnectionRetries, cause);
   }
 
   #destroySocket() {

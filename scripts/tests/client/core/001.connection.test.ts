@@ -721,11 +721,28 @@ describe('connection', () => {
 
       connection.reconnect();
 
-      await waitFor(() => reconnecting.length === 5, {
-        description: 'a new reconnect cycle',
+      await delay(50);
+
+      assert.strictEqual(
+        reconnecting.length,
+        4,
+        'reconnect() must not start a new cycle once the budget is spent',
+      );
+
+      await assert.rejects(connection.connect(), {
+        name: 'SolidisConnectionError',
+        message: 'Connection failed after 3 retries.',
       });
 
-      assert.deepStrictEqual(reconnecting[4], [1, 0]);
+      const cycles = reconnecting.length;
+
+      connection.reconnect();
+
+      await waitFor(() => reconnecting.length === cycles + 1, {
+        description: 'a new reconnect cycle after connect()',
+      });
+
+      assert.deepStrictEqual(reconnecting[cycles], [1, 0]);
 
       connection.quit();
     });
@@ -883,6 +900,88 @@ describe('connection', () => {
 
         return connection;
       }
+
+      it('spends the reconnect budget on drops and refills it after a connection stayed up', async () => {
+        await withScriptedSockets(async (sockets) => {
+          const connection = createConnection({
+            connectionTimeout: 0,
+            connectionRetryDelay: 1,
+            maxConnectionRetryDelay: 30,
+            maxConnectionRetries: 1,
+          });
+          const errors: Error[] = [];
+
+          connection.on('error', (error) => errors.push(error));
+          connection.on('close', () => connection.reconnect());
+
+          async function dropNext(index: number) {
+            await waitFor(() => sockets.length === index + 1, {
+              description: `attempt ${index + 1}`,
+            });
+
+            sockets[index].emit('connect');
+            sockets[index].emit('close');
+          }
+
+          const connecting = connection.connect();
+
+          sockets[0].emit('connect');
+
+          await connecting;
+
+          sockets[0].emit('close');
+
+          await dropNext(1);
+          await waitFor(() => sockets.length === 3);
+
+          sockets[2].emit('connect');
+          connection.resetBackoff();
+
+          await delay(40);
+
+          sockets[2].emit('close');
+
+          await dropNext(3);
+          await waitFor(() => sockets.length === 5);
+
+          assert.strictEqual(errors.length, 0);
+
+          await dropNext(4);
+
+          assert.deepStrictEqual(
+            errors.map((error) => error.message),
+            ['Connection failed after 1 retries.'],
+          );
+
+          await delay(40);
+
+          assert.strictEqual(sockets.length, 5);
+
+          connection.quit();
+        });
+      });
+
+      it('rejects and reports a connection the socket layer refuses on the spot', async () => {
+        const connection = new SolidisConnection({
+          ...SolidisDefaultOptions,
+          host: '127.0.0.1',
+          port: 70000,
+        });
+        const errors: Error[] = [];
+
+        connection.on('error', (error) => errors.push(error));
+
+        const error = await connection
+          .connect()
+          .catch((failure: unknown) => failure);
+
+        assert.ok(error instanceof SolidisConnectionError);
+        assert.ok(error.cause instanceof RangeError);
+        assert.deepStrictEqual(errors, [error]);
+        assert.strictEqual(connection.isConnected, false);
+
+        connection.quit();
+      });
 
       it('ignores a stale socket that connects after its attempt timed out', async () => {
         await withScriptedSockets(async (sockets) => {

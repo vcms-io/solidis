@@ -148,6 +148,42 @@ describe('session-guards', () => {
       }
     });
 
+    it('gives up on a server that drops every connection right after accepting it', async () => {
+      const server = await startServer();
+      const client = new SolidisFeaturedClient(
+        mockClientOptions(server.port, {
+          autoReconnect: true,
+          maxConnectionRetries: 2,
+          connectionRetryDelay: 5,
+          maxConnectionRetryDelay: 10,
+        }),
+      );
+      const errors: Error[] = [];
+
+      client.on('error', (error) => errors.push(error));
+
+      try {
+        await client.connect();
+
+        const accepted = server.acceptedCount;
+
+        server.closesOnAccept = true;
+        server.destroySockets();
+
+        await waitFor(() =>
+          errors.some(
+            (error) => error.message === 'Connection failed after 2 retries.',
+          ),
+        );
+        await delay(100);
+
+        assert.strictEqual(server.acceptedCount - accepted, 3);
+      } finally {
+        client.quit();
+        await server.close();
+      }
+    });
+
     it('announces every reconnect attempt, including the first one after a drop', async () => {
       const server = await startServer(answerPong);
       const client = new SolidisFeaturedClient(
@@ -814,6 +850,22 @@ describe('session-guards', () => {
         assert.ok(failure.cause instanceof SolidisCommandError);
         assert.ok(failure.cause.cause instanceof RespError);
         assert.strictEqual(failure.cause.cause.code, 'WRONGPASS');
+
+        await waitFor(() =>
+          errors.some(
+            (error) => error.message === 'Connection failed after 1 retries.',
+          ),
+        );
+
+        const reported = errors.length;
+
+        await delay(200);
+
+        assert.strictEqual(
+          errors.length,
+          reported,
+          'the client must stop reconnecting once the retry budget is spent',
+        );
       } finally {
         await closeClient(client);
         await killer.aclDeluser(user);
