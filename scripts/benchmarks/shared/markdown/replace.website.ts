@@ -12,6 +12,7 @@ interface WebsiteBenchmarkEntry {
   solidisMs: number;
   baselineMs: number;
   ratio: string;
+  isWin: boolean;
 }
 
 function formatOperationName(
@@ -79,6 +80,7 @@ function buildWebsiteEntries(
       solidisMs: Math.round(solidis.elapsedMs),
       baselineMs: Math.round(baseline.elapsedMs),
       ratio: `${solidis.ratioVsBaseline.toFixed(1)}x`,
+      isWin: solidis.ratioVsBaseline > 1,
     });
   }
 
@@ -156,6 +158,7 @@ if (entries.length === 0) {
 
 const peakRatio = entries[0].ratio;
 const totalComparable = entries.length;
+const winsCount = entries.filter((entry) => entry.isWin).length;
 
 const projectRoot = resolve('.');
 let updatedCount = 0;
@@ -235,7 +238,7 @@ for (const locale of ['en', 'ko']) {
       const currentDesc: string = json.benchmarks.benchmarkResultsDesc;
       const newDesc = currentDesc.replace(
         /\d+\s*\/\s*\d+/,
-        `${totalComparable} / ${totalComparable}`,
+        `${winsCount} / ${totalComparable}`,
       );
 
       if (newDesc !== currentDesc) {
@@ -248,7 +251,7 @@ for (const locale of ['en', 'ko']) {
       const currentDesc: string = json.home.twiceAsFastDesc;
       const newDesc = currentDesc
         .replace(/[\d.]+x faster/i, `${peakRatio} faster`)
-        .replace(/[\d.]+배 빠릅니다/i, `${peakRatio} 빠릅니다`)
+        .replace(/[\d.]+x 빠릅니다/i, `${peakRatio} 빠릅니다`)
         .replace(/\d+개 벤치마크/i, `${totalComparable}개 벤치마크`)
         .replace(
           /\d+ benchmark categories/i,
@@ -265,7 +268,7 @@ for (const locale of ['en', 'ko']) {
       const currentDesc: string = json.home.benchmarkDesc;
       const newDesc = currentDesc
         .replace(/[\d.]+x faster/i, `${peakRatio} faster`)
-        .replace(/[\d.]+배 빠릅니다/i, `${peakRatio} 빠릅니다`)
+        .replace(/[\d.]+x 빠릅니다/i, `${peakRatio} 빠릅니다`)
         .replace(
           /\d+ benchmark categories/i,
           `${totalComparable} benchmark categories`,
@@ -287,8 +290,8 @@ for (const locale of ['en', 'ko']) {
           /\d+ different operation types/i,
           `${totalComparable} different operation types`,
         )
-        .replace(/[\d.]+배 빠릅니다/i, `${peakFloor}배 빠릅니다`)
-        .replace(/\d+개 카테고리/i, `${totalComparable}개 카테고리`);
+        .replace(/\d+배 빠르며/i, `${peakFloor}배 빠르며`)
+        .replace(/\d+가지 작업 유형/i, `${totalComparable}가지 작업 유형`);
 
       if (newA5 !== currentA5) {
         json.faq.a5 = newA5;

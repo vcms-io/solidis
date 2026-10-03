@@ -21,6 +21,7 @@ jobs:
   benchmark:
     name: ${{ matrix.case }}
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -79,6 +80,7 @@ jobs:
     name: Merge & PR
     needs: benchmark
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: write
       pull-requests: write

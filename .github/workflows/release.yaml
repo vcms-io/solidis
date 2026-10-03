@@ -16,6 +16,7 @@ jobs:
     name: Check Version
     needs: test
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     outputs:
       version: ${{ steps.extract.outputs.version }}
       release: ${{ steps.check.outputs.release }}
@@ -80,6 +81,7 @@ jobs:
     if: needs.check-version.outputs.release == 'true'
 
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     permissions:
       contents: write
