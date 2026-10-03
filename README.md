@@ -156,7 +156,7 @@ const image = await client.get('image', { buffer: true });           // Buffer |
 const images = await client.mget('image', 'logo', { buffer: true }); // (Buffer | null)[]
 ```
 
-Commands store `string` and `Buffer` values byte for byte.
+SET, SETNX, SETEX, PSETEX, GETSET, SETRANGE, APPEND, MSET, MSETNX, HSET, HSETNX, HMSET, LPUSH, RPUSH, LPUSHX, RPUSHX, LSET, LINSERT, LREM, LPOS, RESTORE take `Buffer` values and store them byte for byte; other commands take strings, and `send()` takes a `Buffer` for any argument.
 Reads decode UTF-8 by default; pass `{ buffer: true }` to receive the exact bytes as a `Buffer` from GET, GETDEL, GETEX, GETRANGE, MGET, HGET, HMGET, HGETALL, HVALS, LINDEX, LRANGE, LPOP, RPOP, LMOVE, BLMOVE, RPOPLPUSH, BRPOPLPUSH, BLPOP, BRPOP, LMPOP, BLMPOP.
 The return type follows the option.
 
@@ -337,7 +337,7 @@ _100,000 iterations × 10,000 concurrency · 1 KB payload · 10 repeats_
 - All 15 RESP3 reply types (Map, Set, Push, Attribute, BigNumber, ...)
 - RESP3 pushes never consume a command reply
 - Automatic BigInt promotion for unsafe integers
-- Binary-safe: `Buffer` values in, `{ buffer: true }` bytes out
+- Binary-safe: `Buffer` values for string, hash and list writes, `{ buffer: true }` bytes out
 
 </td>
 </tr>
@@ -362,7 +362,7 @@ _100,000 iterations × 10,000 concurrency · 1 KB payload · 10 repeats_
 - TLS/SSL (`rediss://` or explicit `tls` option)
 - ACL username/password authentication
 - Credential masking in debug output
-- Error messages never include command arguments
+- Error messages add no command arguments and mask the ones the server quotes back
 - `maxBulkStringLength` oversized reply guard
 
 </td>
@@ -526,17 +526,17 @@ try {
 
 > [!NOTE]
 > Every error thrown by Solidis is an instance of `SolidisError` and links its origin through the standard `cause`.
-> Messages name the command (`[INCR] ERR ...`) but never include its arguments: an argument the server quotes back becomes `'***'`, in the message and in its `cause`.
+> Messages name the command (`[INCR] ERR ...`) and add none of its arguments. An argument the server quotes back becomes `'***'`, in the message and in its `cause`; a value the server repeats without quotes, such as the coordinates in a GEOADD error or text a script passes to `redis.error_reply()`, stays as the server sent it.
 > TS.MADD, BF.MADD and BF.INSERT store items one by one, so they return a rejected item as a `RespError` in their result instead of rejecting the call.
 
-| Error Class              | When                                                              |
-| :----------------------- | :---------------------------------------------------------------- |
-| `SolidisCommandError`    | Server error reply (`cause` is the `RespError`), unexpected reply |
-| `SolidisClientError`     | Not ready within `commandTimeout`, authentication failure, quit   |
-| `SolidisConnectionError` | TCP/TLS connect failure, timeout, connection lost                 |
-| `SolidisRequesterError`  | Command timeout, invalid argument, MONITOR, lost WATCH            |
-| `SolidisParserError`     | Malformed RESP, oversized bulk string or line                     |
-| `SolidisPubSubError`     | Malformed pub/sub event, throwing pub/sub or push listener        |
+| Error Class              | When                                                                                         |
+| :----------------------- | :------------------------------------------------------------------------------------------- |
+| `SolidisCommandError`    | Server error reply (`cause` is the `RespError`), unexpected reply, options a command refuses |
+| `SolidisClientError`     | Not ready within `commandTimeout`, authentication failure, quit                              |
+| `SolidisConnectionError` | TCP/TLS connect failure, invalid port, timeout, connection lost, retries spent               |
+| `SolidisRequesterError`  | Command timeout, an empty command or non-string argument in `send()`, MONITOR                |
+| `SolidisParserError`     | Malformed RESP, oversized bulk string or line                                                |
+| `SolidisPubSubError`     | Malformed pub/sub event, throwing pub/sub or push listener                                   |
 
 ## Extensions
 

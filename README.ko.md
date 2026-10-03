@@ -156,7 +156,7 @@ const image = await client.get('image', { buffer: true });           // Buffer |
 const images = await client.mget('image', 'logo', { buffer: true }); // (Buffer | null)[]
 ```
 
-커맨드는 `string`과 `Buffer` 값을 바이트 그대로 저장합니다.
+SET, SETNX, SETEX, PSETEX, GETSET, SETRANGE, APPEND, MSET, MSETNX, HSET, HSETNX, HMSET, LPUSH, RPUSH, LPUSHX, RPUSHX, LSET, LINSERT, LREM, LPOS, RESTORE는 `Buffer` 값을 받아 바이트 그대로 저장합니다. 다른 커맨드는 문자열을 받고, `send()`는 어느 인자에나 `Buffer`를 받습니다.
 읽을 때는 기본적으로 UTF-8로 디코딩하고, GET, GETDEL, GETEX, GETRANGE, MGET, HGET, HMGET, HGETALL, HVALS, LINDEX, LRANGE, LPOP, RPOP, LMOVE, BLMOVE, RPOPLPUSH, BRPOPLPUSH, BLPOP, BRPOP, LMPOP, BLMPOP에 `{ buffer: true }`를 넘기면 정확한 바이트를 `Buffer`로 받습니다.
 반환 타입도 옵션을 따라갑니다.
 
@@ -337,7 +337,7 @@ _100,000번 반복 × 10,000 동시 실행 · 1 KB 페이로드 · 10회 측정_
 - 15가지 RESP3 응답 타입 전부 지원 (Map, Set, Push, Attribute, BigNumber, ...)
 - RESP3 push가 커맨드 응답을 가로채지 않음
 - unsafe integer 자동 BigInt 변환
-- 바이너리 세이프: `Buffer` 값 저장, `{ buffer: true }`로 바이트 그대로 읽기
+- 바이너리 세이프: 문자열·해시·리스트 쓰기에 `Buffer` 값, `{ buffer: true }`로 바이트 그대로 읽기
 
 </td>
 </tr>
@@ -362,7 +362,7 @@ _100,000번 반복 × 10,000 동시 실행 · 1 KB 페이로드 · 10회 측정_
 - TLS/SSL 지원 (`rediss://` 또는 `tls` 옵션)
 - ACL 인증 (username/password)
 - 디버그 로그에서 자격 증명 자동 마스킹
-- 에러 메시지에 커맨드 인자를 절대 포함하지 않음
+- 에러 메시지에 커맨드 인자를 덧붙이지 않고, 서버가 인용해 돌려준 인자는 가림
 - `maxBulkStringLength`로 비정상 응답 차단
 
 </td>
@@ -534,17 +534,17 @@ try {
 
 > [!NOTE]
 > Solidis가 throw하는 모든 에러는 `SolidisError`를 상속하고, 원인은 표준 `cause`로 연결됩니다.
-> 메시지에는 커맨드 이름(`[INCR] ERR ...`)만 들어가고 인자는 절대 들어가지 않습니다. 서버가 인용해 돌려준 인자는 메시지와 `cause` 모두에서 `'***'`로 바뀝니다.
+> 메시지에는 커맨드 이름(`[INCR] ERR ...`)이 붙고 인자는 붙지 않습니다. 서버가 인용해 돌려준 인자는 메시지와 `cause` 모두에서 `'***'`로 바뀌지만, GEOADD 에러의 좌표나 스크립트가 `redis.error_reply()`에 넘긴 텍스트처럼 서버가 따옴표 없이 되풀이한 값은 서버가 보낸 그대로 남습니다.
 > TS.MADD, BF.MADD, BF.INSERT는 항목을 하나씩 저장하므로, 거부된 항목은 호출 전체를 reject하는 대신 결과 배열 안의 `RespError`로 돌려줍니다.
 
-| 에러 클래스              | 발생 조건                                                 |
-| :----------------------- | :-------------------------------------------------------- |
-| `SolidisCommandError`    | 서버 에러 응답 (`cause`는 `RespError`), 예상과 다른 응답  |
-| `SolidisClientError`     | `commandTimeout` 안에 준비되지 않음, 인증 실패, quit 이후 |
-| `SolidisConnectionError` | TCP/TLS 연결 실패, 타임아웃, 연결 끊김                    |
-| `SolidisRequesterError`  | 커맨드 타임아웃, 잘못된 인자, MONITOR, 사라진 WATCH       |
-| `SolidisParserError`     | 잘못된 RESP 포맷, bulk string 또는 줄 크기 초과           |
-| `SolidisPubSubError`     | 잘못된 pub/sub 이벤트, pub/sub 또는 push 리스너 예외      |
+| 에러 클래스              | 발생 조건                                                                      |
+| :----------------------- | :----------------------------------------------------------------------------- |
+| `SolidisCommandError`    | 서버 에러 응답 (`cause`는 `RespError`), 예상과 다른 응답, 커맨드가 거부한 옵션 |
+| `SolidisClientError`     | `commandTimeout` 안에 준비되지 않음, 인증 실패, quit 이후                      |
+| `SolidisConnectionError` | TCP/TLS 연결 실패, 잘못된 포트, 타임아웃, 연결 끊김, 재시도 소진               |
+| `SolidisRequesterError`  | 커맨드 타임아웃, `send()`의 빈 커맨드나 문자열이 아닌 인자, MONITOR            |
+| `SolidisParserError`     | 잘못된 RESP 포맷, bulk string 또는 줄 크기 초과                                |
+| `SolidisPubSubError`     | 잘못된 pub/sub 이벤트, pub/sub 또는 push 리스너 예외                           |
 
 ## 확장
 

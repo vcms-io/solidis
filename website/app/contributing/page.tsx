@@ -87,7 +87,7 @@ export default function ContributingPage() {
       step: 3,
       title: t('contributing.step3Title'),
       description: t('contributing.step3Desc'),
-      code: 'npm test',
+      code: 'SOLIDIS_TEST_PORT=6380 npm test # a disposable server: the tests flush it',
     },
     {
       step: 4,
@@ -247,7 +247,10 @@ cd solidis`}
               <h3 className="text-sm font-semibold text-foreground mb-2">
                 {t('contributing.runTests')}
               </h3>
-              <CodeBlock code="npm test" language="bash" />
+              <CodeBlock
+                code="SOLIDIS_TEST_PORT=6380 npm test # a disposable server: the tests flush it"
+                language="bash"
+              />
             </div>
           </div>
         </CardContent>

@@ -196,7 +196,7 @@ await client.connect();`}
                       },
                       {
                         signature:
-                          'async get(key: string): Promise<string | null>',
+                          'async get(key: string, options?: CommandBufferOptions): Promise<string | Buffer | null>',
                         descriptionKey: 'apiReference.getDesc',
                       },
                       {
