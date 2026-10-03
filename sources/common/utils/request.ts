@@ -2,6 +2,7 @@ import {
   SolidisContainerCommandNameSet,
   SolidisSymbolBytes,
 } from '../constants.ts';
+import { RespError, SolidisCommandError } from './error.ts';
 
 import type { StringOrBuffer } from '../../types/solidis.ts';
 
@@ -84,4 +85,53 @@ export function getCommandName(command: readonly StringOrBuffer[]): string {
   }
 
   return `${name} ${String(subcommand).toUpperCase()}`;
+}
+
+function redactArguments(
+  message: string,
+  command: readonly StringOrBuffer[],
+  visibleLength: number,
+) {
+  let result = message;
+
+  for (const argument of command.slice(visibleLength)) {
+    const text = String(argument).replace(/[\r\n]/g, ' ');
+
+    if (text === '' || !result.includes(`'${text[0]}`)) {
+      continue;
+    }
+
+    for (
+      let length = Math.min(text.length, result.length);
+      length > 0;
+      length -= 1
+    ) {
+      const quoted = `'${text.slice(0, length)}'`;
+
+      if (result.includes(quoted)) {
+        result = result.replaceAll(quoted, "'***'");
+
+        break;
+      }
+    }
+  }
+
+  return result;
+}
+
+export function toCommandError(
+  reply: RespError,
+  command: readonly StringOrBuffer[],
+): SolidisCommandError {
+  const name = getCommandName(command);
+  const message = redactArguments(
+    reply.message,
+    command,
+    name.split(' ').length,
+  );
+
+  return new SolidisCommandError(
+    `[${name}] ${message}`,
+    message === reply.message ? reply : new RespError(message),
+  );
 }

@@ -21,7 +21,13 @@ function removeUndefined(value: object | undefined) {
 }
 
 export function parseConnectionUri(uri: string | URL): SolidisClientOptions {
-  const url = typeof uri === 'string' ? new URL(uri) : uri;
+  let url: URL;
+
+  try {
+    url = typeof uri === 'string' ? new URL(uri) : uri;
+  } catch {
+    throw new SolidisClientError('Invalid URI');
+  }
 
   if (url.protocol !== 'redis:' && url.protocol !== 'rediss:') {
     throw new SolidisClientError(

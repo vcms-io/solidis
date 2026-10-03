@@ -318,6 +318,12 @@ describe('parser-edge', () => {
       assert.deepStrictEqual(parseOnce(bytes('=-1\r\n')), [null]);
     });
 
+    it('parses the -nan spelling that Redis 6.2 sends as NaN', () => {
+      const [value] = parseOnce(bytes(',-nan\r\n'));
+
+      assert.ok(typeof value === 'number' && Number.isNaN(value));
+    });
+
     it('parses a double of exactly zero', () => {
       assert.deepStrictEqual(parseOnce(bytes(',0\r\n')), [0]);
     });
@@ -340,6 +346,48 @@ describe('parser-edge', () => {
         () => parser.parse(Buffer.from('$2048\r\n')),
         isParserError('Bulk length 2048 exceeds maximum allowed 1024'),
       );
+    });
+
+    it('rejects a line that grows past the configured maximum before it ends', () => {
+      const parser = new SolidisParser({
+        parser: { maxBulkStringLength: 1024 },
+      });
+
+      assert.deepStrictEqual(parser.parse(bytes(`+${'a'.repeat(1000)}`)), []);
+      assert.deepStrictEqual(parser.parse(bytes('a'.repeat(20))), []);
+      assert.throws(
+        () => parser.parse(bytes('a'.repeat(8))),
+        isParserError('Line length exceeds maximum allowed 1024'),
+      );
+    });
+
+    it('parses a line split across thousands of chunks in linear time', () => {
+      const parser = createParser();
+      const size = 8 * 1024 * 1024;
+      const stream = Buffer.concat([
+        bytes('+'),
+        Buffer.alloc(size, 0x61),
+        bytes('\r\n-ERR '),
+        Buffer.alloc(size, 0x62),
+        bytes('\r'),
+        bytes('\n:1\r\n'),
+      ]);
+      const replies: SolidisData[] = [];
+      const startedAt = performance.now();
+
+      for (let offset = 0; offset < stream.length; offset += 16384) {
+        replies.push(...parser.parse(stream.subarray(offset, offset + 16384)));
+      }
+
+      const elapsed = performance.now() - startedAt;
+      const [line, error, integer] = replies;
+
+      assert.strictEqual(replies.length, 3);
+      assert.strictEqual(typeof line === 'string' && line.length, size);
+      assert.ok(error instanceof RespError);
+      assert.strictEqual(error.message.length, size + 4);
+      assert.strictEqual(integer, 1);
+      assert.ok(elapsed < 500, `took ${Math.round(elapsed)} ms`);
     });
 
     it('accepts a bulk string exactly at the configured maximum', () => {

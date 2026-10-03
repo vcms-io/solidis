@@ -21,6 +21,7 @@ import {
   SolidisParserError,
   SolidisProtocols,
   SolidisPubSub,
+  SolidisPubSubError,
   SolidisRequester,
   SolidisRequesterError,
 } from '../../../../sources/index.ts';
@@ -510,8 +511,11 @@ describe('debug-requester', () => {
       await assert.rejects(
         () => strictClient.incr(key),
         (error: Error) =>
-          error instanceof RespError &&
-          error.message === 'ERR value is not an integer or out of range',
+          error instanceof SolidisCommandError &&
+          error.message ===
+            '[INCR] ERR value is not an integer or out of range' &&
+          error.cause instanceof RespError &&
+          error.cause.code === 'ERR',
       );
 
       await closeClient(strictClient);
@@ -1400,7 +1404,7 @@ describe('debug-requester', () => {
 
       const [[error]] = getEvents(events, 'error');
 
-      assert.ok(error instanceof SolidisRequesterError);
+      assert.ok(error instanceof SolidisPubSubError);
       assert.strictEqual(error.message, "A 'push' listener threw");
       assert.strictEqual(error.cause, failure);
     });
@@ -1481,10 +1485,10 @@ describe('debug-requester', () => {
       const [replies] = await pending;
 
       assert.strictEqual(replies.length, 2);
-      assert.deepStrictEqual(
-        [...pubSub.getSubscriptions('subscribe')],
-        ['a', 'b'],
-      );
+      assert.deepStrictEqual(pubSub.getSubscriptions('subscribe'), [
+        Buffer.from('a'),
+        Buffer.from('b'),
+      ]);
     });
 
     it('delivers RESP2 messages that arrive between subscription confirmations', async () => {
@@ -1559,11 +1563,10 @@ describe('debug-requester', () => {
       const [replies] = await pending;
 
       assert.strictEqual(replies.length, 2);
-      assert.strictEqual(pubSub.getSubscriptions('subscribe').size, 0);
-      assert.deepStrictEqual(
-        [...pubSub.getSubscriptions('psubscribe')],
-        ['p*'],
-      );
+      assert.strictEqual(pubSub.getSubscriptions('subscribe').length, 0);
+      assert.deepStrictEqual(pubSub.getSubscriptions('psubscribe'), [
+        Buffer.from('p*'),
+      ]);
     });
 
     it('rejects on the first error reply but still consumes the rest of the batch', async () => {
@@ -1586,7 +1589,12 @@ describe('debug-requester', () => {
 
       await assert.rejects(
         failed,
-        (error: unknown) => error instanceof RespError && error.code === 'ERR',
+        (error: unknown) =>
+          error instanceof SolidisCommandError &&
+          error.message ===
+            '[INCR] ERR value is not an integer or out of range' &&
+          error.cause instanceof RespError &&
+          error.cause.code === 'ERR',
       );
       assert.deepStrictEqual(await next, [['PONG']]);
     });
@@ -1616,6 +1624,513 @@ describe('debug-requester', () => {
         ])}`,
         'Requester received 12 bytes',
       ]);
+    });
+
+    it('rejects a request with an argument that is not a string or Buffer and keeps the batch intact', async () => {
+      const { connection, requester } = createRequester();
+
+      const numeric = requester.send([['SET', 'k', 5 as unknown as string]]);
+      const missing = requester.send([
+        ['MSET', 'a', '1', 'b', undefined as unknown as string],
+      ]);
+      const name = requester.send([[7 as unknown as string]]);
+      const valid = requester.send([['GET', 'k']]);
+
+      await assert.rejects(numeric, {
+        name: 'SolidisRequesterError',
+        message: 'SET takes only strings and Buffers.',
+      });
+      await assert.rejects(missing, {
+        message: 'MSET takes only strings and Buffers.',
+      });
+      await assert.rejects(name, {
+        message: '7 takes only strings and Buffers.',
+      });
+
+      await flushed();
+
+      assert.deepStrictEqual(connection.writes, [
+        commandsToBuffer([['GET', 'k']]),
+      ]);
+
+      connection.reply('$1\r\nv\r\n');
+
+      assert.deepStrictEqual(await valid, [[Buffer.from('v')]]);
+    });
+
+    it('rejects commands whose replies the server skips or reshapes', async () => {
+      const { connection, requester } = createRequester();
+
+      const unsupported: [string[], string][] = [
+        [['MONITOR'], 'MONITOR'],
+        [['psync', '?', '-1'], 'PSYNC'],
+        [['CLIENT', 'REPLY', 'OFF'], 'CLIENT REPLY'],
+        [['client', 'reply', 'skip'], 'CLIENT REPLY'],
+        [['REPLCONF', 'ACK', '0'], 'REPLCONF'],
+        [['replconf', 'getack', '*'], 'REPLCONF'],
+        [['SCRIPT', 'DEBUG', 'YES'], 'SCRIPT DEBUG'],
+        [['script', 'debug', 'sync'], 'SCRIPT DEBUG'],
+      ];
+
+      for (const [command, name] of unsupported) {
+        await assert.rejects(requester.send([['PING'], command]), {
+          name: 'SolidisRequesterError',
+          message: `${name} is not supported: it breaks the pairing of requests and replies.`,
+        });
+      }
+
+      const supported = requester.send([
+        ['CLIENT', 'REPLY', 'ON'],
+        ['SCRIPT', 'DEBUG', 'NO'],
+        ['REPLCONF', 'LISTENING-PORT', '6380'],
+        ['CLIENT', 'ID'],
+      ]);
+
+      await flushed();
+
+      assert.strictEqual(connection.writes.length, 1);
+
+      connection.reply('+OK\r\n+OK\r\n+OK\r\n:7\r\n');
+
+      assert.deepStrictEqual(await supported, [['OK'], ['OK'], ['OK'], [7]]);
+    });
+
+    it('unsubscribes from channels whose SUBSCRIBE is still in flight on an argument-less UNSUBSCRIBE', async () => {
+      const { connection, pubSub, requester } = createRequester();
+      const binary = Buffer.from([0x76, 0xff]);
+
+      pubSub.dispatchSubscriptionChange('subscribe', ['subscribe', 'a', 1]);
+
+      const inflight = requester.send([['SUBSCRIBE', 'b', 'c']]);
+
+      await flushed();
+
+      const sameFlush = requester.send([
+        ['PSUBSCRIBE', 'p*'],
+        ['SUBSCRIBE', binary],
+        ['UNSUBSCRIBE'],
+      ]);
+      const next = requester.send([['GET', 'k']]);
+
+      await flushed();
+
+      assert.deepStrictEqual(connection.writes, [
+        commandsToBuffer([['SUBSCRIBE', 'b', 'c']]),
+        commandsToBuffer([
+          ['PSUBSCRIBE', 'p*'],
+          ['SUBSCRIBE', binary],
+          ['UNSUBSCRIBE', 'a', 'b', 'c', binary],
+          ['GET', 'k'],
+        ]),
+      ]);
+
+      connection.reply(
+        subscribeConfirmation('subscribe', 'b', 2) +
+          subscribeConfirmation('subscribe', 'c', 3) +
+          subscribeConfirmation('psubscribe', 'p*', 4) +
+          '*3\r\n$9\r\nsubscribe\r\n$2\r\nv\xff\r\n:5\r\n' +
+          subscribeConfirmation('unsubscribe', 'a', 4) +
+          subscribeConfirmation('unsubscribe', 'b', 3) +
+          subscribeConfirmation('unsubscribe', 'c', 2) +
+          '*3\r\n$11\r\nunsubscribe\r\n$2\r\nv\xff\r\n:1\r\n' +
+          '$5\r\nvalue\r\n',
+      );
+
+      assert.strictEqual((await inflight)[0].length, 2);
+
+      const [[psubscribed], [subscribed], unsubscribed] = await sameFlush;
+
+      assert.deepStrictEqual(psubscribed, [
+        Buffer.from('psubscribe'),
+        Buffer.from('p*'),
+        4,
+      ]);
+      assert.deepStrictEqual(subscribed, [Buffer.from('subscribe'), binary, 5]);
+      assert.strictEqual(unsubscribed.length, 4);
+      assert.deepStrictEqual(await next, [[Buffer.from('value')]]);
+      assert.strictEqual(pubSub.getSubscriptions('subscribe').length, 0);
+      assert.deepStrictEqual(pubSub.getSubscriptions('psubscribe'), [
+        Buffer.from('p*'),
+      ]);
+    });
+
+    it('rejects subscription commands while a transaction is open', async () => {
+      const { connection, requester } = createRequester();
+
+      const opened = requester.send([['MULTI']]);
+      const inside = requester.send([['SUBSCRIBE', 'x']]);
+      const queued = requester.send([['SET', 'k', 'v']]);
+      const whole = requester.send([['PUNSUBSCRIBE'], ['EXEC']]);
+      const executed = requester.send([['EXEC']]);
+      const after = requester.send([['SUBSCRIBE', 'y']]);
+      const rejectedTransaction = requester.send([
+        ['MULTI'],
+        ['SSUBSCRIBE', 's'],
+        ['EXEC'],
+      ]);
+      const stillClosed = requester.send([['SUNSUBSCRIBE', 's']]);
+
+      for (const [pending, name] of [
+        [inside, 'SUBSCRIBE'],
+        [whole, 'PUNSUBSCRIBE'],
+        [rejectedTransaction, 'SSUBSCRIBE'],
+      ] as const) {
+        await assert.rejects(pending, {
+          name: 'SolidisRequesterError',
+          message: `${name} is not supported inside a transaction: it breaks the pairing of requests and replies.`,
+        });
+      }
+
+      await flushed();
+
+      assert.deepStrictEqual(connection.writes, [
+        commandsToBuffer([
+          ['MULTI'],
+          ['SET', 'k', 'v'],
+          ['EXEC'],
+          ['SUBSCRIBE', 'y'],
+          ['SUNSUBSCRIBE', 's'],
+        ]),
+      ]);
+
+      connection.reply(
+        '+OK\r\n+QUEUED\r\n*1\r\n+OK\r\n' +
+          subscribeConfirmation('subscribe', 'y', 1) +
+          subscribeConfirmation('sunsubscribe', 's', 0),
+      );
+
+      assert.deepStrictEqual(await opened, [['OK']]);
+      assert.deepStrictEqual(await queued, [['QUEUED']]);
+      assert.deepStrictEqual(await executed, [[['OK']]]);
+      assert.strictEqual((await after)[0].length, 1);
+      assert.strictEqual((await stillClosed)[0].length, 1);
+    });
+
+    it('applies SELECT, HELLO and AUTH queued in a transaction only when EXEC runs them', async () => {
+      const { connection, requester } = createRequester();
+
+      const discarded = requester.send([
+        ['MULTI'],
+        ['SELECT', '3'],
+        ['HELLO', '3'],
+        ['AUTH', 'alice', 'secret'],
+        ['DISCARD'],
+      ]);
+
+      await flushed();
+
+      connection.reply('+OK\r\n+QUEUED\r\n+QUEUED\r\n+QUEUED\r\n+OK\r\n');
+
+      await discarded;
+
+      assert.strictEqual(requester.database, 0);
+      assert.strictEqual(requester.protocol, SolidisProtocols.RESP2);
+      assert.strictEqual(requester.authentication, undefined);
+
+      const aborted = requester.send([['MULTI'], ['SELECT', '4'], ['EXEC']]);
+
+      await flushed();
+
+      connection.reply('+OK\r\n+QUEUED\r\n*-1\r\n');
+
+      assert.deepStrictEqual(await aborted, [['OK'], ['QUEUED'], [null]]);
+      assert.strictEqual(requester.database, 0);
+
+      const failed = requester.send([['MULTI'], ['SELECT', '4'], ['EXEC']]);
+
+      await flushed();
+
+      connection.reply(
+        '+OK\r\n+QUEUED\r\n-EXECABORT Transaction discarded because of previous errors.\r\n',
+      );
+
+      await failed;
+
+      assert.strictEqual(requester.database, 0);
+
+      const executed = requester.send([
+        ['MULTI'],
+        ['SELECT', '3'],
+        ['GET', 'k'],
+        ['AUTH', 'alice', 'secret'],
+        ['HELLO', '3'],
+        ['EXEC'],
+      ]);
+
+      await flushed();
+
+      connection.reply(
+        '+OK\r\n+QUEUED\r\n+QUEUED\r\n+QUEUED\r\n+QUEUED\r\n*4\r\n+OK\r\n$1\r\nv\r\n+OK\r\n%1\r\n+proto\r\n:3\r\n',
+      );
+
+      const replies = await executed;
+
+      assert.deepStrictEqual(replies.at(-1)?.[0], [
+        'OK',
+        Buffer.from('v'),
+        'OK',
+        new Map([['proto', 3]]),
+      ]);
+      assert.strictEqual(requester.database, 3);
+      assert.strictEqual(requester.protocol, SolidisProtocols.RESP3);
+      assert.deepStrictEqual(requester.authentication, {
+        username: 'alice',
+        password: 'secret',
+      });
+    });
+
+    it('tracks the credentials of AUTH and HELLO AUTH and forgets them on RESET', async () => {
+      const { connection, requester } = createRequester();
+
+      const exchanges: [string[], string, unknown][] = [
+        [
+          ['AUTH', 'secret'],
+          '+OK\r\n',
+          { username: 'default', password: 'secret' },
+        ],
+        [
+          ['AUTH', 'mallory', 'wrong'],
+          '-WRONGPASS invalid username-password pair\r\n',
+          { username: 'default', password: 'secret' },
+        ],
+        [
+          ['HELLO', '3', 'AUTH', 'alice', 'pw', 'SETNAME', 'app'],
+          '%1\r\n+proto\r\n:3\r\n',
+          { username: 'alice', password: 'pw' },
+        ],
+        [
+          ['HELLO', '3', 'SETNAME', 'AUTH'],
+          '%1\r\n+proto\r\n:3\r\n',
+          { username: 'alice', password: 'pw' },
+        ],
+        [
+          ['auth', 'bob', 'pw2'],
+          '+OK\r\n',
+          { username: 'bob', password: 'pw2' },
+        ],
+        [['RESET'], '+RESET\r\n', undefined],
+      ];
+
+      for (const [command, reply, authentication] of exchanges) {
+        const pending = requester.send([command]);
+
+        await flushed();
+
+        connection.reply(reply);
+
+        await pending;
+
+        assert.deepStrictEqual(
+          requester.authentication,
+          authentication,
+          command.join(' '),
+        );
+      }
+
+      const kept = requester.send([['AUTH', 'carol', 'pw3']]);
+
+      await flushed();
+
+      connection.reply('+OK\r\n');
+
+      await kept;
+
+      connection.emit('close', new SolidisConnectionError('lost'));
+
+      assert.deepStrictEqual(requester.authentication, {
+        username: 'carol',
+        password: 'pw3',
+      });
+    });
+
+    it('discards a transaction whose WATCH was lost with the connection', async () => {
+      const { connection, requester } = createRequester();
+
+      async function exchange(commands: string[][], reply: string) {
+        const pending = requester.send(commands);
+
+        await flushed();
+
+        connection.reply(reply);
+
+        return await pending;
+      }
+
+      await exchange([['WATCH', 'balance']], '+OK\r\n');
+
+      connection.emit('close', new SolidisConnectionError('lost'));
+
+      const discarded = requester.send([
+        ['MULTI'],
+        ['SET', 'balance', '90'],
+        ['EXEC'],
+      ]);
+
+      await flushed();
+
+      assert.deepStrictEqual(
+        connection.writes.at(-1),
+        commandsToBuffer([['MULTI'], ['SET', 'balance', '90'], ['DISCARD']]),
+      );
+
+      connection.reply('+OK\r\n+QUEUED\r\n+OK\r\n');
+
+      await assert.rejects(discarded, {
+        name: 'SolidisRequesterError',
+        message: 'EXEC was discarded: WATCH was lost with the connection.',
+      });
+
+      assert.deepStrictEqual(
+        await exchange(
+          [['MULTI'], ['SET', 'balance', '90'], ['EXEC']],
+          '+OK\r\n+QUEUED\r\n*1\r\n+OK\r\n',
+        ),
+        [['OK'], ['QUEUED'], [['OK']]],
+      );
+
+      await exchange([['WATCH', 'balance']], '+OK\r\n');
+
+      connection.emit('close', new SolidisConnectionError('lost'));
+
+      assert.deepStrictEqual(
+        await exchange(
+          [['WATCH', 'balance'], ['MULTI'], ['EXEC']],
+          '+OK\r\n+OK\r\n*0\r\n',
+        ),
+        [['OK'], ['OK'], [[]]],
+      );
+
+      await exchange([['WATCH', 'balance']], '+OK\r\n');
+
+      connection.emit('close', new SolidisConnectionError('lost'));
+
+      await exchange([['UNWATCH']], '+OK\r\n');
+
+      assert.deepStrictEqual(
+        await exchange([['MULTI'], ['EXEC']], '+OK\r\n*0\r\n'),
+        [['OK'], [[]]],
+      );
+
+      await exchange([['WATCH', 'balance']], '+OK\r\n');
+      await exchange([['MULTI'], ['EXEC']], '+OK\r\n*0\r\n');
+
+      connection.emit('close', new SolidisConnectionError('lost'));
+
+      assert.deepStrictEqual(
+        await exchange([['MULTI'], ['EXEC']], '+OK\r\n*0\r\n'),
+        [['OK'], [[]]],
+      );
+
+      await exchange([['WATCH', 'balance']], '+OK\r\n');
+
+      connection.emit('close', new SolidisConnectionError('lost'));
+
+      const queuedUnwatch = requester.send([['MULTI'], ['UNWATCH'], ['EXEC']]);
+
+      await flushed();
+
+      assert.deepStrictEqual(
+        connection.writes.at(-1),
+        commandsToBuffer([['MULTI'], ['UNWATCH'], ['DISCARD']]),
+      );
+
+      connection.reply('+OK\r\n+QUEUED\r\n+OK\r\n');
+
+      await assert.rejects(queuedUnwatch, { name: 'SolidisRequesterError' });
+    });
+
+    it('rejects in strict mode only on top-level errors, with a redacted SolidisCommandError', async () => {
+      const { connection, requester } = createRequester({
+        rejectOnPartialPipelineError: true,
+      });
+
+      const nested = requester.send([['MULTI'], ['INCR', 's'], ['EXEC']]);
+
+      await flushed();
+
+      connection.reply(
+        '+OK\r\n+QUEUED\r\n*1\r\n-ERR value is not an integer or out of range\r\n',
+      );
+
+      const [, , [results]] = await nested;
+
+      assert.ok(Array.isArray(results));
+      assert.ok(results[0] instanceof RespError);
+
+      const failed = requester.send([
+        ['ACL', 'SETUSER', 'alice', 'on', "<pass'word"],
+      ]);
+
+      await flushed();
+
+      connection.reply(
+        "-ERR Error in ACL SETUSER modifier '<pass'word': Syntax error\r\n",
+      );
+
+      await assert.rejects(failed, (error: unknown) => {
+        assert.ok(error instanceof SolidisCommandError);
+        assert.strictEqual(
+          error.message,
+          "[ACL SETUSER] ERR Error in ACL SETUSER modifier '***': Syntax error",
+        );
+        assert.ok(error.cause instanceof RespError);
+        assert.strictEqual(error.cause.code, 'ERR');
+        assert.strictEqual(
+          error.cause.message,
+          "ERR Error in ACL SETUSER modifier '***': Syntax error",
+        );
+
+        return true;
+      });
+    });
+
+    it('never arms a deadline that Node would truncate', async () => {
+      const warnings: Error[] = [];
+      const onWarning = (warning: Error) => warnings.push(warning);
+
+      process.on('warning', onWarning);
+
+      try {
+        const { connection, requester } = createRequester({
+          commandTimeout: 30,
+        });
+
+        const forever = settle(
+          requester.send([['BLPOP', 'k', '3000000']], {
+            blockingTimeout: 3_000_000_000,
+          }),
+        );
+        const huge = settle(
+          requester.send([['GET', 'k']], { timeout: 2_147_483_648 }),
+        );
+        const negative = settle(
+          requester.send([['BLPOP', 'k', '-5']], { blockingTimeout: -5000 }),
+        );
+
+        await delay(60);
+
+        assert.strictEqual(connection.resets.length, 1);
+
+        const error = await negative;
+
+        assert.ok(error instanceof SolidisRequesterError);
+        assert.strictEqual(error.message, 'Command(s) timed out after 30 ms.');
+        for (const pending of [forever, huge]) {
+          const reset = await pending;
+
+          assert.ok(reset instanceof SolidisRequesterError);
+          assert.strictEqual(
+            reset.message,
+            'Connection reset because a command timed out.',
+          );
+        }
+        assert.deepStrictEqual(
+          warnings.filter(({ name }) => name === 'TimeoutOverflowWarning'),
+          [],
+        );
+      } finally {
+        process.off('warning', onWarning);
+      }
     });
   });
 });

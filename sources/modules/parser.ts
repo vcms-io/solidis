@@ -126,6 +126,16 @@ export class SolidisParser {
     const availableLength =
       this.#buffer.length - this.#offset + this.#pendingLength;
 
+    if (this.#requiredLength < 0 && !chunk.includes(LF)) {
+      if (availableLength > this.#maxBulkStringLength) {
+        throw new SolidisParserError(
+          `Line length exceeds maximum allowed ${this.#maxBulkStringLength}`,
+        );
+      }
+
+      return false;
+    }
+
     if (availableLength < this.#requiredLength) {
       return false;
     }
@@ -356,6 +366,8 @@ export class SolidisParser {
     }
 
     if (index + 1 >= buffer.length) {
+      this.#requiredLength = -1;
+
       return -1;
     }
 

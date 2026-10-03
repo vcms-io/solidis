@@ -4,9 +4,11 @@ import {
 } from '../common/constants.ts';
 import { SolidisPubSubError } from '../common/utils/error.ts';
 import { isUnsubscribeEventName } from '../common/utils/reply.ts';
+import { RespPush } from '../types/resp.ts';
 
 import type {
   SolidisClientEmit,
+  SolidisClientEvents,
   SolidisData,
   SolidisMessageEventName,
   SolidisSubscriptionEventName,
@@ -27,7 +29,7 @@ function isPayload(value: SolidisData | undefined): value is StringOrBuffer {
 
 export class SolidisPubSub {
   readonly #subscriptions = SolidisSubscribeEventNames.map(
-    () => new Set<string>(),
+    () => new Map<string, Buffer>(),
   );
   readonly #emit: SolidisClientEmit;
 
@@ -39,10 +41,8 @@ export class SolidisPubSub {
     return this.#subscriptions.some((subscriptions) => subscriptions.size > 0);
   }
 
-  public getSubscriptions(
-    eventName: SolidisSubscriptionEventName,
-  ): ReadonlySet<string> {
-    return this.#getSubscriptions(eventName);
+  public getSubscriptions(eventName: SolidisSubscriptionEventName): Buffer[] {
+    return [...this.#getSubscriptions(eventName).values()];
   }
 
   public clearSubscriptions(eventName: SolidisSubscriptionEventName) {
@@ -55,6 +55,10 @@ export class SolidisPubSub {
     }
   }
 
+  public dispatchPush(reply: RespPush) {
+    this.#notify('push', reply);
+  }
+
   public dispatchMessage(
     eventName: SolidisMessageEventName,
     reply: SolidisData[],
@@ -64,20 +68,29 @@ export class SolidisPubSub {
     const channel = isPattern ? toText(reply[2]) : pattern;
     const message = isPattern ? reply[3] : reply[2];
 
+    if (
+      channel === '__redis__:invalidate' &&
+      (message === null || Array.isArray(message))
+    ) {
+      const push = new RespPush();
+
+      push.push(Buffer.from('invalidate'), message);
+
+      this.dispatchPush(push);
+
+      return;
+    }
+
     if (pattern === undefined || channel === undefined || !isPayload(message)) {
       this.#emitMalformedEventError(eventName);
 
       return;
     }
 
-    try {
-      if (isPattern) {
-        this.#emit(eventName, pattern, channel, message);
-      } else {
-        this.#emit(eventName, channel, message);
-      }
-    } catch (error) {
-      this.#emitListenerError(eventName, error);
+    if (isPattern) {
+      this.#notify(eventName, pattern, channel, message);
+    } else {
+      this.#notify(eventName, channel, message);
     }
   }
 
@@ -85,7 +98,7 @@ export class SolidisPubSub {
     eventName: SolidisSubscriptionEventName,
     reply: SolidisData[],
   ) {
-    const channel = toText(reply[1]);
+    const channel = reply[1];
     const count = reply[2];
 
     if (typeof count !== 'number') {
@@ -94,23 +107,21 @@ export class SolidisPubSub {
       return;
     }
 
-    if (channel === undefined) {
+    if (!isPayload(channel)) {
       return;
     }
 
     const subscriptions = this.#getSubscriptions(eventName);
+    const bytes = Buffer.from(channel);
+    const key = bytes.toString('latin1');
 
     if (isUnsubscribeEventName(eventName)) {
-      subscriptions.delete(channel);
+      subscriptions.delete(key);
     } else {
-      subscriptions.add(channel);
+      subscriptions.set(key, bytes);
     }
 
-    try {
-      this.#emit(eventName, channel, count);
-    } catch (error) {
-      this.#emitListenerError(eventName, error);
-    }
+    this.#notify(eventName, bytes.toString(), count);
   }
 
   #getSubscriptions(eventName: SolidisSubscriptionEventName) {
@@ -119,17 +130,24 @@ export class SolidisPubSub {
     return this.#subscriptions[index % this.#subscriptions.length];
   }
 
+  #notify<E extends keyof SolidisClientEvents>(
+    eventName: E,
+    ...parameters: Parameters<SolidisClientEvents[E]>
+  ) {
+    try {
+      this.#emit(eventName, ...parameters);
+    } catch (error) {
+      this.#emit(
+        'error',
+        new SolidisPubSubError(`A '${eventName}' listener threw`, error),
+      );
+    }
+  }
+
   #emitMalformedEventError(eventName: string) {
     this.#emit(
       'error',
       new SolidisPubSubError(`Malformed '${eventName}' event`),
-    );
-  }
-
-  #emitListenerError(eventName: string, error: unknown) {
-    this.#emit(
-      'error',
-      new SolidisPubSubError(`A '${eventName}' listener threw`, error),
     );
   }
 }

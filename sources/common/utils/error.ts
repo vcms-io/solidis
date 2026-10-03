@@ -1,12 +1,13 @@
 export class SolidisError extends Error {
+  public name = 'SolidisError';
+
   constructor(message: string, cause?: unknown) {
     super(message, cause === undefined ? undefined : { cause });
-
-    this.name = 'SolidisError';
   }
 }
 
 export class RespError extends SolidisError {
+  public name = 'RespError';
   public readonly code: string;
 
   constructor(message: string) {
@@ -14,7 +15,6 @@ export class RespError extends SolidisError {
 
     const separatorIndex = message.indexOf(' ');
 
-    this.name = 'RespError';
     this.stack = undefined;
     this.code =
       separatorIndex === -1 ? message : message.slice(0, separatorIndex);
@@ -22,51 +22,27 @@ export class RespError extends SolidisError {
 }
 
 export class SolidisClientError extends SolidisError {
-  constructor(message: string, cause?: unknown) {
-    super(message, cause);
-
-    this.name = 'SolidisClientError';
-  }
+  public name = 'SolidisClientError';
 }
 
 export class SolidisCommandError extends SolidisError {
-  constructor(message: string, cause?: unknown) {
-    super(message, cause);
-
-    this.name = 'SolidisCommandError';
-  }
+  public name = 'SolidisCommandError';
 }
 
 export class SolidisConnectionError extends SolidisError {
-  constructor(message: string, cause?: unknown) {
-    super(message, cause);
-
-    this.name = 'SolidisConnectionError';
-  }
+  public name = 'SolidisConnectionError';
 }
 
 export class SolidisParserError extends SolidisError {
-  constructor(message: string, cause?: unknown) {
-    super(message, cause);
-
-    this.name = 'SolidisParserError';
-  }
+  public name = 'SolidisParserError';
 }
 
 export class SolidisPubSubError extends SolidisError {
-  constructor(message: string, cause?: unknown) {
-    super(message, cause);
-
-    this.name = 'SolidisPubSubError';
-  }
+  public name = 'SolidisPubSubError';
 }
 
 export class SolidisRequesterError extends SolidisError {
-  constructor(message: string, cause?: unknown) {
-    super(message, cause);
-
-    this.name = 'SolidisRequesterError';
-  }
+  public name = 'SolidisRequesterError';
 }
 
 export function wrapWithError(error: unknown): Error {

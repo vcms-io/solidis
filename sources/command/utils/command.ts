@@ -1,4 +1,5 @@
 import { RespError } from '../../common/utils/error.ts';
+import { toCommandError } from '../../common/utils/request.ts';
 import {
   escapeReply,
   newCommandError,
@@ -101,7 +102,7 @@ export async function executeCommand<T, R>(
   const reply = escapeReply(await client.send([command], options));
 
   if (reply instanceof RespError) {
-    throw newCommandError(reply.message, command, reply);
+    throw toCommandError(reply, command);
   }
 
   return replyTo ? replyTo(reply, command) : reply;

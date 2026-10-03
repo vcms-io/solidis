@@ -3,7 +3,11 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
-import { SolidisPubSub, SolidisPubSubError } from '../../../sources/index.ts';
+import {
+  RespPush,
+  SolidisPubSub,
+  SolidisPubSubError,
+} from '../../../sources/index.ts';
 import {
   closeClient,
   createClient,
@@ -557,18 +561,17 @@ describe('pubsub', () => {
           1,
         ]);
 
+        assert.deepStrictEqual(pubSub.getSubscriptions(subscribeName), [
+          Buffer.from('target'),
+        ]);
         assert.deepStrictEqual(
-          [...pubSub.getSubscriptions(subscribeName)],
-          ['target'],
-        );
-        assert.strictEqual(
           pubSub.getSubscriptions(unsubscribeName),
           pubSub.getSubscriptions(subscribeName),
         );
 
         for (const [otherName] of subscriptionPairs) {
           if (otherName !== subscribeName) {
-            assert.strictEqual(pubSub.getSubscriptions(otherName).size, 0);
+            assert.strictEqual(pubSub.getSubscriptions(otherName).length, 0);
           }
         }
 
@@ -580,7 +583,7 @@ describe('pubsub', () => {
           0,
         ]);
 
-        assert.strictEqual(pubSub.getSubscriptions(subscribeName).size, 0);
+        assert.strictEqual(pubSub.getSubscriptions(subscribeName).length, 0);
         assert.strictEqual(pubSub.hasActiveSubscriptions, false);
         assert.deepStrictEqual(events, [
           [subscribeName, 'target', 1],
@@ -624,27 +627,93 @@ describe('pubsub', () => {
       pubSub.dispatchSubscriptionChange('ssubscribe', ['ssubscribe', 's', 1]);
       pubSub.clearSubscriptions('punsubscribe');
 
-      assert.strictEqual(pubSub.getSubscriptions('psubscribe').size, 0);
-      assert.strictEqual(pubSub.getSubscriptions('subscribe').size, 1);
-      assert.strictEqual(pubSub.getSubscriptions('ssubscribe').size, 1);
+      assert.strictEqual(pubSub.getSubscriptions('psubscribe').length, 0);
+      assert.strictEqual(pubSub.getSubscriptions('subscribe').length, 1);
+      assert.strictEqual(pubSub.getSubscriptions('ssubscribe').length, 1);
 
       pubSub.clear();
 
       assert.strictEqual(pubSub.hasActiveSubscriptions, false);
     });
 
-    it('returns the live subscription set on every access', () => {
-      const { pubSub } = createPubSub();
-      const subscriptions = pubSub.getSubscriptions('subscribe');
+    it('keeps the exact bytes of every subscribed channel', () => {
+      const { events, pubSub } = createPubSub();
+      const binary = Buffer.from([0x76, 0x3a, 0xff]);
+      const lookalike = Buffer.from([0x76, 0x3a, 0xfe]);
 
+      pubSub.dispatchSubscriptionChange('subscribe', ['subscribe', binary, 1]);
+      pubSub.dispatchSubscriptionChange('subscribe', ['subscribe', 'é', 2]);
       pubSub.dispatchSubscriptionChange('subscribe', [
         'subscribe',
-        'identity-channel',
-        1,
+        lookalike,
+        3,
       ]);
 
-      assert.strictEqual(pubSub.getSubscriptions('subscribe'), subscriptions);
-      assert.strictEqual(subscriptions.has('identity-channel'), true);
+      assert.deepStrictEqual(pubSub.getSubscriptions('subscribe'), [
+        binary,
+        Buffer.from('é'),
+        lookalike,
+      ]);
+      assert.notStrictEqual(pubSub.getSubscriptions('subscribe')[0], binary);
+
+      pubSub.dispatchSubscriptionChange('unsubscribe', [
+        'unsubscribe',
+        Buffer.from(binary),
+        2,
+      ]);
+
+      assert.deepStrictEqual(pubSub.getSubscriptions('subscribe'), [
+        Buffer.from('é'),
+        lookalike,
+      ]);
+      assert.deepStrictEqual(events.at(-1), [
+        'unsubscribe',
+        binary.toString(),
+        2,
+      ]);
+    });
+
+    it('emits RESP2 client-side caching invalidations as pushes', () => {
+      const { events, pubSub } = createPubSub();
+      const keys = [Buffer.from('user:1'), Buffer.from('user:2')];
+
+      pubSub.dispatchMessage('message', [
+        Buffer.from('message'),
+        Buffer.from('__redis__:invalidate'),
+        keys,
+      ]);
+      pubSub.dispatchMessage('message', [
+        Buffer.from('message'),
+        Buffer.from('__redis__:invalidate'),
+        null,
+      ]);
+      pubSub.dispatchMessage('pmessage', [
+        Buffer.from('pmessage'),
+        Buffer.from('__redis__:*'),
+        Buffer.from('__redis__:invalidate'),
+        keys,
+      ]);
+      pubSub.dispatchMessage('message', [
+        Buffer.from('message'),
+        Buffer.from('__redis__:invalidate'),
+        Buffer.from('text payload'),
+      ]);
+
+      assert.strictEqual(events.length, 4);
+
+      for (const [index, payload] of [keys, null, keys].entries()) {
+        const [event, push] = events[index];
+
+        assert.strictEqual(event, 'push');
+        assert.ok(push instanceof RespPush);
+        assert.deepStrictEqual([...push], [Buffer.from('invalidate'), payload]);
+      }
+
+      assert.deepStrictEqual(events[3], [
+        'message',
+        '__redis__:invalidate',
+        Buffer.from('text payload'),
+      ]);
     });
 
     it('turns a throwing listener into a SolidisPubSubError carrying the cause', () => {
@@ -662,10 +731,19 @@ describe('pubsub', () => {
 
       pubSub.dispatchMessage('message', ['message', 'ch', 'payload']);
       pubSub.dispatchSubscriptionChange('subscribe', ['subscribe', 'ch', 1]);
+      pubSub.dispatchMessage('message', [
+        'message',
+        '__redis__:invalidate',
+        null,
+      ]);
 
-      assert.strictEqual(errors.length, 2);
+      assert.strictEqual(errors.length, 3);
 
-      for (const [index, eventName] of ['message', 'subscribe'].entries()) {
+      for (const [index, eventName] of [
+        'message',
+        'subscribe',
+        'push',
+      ].entries()) {
         const error = errors[index];
 
         if (!(error instanceof SolidisPubSubError)) {
@@ -676,7 +754,9 @@ describe('pubsub', () => {
         assert.strictEqual(error.cause, failure);
       }
 
-      assert.strictEqual(pubSub.getSubscriptions('subscribe').has('ch'), true);
+      assert.deepStrictEqual(pubSub.getSubscriptions('subscribe'), [
+        Buffer.from('ch'),
+      ]);
     });
   });
 });

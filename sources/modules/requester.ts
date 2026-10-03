@@ -1,4 +1,8 @@
-import { SolidisCommandKinds } from '../common/constants.ts';
+import { SolidisMaximumTimerDelay } from '../common/constants.ts';
+import {
+  SolidisCommandKinds,
+  SolidisUnsupportedCommandNameSet,
+} from '../common/internal.ts';
 import {
   generateDebugHandle,
   sanitizeCommandsBufferForDebug,
@@ -10,35 +14,36 @@ import {
   wrapWithParserError,
 } from '../common/utils/error.ts';
 import {
-  findErrorInReplies,
   getPubSubEventName,
   isMessageEventName,
   isSubscriptionEventName,
   isUnsubscribeEventName,
 } from '../common/utils/reply.ts';
-import { commandsToBuffer, getCommandName } from '../common/utils/request.ts';
+import {
+  commandsToBuffer,
+  getCommandName,
+  toCommandError,
+} from '../common/utils/request.ts';
 import { RespPush } from '../types/resp.ts';
 import { SolidisProtocols } from '../types/solidis.ts';
 import { SolidisParser } from './parser.ts';
 
 import type {
   SolidisCommandKind,
+  SolidisPipeline,
+  SolidisPipelineDraft,
+  SolidisRequest,
+  SolidisSubRequest,
+} from '../types/internal.ts';
+import type {
   SolidisData,
   SolidisDebugLogType,
-  SolidisPipeline,
-  SolidisRequest,
   SolidisRequesterOptions,
   SolidisSendOptions,
-  SolidisSubRequest,
   StringOrBuffer,
 } from '../types/solidis.ts';
 
-interface SolidisPipelineDraft {
-  commands: StringOrBuffer[][];
-  subRequests: SolidisSubRequest[];
-  timeout: number;
-  isBlocking: boolean;
-}
+const pairingReason = 'it breaks the pairing of requests and replies.';
 
 const commandKindCacheLimit = 1024;
 const commandKindCache = new Map<string, SolidisCommandKind | null>();
@@ -60,25 +65,30 @@ function classifyCommand(command: StringOrBuffer[]) {
   return kind ?? undefined;
 }
 
-function isReplySuppression(command: StringOrBuffer[]) {
-  const subcommand = String(command[1]).toUpperCase();
-  const mode = String(command[2]).toUpperCase();
-
-  return subcommand === 'REPLY' && (mode === 'OFF' || mode === 'SKIP');
-}
-
-function isUnsupported(command: StringOrBuffer[], kind: SolidisCommandKind) {
-  return (
-    kind === 'unsupported' || (kind === 'client' && isReplySuppression(command))
+function isUnsupported(command: StringOrBuffer[]) {
+  return [1, 2, 3].some((length) =>
+    SolidisUnsupportedCommandNameSet.has(
+      command.slice(0, length).join(' ').toUpperCase(),
+    ),
   );
 }
 
+function createCommandError(command: StringOrBuffer[], reason: string) {
+  return new SolidisRequesterError(`${getCommandName(command)} ${reason}`);
+}
+
 function resolveTimeout(commandTimeout: number, blockingTimeout?: number) {
-  if (commandTimeout <= 0 || blockingTimeout === 0) {
+  const timeout = commandTimeout + Math.max(0, blockingTimeout ?? 0);
+
+  if (
+    commandTimeout <= 0 ||
+    blockingTimeout === 0 ||
+    timeout > SolidisMaximumTimerDelay
+  ) {
     return Number.POSITIVE_INFINITY;
   }
 
-  return commandTimeout + (blockingTimeout ?? 0);
+  return timeout;
 }
 
 function getReplySpan(
@@ -115,6 +125,11 @@ export class SolidisRequester {
   #flushHandle: NodeJS.Immediate | undefined;
   #protocol: SolidisProtocols = SolidisProtocols.RESP2;
   #database: number;
+  #authentication: { username: string; password: string } | undefined;
+  #transaction: SolidisSubRequest[] | undefined;
+  #isQueueing = false;
+  #isWatching = false;
+  #isWatchLost = false;
 
   constructor(options: SolidisRequesterOptions) {
     const { connection } = options;
@@ -139,6 +154,10 @@ export class SolidisRequester {
     return this.#database;
   }
 
+  public get authentication() {
+    return this.#authentication;
+  }
+
   public send(
     commands: StringOrBuffer[][],
     options?: SolidisSendOptions,
@@ -147,7 +166,12 @@ export class SolidisRequester {
       return Promise.resolve([]);
     }
 
+    let requestCommands = commands;
     let kinds: (SolidisCommandKind | undefined)[] | undefined;
+    let isQueueing = this.#isQueueing;
+    let isWatching = this.#isWatching;
+    let isWatchLost = this.#isWatchLost;
+    let isDiscarded = false;
 
     for (let index = 0; index < commands.length; index += 1) {
       const command = commands[index];
@@ -158,18 +182,53 @@ export class SolidisRequester {
         );
       }
 
+      for (const argument of command) {
+        if (typeof argument !== 'string' && !Buffer.isBuffer(argument)) {
+          return Promise.reject(
+            createCommandError(command, 'takes only strings and Buffers.'),
+          );
+        }
+      }
+
       const kind = classifyCommand(command);
 
       if (kind === undefined) {
         continue;
       }
 
-      if (isUnsupported(command, kind)) {
+      if (kind === 'restricted') {
+        if (isUnsupported(command)) {
+          return Promise.reject(
+            createCommandError(command, `is not supported: ${pairingReason}`),
+          );
+        }
+
+        continue;
+      }
+
+      if (isQueueing && isSubscriptionEventName(kind)) {
         return Promise.reject(
-          new SolidisRequesterError(
-            `${getCommandName(command)} is not supported: it breaks the pairing of requests and replies.`,
+          createCommandError(
+            command,
+            `is not supported inside a transaction: ${pairingReason}`,
           ),
         );
+      }
+
+      if (kind === 'exec' && isWatchLost) {
+        requestCommands = requestCommands.with(index, ['DISCARD']);
+        isDiscarded = true;
+      }
+
+      if (kind === 'multi') {
+        isQueueing = true;
+      } else if (kind === 'exec' || kind === 'discard' || kind === 'reset') {
+        isQueueing = false;
+        isWatching = false;
+        isWatchLost = false;
+      } else if (!isQueueing && (kind === 'watch' || kind === 'unwatch')) {
+        isWatching = kind === 'watch';
+        isWatchLost = false;
       }
 
       kinds ??= [];
@@ -178,12 +237,24 @@ export class SolidisRequester {
 
     const blockingTimeout = options?.blockingTimeout;
 
+    this.#isQueueing = isQueueing;
+    this.#isWatching = isWatching;
+    this.#isWatchLost = isWatchLost;
+
     return new Promise((resolve, reject) => {
       this.#pendingRequests.push({
-        commands,
+        commands: requestCommands,
         kinds,
         replies: new Array<SolidisData[]>(commands.length),
-        resolve,
+        resolve: isDiscarded
+          ? () =>
+              reject(
+                createCommandError(
+                  ['EXEC'],
+                  'was discarded: WATCH was lost with the connection.',
+                ),
+              )
+          : resolve,
         reject,
         timeout: resolveTimeout(
           options?.timeout ?? this.#options.commandTimeout,
@@ -239,7 +310,11 @@ export class SolidisRequester {
         }
 
         const kind = request.kinds?.[index];
-        const command = this.#expandCommand(request.commands[index], kind);
+        const command = this.#expandCommand(
+          request.commands[index],
+          kind,
+          draft,
+        );
 
         draft.commands.push(command);
         draft.subRequests.push({
@@ -262,6 +337,7 @@ export class SolidisRequester {
   #expandCommand(
     command: StringOrBuffer[],
     kind: SolidisCommandKind | undefined,
+    draft: SolidisPipelineDraft,
   ) {
     if (
       command.length > 1 ||
@@ -271,9 +347,19 @@ export class SolidisRequester {
       return command;
     }
 
-    const subscriptions = this.#options.pubSub.getSubscriptions(kind);
+    const subscribeKind = kind.replace('un', '');
+    const channels: StringOrBuffer[] =
+      this.#options.pubSub.getSubscriptions(kind);
 
-    return subscriptions.size === 0 ? command : [command[0], ...subscriptions];
+    for (const pipeline of [...this.#inflightQueue, draft]) {
+      for (const subRequest of pipeline.subRequests) {
+        if (subRequest.kind === subscribeKind) {
+          channels.push(...subRequest.command.slice(1));
+        }
+      }
+    }
+
+    return channels.length === 0 ? command : [command[0], ...channels];
   }
 
   #seal(draft: SolidisPipelineDraft) {
@@ -347,7 +433,7 @@ export class SolidisRequester {
 
     if (eventName === undefined) {
       if (isPush) {
-        this.#emitPush(reply);
+        this.#options.pubSub.dispatchPush(reply);
       } else {
         this.#resolveNext(reply);
       }
@@ -387,17 +473,6 @@ export class SolidisRequester {
     return kind !== undefined && isSubscriptionEventName(kind)
       ? kind
       : undefined;
-  }
-
-  #emitPush(reply: RespPush) {
-    try {
-      this.#options.emit('push', reply);
-    } catch (error) {
-      this.#options.emit(
-        'error',
-        new SolidisRequesterError("A 'push' listener threw", error),
-      );
-    }
   }
 
   #resolveNext(reply: SolidisData) {
@@ -444,52 +519,90 @@ export class SolidisRequester {
   #complete(subRequest: SolidisSubRequest, replies: SolidisData[]) {
     const { request } = subRequest;
 
-    if (subRequest.kind !== undefined) {
+    if (this.#transaction !== undefined && replies[0] === 'QUEUED') {
+      this.#transaction.push(subRequest);
+    } else if (subRequest.kind !== undefined) {
       this.#track(subRequest, replies[0]);
     }
 
     request.replies[subRequest.index] = replies;
 
-    const error =
-      this.#options.rejectOnPartialPipelineError && findErrorInReplies(replies);
+    const error = this.#options.rejectOnPartialPipelineError
+      ? replies.find((reply): reply is RespError => reply instanceof RespError)
+      : undefined;
 
     if (error) {
-      request.reject(error);
+      request.reject(toCommandError(error, subRequest.command));
     } else if (subRequest.index === request.replies.length - 1) {
       request.resolve(request.replies);
     }
   }
 
-  #track(subRequest: SolidisSubRequest, reply: SolidisData) {
-    const argument = subRequest.command[1];
+  #track({ command, kind }: SolidisSubRequest, reply: SolidisData) {
+    const argument = command[1];
 
-    switch (subRequest.kind) {
+    if (kind === 'exec' || kind === 'discard') {
+      const queued = this.#transaction;
+
+      this.#transaction = undefined;
+
+      if (Array.isArray(reply)) {
+        queued?.forEach((subRequest, index) => {
+          this.#track(subRequest, reply[index]);
+        });
+      }
+
+      return;
+    }
+
+    if (reply instanceof RespError) {
+      return;
+    }
+
+    switch (kind) {
+      case 'multi': {
+        this.#transaction = [];
+
+        return;
+      }
+
       case 'select': {
-        if (reply === 'OK') {
-          this.#database = Number(String(argument));
-        }
+        this.#database = Number(argument);
+
+        return;
+      }
+
+      case 'auth': {
+        this.#authenticate(
+          command.length > 2 ? argument : 'default',
+          command.at(-1),
+        );
 
         return;
       }
 
       case 'hello': {
-        if (argument !== undefined && !(reply instanceof RespError)) {
+        if (argument !== undefined) {
           this.#protocol =
             String(argument) === '3'
               ? SolidisProtocols.RESP3
               : SolidisProtocols.RESP2;
+
+          if (String(command[2]).toUpperCase() === 'AUTH') {
+            this.#authenticate(command[3], command[4]);
+          }
         }
 
         return;
       }
 
       case 'reset': {
-        if (reply === 'RESET') {
-          this.#protocol = SolidisProtocols.RESP2;
-          this.#database = 0;
+        this.#protocol = SolidisProtocols.RESP2;
+        this.#database = 0;
+        this.#authentication = undefined;
+        this.#transaction = undefined;
 
-          this.#options.pubSub.clear();
-        }
+        this.#options.pubSub.clear();
 
         return;
       }
@@ -498,6 +611,16 @@ export class SolidisRequester {
         return;
       }
     }
+  }
+
+  #authenticate(
+    username: StringOrBuffer | undefined,
+    password: StringOrBuffer | undefined,
+  ) {
+    this.#authentication = {
+      username: String(username),
+      password: String(password),
+    };
   }
 
   #timeOut(pipeline: SolidisPipeline, timeout: number) {
@@ -535,6 +658,10 @@ export class SolidisRequester {
     this.#inflightQueue = [];
     this.#parser = new SolidisParser(this.#options);
     this.#protocol = SolidisProtocols.RESP2;
+    this.#transaction = undefined;
+    this.#isQueueing = false;
+    this.#isWatchLost ||= this.#isWatching;
+    this.#isWatching = false;
 
     for (const pipeline of pipelines) {
       clearTimeout(pipeline.timer);

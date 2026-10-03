@@ -21,6 +21,13 @@ function createQuitError() {
   );
 }
 
+function createRetryError(maxConnectionRetries: number, cause?: unknown) {
+  return new SolidisConnectionError(
+    `Connection failed after ${maxConnectionRetries} retries.`,
+    cause,
+  );
+}
+
 interface SolidisConnectionWaiter {
   resolve: () => void;
   reject: (error: Error) => void;
@@ -39,7 +46,9 @@ export class SolidisConnection extends EventEmitter {
   #isConnected = false;
   #isQuitted = false;
   #isReconnecting = false;
+  #readyAt = Number.POSITIVE_INFINITY;
   #failedAttempts = 0;
+  #remainingReconnects = 0;
   #retryTimer: NodeJS.Timeout | undefined;
   #waiters: SolidisConnectionWaiter[] = [];
 
@@ -86,7 +95,10 @@ export class SolidisConnection extends EventEmitter {
       return;
     }
 
-    this.#isReconnecting = true;
+    if (!this.#isReconnecting) {
+      this.#isReconnecting = true;
+      this.#remainingReconnects = this.#options.maxConnectionRetries + 1;
+    }
 
     this.#startAttempts();
   }
@@ -108,14 +120,13 @@ export class SolidisConnection extends EventEmitter {
 
     this.#debug?.('warn', 'Connection reset', error);
 
-    this.#failedAttempts += 1;
-
+    this.#countFailure();
     this.#destroySocket();
     this.emit('close', error);
   }
 
   public resetBackoff() {
-    this.#failedAttempts = 0;
+    this.#readyAt = performance.now();
   }
 
   public quit() {
@@ -136,19 +147,25 @@ export class SolidisConnection extends EventEmitter {
   }
 
   #startAttempts() {
-    if (this.#socket !== null || this.#retryTimer !== undefined) {
+    if (
+      this.#isQuitted ||
+      this.#socket !== null ||
+      this.#retryTimer !== undefined
+    ) {
       return;
     }
 
     const delay = this.#getRetryDelay();
 
-    if (delay === 0) {
+    if (delay === 0 && !this.#isReconnecting) {
       this.#attempt();
 
       return;
     }
 
     this.#retryTimer = setTimeout(() => this.#attempt(), delay);
+
+    this.emit('reconnecting', this.#failedAttempts + 1, delay);
   }
 
   #getRetryDelay() {
@@ -229,6 +246,7 @@ export class SolidisConnection extends EventEmitter {
 
     this.#isConnected = true;
     this.#isReconnecting = false;
+    this.#readyAt = Number.POSITIVE_INFINITY;
     this.#waiters = [];
 
     this.#debug?.('info', 'Connection established');
@@ -271,6 +289,8 @@ export class SolidisConnection extends EventEmitter {
 
     this.#isConnected = false;
 
+    this.#countFailure();
+
     this.#debug?.('info', 'Connection closed');
 
     this.emit(
@@ -299,8 +319,7 @@ export class SolidisConnection extends EventEmitter {
     const { maxConnectionRetries } = this.#options;
 
     this.#failedAttempts += 1;
-
-    this.emit('error', error);
+    this.#remainingReconnects -= 1;
 
     this.#waiters = this.#waiters.filter((waiter) => {
       waiter.remainingAttempts -= 1;
@@ -309,30 +328,35 @@ export class SolidisConnection extends EventEmitter {
         return true;
       }
 
-      waiter.reject(
-        new SolidisConnectionError(
-          `Connection failed after ${maxConnectionRetries} retries.`,
-          error,
-        ),
-      );
+      waiter.reject(createRetryError(maxConnectionRetries, error));
 
       return false;
     });
 
-    if (
-      this.#isQuitted ||
-      (this.#waiters.length === 0 && !this.#isReconnecting)
-    ) {
-      this.#failedAttempts = 0;
+    if (this.#isReconnecting && this.#remainingReconnects <= 0) {
+      this.#isReconnecting = false;
 
-      return;
+      this.emit('error', createRetryError(maxConnectionRetries, error));
+    } else {
+      this.emit('error', error);
     }
 
-    const delay = this.#getRetryDelay();
+    if (this.#waiters.length > 0 || this.#isReconnecting) {
+      this.#startAttempts();
+    } else {
+      this.#failedAttempts = 0;
+    }
+  }
 
-    this.emit('reconnecting', this.#failedAttempts, delay);
-
-    this.#retryTimer = setTimeout(() => this.#attempt(), delay);
+  #countFailure() {
+    if (
+      performance.now() - this.#readyAt >=
+      this.#options.maxConnectionRetryDelay
+    ) {
+      this.#failedAttempts = 0;
+    } else {
+      this.#failedAttempts += 1;
+    }
   }
 
   #destroySocket() {

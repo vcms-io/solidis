@@ -1,7 +1,4 @@
-import type {
-  SolidisClientFrozenOptions,
-  SolidisCommandKind,
-} from '../types/solidis.ts';
+import type { SolidisClientFrozenOptions } from '../types/solidis.ts';
 
 const KB = 1024 as const;
 const MB = 1048576 as const;
@@ -43,6 +40,8 @@ export const SolidisDefaultOptions: SolidisClientFrozenOptions = {
 } as const;
 
 export const SolidisBulkZeroCopyThreshold = KB * 64;
+
+export const SolidisMaximumTimerDelay = 2147483647;
 
 export const SolidisSymbolBytes = {
   ASTERISK: 42,
@@ -107,19 +106,6 @@ export const SolidisSubscriptionEventNames = [
   ...SolidisUnsubscribeEventNames,
 ] as const;
 
-export const SolidisSessionCommandKinds = [
-  'select',
-  'hello',
-  'reset',
-  'client',
-] as const;
-
-export const SolidisUnsupportedCommandNames = [
-  'MONITOR',
-  'SYNC',
-  'PSYNC',
-] as const;
-
 export const SolidisPubSubEventNames = [
   ...SolidisMessageEventNames,
   ...SolidisSubscriptionEventNames,
@@ -151,13 +137,3 @@ export const SolidisContainerCommandNameSet: ReadonlySet<string> = new Set([
   'XGROUP',
   'XINFO',
 ]);
-
-export const SolidisCommandKinds: ReadonlyMap<string, SolidisCommandKind> =
-  new Map<string, SolidisCommandKind>([
-    ...[...SolidisSubscriptionEventNames, ...SolidisSessionCommandKinds].map(
-      (kind) => [kind.toUpperCase(), kind] as const,
-    ),
-    ...SolidisUnsupportedCommandNames.map(
-      (name) => [name, 'unsupported'] as const,
-    ),
-  ]);

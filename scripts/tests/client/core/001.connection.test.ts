@@ -19,6 +19,7 @@ import {
   createClient,
   delay,
   MockRedisServer,
+  mockClientOptions,
   resolveConnectionTarget,
   waitFor,
 } from '../../utils/index.ts';
@@ -70,9 +71,11 @@ describe('connection', () => {
   });
 
   it('honours lazyConnect (no socket until connect)', async () => {
-    const client = new SolidisFeaturedClient(
-      buildClientOptions({ lazyConnect: true }),
-    );
+    const server = new MockRedisServer();
+
+    await server.listen();
+
+    const client = new SolidisFeaturedClient(mockClientOptions(server.port));
 
     track(client);
 
@@ -83,13 +86,18 @@ describe('connection', () => {
       readyFired = true;
     });
 
-    await new Promise<void>((resolve) => setImmediate(resolve));
+    await delay(50);
 
     assert.strictEqual(readyFired, false);
+    assert.strictEqual(server.acceptedCount, 0);
 
     await client.connect();
 
     assert.strictEqual(readyFired, true);
+    assert.strictEqual(server.acceptedCount, 1);
+
+    client.quit();
+    await server.close();
   });
 
   it('treats repeated connect() calls as idempotent', async () => {
@@ -142,11 +150,16 @@ describe('connection', () => {
     await client.hset(hashKey, 'field', 'value');
 
     const hashReply = await client.hgetall(hashKey);
+    const [[rawReply]] = await client.send([['HGETALL', hashKey]]);
 
     assert.deepStrictEqual(
       hashReply,
       { field: 'value' },
       'RESP3 must return HGETALL as a plain object, not an array of pairs',
+    );
+    assert.ok(
+      rawReply instanceof Map,
+      'the server must answer in RESP3, where HGETALL is a map',
     );
 
     await client.del(hashKey);
@@ -302,7 +315,7 @@ describe('connection', () => {
         error.cause.message === 'connect ECONNREFUSED 127.0.0.1:1',
     );
 
-    assert.deepStrictEqual(reconnecting, [[1, 10]]);
+    assert.deepStrictEqual(reconnecting, [[2, 10]]);
     assert.strictEqual(errors.length, 2);
   });
 
@@ -640,7 +653,7 @@ describe('connection', () => {
       });
     });
 
-    it('emits close with the reset error and reconnects with capped backoff until quit', async (context) => {
+    it('emits close with the reset error and stops reconnecting once the retry budget is spent', async (context) => {
       context.mock.method(Math, 'random', () => 1);
 
       const server = new MockRedisServer();
@@ -651,16 +664,19 @@ describe('connection', () => {
         ...SolidisDefaultOptions,
         host: '127.0.0.1',
         port: server.port,
-        maxConnectionRetries: 0,
+        maxConnectionRetries: 3,
         connectionRetryDelay: 10,
         maxConnectionRetryDelay: 40,
         connectionTimeout: 500,
       });
       const closes: unknown[] = [];
+      const errors: Error[] = [];
       const reconnecting: [number, number][] = [];
       const error = new Error('reset by the requester');
 
-      connection.on('error', () => {});
+      connection.on('error', (failure) => {
+        errors.push(failure);
+      });
       connection.on('close', (closeError) => {
         closes.push(closeError);
       });
@@ -680,25 +696,38 @@ describe('connection', () => {
 
       connection.reconnect();
 
-      await waitFor(() => reconnecting.length >= 4, {
-        timeout: 5000,
-        description: 'background reconnect attempts',
-      });
+      await waitFor(
+        () => errors.at(-1)?.message === 'Connection failed after 3 retries.',
+        { timeout: 5000, description: 'reconnect budget spent' },
+      );
 
-      connection.quit();
-
-      assert.deepStrictEqual(reconnecting.slice(0, 4), [
-        [2, 20],
-        [3, 40],
+      assert.deepStrictEqual(reconnecting, [
+        [2, 10],
+        [3, 20],
         [4, 40],
         [5, 40],
       ]);
+      assert.strictEqual(errors.length, 4);
 
-      const settled = reconnecting.length;
+      const giveUp = errors.at(-1);
+
+      assert.ok(giveUp instanceof SolidisConnectionError);
+      assert.ok(giveUp.cause instanceof SolidisConnectionError);
+      assert.match(giveUp.cause.message, /ECONNREFUSED/);
 
       await delay(100);
 
-      assert.strictEqual(reconnecting.length, settled);
+      assert.strictEqual(reconnecting.length, 4);
+
+      connection.reconnect();
+
+      await waitFor(() => reconnecting.length === 5, {
+        description: 'a new reconnect cycle',
+      });
+
+      assert.deepStrictEqual(reconnecting[4], [1, 0]);
+
+      connection.quit();
     });
 
     it('spreads each reconnect delay between half and all of the backoff', async (context) => {
@@ -711,7 +740,7 @@ describe('connection', () => {
           ...SolidisDefaultOptions,
           host: '127.0.0.1',
           port: server.port,
-          maxConnectionRetries: 0,
+          maxConnectionRetries: 100,
           connectionRetryDelay: 8,
           maxConnectionRetryDelay: 32,
           connectionTimeout: 500,
@@ -741,11 +770,11 @@ describe('connection', () => {
 
       const random = context.mock.method(Math, 'random', () => 0);
 
-      assert.deepStrictEqual(await collectDelays(4), [8, 16, 16, 16]);
+      assert.deepStrictEqual(await collectDelays(4), [4, 8, 16, 16]);
 
       random.mock.restore();
 
-      const caps = [16, 32, 32, 32, 32, 32, 32, 32];
+      const caps = [8, 16, 32, 32, 32, 32, 32, 32];
       const delays = await collectDelays(caps.length);
 
       for (const [index, delay] of delays.entries()) {
@@ -979,16 +1008,22 @@ describe('connection', () => {
         });
       });
 
-      it('backs off after a reset unless the backoff was reset', async () => {
+      it('backs off after a reset unless the connection stayed ready for the longest backoff', async () => {
         await withScriptedSockets(async (sockets) => {
           const delayed = createConnection({
             connectionTimeout: 0,
             connectionRetryDelay: 1000,
+            maxConnectionRetryDelay: 30,
           });
           const immediate = createConnection({
             connectionTimeout: 0,
             connectionRetryDelay: 1000,
+            maxConnectionRetryDelay: 30,
           });
+          const reconnecting = new Map<SolidisConnection, number[][]>([
+            [delayed, []],
+            [immediate, []],
+          ]);
 
           for (const connection of [delayed, immediate]) {
             const connecting = connection.connect();
@@ -997,19 +1032,35 @@ describe('connection', () => {
 
             await connecting;
 
-            connection.reset(new Error('reset'));
+            connection.resetBackoff();
+            connection.on('reconnecting', (attempt, delay) => {
+              reconnecting.get(connection)?.push([attempt, delay]);
+            });
           }
 
-          assert.strictEqual(sockets.length, 2);
+          delayed.reset(new Error('reset'));
 
+          await delay(40);
+
+          immediate.reset(new Error('reset'));
           delayed.reconnect();
-
-          assert.strictEqual(sockets.length, 2);
-
-          immediate.resetBackoff();
           immediate.reconnect();
 
+          assert.strictEqual(sockets.length, 2);
+          assert.deepStrictEqual(reconnecting.get(immediate), [[1, 0]]);
+
+          const [[attempt, backoff]] = reconnecting.get(delayed) ?? [[]];
+
+          assert.strictEqual(attempt, 2);
+          assert.ok(backoff >= 15 && backoff <= 30, `backoff ${backoff}`);
+
+          await delay(5);
+
           assert.strictEqual(sockets.length, 3);
+
+          await delay(40);
+
+          assert.strictEqual(sockets.length, 4);
 
           delayed.quit();
           immediate.quit();

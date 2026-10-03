@@ -19,7 +19,8 @@ export function parseDouble(text: string): number | undefined {
 
   if (
     text.length === 0 ||
-    (Number.isNaN(value) && text.toLowerCase() !== SolidisNumberTypes.NAN)
+    (Number.isNaN(value) &&
+      text.toLowerCase().replace(/^-/, '') !== SolidisNumberTypes.NAN)
   ) {
     return undefined;
   }

@@ -1,6 +1,5 @@
 import {
   SolidisMessageEventNames,
-  SolidisPubSubEventNames,
   SolidisSubscriptionEventNames,
   SolidisUnsubscribeEventNames,
 } from '../constants.ts';
@@ -13,9 +12,6 @@ import type {
   SolidisUnsubscribeEventName,
 } from '../../types/solidis.ts';
 
-const SolidisPubSubEventNameSet: ReadonlySet<string> = new Set(
-  SolidisPubSubEventNames,
-);
 const SolidisMessageEventNameSet: ReadonlySet<string> = new Set(
   SolidisMessageEventNames,
 );
@@ -53,7 +49,10 @@ function readEventName(reply: SolidisData[]) {
 export function checkReplyIsPubSubEvent(reply: SolidisData[]): boolean {
   const eventName = readEventName(reply);
 
-  return eventName !== undefined && SolidisPubSubEventNameSet.has(eventName);
+  return (
+    eventName !== undefined &&
+    (isMessageEventName(eventName) || isSubscriptionEventName(eventName))
+  );
 }
 
 export function getPubSubEventName(reply: SolidisData[]): string | undefined {

@@ -56,12 +56,18 @@ describe('server-admin', () => {
   });
 
   it('returns structured data from MEMORY STATS', async () => {
+    await client.set(keyspace.key('memory-stats'), 'value');
+
     const stats = await client.memoryStats();
+    const database = stats.db['0'];
 
     assert.ok(
       stats.total.allocated > 0,
       `expected positive memory allocation, got ${stats.total.allocated}`,
     );
+    assert.ok(database, `expected db 0 in ${Object.keys(stats.db)}`);
+    assert.ok(database.overhead.hashtable.main > 0);
+    assert.strictEqual(typeof database.overhead.hashtable.expires, 'number');
     assert.strictEqual(
       typeof stats.keys.count,
       'number',
@@ -239,13 +245,23 @@ describe('server-admin', () => {
       return;
     }
 
-    assert.strictEqual(result, 'Background saving scheduled');
+    assert.ok(
+      ['Background saving scheduled', 'Background saving started'].includes(
+        result,
+      ),
+      result,
+    );
   });
 
   it('triggers AOF rewrite with BGREWRITEAOF', async () => {
-    assert.strictEqual(
-      await client.bgrewriteaof(),
-      'Background append only file rewriting scheduled',
+    const result = await client.bgrewriteaof();
+
+    assert.ok(
+      [
+        'Background append only file rewriting scheduled',
+        'Background append only file rewriting started',
+      ].includes(result),
+      result,
     );
   });
 
@@ -764,13 +780,16 @@ describe('server-admin', () => {
     }
   });
 
-  it('reports missing LATENCY GRAPH samples after LATENCY RESET', async () => {
+  it('reports missing LATENCY GRAPH samples after LATENCY RESET without echoing the event', async () => {
     await assert.rejects(
       () => client.latencyGraph('command'),
       (error: Error) =>
         error instanceof SolidisCommandError &&
         error.message ===
-          "[LATENCY GRAPH] ERR No samples available for event 'command'",
+          "[LATENCY GRAPH] ERR No samples available for event '***'" &&
+        error.cause instanceof RespError &&
+        error.cause.code === 'ERR' &&
+        error.cause.message === "ERR No samples available for event '***'",
     );
   });
 

@@ -395,8 +395,9 @@ describe('regressions', () => {
       assert.strictEqual(parseDouble('1.5e3'), 1500);
       assert.ok(Number.isNaN(parseDouble('nan')));
       assert.ok(Number.isNaN(parseDouble('NaN')));
+      assert.ok(Number.isNaN(parseDouble('-nan')));
 
-      for (const text of ['', 'Inf', 'abc', '-nan', '1,5']) {
+      for (const text of ['', 'Inf', 'abc', '--nan', 'nan-', '1,5']) {
         assert.strictEqual(parseDouble(text), undefined, text);
       }
 

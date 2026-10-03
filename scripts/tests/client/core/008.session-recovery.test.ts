@@ -665,10 +665,11 @@ describe('session-recovery', () => {
 
         delays.length = 0;
 
+        await delay(100);
         await server.close();
-        await waitFor(() => delays.length >= 2, { timeout: 5000 });
+        await waitFor(() => delays.length >= 3, { timeout: 5000 });
 
-        assert.deepStrictEqual(delays.slice(0, 2), [20, 40]);
+        assert.deepStrictEqual(delays.slice(0, 3), [0, 20, 40]);
       } finally {
         client.quit();
         await server.close();

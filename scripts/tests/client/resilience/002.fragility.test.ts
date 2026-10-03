@@ -477,7 +477,13 @@ describe('fragility', () => {
     it('reassembles a RESP3 null reply split across two socket chunks', async () => {
       const server = await startMockServer();
 
-      server.onData((socket) => {
+      server.onData((socket, data) => {
+        if (data.includes('HELLO')) {
+          socket.write(Buffer.from('%1\r\n$5\r\nproto\r\n:3\r\n', 'latin1'));
+
+          return;
+        }
+
         socket.write(Buffer.from('_\r', 'latin1'));
         socket.write(Buffer.from('\n', 'latin1'));
       });
@@ -986,16 +992,78 @@ describe('fragility', () => {
 
       const error = await client.connect().catch((caught: Error) => caught);
 
-      if (!(error instanceof SolidisClientError)) {
-        assert.fail('expected SolidisClientError for failed ready check');
+      if (!(error instanceof SolidisConnectionError)) {
+        assert.fail(
+          'expected the timed-out ready check to drop the connection',
+        );
       }
-      assert.strictEqual(error.message, 'Ready check failed');
 
+      assert.strictEqual(
+        error.message,
+        'Connection closed during the handshake.',
+      );
+      assert.ok(error.cause instanceof SolidisClientError);
+      assert.strictEqual(error.cause.message, 'Ready check failed');
+      assert.ok(error.cause.cause instanceof SolidisRequesterError);
+      assert.strictEqual(
+        error.cause.cause.message,
+        'Command(s) timed out after 300 ms.',
+      );
       assert.strictEqual(
         readyFired,
         false,
         'ready must not fire when the ready check fails',
       );
+    });
+
+    it('fails the connection when the ready check gets a server error', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from("-ERR unknown command 'INFO'\r\n", 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, { enableReadyCheck: true }),
+        ),
+      );
+
+      const error = await client.connect().catch((caught: Error) => caught);
+
+      if (!(error instanceof SolidisClientError)) {
+        assert.fail('expected SolidisClientError for a failed ready check');
+      }
+
+      assert.strictEqual(error.message, 'Ready check failed');
+      assert.ok(error.cause instanceof SolidisCommandError);
+      assert.ok(error.cause.cause instanceof RespError);
+      assert.strictEqual(error.cause.cause.code, 'ERR');
+    });
+
+    it('treats a ready check denied by ACL as ready', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket, data) => {
+        socket.write(
+          Buffer.from(
+            data.includes('INFO')
+              ? "-NOPERM User limited has no permissions to run the 'info' command\r\n"
+              : '+PONG\r\n',
+            'latin1',
+          ),
+        );
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, { enableReadyCheck: true }),
+        ),
+      );
+
+      await client.connect();
+
+      assert.strictEqual(await client.ping(), 'PONG');
     });
   });
 

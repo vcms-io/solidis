@@ -15,6 +15,7 @@ import {
   buildClientOptions,
   closeClient,
   createClient,
+  delay,
   MockRedisServer,
   mockClientOptions,
   resolveConnectionTarget,
@@ -44,7 +45,10 @@ describe('lifecycle-edge', () => {
     await client.hset(key, 'a', '1');
 
     const all = await client.hgetall(key);
+    const [[raw]] = await client.send([['HGETALL', key]]);
+
     assert.deepStrictEqual(all, { a: '1' });
+    assert.deepStrictEqual(raw, new Map([['a', Buffer.from('1')]]));
 
     await client.del(key);
   });
@@ -115,6 +119,9 @@ describe('lifecycle-edge', () => {
     client.on('ready', () => {
       backgroundReconnectCount += 1;
     });
+    client.on('reconnecting', () => {
+      backgroundReconnectCount += 1;
+    });
 
     const clientId = await client.clientId();
     const killer = track(await createClient());
@@ -133,9 +140,7 @@ describe('lifecycle-edge', () => {
       description: 'killed client no longer exists on server',
     });
 
-    for (let tick = 0; tick < 50; tick += 1) {
-      await new Promise<void>((resolve) => setImmediate(resolve));
-    }
+    await delay(500);
 
     assert.strictEqual(
       backgroundReconnectCount,
