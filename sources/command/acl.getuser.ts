@@ -11,6 +11,14 @@ import type {
   StringOrBuffer,
 } from '../index.ts';
 
+function formatPatterns(patterns: unknown, prefix: string) {
+  if (Array.isArray(patterns)) {
+    return patterns.map((pattern) => `${prefix}${pattern}`).join(' ');
+  }
+
+  return String(patterns ?? '');
+}
+
 function parseSelector(
   selector: unknown,
   command: StringOrBuffer[],
@@ -19,8 +27,8 @@ function parseSelector(
 
   return {
     commands: String(map.get('commands') ?? ''),
-    keys: String(map.get('keys') ?? ''),
-    channels: String(map.get('channels') ?? ''),
+    keys: formatPatterns(map.get('keys'), '~'),
+    channels: formatPatterns(map.get('channels'), '&'),
   };
 }
 
@@ -46,8 +54,8 @@ export async function aclGetuser<T>(
         flags: tryReplyToStringArray(map.get('flags'), command),
         passwords: tryReplyToStringArray(map.get('passwords'), command),
         commands: String(map.get('commands') ?? ''),
-        keys: String(map.get('keys') ?? ''),
-        channels: String(map.get('channels') ?? ''),
+        keys: formatPatterns(map.get('keys'), '~'),
+        channels: formatPatterns(map.get('channels'), '&'),
         selectors: tryReplyArray(map.get('selectors') ?? [], command).map(
           (selector) => parseSelector(selector, command),
         ),

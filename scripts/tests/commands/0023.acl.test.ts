@@ -145,8 +145,8 @@ describe('acl', () => {
           '9b8769a4a742959a2d0298c36fb70623f2dfacda8436237df08d8dfd5b37374c',
         ],
         commands: '+@all',
-        keys: '*',
-        channels: '*',
+        keys: '~*',
+        channels: '&*',
         selectors: [],
       });
     }

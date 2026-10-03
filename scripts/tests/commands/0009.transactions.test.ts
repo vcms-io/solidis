@@ -370,4 +370,82 @@ describe('transactions', () => {
       message: '[EXEC] Unexpected reply: string',
     });
   });
+
+  it('reports a MULTI the server refuses, after which the queued commands ran alone', async () => {
+    const user = `solidis-txn-${Date.now()}`;
+    const counter = keyspace.key('refused-multi');
+
+    await client.aclSetuser(
+      user,
+      'reset',
+      'on',
+      '>pw',
+      '~*',
+      '&*',
+      '+@read',
+      '+@write',
+    );
+
+    const restricted = await createClient({
+      authentication: { username: user, password: 'pw' },
+    });
+
+    try {
+      const transaction = restricted.multi();
+
+      transaction.incr(counter);
+
+      await assert.rejects(transaction.exec(), (error: unknown) => {
+        assert.ok(error instanceof SolidisCommandError);
+        assert.match(error.message, /^\[MULTI\] NOPERM /);
+
+        return true;
+      });
+      assert.strictEqual(await client.get(counter), '1');
+    } finally {
+      await closeClient(restricted);
+      await client.aclDeluser(user);
+    }
+  });
+
+  it('ends a WATCH that an empty exec, a discard or a rejected exec leaves behind', async () => {
+    const watched = keyspace.key('armed', 'watched');
+    const target = keyspace.key('armed', 'target');
+    const other = await createClient();
+    const abandonments = [
+      async () => {
+        assert.strictEqual(await client.multi().exec(), null);
+      },
+      () => {
+        const transaction = client.multi();
+
+        transaction.set(target, 'discarded');
+        transaction.discard();
+      },
+      async () => {
+        const transaction = client.multi();
+
+        transaction.xread(['a', 'b'], ['0']);
+
+        await assert.rejects(transaction.exec());
+      },
+    ];
+
+    try {
+      for (const [index, abandon] of abandonments.entries()) {
+        await client.watch(watched);
+        await other.set(watched, `${index}`);
+        await abandon();
+
+        const next = client.multi();
+
+        next.set(target, `${index}`);
+
+        assert.deepStrictEqual(await next.exec(), ['OK'], `${index}`);
+        assert.strictEqual(await client.get(target), `${index}`);
+      }
+    } finally {
+      await closeClient(other);
+    }
+  });
 });

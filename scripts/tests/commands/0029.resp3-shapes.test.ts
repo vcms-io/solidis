@@ -558,8 +558,6 @@ describe('resp3-shapes', () => {
         'on',
         'nopass',
       ]);
-      assert.strictEqual(info.keys, '~*');
-      assert.strictEqual(info.channels, '&*');
     } else {
       assert.deepStrictEqual(info.flags, [
         'on',
@@ -568,9 +566,9 @@ describe('resp3-shapes', () => {
         'allcommands',
         'nopass',
       ]);
-      assert.strictEqual(info.keys, '*');
-      assert.strictEqual(info.channels, '*');
     }
+    assert.strictEqual(info.keys, '~*');
+    assert.strictEqual(info.channels, '&*');
     assert.deepStrictEqual(info.passwords, []);
     assert.strictEqual(info.commands, '+@all');
     assert.deepStrictEqual(info.selectors, []);

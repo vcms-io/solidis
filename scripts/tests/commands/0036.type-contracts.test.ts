@@ -139,11 +139,30 @@ describe('type-contracts', () => {
     assert.ok(present.every(Boolean));
   });
 
-  it('hides RESET and the scan iterators of a client from its transactions', () => {
+  it('hides from a transaction every client method it cannot queue', () => {
     const client = new SolidisFeaturedClient({ lazyConnect: true });
     const transaction = client.multi();
 
-    for (const name of ['reset', 'scan', 'hscan', 'sscan', 'zscan']) {
+    for (const name of [
+      'reset',
+      'scan',
+      'hscan',
+      'sscan',
+      'zscan',
+      'send',
+      'pipeline',
+      'quit',
+      'connect',
+      'extend',
+      'on',
+      'emit',
+      'watch',
+      'unwatch',
+      'subscribe',
+      'auth',
+      'hello',
+      'multi',
+    ]) {
       assert.strictEqual(typeof Reflect.get(client, name), 'function', name);
       assert.strictEqual(Reflect.get(transaction, name), undefined, name);
     }
@@ -219,6 +238,21 @@ describe('type-contracts', () => {
       await client.hello('RESP3', Buffer.from('user'), Buffer.from([0xff]));
       client.scan({ type: 'ReJSON-RL' });
       client.scan({ type: 'hash' });
+      await client.zcount('k', '(1', '+inf');
+      await client.zrangebyscore('k', '-inf', '(5', { withScores: true });
+      await client.zrevrangebyscore('k', '+inf', '-inf');
+      await client.zremrangebyscore('k', '(0', 10);
+      await client.publish('channel', Buffer.from([0xff]));
+      await client.spublish('channel', Buffer.from([0xff]));
+      await client.set('k', 'v', {
+        returnOldValue: true,
+        returnOldValueAsBuffer: true,
+      });
+      // @ts-expect-error returnOldValueAsBuffer needs returnOldValue
+      await client.set('k', 'v', { returnOldValueAsBuffer: true });
+      await client.scriptDebug('NO');
+      // @ts-expect-error SCRIPT DEBUG YES breaks the pairing of replies
+      await client.scriptDebug('YES');
 
       const { multi } = client;
       const options: XclaimOptions = { justid: true };

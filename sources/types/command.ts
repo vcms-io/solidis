@@ -271,6 +271,8 @@ export type CommandTimeSeriesTimestamp = number | '-' | '+';
 
 export type CommandTimeSeriesSampleTimestamp = number | '*';
 
+export type CommandScoreBound = number | '-inf' | '+inf' | `(${number}`;
+
 export type CommandMigrateOptions = CommandExclusiveOptions<
   | { auth?: string }
   | {
@@ -315,10 +317,11 @@ export type CommandSetOptions = CommandExclusiveOptions<
     | { setIfValueNotEquals?: StringOrBuffer }
     | { setIfDigestEquals?: string }
     | { setIfDigestNotEquals?: string }
-  > & {
-    returnOldValue?: boolean;
-    returnOldValueAsBuffer?: boolean;
-  };
+  > &
+  (
+    | { returnOldValue: true; returnOldValueAsBuffer?: boolean }
+    | { returnOldValue?: boolean; returnOldValueAsBuffer?: never }
+  );
 
 export type CommandShutdownOptions = CommandExclusiveOptions<
   | { nosave?: boolean; now?: boolean; force?: boolean }

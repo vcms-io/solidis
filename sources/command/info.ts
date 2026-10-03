@@ -25,7 +25,9 @@ function parseInfo(reply: string): Record<string, string> {
       const trimmedValue = trimmedLine.slice(separatorIndex + 1).trim();
 
       if (separatorIndex !== -1 && trimmedKey) {
-        record[trimmedKey] = trimmedValue;
+        record[trimmedKey] = Object.hasOwn(record, trimmedKey)
+          ? `${record[trimmedKey]}\n${trimmedValue}`
+          : trimmedValue;
       }
     }
   }

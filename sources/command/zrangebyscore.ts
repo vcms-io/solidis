@@ -5,13 +5,14 @@ import {
 
 import type {
   CommandLimitWithScoresOptions,
+  CommandScoreBound,
   RespSortedSetMember,
 } from '../index.ts';
 
 export function createCommand(
   key: string,
-  min: number,
-  max: number,
+  min: CommandScoreBound,
+  max: CommandScoreBound,
   options?: CommandLimitWithScoresOptions,
 ) {
   const command = ['ZRANGEBYSCORE', key, `${min}`, `${max}`];
@@ -30,29 +31,29 @@ export function createCommand(
 export async function zrangebyscore<T>(
   this: T,
   key: string,
-  min: number,
-  max: number,
+  min: CommandScoreBound,
+  max: CommandScoreBound,
   options: CommandLimitWithScoresOptions & { withScores: true },
 ): Promise<RespSortedSetMember[]>;
 export async function zrangebyscore<T>(
   this: T,
   key: string,
-  min: number,
-  max: number,
+  min: CommandScoreBound,
+  max: CommandScoreBound,
   options?: CommandLimitWithScoresOptions & { withScores?: false },
 ): Promise<string[]>;
 export async function zrangebyscore<T>(
   this: T,
   key: string,
-  min: number,
-  max: number,
+  min: CommandScoreBound,
+  max: CommandScoreBound,
   options?: CommandLimitWithScoresOptions,
 ): Promise<string[] | RespSortedSetMember[]>;
 export async function zrangebyscore<T>(
   this: T,
   key: string,
-  min: number,
-  max: number,
+  min: CommandScoreBound,
+  max: CommandScoreBound,
   options?: CommandLimitWithScoresOptions,
 ): Promise<string[] | RespSortedSetMember[]> {
   return await executeCommand(

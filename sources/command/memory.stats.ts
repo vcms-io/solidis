@@ -45,7 +45,7 @@ export async function memoryStats<T>(this: T): Promise<RespMemoryStats> {
       command,
     );
 
-    const toNumber = (key: string) => Number(result[key]);
+    const toNumber = (key: string) => Number(result[key] ?? 0);
 
     return {
       peak: {
@@ -66,7 +66,7 @@ export async function memoryStats<T>(this: T): Promise<RespMemoryStats> {
         normal: toNumber('clients.normal'),
       },
       cluster: {
-        links: toNumber('cluster.links') || 0,
+        links: toNumber('cluster.links'),
       },
       aof: {
         buffer: toNumber('aof.buffer'),

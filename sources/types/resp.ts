@@ -102,9 +102,9 @@ export interface RespAclLogEntry {
   username: string;
   ageSeconds: number;
   clientInfo: string;
-  entryId: number;
-  timestampCreated: number;
-  timestampLastUpdated: number;
+  entryId: number | null;
+  timestampCreated: number | null;
+  timestampLastUpdated: number | null;
 }
 export interface RespAclSelector {
   commands: string;

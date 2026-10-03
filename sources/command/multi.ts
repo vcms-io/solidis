@@ -1,3 +1,4 @@
+import { SolidisTransactionBannedCommandNames } from '../common/constants.ts';
 import { RespError } from '../common/utils/error.ts';
 import {
   assertSender,
@@ -13,27 +14,40 @@ import type {
   StringOrBuffer,
 } from '../index.ts';
 
+const bannedCommandNames: ReadonlySet<unknown> = new Set(
+  SolidisTransactionBannedCommandNames,
+);
+
+function unwatch(client: Pick<SolidisClient, 'send'>) {
+  client.send([['UNWATCH']]).catch(() => {});
+}
+
 async function exec(
   client: Pick<SolidisClient, 'send'>,
   transactionQueue: StringOrBuffer[][],
   commandPromises: Promise<unknown>[],
 ): Promise<SolidisData[] | null> {
   const results = await Promise.allSettled(commandPromises);
-  const rejected = results.find((result) => result.status === 'rejected');
+  const rejected = results.find(
+    (result): result is PromiseRejectedResult => result.status === 'rejected',
+  );
   const commands = transactionQueue.splice(0);
 
   commandPromises.length = 0;
 
-  if (rejected && rejected.status === 'rejected') {
+  if (rejected) {
+    unwatch(client);
+
     throw rejected.reason;
   }
 
-  if (commands.length < 1) {
-    return [];
-  }
-
   const replies = await client.send([['MULTI'], ...commands, ['EXEC']]);
+  const [[accepted]] = replies;
   const reply = replies[replies.length - 1][0];
+
+  if (accepted instanceof RespError) {
+    throw newCommandError(accepted.message, 'MULTI', accepted);
+  }
 
   if (reply instanceof RespError) {
     throw newCommandError(reply.message, 'EXEC', reply);
@@ -64,6 +78,8 @@ export function multi<T extends object>(this: T): SolidisTransactionClient<T> {
           return () => {
             transactionQueue.length = 0;
             commandPromises.length = 0;
+
+            unwatch(client);
           };
         }
 
@@ -72,7 +88,8 @@ export function multi<T extends object>(this: T): SolidisTransactionClient<T> {
 
           if (
             typeof method !== 'function' ||
-            property === 'reset' ||
+            !Object.hasOwn(client, property) ||
+            bannedCommandNames.has(property) ||
             Reflect.get(method, Symbol.toStringTag) === 'AsyncGeneratorFunction'
           ) {
             return undefined;

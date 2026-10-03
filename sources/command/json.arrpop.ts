@@ -6,12 +6,12 @@ import {
 export function createCommand(key: string, path?: string, index?: number) {
   const command = ['JSON.ARRPOP', key];
 
-  if (path !== undefined) {
-    command.push(path);
+  if (path !== undefined || index !== undefined) {
+    command.push(path ?? '.');
+  }
 
-    if (index !== undefined) {
-      command.push(`${index}`);
-    }
+  if (index !== undefined) {
+    command.push(`${index}`);
   }
 
   return command;

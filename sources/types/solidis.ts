@@ -2,7 +2,10 @@ import type { EventEmitter } from 'node:events';
 import type { Socket } from 'node:net';
 import type { ConnectionOptions, TLSSocket } from 'node:tls';
 import type { SolidisClient } from '../client.ts';
-import type { SolidisUnsubscribeEventNames } from '../common/constants.ts';
+import type {
+  SolidisTransactionBannedCommandNames,
+  SolidisUnsubscribeEventNames,
+} from '../common/constants.ts';
 import type { RespError } from '../common/utils/error.ts';
 import type { SolidisConnection } from '../modules/connection.ts';
 import type { SolidisDebugMemory } from '../modules/debug.ts';
@@ -203,19 +206,7 @@ export type SolidisTransactionMethod<T> = T extends (
   : T;
 
 export type SolidisTransactionBannedMethods =
-  | 'multi'
-  | 'pipeline'
-  | 'watch'
-  | 'unwatch'
-  | 'subscribe'
-  | 'ssubscribe'
-  | 'psubscribe'
-  | 'unsubscribe'
-  | 'sunsubscribe'
-  | 'punsubscribe'
-  | 'auth'
-  | 'hello'
-  | 'reset'
+  | (typeof SolidisTransactionBannedCommandNames)[number]
   | 'connect'
   | 'quit'
   | 'send'

@@ -135,6 +135,22 @@ export const SolidisPubSubEventNames = [
   ...SolidisSubscriptionEventNames,
 ] as const;
 
+export const SolidisTransactionBannedCommandNames = [
+  'multi',
+  'pipeline',
+  'watch',
+  'unwatch',
+  'subscribe',
+  'ssubscribe',
+  'psubscribe',
+  'unsubscribe',
+  'sunsubscribe',
+  'punsubscribe',
+  'auth',
+  'hello',
+  'reset',
+] as const;
+
 export const SolidisCredentialCommandNameSet: ReadonlySet<string> = new Set([
   'AUTH',
   'HELLO',

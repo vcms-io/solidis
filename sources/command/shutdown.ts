@@ -1,3 +1,5 @@
+import { SolidisConnectionError } from '../common/utils/error.ts';
+import { RespOK } from '../types/resp.ts';
 import { executeCommand, tryReplyOK } from './utils/index.ts';
 
 import type { CommandShutdownOptions } from '../index.ts';
@@ -29,5 +31,13 @@ export function createCommand(options?: CommandShutdownOptions) {
 }
 
 export async function shutdown<T>(this: T, options?: CommandShutdownOptions) {
-  return await executeCommand(this, createCommand(options), tryReplyOK);
+  try {
+    return await executeCommand(this, createCommand(options), tryReplyOK);
+  } catch (error) {
+    if (options?.abort || !(error instanceof SolidisConnectionError)) {
+      throw error;
+    }
+
+    return RespOK;
+  }
 }

@@ -15,6 +15,7 @@ import { functionStats } from '../../../sources/command/function.stats.ts';
 import { createCommand as createJsonArrpopCommand } from '../../../sources/command/json.arrpop.ts';
 import { latencyLatest } from '../../../sources/command/latency.latest.ts';
 import { lrange } from '../../../sources/command/lrange.ts';
+import { memoryStats } from '../../../sources/command/memory.stats.ts';
 import { migrate } from '../../../sources/command/migrate.ts';
 import { moduleLoad } from '../../../sources/command/module.load.ts';
 import { moduleLoadex } from '../../../sources/command/module.loadex.ts';
@@ -26,7 +27,7 @@ import { tryReplyToNumber } from '../../../sources/command/utils/reply.ts';
 import { xautoclaim } from '../../../sources/command/xautoclaim.ts';
 import { xinfoStream } from '../../../sources/command/xinfo.stream.ts';
 import { createCommand as createXpendingCommand } from '../../../sources/command/xpending.ts';
-import { RespError } from '../../../sources/index.ts';
+import { RespError, SolidisConnectionError } from '../../../sources/index.ts';
 
 import type { SolidisData, StringOrBuffer } from '../../../sources/index.ts';
 
@@ -152,6 +153,12 @@ describe('reply-guards', () => {
       '$.items',
       '-1',
     ]);
+    assert.deepStrictEqual(createJsonArrpopCommand('key', undefined, 0), [
+      'JSON.ARRPOP',
+      'key',
+      '.',
+      '0',
+    ]);
     assert.deepStrictEqual(createXpendingCommand('key', 'group', '-'), [
       'XPENDING',
       'key',
@@ -248,6 +255,31 @@ describe('reply-guards', () => {
         selectors: [],
       },
     );
+    assert.deepStrictEqual(
+      await aclGetuser.call(
+        createRecorder([
+          bulk('flags'),
+          [bulk('on')],
+          bulk('passwords'),
+          [],
+          bulk('commands'),
+          bulk('+get'),
+          bulk('keys'),
+          [bulk('foo*'), bulk('bar,baz*')],
+          bulk('channels'),
+          [bulk('chan*')],
+        ]),
+        'patterns',
+      ),
+      {
+        flags: ['on'],
+        passwords: [],
+        commands: '+get',
+        keys: '~foo* ~bar,baz*',
+        channels: '&chan*',
+        selectors: [],
+      },
+    );
 
     assert.deepStrictEqual(
       await xautoclaim.call(
@@ -311,6 +343,50 @@ describe('reply-guards', () => {
         },
       ],
     );
+  });
+
+  it('reports the ACL LOG fields that Redis 6.2 leaves out as null', async () => {
+    const [entry] = await aclLog.call(
+      createRecorder([
+        [
+          bulk('count'),
+          1,
+          bulk('reason'),
+          bulk('auth'),
+          bulk('username'),
+          bulk('nobody'),
+        ],
+      ]),
+    );
+
+    assert.strictEqual(entry.entryId, null);
+    assert.strictEqual(entry.timestampCreated, null);
+    assert.strictEqual(entry.timestampLastUpdated, null);
+  });
+
+  it('reports the MEMORY STATS fields a server leaves out as 0', async () => {
+    const stats = await memoryStats.call(
+      createRecorder([bulk('peak.allocated'), 100]),
+    );
+
+    assert.strictEqual(stats.peak.allocated, 100);
+    assert.strictEqual(stats.functions.caches, 0);
+    assert.strictEqual(stats.overhead.db.hashtable.lut, 0);
+    assert.strictEqual(stats.dbDict.rehashingCount, 0);
+    assert.strictEqual(stats.cluster.links, 0);
+  });
+
+  it('resolves SHUTDOWN when the server closes the connection, unless it was aborted', async () => {
+    const closing = {
+      send: async () => {
+        throw new SolidisConnectionError('Connection closed.');
+      },
+    };
+
+    assert.strictEqual(await shutdown.call(closing, { nosave: true }), 'OK');
+    await assert.rejects(shutdown.call(closing, { abort: true }), {
+      name: 'SolidisConnectionError',
+    });
   });
 
   it('reads running scripts and engine counters from FUNCTION STATS', async () => {

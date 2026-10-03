@@ -5,9 +5,11 @@ import { after, before, describe, it } from 'node:test';
 
 import { createCommand as createAclCatCommand } from '../../../sources/command/acl.cat.ts';
 import { createCommand as createAclGenpassCommand } from '../../../sources/command/acl.genpass.ts';
+import { createCommand as createAuthCommand } from '../../../sources/command/auth.ts';
 import { createCommand as createBitcountCommand } from '../../../sources/command/bitcount.ts';
 import { createCommand as createBitposCommand } from '../../../sources/command/bitpos.ts';
 import { createCommand as createFunctionListCommand } from '../../../sources/command/function.list.ts';
+import { createCommand as createHelloCommand } from '../../../sources/command/hello.ts';
 import { get, incr, info } from '../../../sources/command/index.ts';
 import { createCommand as createJsonArrindexCommand } from '../../../sources/command/json.arrindex.ts';
 import { createCommand as createLatencyHistogramCommand } from '../../../sources/command/latency.histogram.ts';
@@ -376,6 +378,43 @@ describe('regressions', () => {
         connected_clients: '1',
         empty: '',
       });
+    });
+
+    it('keeps every value of a key INFO repeats, one per line', async () => {
+      const sender = createSender(
+        Buffer.from(
+          '# Modules\r\nmodule:name=bf,ver=1\r\nmodule:name=search,ver=2\r\nmodule:name=json,ver=3\r\n',
+        ),
+      );
+
+      assert.deepStrictEqual(await info.call(sender, 'modules'), {
+        module: 'name=bf,ver=1\nname=search,ver=2\nname=json,ver=3',
+      });
+    });
+
+    it('authenticates with an empty password when a username is given', () => {
+      assert.deepStrictEqual(createAuthCommand('user', ''), [
+        'AUTH',
+        'user',
+        '',
+      ]);
+      assert.deepStrictEqual(createAuthCommand(undefined, 'secret'), [
+        'AUTH',
+        'default',
+        'secret',
+      ]);
+      assert.deepStrictEqual(createAuthCommand('secret'), ['AUTH', 'secret']);
+      assert.deepStrictEqual(createHelloCommand('RESP3', 'user', ''), [
+        'HELLO',
+        '3',
+        'AUTH',
+        'user',
+        '',
+      ]);
+      assert.deepStrictEqual(createHelloCommand('RESP2', '', ''), [
+        'HELLO',
+        '2',
+      ]);
     });
 
     it('describes an unexpected reply by its shape only', async () => {

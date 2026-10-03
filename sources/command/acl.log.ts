@@ -36,9 +36,9 @@ export async function aclLog<T>(
         username: '',
         ageSeconds: 0,
         clientInfo: '',
-        entryId: 0,
-        timestampCreated: 0,
-        timestampLastUpdated: 0,
+        entryId: null,
+        timestampCreated: null,
+        timestampLastUpdated: null,
       };
 
       processPairedArray(
