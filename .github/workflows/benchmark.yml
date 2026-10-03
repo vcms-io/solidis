@@ -65,6 +65,8 @@ jobs:
 
       - name: Run benchmark
         run: npm run benchmark:ioredis:snapshot -- "${{ matrix.case }}"
+        env:
+          SOLIDIS_TEST_PORT: 6379
 
       - name: Upload snapshot
         uses: actions/upload-artifact@v7

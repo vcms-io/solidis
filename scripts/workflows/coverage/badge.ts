@@ -38,7 +38,7 @@ if (!match) {
   process.exit(1);
 }
 
-const percentage = Math.round(Number(match[1]));
+const percentage = Math.floor(Number(match[1]) * 10) / 10;
 const badge = `badge/coverage-${percentage}%25-${badgeColor(percentage)}`;
 
 for (const filePath of filePaths) {

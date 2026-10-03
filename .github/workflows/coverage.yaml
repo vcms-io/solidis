@@ -35,6 +35,8 @@ jobs:
     name: Coverage
     needs: lint
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     services:
       server:
         image: redis/redis-stack-server:latest
@@ -45,9 +47,6 @@ jobs:
           --health-interval 2s
           --health-timeout 3s
           --health-retries 30
-    permissions:
-      contents: write
-      pull-requests: write
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -58,33 +57,64 @@ jobs:
       - name: Run coverage
         run: |
           set -o pipefail
-          npm run test:coverage 2>&1 | tee /tmp/coverage.txt
+          npm run test:coverage 2>&1 | tee coverage.txt
         env:
           SOLIDIS_TEST_HOST: 127.0.0.1
           SOLIDIS_TEST_PORT: 6379
       - name: Generate report
         if: always()
-        run: npm run --silent node:ts ./scripts/workflows/coverage/report.ts /tmp/coverage.txt /tmp/coverage.md
+        run: npm run --silent node:ts ./scripts/workflows/coverage/report.ts coverage.txt coverage.md
       - name: Job summary
         if: always()
-        run: cat /tmp/coverage.md >> "$GITHUB_STEP_SUMMARY"
+        run: cat coverage.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage
+          path: |
+            coverage.txt
+            coverage.md
+          retention-days: 1
+
+  publish:
+    name: Publish coverage
+    needs: coverage
+    if: >-
+      always() && needs.coverage.result != 'skipped' && (
+        (github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository) ||
+        (github.event_name == 'push' && github.ref == 'refs/heads/main'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - name: Download report
+        uses: actions/download-artifact@v8
+        with:
+          name: coverage
       - name: PR comment
-        if: >-
-          always() && github.event_name == 'pull_request' &&
-          github.event.pull_request.head.repo.full_name == github.repository
+        if: github.event_name == 'pull_request'
         run: >-
           npm run node:ts ./scripts/workflows/coverage/comment.ts
-          /tmp/coverage.md
+          coverage.md
           ${{ github.repository }}
           ${{ github.event.pull_request.number }}
           ${{ github.token }}
       - name: Update badge
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && needs.coverage.result == 'success'
         run: >-
           npm run --silent node:ts ./scripts/workflows/coverage/badge.ts
-          /tmp/coverage.txt README.md README.ko.md
+          coverage.txt README.md README.ko.md
       - name: Create pull request
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && needs.coverage.result == 'success'
         uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -96,7 +126,7 @@ jobs:
             Automated coverage badge update triggered by changes on `main`.
 
             - Ran the coverage suite against `redis/redis-stack-server`
-            - Updated the coverage badge in `README.md` and `README.ko.md` to the rounded line coverage
+            - Updated the coverage badge in `README.md` and `README.ko.md` to the line coverage, rounded down to one decimal
           labels: coverage,automated
           add-paths: |
             README.md
