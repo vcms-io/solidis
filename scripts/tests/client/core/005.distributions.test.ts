@@ -11,7 +11,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
 import {
@@ -105,6 +105,32 @@ describe('distributions', () => {
     );
 
     assert.strictEqual(Number(output), entries.length);
+  });
+
+  it('inlines the constants of common/internal.ts instead of importing them', async () => {
+    const internal = ['cjs', 'mjs'].map((extension) =>
+      join(outputDirectory, 'common', `internal.${extension}`),
+    );
+    const importers: string[] = [];
+
+    for (const file of await readdir(outputDirectory, { recursive: true })) {
+      if (!/\.[cm]js$/.test(file)) {
+        continue;
+      }
+
+      const path = join(outputDirectory, file);
+      const contents = await readFile(path, 'utf8');
+
+      for (const [, specifier] of contents.matchAll(
+        /(?:from|require\()\s*"(\.[^"]+)"/g,
+      )) {
+        if (internal.includes(join(dirname(path), specifier))) {
+          importers.push(file);
+        }
+      }
+    }
+
+    assert.deepStrictEqual(importers, []);
   });
 
   it('exposes the same client API through CommonJS and ES modules', () => {

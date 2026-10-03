@@ -4,16 +4,12 @@ import {
   SolidisNotANumberText,
 } from '../internal.ts';
 
-const INFINITY = SolidisInfinityText;
-const NEGATIVE_INFINITY = SolidisNegativeInfinityText;
-const NAN = SolidisNotANumberText;
-
 export function parseDouble(text: string): number | undefined {
-  if (text === INFINITY) {
+  if (text === SolidisInfinityText) {
     return Number.POSITIVE_INFINITY;
   }
 
-  if (text === NEGATIVE_INFINITY) {
+  if (text === SolidisNegativeInfinityText) {
     return Number.NEGATIVE_INFINITY;
   }
 
@@ -21,7 +17,8 @@ export function parseDouble(text: string): number | undefined {
 
   if (
     !text ||
-    (Number.isNaN(value) && text.toLowerCase().replace(/^-/, '') !== NAN)
+    (Number.isNaN(value) &&
+      text.toLowerCase().replace(/^-/, '') !== SolidisNotANumberText)
   ) {
     return undefined;
   }
@@ -31,15 +28,15 @@ export function parseDouble(text: string): number | undefined {
 
 export function formatDouble(value: number): string {
   if (Number.isNaN(value)) {
-    return NAN;
+    return SolidisNotANumberText;
   }
 
   if (value === Number.POSITIVE_INFINITY) {
-    return INFINITY;
+    return SolidisInfinityText;
   }
 
   if (value === Number.NEGATIVE_INFINITY) {
-    return NEGATIVE_INFINITY;
+    return SolidisNegativeInfinityText;
   }
 
   return `${value}`;

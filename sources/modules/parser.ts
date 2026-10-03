@@ -29,29 +29,6 @@ import { RespPush } from '../types/resp.ts';
 
 import type { SolidisData, SolidisParserOptions } from '../types/solidis.ts';
 
-const CR = SolidisCarriageReturnByte;
-const LF = SolidisLineFeedByte;
-const ZERO = SolidisZeroByte;
-const MINUS = SolidisMinusByte;
-const COLON = SolidisColonByte;
-const LOWER_T = SolidisLowercaseTByte;
-const LOWER_F = SolidisLowercaseFByte;
-const STRING = SolidisStringReplyByte;
-const ERROR = SolidisErrorReplyByte;
-const INTEGER = SolidisIntegerReplyByte;
-const BULK = SolidisBulkReplyByte;
-const ARRAY = SolidisArrayReplyByte;
-const MAP = SolidisMapReplyByte;
-const NULL = SolidisNullReplyByte;
-const BOOLEAN = SolidisBooleanReplyByte;
-const DOUBLE = SolidisDoubleReplyByte;
-const BIG_NUMBER = SolidisBigNumberReplyByte;
-const VERBATIM_STRING = SolidisVerbatimStringReplyByte;
-const BLOB_ERROR = SolidisBlobErrorReplyByte;
-const SET = SolidisSetReplyByte;
-const ATTRIBUTE = SolidisAttributeReplyByte;
-const PUSH = SolidisPushReplyByte;
-
 const NeedsMoreData = Symbol();
 const NoValue = Symbol();
 
@@ -66,7 +43,7 @@ interface SolidisParserFrame {
 }
 
 function createItems(type: number): SolidisData[] {
-  return type === PUSH ? new RespPush() : [];
+  return type === SolidisPushReplyByte ? new RespPush() : [];
 }
 
 function createMap(items: SolidisData[]) {
@@ -84,11 +61,11 @@ function createMap(items: SolidisData[]) {
 }
 
 function createAggregate(type: number, items: SolidisData[]): SolidisData {
-  if (type === MAP) {
+  if (type === SolidisMapReplyByte) {
     return createMap(items);
   }
 
-  if (type === SET) {
+  if (type === SolidisSetReplyByte) {
     return new Set(items);
   }
 
@@ -150,7 +127,7 @@ export class SolidisParser {
     const availableLength =
       this.#buffer.length - this.#offset + this.#pendingLength;
 
-    if (this.#requiredLength < 0 && !chunk.includes(LF)) {
+    if (this.#requiredLength < 0 && !chunk.includes(SolidisLineFeedByte)) {
       if (availableLength > this.#maxBulkStringLength) {
         throw new SolidisParserError(
           `Line length exceeds maximum allowed ${this.#maxBulkStringLength}`,
@@ -197,7 +174,7 @@ export class SolidisParser {
 
       this.#frames.pop();
 
-      if (frame.type === ATTRIBUTE) {
+      if (frame.type === SolidisAttributeReplyByte) {
         return;
       }
 
@@ -209,27 +186,27 @@ export class SolidisParser {
     const type = this.#buffer[this.#offset];
 
     switch (type) {
-      case BULK:
-      case VERBATIM_STRING:
-      case BLOB_ERROR: {
+      case SolidisBulkReplyByte:
+      case SolidisVerbatimStringReplyByte:
+      case SolidisBlobErrorReplyByte: {
         return this.#readBlob(type);
       }
 
-      case ARRAY:
-      case SET:
-      case PUSH:
-      case MAP:
-      case ATTRIBUTE: {
+      case SolidisArrayReplyByte:
+      case SolidisSetReplyByte:
+      case SolidisPushReplyByte:
+      case SolidisMapReplyByte:
+      case SolidisAttributeReplyByte: {
         return this.#readAggregate(type);
       }
 
-      case STRING:
-      case ERROR:
-      case INTEGER:
-      case NULL:
-      case BOOLEAN:
-      case DOUBLE:
-      case BIG_NUMBER: {
+      case SolidisStringReplyByte:
+      case SolidisErrorReplyByte:
+      case SolidisIntegerReplyByte:
+      case SolidisNullReplyByte:
+      case SolidisBooleanReplyByte:
+      case SolidisDoubleReplyByte:
+      case SolidisBigNumberReplyByte: {
         return this.#readSimple(type);
       }
 
@@ -252,22 +229,22 @@ export class SolidisParser {
     this.#offset = end + 2;
 
     switch (type) {
-      case STRING: {
+      case SolidisStringReplyByte: {
         return this.#buffer.toString('utf8', start, end);
       }
 
-      case ERROR: {
+      case SolidisErrorReplyByte: {
         return new RespError(this.#buffer.toString('utf8', start, end));
       }
 
-      case INTEGER: {
+      case SolidisIntegerReplyByte: {
         return (
           this.#parseInteger(start, end) ??
           new RespError(`Integer: '${this.#readText(start, end)}'`)
         );
       }
 
-      case NULL: {
+      case SolidisNullReplyByte: {
         if (end !== start) {
           throw new SolidisParserError('Null: unexpected payload');
         }
@@ -275,11 +252,11 @@ export class SolidisParser {
         return null;
       }
 
-      case BOOLEAN: {
+      case SolidisBooleanReplyByte: {
         return this.#readBoolean(start, end);
       }
 
-      case DOUBLE: {
+      case SolidisDoubleReplyByte: {
         const text = this.#readText(start, end);
 
         return parseDouble(text) ?? new RespError(`Double: '${text}'`);
@@ -323,19 +300,22 @@ export class SolidisParser {
       return NeedsMoreData;
     }
 
-    if (buffer[dataEnd] !== CR || buffer[dataEnd + 1] !== LF) {
+    if (
+      buffer[dataEnd] !== SolidisCarriageReturnByte ||
+      buffer[dataEnd + 1] !== SolidisLineFeedByte
+    ) {
       throw new SolidisParserError('Bulk: missing CRLF');
     }
 
     this.#offset = dataEnd + 2;
 
-    if (type === BLOB_ERROR) {
+    if (type === SolidisBlobErrorReplyByte) {
       return new RespError(buffer.toString('utf8', dataStart, dataEnd));
     }
 
-    if (type === VERBATIM_STRING) {
+    if (type === SolidisVerbatimStringReplyByte) {
       const textStart =
-        length >= 4 && buffer[dataStart + 3] === COLON
+        length >= 4 && buffer[dataStart + 3] === SolidisColonByte
           ? dataStart + 4
           : dataStart;
 
@@ -359,7 +339,7 @@ export class SolidisParser {
 
     this.#offset = lineEnd + 2;
 
-    if (type === ATTRIBUTE && count <= 0) {
+    if (type === SolidisAttributeReplyByte && count <= 0) {
       return NoValue;
     }
 
@@ -374,7 +354,10 @@ export class SolidisParser {
     this.#frames.push({
       type,
       items: createItems(type),
-      remaining: type === MAP || type === ATTRIBUTE ? count * 2 : count,
+      remaining:
+        type === SolidisMapReplyByte || type === SolidisAttributeReplyByte
+          ? count * 2
+          : count,
     });
 
     return NoValue;
@@ -385,7 +368,10 @@ export class SolidisParser {
 
     let index = from;
 
-    while (index < buffer.length && buffer[index] !== CR) {
+    while (
+      index < buffer.length &&
+      buffer[index] !== SolidisCarriageReturnByte
+    ) {
       index += 1;
     }
 
@@ -395,7 +381,7 @@ export class SolidisParser {
       return -1;
     }
 
-    if (buffer[index + 1] !== LF) {
+    if (buffer[index + 1] !== SolidisLineFeedByte) {
       throw new SolidisParserError('Missing CRLF');
     }
 
@@ -408,7 +394,7 @@ export class SolidisParser {
 
   #parseInteger(start: number, end: number): number | bigint | undefined {
     const buffer = this.#buffer;
-    const isNegative = buffer[start] === MINUS;
+    const isNegative = buffer[start] === SolidisMinusByte;
 
     let index = isNegative ? start + 1 : start;
     let value = 0;
@@ -418,7 +404,7 @@ export class SolidisParser {
     }
 
     while (index < end) {
-      const digit = buffer[index] - ZERO;
+      const digit = buffer[index] - SolidisZeroByte;
 
       if (digit < 0 || digit > 9) {
         return undefined;
@@ -450,13 +436,16 @@ export class SolidisParser {
   #readBoolean(start: number, end: number) {
     const value = this.#buffer[start];
 
-    if (end !== start + 1 || (value !== LOWER_T && value !== LOWER_F)) {
+    if (
+      end !== start + 1 ||
+      (value !== SolidisLowercaseTByte && value !== SolidisLowercaseFByte)
+    ) {
       throw new SolidisParserError(
         `Boolean: invalid value '${this.#readText(start, end)}'`,
       );
     }
 
-    return value === LOWER_T;
+    return value === SolidisLowercaseTByte;
   }
 
   #readBigNumber(text: string) {

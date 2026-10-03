@@ -1,55 +1,48 @@
 import { readdir, readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import { build } from 'esbuild';
 
 import type { Plugin } from 'esbuild';
 
-function createTransformImportExtensionPlugin(extension: string): Plugin {
+const inlinedModulePath = resolve('sources/common/internal.ts');
+
+function createExternalImportPlugin(extension: string): Plugin {
   return {
-    name: 'transform-import-extension',
+    name: 'external-import',
     setup(build) {
-      build.onLoad({ filter: /\.(js|ts)$/ }, async (file) => {
-        const contents = await readFile(file.path, 'utf8');
+      build.onResolve({ filter: /^\./ }, ({ path, resolveDir, kind }) => {
+        if (
+          kind === 'entry-point' ||
+          resolve(resolveDir, path) === inlinedModulePath
+        ) {
+          return undefined;
+        }
 
-        const transformedContents = contents.replace(
-          /(from\s+['"])([^'"]+)\.ts(['"]\s*;?)/g,
-          `$1$2${extension}$3`,
-        );
-
-        return {
-          contents: transformedContents,
-          loader: 'ts',
-        };
+        return { path: path.replace(/\.ts$/, extension), external: true };
       });
     },
   } satisfies Plugin;
 }
 
 export async function buildDistributions(outputDirectory: string) {
-  await build({
-    entryPoints: ['sources/**/*.ts'],
-    outdir: outputDirectory,
-    format: 'esm',
-    minify: true,
-    platform: 'node',
-    outExtension: {
-      '.js': '.mjs',
-    },
-    plugins: [createTransformImportExtensionPlugin('.mjs')],
-  });
-
-  await build({
-    entryPoints: ['sources/**/*.ts'],
-    outdir: outputDirectory,
-    format: 'cjs',
-    minify: true,
-    platform: 'node',
-    outExtension: {
-      '.js': '.cjs',
-    },
-    plugins: [createTransformImportExtensionPlugin('.cjs')],
-  });
+  for (const [format, extension] of [
+    ['esm', '.mjs'],
+    ['cjs', '.cjs'],
+  ] as const) {
+    await build({
+      entryPoints: ['sources/**/*.ts'],
+      outdir: outputDirectory,
+      bundle: true,
+      format,
+      minify: true,
+      platform: 'node',
+      outExtension: {
+        '.js': extension,
+      },
+      plugins: [createExternalImportPlugin(extension)],
+    });
+  }
 }
 
 export async function buildCommonJsDeclarations(outputDirectory: string) {

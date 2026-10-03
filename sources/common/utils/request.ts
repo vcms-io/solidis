@@ -9,11 +9,6 @@ import { RespError, SolidisCommandError } from './error.ts';
 
 import type { StringOrBuffer } from '../../types/solidis.ts';
 
-const ASTERISK = SolidisAsteriskByte;
-const DOLLAR = SolidisDollarByte;
-const CR = SolidisCarriageReturnByte;
-const LF = SolidisLineFeedByte;
-
 const numberTextCache = Array.from({ length: 8192 }, (_, index) => `${index}`);
 
 function getNumberText(value: number) {
@@ -21,8 +16,8 @@ function getNumberText(value: number) {
 }
 
 function writeCRLF(buffer: Buffer, offset: number) {
-  buffer[offset] = CR;
-  buffer[offset + 1] = LF;
+  buffer[offset] = SolidisCarriageReturnByte;
+  buffer[offset + 1] = SolidisLineFeedByte;
 
   return offset + 2;
 }
@@ -54,7 +49,7 @@ export function commandsToBuffer(commands: StringOrBuffer[][]): Buffer {
   let argumentIndex = 0;
 
   for (const commandArguments of commands) {
-    result[offset] = ASTERISK;
+    result[offset] = SolidisAsteriskByte;
 
     offset = writeAsciiNumber(result, commandArguments.length, offset + 1);
     offset = writeCRLF(result, offset);
@@ -63,7 +58,7 @@ export function commandsToBuffer(commands: StringOrBuffer[][]): Buffer {
       const argumentLength = argumentLengths[argumentIndex];
 
       argumentIndex += 1;
-      result[offset] = DOLLAR;
+      result[offset] = SolidisDollarByte;
 
       offset = writeAsciiNumber(result, argumentLength, offset + 1);
       offset = writeCRLF(result, offset);
