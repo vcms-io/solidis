@@ -127,6 +127,9 @@ const BENCHMARKS_DATA_PATTERN = / {2}const benchmarkData = \[[\s\S]*?\n {2}\];/;
 
 const HOME_DATA_PATTERN = /const BENCHMARK_DATA = \[[\s\S]*?\n\];/;
 
+const NODE_VERSION_PATTERN =
+  /(<span className="ml-2 font-mono text-foreground">)v[\d.]+(<\/span>)/;
+
 const MAX_SPEED_BOOST_PATTERN =
   /(<div className="text-2xl font-bold text-amber-600 mb-1">)[\d.]+x(<\/div>)/;
 
@@ -172,6 +175,11 @@ try {
   const newData = generateBenchmarksPageData(entries);
   if (BENCHMARKS_DATA_PATTERN.test(content)) {
     content = content.replace(BENCHMARKS_DATA_PATTERN, newData);
+    changed = true;
+  }
+
+  if (NODE_VERSION_PATTERN.test(content)) {
+    content = content.replace(NODE_VERSION_PATTERN, `$1${process.version}$2`);
     changed = true;
   }
 

@@ -29,11 +29,12 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm install
-      - run: npm run lint
+      - run: npm run lint:check
 
   integration:
     name: Integration (${{ matrix.server.label }}, ${{ matrix.protocol }})
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: lint
     strategy:
       fail-fast: false

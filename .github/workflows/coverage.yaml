@@ -37,17 +37,18 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm install
-      - run: npm run lint
+      - run: npm run lint:check
 
   coverage:
     name: Coverage
     needs: lint
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: read
     services:
       server:
-        image: redis/redis-stack-server:latest
+        image: redis:8-alpine
         ports:
           - 6379:6379
         options: >-
@@ -133,7 +134,7 @@ jobs:
           body: |
             Automated coverage badge update triggered by changes on `main`.
 
-            - Ran the coverage suite against `redis/redis-stack-server`
+            - Ran the coverage suite against `redis:8-alpine`
             - Updated the coverage badge in `README.md` and `README.ko.md` to the line coverage, rounded down to one decimal
           labels: coverage,automated
           add-paths: |

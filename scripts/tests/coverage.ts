@@ -37,6 +37,7 @@ function spawnTests(files: string[], concurrency?: number): Promise<number> {
     '--experimental-strip-types',
     '--no-warnings',
     '--test',
+    '--test-timeout=60000',
     ...(concurrency === undefined ? [] : [`--test-concurrency=${concurrency}`]),
     ...files,
   ];

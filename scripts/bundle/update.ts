@@ -84,28 +84,57 @@ for (const readmeFile of readmeFiles) {
   }
 }
 
-const benchmarksPagePath = resolve(
-  projectRoot,
-  'website',
-  'app',
-  'benchmarks',
-  'page.tsx',
-);
+const websiteFiles: Array<{
+  path: string;
+  replacements: Array<{ pattern: RegExp; replacement: string }>;
+}> = [
+  {
+    path: 'website/app/benchmarks/page.tsx',
+    replacements: [
+      { pattern: /&lt;\d+KB/g, replacement: `&lt;${bundleKilobytes}KB` },
+    ],
+  },
+  {
+    path: 'website/app/page.tsx',
+    replacements: [
+      { pattern: /&lt; \d+ KB/g, replacement: `&lt; ${bundleKilobytes} KB` },
+    ],
+  },
+  {
+    path: 'website/i18n/messages/en.json',
+    replacements: [
+      {
+        pattern: /Under \d+ KB min bundle/g,
+        replacement: `Under ${bundleKilobytes} KB min bundle`,
+      },
+    ],
+  },
+  {
+    path: 'website/i18n/messages/ko.json',
+    replacements: [
+      {
+        pattern: /최소 번들 \d+ KB 미만/g,
+        replacement: `최소 번들 ${bundleKilobytes} KB 미만`,
+      },
+    ],
+  },
+  {
+    path: 'website/public/llms.txt',
+    replacements: [
+      { pattern: /< \d+KB/g, replacement: `< ${bundleKilobytes}KB` },
+    ],
+  },
+];
 
-try {
-  const changed = await replaceInFile(benchmarksPagePath, [
-    {
-      pattern: /\{'<\d+KB'\}/g,
-      replacement: `{'${badgeLabel}'}`,
-    },
-  ]);
-
-  if (changed) {
-    updatedCount += 1;
-    console.log('Updated: website/app/benchmarks/page.tsx');
+for (const { path, replacements } of websiteFiles) {
+  try {
+    if (await replaceInFile(resolve(projectRoot, path), replacements)) {
+      updatedCount += 1;
+      console.log(`Updated: ${path}`);
+    }
+  } catch {
+    console.log(`Skipped: ${path} (not found)`);
   }
-} catch {
-  console.log('Skipped: website/app/benchmarks/page.tsx (not found)');
 }
 
 await rm(BUNDLE_DIRECTORY, { recursive: true, force: true });

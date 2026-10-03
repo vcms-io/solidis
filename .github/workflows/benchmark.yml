@@ -85,8 +85,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
-        with:
-          fetch-depth: 2
 
       - uses: actions/setup-node@v6
         with:
@@ -106,9 +104,7 @@ jobs:
       - name: Check if PR should be created
         id: check
         run: |
-          if [ "${{ github.event_name }}" != "push" ]; then
-            echo "pr=false" >> "$GITHUB_OUTPUT"
-          elif git diff --name-only HEAD~1 HEAD | grep -qE '^(sources/|scripts/benchmarks/|\.github/workflows/benchmark\.yml)'; then
+          if [ "${{ github.event_name }}" = "push" ]; then
             echo "pr=true" >> "$GITHUB_OUTPUT"
           else
             echo "pr=false" >> "$GITHUB_OUTPUT"
