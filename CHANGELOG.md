@@ -352,7 +352,7 @@ See [Upgrading from 0.4.x](#upgrading-from-04x) for replacements.
 - The parser handles replies split across socket chunks in linear time.
 - Serialization measures each argument once, and each reply allocates less.
 - In alternating benchmark runs against 0.4.0, throughput is on par or better across the suite.
-- The minimal client with `get` and `set` shrinks from 29,457 to 28,263 bytes, and the featured client from 99,356 to 94,772 bytes.
+- The minimal client with `get` and `set` shrinks from 29,457 to 28,253 bytes, and the featured client from 99,356 to 94,762 bytes.
 
 ## [0.4.0] and earlier
 
