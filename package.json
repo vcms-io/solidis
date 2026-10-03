@@ -46,7 +46,7 @@
         "default": "./distributions/index.mjs"
       },
       "require": {
-        "types": "./distributions/index.d.ts",
+        "types": "./distributions/index.d.cts",
         "default": "./distributions/index.cjs"
       }
     },
@@ -56,7 +56,7 @@
         "default": "./distributions/client/featured.mjs"
       },
       "require": {
-        "types": "./distributions/client/featured.d.ts",
+        "types": "./distributions/client/featured.d.cts",
         "default": "./distributions/client/featured.cjs"
       }
     },
@@ -66,7 +66,7 @@
         "default": "./distributions/command/index.mjs"
       },
       "require": {
-        "types": "./distributions/command/index.d.ts",
+        "types": "./distributions/command/index.d.cts",
         "default": "./distributions/command/index.cjs"
       }
     },
@@ -76,13 +76,13 @@
         "default": "./distributions/command/*.mjs"
       },
       "require": {
-        "types": "./distributions/command/*.d.ts",
+        "types": "./distributions/command/*.d.cts",
         "default": "./distributions/command/*.cjs"
       }
     }
   },
   "files": [
-    "distributions/**/*.{d.ts,mjs,cjs}"
+    "distributions/**/*.{d.ts,d.cts,mjs,cjs}"
   ],
   "devDependencies": {
     "@biomejs/biome": "2.5.14",

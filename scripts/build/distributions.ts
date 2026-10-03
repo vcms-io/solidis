@@ -1,4 +1,5 @@
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 
 import { build } from 'esbuild';
 
@@ -49,4 +50,22 @@ export async function buildDistributions(outputDirectory: string) {
     },
     plugins: [createTransformImportExtensionPlugin('.cjs')],
   });
+}
+
+export async function buildCommonJsDeclarations(outputDirectory: string) {
+  const files = await readdir(outputDirectory, { recursive: true });
+
+  for (const file of files) {
+    if (!file.endsWith('.d.ts')) {
+      continue;
+    }
+
+    const path = join(outputDirectory, file);
+    const contents = await readFile(path, 'utf8');
+
+    await writeFile(
+      path.replace(/\.d\.ts$/, '.d.cts'),
+      contents.replace(/(['"])(\.{1,2}\/[^'"]+)\.ts\1/g, '$1$2.cts$1'),
+    );
+  }
 }

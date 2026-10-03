@@ -2,16 +2,26 @@
 
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
-import { buildDistributions } from '../../../build/distributions.ts';
+import {
+  buildCommonJsDeclarations,
+  buildDistributions,
+} from '../../../build/distributions.ts';
 
 interface PackageExportTarget {
-  import: { default: string };
-  require: { default: string };
+  import: { types: string; default: string };
+  require: { types: string; default: string };
 }
 
 let outputDirectory = '';
@@ -121,6 +131,46 @@ describe('distributions', () => {
     assert.deepStrictEqual(JSON.parse(commonjs), JSON.parse(module));
     assert.strictEqual(JSON.parse(commonjs)[0], 'function');
     assert.ok(JSON.parse(commonjs)[1] > 300);
+  });
+
+  it('writes CommonJS declarations that import each other', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'solidis-declarations-'));
+
+    try {
+      await mkdir(join(directory, 'command'));
+      await writeFile(
+        join(directory, 'index.d.ts'),
+        "export * from './client.ts';\nimport type { EventEmitter } from 'node:events';\n",
+      );
+      await writeFile(
+        join(directory, 'command', 'get.d.ts'),
+        'import type { RespString } from "../types/resp.ts";\nexport type Value = import(\'../index.ts\').Value;\n',
+      );
+
+      await buildCommonJsDeclarations(directory);
+
+      assert.strictEqual(
+        await readFile(join(directory, 'index.d.cts'), 'utf8'),
+        "export * from './client.cts';\nimport type { EventEmitter } from 'node:events';\n",
+      );
+      assert.strictEqual(
+        await readFile(join(directory, 'command', 'get.d.cts'), 'utf8'),
+        'import type { RespString } from "../types/resp.cts";\nexport type Value = import(\'../index.cts\').Value;\n',
+      );
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('types require() with CommonJS declarations and import with ES ones', async () => {
+    const packageJson = JSON.parse(
+      await readFile(join(process.cwd(), 'package.json'), 'utf8'),
+    ) as { exports: Record<string, PackageExportTarget> };
+
+    for (const target of Object.values(packageJson.exports)) {
+      assert.match(target.require.types, /\.d\.cts$/);
+      assert.match(target.import.types, /\.d\.ts$/);
+    }
   });
 
   it('points every package.json export at a file that exists', async () => {
