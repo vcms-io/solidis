@@ -15,6 +15,7 @@ import {
   RespError,
   SolidisCommandError,
   SolidisProtocols,
+  toCommandError,
 } from '../../../sources/index.ts';
 import {
   closeClient,
@@ -431,7 +432,43 @@ describe('regressions', () => {
       );
     });
 
-    it('never puts command arguments into error messages', async () => {
+    it('redacts the arguments a server quotes in an error message', () => {
+      const secret = 'hunter2-password-'.repeat(10);
+      const korean = `x${'비밀번호'.repeat(40)}`;
+      const unknown = 'ERR unknown command';
+      const cases: [string[], string, string][] = [
+        [
+          ['JSON.SET', 'user:1', '$', '{"password":"hunter2"}'],
+          `${unknown} \`JSON.SET\`, with args beginning with: \`user:1\`, \`$\`, \`{"password":"hunter2"}\`, `,
+          `${unknown} \`JSON.SET\`, with args beginning with: \`***\`, \`***\`, \`***\`, `,
+        ],
+        [
+          ['NOSUCH', 'line1\r\nline2'],
+          `${unknown} 'NOSUCH', with args beginning with: 'line1  line2' `,
+          `${unknown} 'NOSUCH', with args beginning with: '***' `,
+        ],
+        [
+          ['NOSUCH', secret],
+          `${unknown} 'NOSUCH', with args beginning with: '${secret.slice(0, 80)}' `,
+          `${unknown} 'NOSUCH', with args beginning with: '***' `,
+        ],
+        [
+          ['NOSUCH', korean],
+          `${unknown} 'NOSUCH', with args beginning with: '${Buffer.from(korean).subarray(0, 101)}' `,
+          `${unknown} 'NOSUCH', with args beginning with: '***' `,
+        ],
+      ];
+
+      for (const [command, message, redacted] of cases) {
+        const error = toCommandError(new RespError(message), command);
+
+        assert.strictEqual(error.message, `[${command[0]}] ${redacted}`);
+        assert.ok(error.cause instanceof RespError);
+        assert.strictEqual(error.cause.message, redacted);
+      }
+    });
+
+    it('keeps the arguments of INCRBY and AUTH out of error messages', async () => {
       const key = keyspace.key('secret-key-name');
 
       await client.set(key, 'text');

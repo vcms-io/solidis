@@ -93,26 +93,28 @@ function redactArguments(
   command: readonly StringOrBuffer[],
   visibleLength: number,
 ) {
-  let result = message;
+  let result = message.replace(/\uFFFD+(?=['`])/g, '');
 
   for (const argument of command.slice(visibleLength)) {
     const text = String(argument).replace(/[\r\n]/g, ' ');
 
-    if (!text || !result.includes(`'${text[0]}`)) {
-      continue;
-    }
+    for (const quote of ["'", '`']) {
+      if (!result.includes(`${quote}${text[0]}`)) {
+        continue;
+      }
 
-    for (
-      let length = Math.min(text.length, result.length);
-      length > 0;
-      length -= 1
-    ) {
-      const quoted = `'${text.slice(0, length)}'`;
+      for (
+        let length = Math.min(text.length, result.length);
+        length > 0;
+        length -= 1
+      ) {
+        const quoted = `${quote}${text.slice(0, length)}${quote}`;
 
-      if (result.includes(quoted)) {
-        result = result.replaceAll(quoted, "'***'");
+        if (result.includes(quoted)) {
+          result = result.replaceAll(quoted, `${quote}***${quote}`);
 
-        break;
+          break;
+        }
       }
     }
   }
