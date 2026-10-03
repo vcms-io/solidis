@@ -1,8 +1,11 @@
 import { SolidisSubscriptionEventNames } from '../common/constants.ts';
 
 import type { SolidisCommandKind } from '../types/internal.ts';
+import type { SolidisSendOptions } from '../types/solidis.ts';
 
 export { EventEmitter } from 'node:events';
+
+export const SolidisSessionSendOptions: SolidisSendOptions = {};
 
 export const SolidisSessionCommandKinds = [
   'select',

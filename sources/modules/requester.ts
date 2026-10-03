@@ -1,5 +1,6 @@
 import {
-  SolidisMaximumTimerDelay,
+  resolveTimerDelay,
+  SolidisClientQuitMessage,
   SolidisSocketNotConnectedMessage,
 } from '../common/internal.ts';
 import {
@@ -27,6 +28,7 @@ import { RespPush } from '../types/resp.ts';
 import { SolidisProtocols } from '../types/solidis.ts';
 import {
   SolidisCommandKinds,
+  SolidisSessionSendOptions,
   SolidisUnsupportedCommandNameSet,
 } from './internal.ts';
 import { SolidisParser } from './parser.ts';
@@ -84,17 +86,11 @@ function createRefusal(command: StringOrBuffer[], reason: string) {
 }
 
 function resolveTimeout(commandTimeout: number, blockingTimeout?: number) {
-  const timeout = commandTimeout + Math.max(0, blockingTimeout ?? 0);
-
-  if (
-    commandTimeout <= 0 ||
-    blockingTimeout === 0 ||
-    timeout > SolidisMaximumTimerDelay
-  ) {
+  if (commandTimeout <= 0 || blockingTimeout === 0) {
     return 0;
   }
 
-  return timeout;
+  return resolveTimerDelay(commandTimeout + Math.max(0, blockingTimeout ?? 0));
 }
 
 function getReplySpan(
@@ -143,6 +139,7 @@ export class SolidisRequester {
   #inflightQueue: SolidisPipeline[] = [];
   #flushHandle: NodeJS.Immediate | undefined;
   #protocol: SolidisProtocols = SolidisProtocols.RESP2;
+  #negotiatedProtocol: SolidisProtocols | undefined;
   #database: number;
   #authentication:
     | { username: StringOrBuffer; password: StringOrBuffer }
@@ -150,6 +147,7 @@ export class SolidisRequester {
   #transaction: SolidisSubRequest[] | undefined;
   #receivedChunks = 0;
   #isQueueing = false;
+  #isQueueingLost = false;
   #isWatching = false;
   #isWatchLost = false;
 
@@ -164,12 +162,16 @@ export class SolidisRequester {
     connection.on('data', (chunk) => this.#receive(chunk));
     connection.on('close', (error) => this.#fail(error));
     connection.on('end', () =>
-      this.#fail(new SolidisClientError('The client was quit.')),
+      this.#fail(new SolidisClientError(SolidisClientQuitMessage)),
     );
   }
 
   public get protocol() {
     return this.#protocol;
+  }
+
+  public get negotiatedProtocol() {
+    return this.#negotiatedProtocol;
   }
 
   public get database() {
@@ -202,6 +204,7 @@ export class SolidisRequester {
           blockingTimeout,
         ),
         isBlocking: blockingTimeout !== undefined,
+        isSession: options === SolidisSessionSendOptions,
       });
 
       this.#flushHandle ??= setImmediate(() => this.#flush());
@@ -287,14 +290,17 @@ export class SolidisRequester {
     const { commands } = request;
 
     let isQueueing = this.#isQueueing;
+    let isQueueingLost = this.#isQueueingLost;
     let isWatching = this.#isWatching;
     let isWatchLost = this.#isWatchLost;
 
     for (let index = 0; index < commands.length; index += 1) {
       const command = commands[index];
 
-      if (command.length === 0) {
-        return new SolidisRequesterError('Cannot send an empty command.');
+      if (!Array.isArray(command) || command.length === 0) {
+        return new SolidisRequesterError(
+          'Cannot send an empty or non-array command.',
+        );
       }
 
       for (const argument of command) {
@@ -304,6 +310,20 @@ export class SolidisRequester {
       }
 
       let kind = classifyCommand(command);
+
+      if (isQueueingLost && !request.isSession) {
+        if (
+          kind !== 'multi' &&
+          kind !== 'exec' &&
+          kind !== 'discard' &&
+          kind !== 'reset'
+        ) {
+          return createRefusal(command, 'is refused after a lost MULTI.');
+        }
+
+        isQueueingLost = false;
+        isWatchLost ||= kind === 'exec';
+      }
 
       if (kind === null) {
         continue;
@@ -338,7 +358,7 @@ export class SolidisRequester {
         isWatchLost = false;
       } else if (!isQueueing && (kind === 'watch' || kind === 'unwatch')) {
         isWatching = kind === 'watch';
-        isWatchLost = false;
+        isWatchLost &&= isWatching;
       }
 
       request.kinds ??= [];
@@ -346,6 +366,7 @@ export class SolidisRequester {
     }
 
     this.#isQueueing = isQueueing;
+    this.#isQueueingLost = isQueueingLost;
     this.#isWatching = isWatching;
     this.#isWatchLost = isWatchLost;
 
@@ -401,21 +422,17 @@ export class SolidisRequester {
 
   #receive(chunk: Buffer) {
     const parser = this.#parser;
+    const replies: SolidisData[] = [];
 
-    let replies: SolidisData[];
+    let failure: Error | undefined;
 
     this.#receivedChunks += 1;
     this.#debug?.('debug', `Requester received ${chunk.length} bytes`);
 
     try {
-      replies = parser.parse(chunk);
+      parser.parse(chunk, replies);
     } catch (error) {
-      const parserError = wrapWithParserError(error);
-
-      this.#options.emit('error', parserError);
-      this.#options.connection.reset(parserError);
-
-      return;
+      failure = wrapWithParserError(error);
     }
 
     for (const reply of replies) {
@@ -424,6 +441,11 @@ export class SolidisRequester {
       }
 
       this.#route(reply);
+    }
+
+    if (failure && parser === this.#parser) {
+      this.#options.emit('error', failure);
+      this.#options.connection.reset(failure);
     }
   }
 
@@ -479,7 +501,10 @@ export class SolidisRequester {
     if (!pipeline) {
       this.#options.emit(
         'error',
-        new SolidisRequesterError('Received reply with no pending request'),
+        new SolidisRequesterError(
+          'Received reply with no pending request',
+          reply,
+        ),
       );
 
       return;
@@ -523,12 +548,13 @@ export class SolidisRequester {
       this.#track(subRequest, replies[0]);
     }
 
-    request.replies[subRequest.index] =
+    const result =
       subRequest.command === discardedExecCommand ? [null] : replies;
-
     const error =
       this.#options.rejectOnPartialPipelineError &&
-      replies.find((reply): reply is RespError => reply instanceof RespError);
+      result.find((reply): reply is RespError => reply instanceof RespError);
+
+    request.replies[subRequest.index] = result;
 
     if (error) {
       request.reject(toCommandError(error, subRequest.command));
@@ -572,12 +598,14 @@ export class SolidisRequester {
         String(argument) === '3'
           ? SolidisProtocols.RESP3
           : SolidisProtocols.RESP2;
+      this.#negotiatedProtocol = this.#protocol;
 
       if (String(command[2]).toUpperCase() === 'AUTH') {
         this.#authenticate(command[3], command[4]);
       }
     } else if (kind === 'reset') {
       this.#protocol = SolidisProtocols.RESP2;
+      this.#negotiatedProtocol = undefined;
       this.#database = 0;
       this.#authentication = undefined;
       this.#transaction = undefined;
@@ -632,6 +660,7 @@ export class SolidisRequester {
     this.#parser = new SolidisParser(this.#options);
     this.#protocol = SolidisProtocols.RESP2;
     this.#transaction = undefined;
+    this.#isQueueingLost ||= this.#isQueueing;
     this.#isQueueing = false;
     this.#isWatchLost ||= this.#isWatching;
     this.#isWatching = false;

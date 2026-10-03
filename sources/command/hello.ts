@@ -19,10 +19,8 @@ export function createCommand(
   if (protocol !== undefined) {
     command.push(protocol === SolidisProtocols.RESP3 ? '3' : '2');
 
-    if (username && password) {
-      command.push('AUTH', username, password);
-    } else if (password) {
-      command.push('AUTH', 'default', password);
+    if (password !== undefined && (username || password)) {
+      command.push('AUTH', username || 'default', password);
     }
 
     if (clientName) {

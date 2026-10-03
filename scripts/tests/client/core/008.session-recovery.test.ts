@@ -745,15 +745,12 @@ describe('session-recovery', () => {
         assert.ok(error instanceof SolidisClientError);
         assert.strictEqual(error.message, 'Not connected with redis server.');
         assert.ok(error.cause instanceof SolidisClientError);
-        assert.strictEqual(
-          error.cause.message,
-          'Cannot connect after the client was closed.',
-        );
+        assert.strictEqual(error.cause.message, 'The client was quit.');
 
         return true;
       });
       await assert.rejects(client.connect(), {
-        message: 'Cannot connect after the client was closed.',
+        message: 'The client was quit.',
       });
 
       assert.strictEqual(await killer.rpush(key, 'kept'), 1);
@@ -791,6 +788,65 @@ describe('session-recovery', () => {
         assert.ok(Date.now() - startedAt >= 350);
       } finally {
         await closeClient(client);
+      }
+    });
+
+    it('extends the deadline of every blocking command by its own timeout', async () => {
+      const capabilities = await detectServerCapabilities(killer);
+      const stream = keyspace.key('blocking-all', 'stream');
+      const list = (name: string) => keyspace.key('blocking-all', name);
+      const calls: [string, (client: FeaturedClient) => Promise<unknown>][] = [
+        ['brpop', (client) => client.brpop([list('brpop')], 0.5)],
+        [
+          'blmove',
+          (client) =>
+            client.blmove(list('blmove'), list('moved'), 'LEFT', 'RIGHT', 0.5),
+        ],
+        [
+          'brpoplpush',
+          (client) => client.brpoplpush(list('brpoplpush'), list('moved'), 0.5),
+        ],
+        ['bzpopmin', (client) => client.bzpopmin([list('bzpopmin')], 0.5)],
+        ['bzpopmax', (client) => client.bzpopmax([list('bzpopmax')], 0.5)],
+        [
+          'xreadgroup',
+          (client) =>
+            client.xreadgroup('group', 'consumer', [stream], ['>'], 1, 500),
+        ],
+      ];
+
+      if (capabilities.atLeast(7, 0)) {
+        calls.push(
+          ['blmpop', (client) => client.blmpop(0.5, [list('blmpop')], 'LEFT')],
+          ['bzmpop', (client) => client.bzmpop(0.5, [list('bzmpop')], 'MIN')],
+        );
+      }
+
+      if (capabilities.atLeast(7, 2)) {
+        calls.push(['waitaof', (client) => client.waitaof(0, 1, 500)]);
+      }
+
+      await killer.send([
+        ['XGROUP', 'CREATE', stream, 'group', '$', 'MKSTREAM'],
+      ]);
+
+      const results = await Promise.all(
+        calls.map(async ([name, call]) => {
+          const client = await createClient({ commandTimeout: 200 });
+          const startedAt = Date.now();
+
+          try {
+            await call(client);
+
+            return { name, elapsed: Date.now() - startedAt };
+          } finally {
+            await closeClient(client);
+          }
+        }),
+      );
+
+      for (const { name, elapsed } of results) {
+        assert.ok(elapsed >= 450, `${name} returned after ${elapsed} ms`);
       }
     });
 

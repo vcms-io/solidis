@@ -1,6 +1,7 @@
 import {
   SolidisArrayReplyByte,
   SolidisAttributeReplyByte,
+  SolidisBigNumberMaximumLength,
   SolidisBigNumberReplyByte,
   SolidisBlobErrorReplyByte,
   SolidisBooleanReplyByte,
@@ -10,6 +11,7 @@ import {
   SolidisColonByte,
   SolidisDoubleReplyByte,
   SolidisErrorReplyByte,
+  SolidisIntegerMaximumLength,
   SolidisIntegerReplyByte,
   SolidisLineFeedByte,
   SolidisLowercaseFByte,
@@ -89,9 +91,7 @@ export class SolidisParser {
     this.#maxBulkStringLength = options.parser.maxBulkStringLength;
   }
 
-  public parse(chunk: Buffer): SolidisData[] {
-    const replies: SolidisData[] = [];
-
+  public parse(chunk: Buffer, replies: SolidisData[] = []): SolidisData[] {
     if (!this.#append(chunk)) {
       return replies;
     }
@@ -417,7 +417,7 @@ export class SolidisParser {
     let index = isNegative ? start + 1 : start;
     let value = 0;
 
-    if (index === end) {
+    if (index === end || end - start > SolidisIntegerMaximumLength) {
       return undefined;
     }
 
@@ -467,7 +467,7 @@ export class SolidisParser {
   }
 
   #readBigNumber(text: string) {
-    if (/^-?\d+$/.test(text)) {
+    if (text.length <= SolidisBigNumberMaximumLength && /^-?\d+$/.test(text)) {
       return BigInt(text);
     }
 

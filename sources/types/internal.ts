@@ -18,6 +18,7 @@ export interface SolidisRequest {
   reject: (reason: unknown) => void;
   timeout: number;
   isBlocking: boolean;
+  isSession: boolean;
 }
 
 export interface SolidisSubRequest {

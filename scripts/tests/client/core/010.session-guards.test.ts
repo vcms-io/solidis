@@ -1,6 +1,7 @@
 /** Session guards: reconnect pacing, listener re-entrancy, handshake sessions and runtime session state. */
 
 import assert from 'node:assert/strict';
+import net from 'node:net';
 import { after, before, describe, it } from 'node:test';
 
 import { SolidisFeaturedClient } from '../../../../sources/client/featured.ts';
@@ -14,6 +15,7 @@ import {
   SolidisProtocols,
 } from '../../../../sources/index.ts';
 import {
+  buildClientOptions,
   closeClient,
   createClient,
   createKeyspace,
@@ -383,6 +385,92 @@ describe('session-guards', () => {
       }
     });
 
+    it('keeps the session working when connect, reconnecting, reconnected and end listeners throw', async () => {
+      const server = await startServer(answerPong);
+      const client = new SolidisFeaturedClient(
+        mockClientOptions(server.port, {
+          autoReconnect: true,
+          connectionRetryDelay: 10,
+        }),
+      );
+      const events = ['connect', 'reconnecting', 'reconnected', 'end'] as const;
+      const errors: Error[] = [];
+
+      client.on('error', (error) => errors.push(error));
+
+      for (const event of events) {
+        client.on(event, () => {
+          throw new Error(`${event} listener bug`);
+        });
+      }
+
+      try {
+        await client.connect();
+
+        server.destroySockets();
+
+        await waitFor(() =>
+          errors.some(
+            (error) => error.message === "A 'reconnected' listener threw",
+          ),
+        );
+
+        assert.strictEqual(await client.ping(), 'PONG');
+
+        client.quit();
+
+        for (const event of events) {
+          const failure = errors.find(
+            (error) => error.message === `A '${event}' listener threw`,
+          );
+
+          assert.ok(failure instanceof SolidisClientError, event);
+          assert.ok(failure.cause instanceof Error);
+          assert.strictEqual(failure.cause.message, `${event} listener bug`);
+        }
+      } finally {
+        client.quit();
+        await server.close();
+      }
+    });
+
+    it('keeps the session working when a drain listener throws', async (context) => {
+      const server = await startServer(answerPong);
+      const connect = net.connect;
+      const sockets: net.Socket[] = [];
+
+      context.mock.method(net, 'connect', (options: net.NetConnectOpts) => {
+        const socket = connect(options);
+
+        sockets.push(socket);
+
+        return socket;
+      });
+
+      const client = new SolidisFeaturedClient(mockClientOptions(server.port));
+      const errors: Error[] = [];
+
+      client.on('error', (error) => errors.push(error));
+      client.on('drain', () => {
+        throw new Error('drain listener bug');
+      });
+
+      try {
+        await client.connect();
+
+        sockets[0].emit('drain');
+
+        assert.deepStrictEqual(
+          errors.map((error) => error.message),
+          ["A 'drain' listener threw"],
+        );
+        assert.strictEqual(await client.ping(), 'PONG');
+      } finally {
+        client.quit();
+        await server.close();
+      }
+    });
+
     it('keeps the session working when ready and close listeners throw', async () => {
       const server = await startServer(answerPong);
       const client = new SolidisFeaturedClient(
@@ -635,6 +723,223 @@ describe('session-guards', () => {
       } finally {
         client.quit();
         await server.close();
+      }
+    });
+
+    it("fails at once with the server's reason when it denies the connection", async () => {
+      const server = await startServer((socket) => {
+        socket.end('-DENIED Redis is running in protected mode\r\n');
+      });
+      const client = new SolidisFeaturedClient(
+        mockClientOptions(server.port, {
+          clientName: 'probe',
+          maxConnectionRetries: 20,
+        }),
+      );
+      const startedAt = Date.now();
+
+      client.on('error', () => {});
+
+      try {
+        await assert.rejects(client.connect(), (error: unknown) => {
+          assert.ok(error instanceof SolidisClientError);
+          assert.strictEqual(error.message, 'CLIENT SETNAME failed');
+          assert.ok(error.cause instanceof SolidisCommandError);
+          assert.match(error.cause.message, /^\[CLIENT SETNAME\] DENIED /);
+
+          return true;
+        });
+
+        assert.ok(Date.now() - startedAt < 1000);
+        assert.strictEqual(server.acceptedCount, 1);
+      } finally {
+        client.quit();
+        await server.close();
+      }
+    });
+
+    it('reports a handshake step answered with NOAUTH as an authentication failure', async () => {
+      const server = await startServer((socket) => {
+        socket.write('-NOAUTH Authentication required.\r\n');
+      });
+
+      for (const overrides of [
+        { clientName: 'probe' },
+        { enableReadyCheck: true },
+      ]) {
+        const client = new SolidisFeaturedClient(
+          mockClientOptions(server.port, overrides),
+        );
+
+        client.on('error', () => {});
+
+        try {
+          await assert.rejects(client.connect(), (error: unknown) => {
+            assert.ok(error instanceof SolidisClientError);
+            assert.strictEqual(error.message, 'Authentication failed');
+            assert.ok(error.cause instanceof SolidisCommandError);
+            assert.match(error.cause.message, / NOAUTH /);
+
+            return true;
+          });
+        } finally {
+          client.quit();
+        }
+      }
+
+      await server.close();
+    });
+
+    it('never sends a request that timed out while it waited for the connection', async () => {
+      const server = await startServer();
+      const client = new SolidisFeaturedClient(
+        mockClientOptions(server.port, {
+          clientName: 'probe',
+          commandTimeout: 2000,
+        }),
+      );
+
+      client.on('error', () => {});
+
+      try {
+        const connecting = client.connect();
+
+        await waitFor(() => server.received.length > 0);
+        await assert.rejects(
+          client.send([['SET', 'stale', 'value']], { timeout: 50 }),
+          {
+            name: 'SolidisClientError',
+            message: 'Not connected with redis server.',
+          },
+        );
+
+        const fresh = client.send([['ECHO', 'fresh']]);
+
+        server.onData((socket) => socket.write('$5\r\nfresh\r\n'));
+        server.send('+OK\r\n');
+
+        await connecting;
+
+        assert.deepStrictEqual(await fresh, [[Buffer.from('fresh')]]);
+        assert.strictEqual(
+          Buffer.concat(server.received).includes('stale'),
+          false,
+        );
+      } finally {
+        client.quit();
+        await server.close();
+      }
+    });
+
+    it('keeps waiting for the connection when a timeout exceeds the timer limit', async () => {
+      const server = await startServer();
+      const client = new SolidisFeaturedClient(
+        mockClientOptions(server.port, { clientName: 'probe' }),
+      );
+
+      client.on('error', () => {});
+
+      try {
+        const connecting = client.connect();
+
+        await waitFor(() => server.received.length > 0);
+
+        const pending = client.send([['ECHO', 'late']], { timeout: 2 ** 31 });
+
+        await delay(50);
+
+        server.onData((socket) => socket.write('$4\r\nlate\r\n'));
+        server.send('+OK\r\n');
+
+        await connecting;
+
+        assert.deepStrictEqual(await pending, [[Buffer.from('late')]]);
+      } finally {
+        client.quit();
+        await server.close();
+      }
+    });
+
+    it('waits between ready checks when readyCheckInterval exceeds the timer limit', async () => {
+      const server = await startServer((socket) => {
+        socket.write('$11\r\nloading:1\r\n\r\n');
+      });
+      const client = new SolidisFeaturedClient(
+        mockClientOptions(server.port, {
+          enableReadyCheck: true,
+          readyCheckInterval: 2 ** 31,
+          maxReadyCheckRetries: 1,
+        }),
+      );
+
+      client.on('error', () => {});
+
+      try {
+        client.connect().catch(() => {});
+
+        await waitFor(() => server.received.length > 0);
+        await delay(100);
+
+        assert.strictEqual(
+          Buffer.concat(server.received).toString().split('INFO').length - 1,
+          1,
+        );
+      } finally {
+        client.quit();
+        await server.close();
+      }
+    });
+
+    it('runs commands in the order they were sent, also before the client is ready', async () => {
+      const client = new SolidisFeaturedClient(
+        buildClientOptions({ lazyConnect: true }),
+      );
+      const key = keyspace.key('order');
+
+      client.on('error', () => {});
+
+      try {
+        const first = client.set(key, 'first');
+
+        await client.connect();
+        await client.set(key, 'second');
+        await first;
+
+        assert.strictEqual(await killer.get(key), 'second');
+      } finally {
+        await killer.del(key);
+        await closeClient(client);
+      }
+    });
+
+    it('runs commands held during a reconnect before those sent from a ready listener', async () => {
+      const client = await createClient({ connectionRetryDelay: 10 });
+      const key = keyspace.key('order-list');
+
+      try {
+        const id = await client.clientId();
+        const closed = new Promise((resolve) => client.once('close', resolve));
+        const fromReady = new Promise<unknown>((resolve) => {
+          client.once('ready', () => {
+            resolve(client.rpush(key, 'from ready'));
+          });
+        });
+
+        await killer.clientKill(id);
+        await closed;
+
+        const duringOutage = client.rpush(key, 'during outage');
+
+        await duringOutage;
+        await fromReady;
+
+        assert.deepStrictEqual(await killer.lrange(key, 0, -1), [
+          'during outage',
+          'from ready',
+        ]);
+      } finally {
+        await killer.del(key);
+        await closeClient(client);
       }
     });
 
@@ -996,6 +1301,88 @@ describe('session-guards', () => {
         await client.select(5);
         await client.del(key);
         await closeClient(client);
+      }
+    });
+
+    it('refuses the commands of a MULTI that a reconnect dropped', async () => {
+      const client = await createClient({ connectionRetryDelay: 10 });
+      const key = keyspace.key('lost-multi');
+
+      try {
+        const id = await client.clientId();
+        const reconnected = new Promise<void>((resolve) => {
+          client.once('reconnected', () => resolve());
+        });
+
+        assert.deepStrictEqual(await client.send([['MULTI']]), [['OK']]);
+
+        await killer.clientKill(id);
+        await reconnected;
+        await assert.rejects(client.send([['INCR', key]]), {
+          name: 'SolidisRequesterError',
+          message: 'INCR is refused after a lost MULTI.',
+        });
+
+        assert.deepStrictEqual(await client.send([['EXEC']]), [[null]]);
+        assert.strictEqual(await killer.get(key), null);
+        assert.strictEqual(await client.incr(key), 1);
+      } finally {
+        await killer.del(key);
+        await closeClient(client);
+      }
+    });
+
+    it('restores a protocol chosen with hello() after a reconnect, until RESET', async () => {
+      const client = await createClient({
+        protocol: SolidisProtocols.RESP2,
+        connectionRetryDelay: 10,
+      });
+      const key = keyspace.key('protocol');
+
+      try {
+        await killer.send([['HSET', key, 'field', 'value']]);
+        await client.hello(SolidisProtocols.RESP3);
+        await forceReconnect(client);
+
+        const [[map]] = await client.send([['HGETALL', key]]);
+
+        assert.ok(map instanceof Map);
+        assert.strictEqual(await client.reset(), 'RESET');
+
+        await forceReconnect(client);
+
+        const [[array]] = await client.send([['HGETALL', key]]);
+
+        assert.ok(Array.isArray(array));
+      } finally {
+        await killer.del(key);
+        await closeClient(client);
+      }
+    });
+
+    it('authenticates a user whose password is empty', async () => {
+      const user = `solidis-session-guards-empty-${Date.now()}`;
+
+      await killer.aclSetuser(
+        user,
+        'reset',
+        'on',
+        'nopass',
+        '~*',
+        '&*',
+        '+@all',
+      );
+
+      const client = await createClient({
+        authentication: { username: user, password: '' },
+      });
+
+      try {
+        assert.strictEqual(await client.aclWhoami(), user);
+        assert.strictEqual(await client.auth(user, ''), 'OK');
+      } finally {
+        await closeClient(client);
+        await killer.aclDeluser(user);
       }
     });
 

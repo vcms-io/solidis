@@ -1,7 +1,12 @@
 import net from 'node:net';
 import tls from 'node:tls';
 
-import { SolidisSocketNotConnectedMessage } from '../common/internal.ts';
+import {
+  resolveTimerDelay,
+  SolidisClientQuitMessage,
+  SolidisMaximumTimerDelay,
+  SolidisSocketNotConnectedMessage,
+} from '../common/internal.ts';
 import { generateDebugHandle } from '../common/utils/debug.ts';
 import {
   SolidisConnectionError,
@@ -15,12 +20,6 @@ import type {
   SolidisDebugLogType,
   SolidisSocket,
 } from '../types/solidis.ts';
-
-function createQuitError() {
-  return new SolidisConnectionError(
-    'Cannot connect: user quit the connection.',
-  );
-}
 
 function createRetryError(maxConnectionRetries: number, cause?: unknown) {
   return new SolidisConnectionError(
@@ -73,7 +72,9 @@ export class SolidisConnection extends EventEmitter {
 
   public connect(): Promise<void> {
     if (this.#isQuitted) {
-      return Promise.reject(createQuitError());
+      return Promise.reject(
+        new SolidisConnectionError(SolidisClientQuitMessage),
+      );
     }
 
     if (this.#isConnected) {
@@ -143,7 +144,7 @@ export class SolidisConnection extends EventEmitter {
     this.#retryTimer = undefined;
 
     this.#destroySocket();
-    this.#rejectWaiters(createQuitError());
+    this.#rejectWaiters(new SolidisConnectionError(SolidisClientQuitMessage));
     this.emit('end');
   }
 
@@ -176,6 +177,7 @@ export class SolidisConnection extends EventEmitter {
       (Math.min(
         connectionRetryDelay * 2 ** (this.#failedAttempts - 1),
         maxConnectionRetryDelay,
+        SolidisMaximumTimerDelay,
       ) *
         (1 + Math.random())) /
         2,
@@ -191,7 +193,12 @@ export class SolidisConnection extends EventEmitter {
 
     try {
       socket = tlsOptions
-        ? tls.connect({ ...tlsOptions, host, port })
+        ? tls.connect({
+            servername: net.isIP(host) ? undefined : host,
+            ...tlsOptions,
+            host,
+            port,
+          })
         : net.connect({ host, port });
     } catch (error) {
       const failure = wrapWithSolidisConnectionError(error);
@@ -203,10 +210,9 @@ export class SolidisConnection extends EventEmitter {
       return;
     }
 
-    const timer =
-      connectionTimeout > 0
-        ? setTimeout(() => this.#onAttemptTimeout(socket), connectionTimeout)
-        : undefined;
+    const timer = resolveTimerDelay(connectionTimeout)
+      ? setTimeout(() => this.#onAttemptTimeout(socket), connectionTimeout)
+      : undefined;
 
     let failure: unknown;
 

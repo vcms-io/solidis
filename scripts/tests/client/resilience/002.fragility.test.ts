@@ -122,7 +122,7 @@ describe('fragility', () => {
         () => client.send([[]]),
         (error: Error) =>
           error instanceof SolidisRequesterError &&
-          error.message === 'Cannot send an empty command.',
+          error.message === 'Cannot send an empty or non-array command.',
       );
 
       const elapsed = Date.now() - startTime;
@@ -1245,7 +1245,7 @@ describe('fragility', () => {
       assert.ok(result instanceof SolidisConnectionError);
       assert.strictEqual(
         result.message,
-        'Cannot connect: user quit the connection.',
+        'The client was quit.',
         'connect() must reject when quit is called during retry',
       );
     });

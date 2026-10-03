@@ -35,6 +35,8 @@ export const SolidisMegabyte = 1048576;
 export const SolidisDebugPreviewLength = 1024;
 export const SolidisBulkZeroCopyThreshold = 65536;
 export const SolidisMaximumTimerDelay = 2147483647;
+export const SolidisIntegerMaximumLength = 20;
+export const SolidisBigNumberMaximumLength = 4096;
 
 export const SolidisContainerCommandNameSet: ReadonlySet<string> = new Set([
   'ACL',
@@ -55,5 +57,10 @@ export const SolidisContainerCommandNameSet: ReadonlySet<string> = new Set([
   'XINFO',
 ]);
 
+export function resolveTimerDelay(delay: number) {
+  return delay > 0 && delay <= SolidisMaximumTimerDelay ? delay : 0;
+}
+
 export const SolidisSocketNotConnectedMessage = 'Socket is not connected.';
 export const SolidisAuthenticationFailedMessage = 'Authentication failed';
+export const SolidisClientQuitMessage = 'The client was quit.';

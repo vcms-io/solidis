@@ -210,7 +210,7 @@ describe('pipeline', () => {
 
     await assert.rejects(client.send([['SET', key, 'value'], []]), {
       name: 'SolidisRequesterError',
-      message: 'Cannot send an empty command.',
+      message: 'Cannot send an empty or non-array command.',
     });
 
     assert.strictEqual(await client.get(key), null);

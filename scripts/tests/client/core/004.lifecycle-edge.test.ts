@@ -308,7 +308,7 @@ describe('lifecycle-edge', () => {
       () => client.connect(),
       (error: Error) =>
         error instanceof SolidisClientError &&
-        error.message === 'Cannot connect after the client was closed.',
+        error.message === 'The client was quit.',
     );
   });
 

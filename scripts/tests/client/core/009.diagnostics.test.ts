@@ -83,14 +83,14 @@ describe('diagnostics', () => {
     }
   });
 
-  it('tolerates a refused HELLO and CLIENT SETNAME and logs both', async () => {
+  it('tolerates an unknown HELLO and CLIENT SETNAME and logs both', async () => {
     const server = await startServer((command) => {
       if (command.includes('HELLO')) {
         return "-ERR unknown command 'HELLO'\r\n";
       }
 
       if (command.includes('SETNAME')) {
-        return '-ERR names are disabled\r\n';
+        return "-ERR unknown command 'CLIENT'\r\n";
       }
 
       return '+PONG\r\n';
@@ -110,8 +110,8 @@ describe('diagnostics', () => {
       await client.connect();
 
       assert.deepStrictEqual(await client.send([['PING']]), [['PONG']]);
-      assert.ok(messages.includes('Protocol selection failed'));
-      assert.ok(messages.includes('CLIENT SETNAME "probe" failed'));
+      assert.ok(messages.includes('Protocol negotiation failed'));
+      assert.ok(messages.includes('CLIENT SETNAME failed'));
     } finally {
       client.quit();
       await server.close();

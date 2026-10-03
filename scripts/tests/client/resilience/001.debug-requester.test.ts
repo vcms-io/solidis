@@ -25,6 +25,7 @@ import {
   SolidisRequester,
   SolidisRequesterError,
 } from '../../../../sources/index.ts';
+import { SolidisSessionSendOptions } from '../../../../sources/modules/internal.ts';
 import {
   closeClient,
   createClient,
@@ -36,6 +37,7 @@ import {
 import type {
   SolidisClientEmit,
   SolidisClientFrozenOptions,
+  SolidisSendOptions,
 } from '../../../../sources/index.ts';
 import type { FeaturedClient } from '../../utils/index.ts';
 
@@ -886,6 +888,28 @@ describe('debug-requester', () => {
         error.message,
         'Received reply with no pending request',
       );
+      assert.strictEqual(error.cause, 'UNSOLICITED');
+    });
+
+    it('delivers the replies a chunk held before a protocol error', async () => {
+      const { connection, events, requester } = createRequester();
+
+      const first = requester.send([['INCR', 'a']]);
+      const second = requester.send([['INCR', 'b']]);
+      const third = settle(requester.send([['GET', 'c']]));
+
+      await flushed();
+
+      connection.reply(':1\r\n:2\r\n?garbage\r\n');
+
+      assert.deepStrictEqual(await first, [[1]]);
+      assert.deepStrictEqual(await second, [[2]]);
+
+      const error = await third;
+
+      assert.ok(error instanceof SolidisParserError);
+      assert.deepStrictEqual(connection.resets, [error]);
+      assert.deepStrictEqual(getEvents(events, 'error'), [[error]]);
     });
 
     it('resets the connection and rejects pending requests on a protocol error', async () => {
@@ -1015,7 +1039,7 @@ describe('debug-requester', () => {
       const { connection, requester } = createRequester();
 
       await assert.rejects(requester.send([['PING'], []]), {
-        message: 'Cannot send an empty command.',
+        message: 'Cannot send an empty or non-array command.',
       });
       await assert.rejects(requester.send([['PING'], ['monitor']]), {
         message:
@@ -1046,6 +1070,106 @@ describe('debug-requester', () => {
       await flushed();
 
       assert.strictEqual(connection.writes.length, 0);
+    });
+
+    it('refuses a command that is not an array and sends the rest of the batch', async () => {
+      const { connection, requester } = createRequester();
+      const shapes: unknown[] = [undefined, null, {}, 42, 'PING'];
+
+      const broken = shapes.map((shape) =>
+        settle(requester.send([shape as never])),
+      );
+      const intact = requester.send([['PING']]);
+
+      for (const error of await Promise.all(broken)) {
+        assert.ok(error instanceof SolidisRequesterError);
+        assert.strictEqual(
+          error.message,
+          'Cannot send an empty or non-array command.',
+        );
+      }
+
+      connection.reply('+PONG\r\n');
+
+      assert.deepStrictEqual(await intact, [['PONG']]);
+      assert.strictEqual(connection.writes.length, 1);
+    });
+
+    it('refuses the commands of a MULTI lost with the connection until the transaction ends', async () => {
+      const { connection, requester } = createRequester({
+        rejectOnPartialPipelineError: true,
+      });
+
+      async function exchange(
+        commands: string[][],
+        reply: string,
+        options?: SolidisSendOptions,
+      ) {
+        const pending = requester.send(commands, options);
+
+        await flushed();
+
+        connection.reply(reply);
+
+        return await pending;
+      }
+
+      await exchange([['MULTI']], '+OK\r\n');
+
+      connection.emit('close', new SolidisConnectionError('lost'));
+
+      await assert.rejects(requester.send([['INCR', 'counter']]), {
+        name: 'SolidisRequesterError',
+        message: 'INCR is refused after a lost MULTI.',
+      });
+      assert.deepStrictEqual(
+        await exchange(
+          [['CLIENT', 'SETNAME', 'probe']],
+          '+OK\r\n',
+          SolidisSessionSendOptions,
+        ),
+        [['OK']],
+      );
+
+      const ended = requester.send([['EXEC']]);
+
+      await flushed();
+
+      assert.deepStrictEqual(
+        connection.writes.at(-1),
+        commandsToBuffer([['DISCARD']]),
+      );
+
+      connection.reply('-ERR DISCARD without MULTI\r\n');
+
+      assert.deepStrictEqual(await ended, [[null]]);
+      assert.deepStrictEqual(await exchange([['INCR', 'counter']], ':1\r\n'), [
+        [1],
+      ]);
+
+      await exchange([['MULTI']], '+OK\r\n');
+
+      connection.emit('close', new SolidisConnectionError('lost'));
+
+      assert.deepStrictEqual(
+        await exchange(
+          [['MULTI'], ['INCR', 'counter'], ['EXEC']],
+          '+OK\r\n+QUEUED\r\n*1\r\n:2\r\n',
+        ),
+        [['OK'], ['QUEUED'], [[2]]],
+      );
+
+      await exchange([['MULTI']], '+OK\r\n');
+
+      connection.emit('close', new SolidisConnectionError('lost'));
+
+      await assert.rejects(
+        exchange([['DISCARD']], '-ERR DISCARD without MULTI\r\n'),
+        { name: 'SolidisCommandError' },
+      );
+      assert.deepStrictEqual(await exchange([['INCR', 'counter']], ':3\r\n'), [
+        [3],
+      ]);
     });
 
     it('checks commands when they are flushed, so changes after send() are seen whole', async () => {
@@ -2224,6 +2348,22 @@ describe('debug-requester', () => {
 
       connection.emit('close', new SolidisConnectionError('lost'));
 
+      const rewatched = requester.send([
+        ['WATCH', 'other'],
+        ['MULTI'],
+        ['EXEC'],
+      ]);
+
+      await flushed();
+
+      assert.deepStrictEqual(
+        connection.writes.at(-1),
+        commandsToBuffer([['WATCH', 'other'], ['MULTI'], ['DISCARD']]),
+      );
+
+      connection.reply('+OK\r\n+OK\r\n+OK\r\n');
+
+      assert.deepStrictEqual(await rewatched, [['OK'], ['OK'], [null]]);
       assert.deepStrictEqual(
         await exchange(
           [['WATCH', 'balance'], ['MULTI'], ['EXEC']],

@@ -8,10 +8,8 @@ export function createCommand(
 ) {
   const commands: StringOrBuffer[] = ['AUTH'];
 
-  if (username && password) {
-    commands.push(username, password);
-  } else if (password) {
-    commands.push('default', password);
+  if (password !== undefined) {
+    commands.push(username || 'default', password);
   } else if (username) {
     commands.push(username);
   }

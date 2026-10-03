@@ -136,7 +136,7 @@ describe('connection', () => {
       () => client.connect(),
       (error: Error) =>
         error instanceof SolidisClientError &&
-        error.message === 'Cannot connect after the client was closed.',
+        error.message === 'The client was quit.',
     );
   });
 
@@ -410,7 +410,7 @@ describe('connection', () => {
       () => quitClient.connect(),
       (error: Error) =>
         error instanceof SolidisClientError &&
-        error.message === 'Cannot connect after the client was closed.',
+        error.message === 'The client was quit.',
     );
   });
 
@@ -545,7 +545,7 @@ describe('connection', () => {
         () => connection.connect(),
         (error: Error) =>
           error instanceof SolidisConnectionError &&
-          error.message === 'Cannot connect: user quit the connection.',
+          error.message === 'The client was quit.',
       );
 
       await server.close();
@@ -1089,7 +1089,7 @@ describe('connection', () => {
 
           await assert.rejects(connecting, {
             name: 'SolidisConnectionError',
-            message: 'Cannot connect: user quit the connection.',
+            message: 'The client was quit.',
           });
           assert.strictEqual(sockets[0].destroyed, true);
           assert.strictEqual(endCount, 1);
@@ -1204,6 +1204,87 @@ describe('connection', () => {
         } finally {
           tls.connect = originalConnect;
         }
+      });
+
+      it('names the host for SNI unless it is an IP address', async () => {
+        const originalConnect = tls.connect;
+        const optionsSeen: unknown[] = [];
+
+        tls.connect = ((options: unknown) => {
+          optionsSeen.push(options);
+
+          return new ScriptedSocket();
+        }) as unknown as typeof tls.connect;
+
+        try {
+          for (const host of ['redis.example', '127.0.0.1', '::1']) {
+            const connection = createConnection({
+              connectionTimeout: 0,
+              host,
+              tls: {},
+            });
+            const connecting = connection.connect();
+
+            connection.quit();
+
+            await connecting.catch(() => {});
+          }
+
+          assert.deepStrictEqual(optionsSeen, [
+            { servername: 'redis.example', host: 'redis.example', port: 1 },
+            { servername: undefined, host: '127.0.0.1', port: 1 },
+            { servername: undefined, host: '::1', port: 1 },
+          ]);
+        } finally {
+          tls.connect = originalConnect;
+        }
+      });
+
+      it('treats a connection timeout beyond the timer limit as none', async () => {
+        await withScriptedSockets(async (sockets) => {
+          const connection = createConnection({
+            connectionTimeout: Number.POSITIVE_INFINITY,
+          });
+          const connecting = connection.connect();
+
+          await delay(20);
+
+          sockets[0].emit('connect');
+
+          await connecting;
+
+          assert.strictEqual(sockets.length, 1);
+
+          connection.quit();
+        });
+      });
+
+      it('caps a reconnect delay at the timer limit', async (context) => {
+        context.mock.method(Math, 'random', () => 1);
+
+        await withScriptedSockets(async (sockets) => {
+          const connection = createConnection({
+            connectionTimeout: 0,
+            connectionRetryDelay: 2 ** 40,
+            maxConnectionRetryDelay: Number.POSITIVE_INFINITY,
+            maxConnectionRetries: 1,
+          });
+          const delays: number[] = [];
+
+          connection.on('reconnecting', (_attempt, retryDelay) => {
+            delays.push(retryDelay);
+          });
+
+          const connecting = connection.connect();
+
+          sockets[0].emit('close');
+
+          assert.deepStrictEqual(delays, [2147483647]);
+
+          connection.quit();
+
+          await connecting.catch(() => {});
+        });
       });
     });
   });

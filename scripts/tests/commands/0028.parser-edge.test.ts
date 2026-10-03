@@ -390,6 +390,27 @@ describe('parser-edge', () => {
       assert.ok(elapsed < 500, `took ${Math.round(elapsed)} ms`);
     });
 
+    it('reads no number from integer and length lines longer than 64 bits allow', () => {
+      const [integer] = parseOnce(bytes(`:${'9'.repeat(21)}\r\n`));
+
+      assert.ok(integer instanceof RespError);
+      assert.deepStrictEqual(parseOnce(bytes(':-9223372036854775808\r\n')), [
+        -9223372036854775808n,
+      ]);
+      assert.throws(
+        () => parseOnce(bytes(`$${'1'.repeat(21)}\r\n`)),
+        isParserError(`Invalid length '${'1'.repeat(21)}'`),
+      );
+    });
+
+    it('reads big numbers of up to 4096 digits', () => {
+      const [limit] = parseOnce(bytes(`(${'7'.repeat(4096)}\r\n`));
+      const [beyond] = parseOnce(bytes(`(${'7'.repeat(4097)}\r\n`));
+
+      assert.strictEqual(limit, BigInt('7'.repeat(4096)));
+      assert.ok(beyond instanceof RespError);
+    });
+
     it('rejects an over-long line even when its CRLF arrives with it', () => {
       for (const chunks of [
         [`+${'a'.repeat(100)}\r\n`],
