@@ -104,11 +104,26 @@ jobs:
           git tag -a "v${{ needs.check-version.outputs.version }}" -m "Release v${{ needs.check-version.outputs.version }}"
           git push origin "v${{ needs.check-version.outputs.version }}"
 
+      - name: Extract Release Notes
+        run: |
+          VERSION="${{ needs.check-version.outputs.version }}"
+
+          awk -v heading="## [$VERSION]" '
+            index($0, heading) == 1 { found = 1; next }
+            found && (/^## / || /^\[.*\]: /) { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md || true
+
+          if ! grep -q '[^[:space:]]' release-notes.md; then
+            echo "::warning::CHANGELOG.md has no section for $VERSION, so the release only has generated notes."
+          fi
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ needs.check-version.outputs.version }}
           name: Release v${{ needs.check-version.outputs.version }}
+          body_path: release-notes.md
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
