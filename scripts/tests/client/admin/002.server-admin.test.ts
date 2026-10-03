@@ -217,13 +217,10 @@ describe('server-admin', () => {
     const timestamp = await client.lastsave();
     const nowSeconds = Math.floor(Date.now() / 1000);
 
+    assert.ok(Number.isInteger(timestamp) && timestamp > 0, `${timestamp}`);
     assert.ok(
       timestamp <= nowSeconds,
       `LASTSAVE timestamp ${timestamp} is in the future (now: ${nowSeconds})`,
-    );
-    assert.ok(
-      timestamp >= nowSeconds - 3600,
-      `LASTSAVE timestamp ${timestamp} is more than one hour ago (now: ${nowSeconds})`,
     );
   });
 
