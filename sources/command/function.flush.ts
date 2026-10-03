@@ -3,10 +3,8 @@ import { executeCommand, tryReplyOK } from './utils/index.ts';
 export function createCommand(async?: boolean) {
   const command = ['FUNCTION', 'FLUSH'];
 
-  if (async) {
-    command.push('ASYNC');
-  } else {
-    command.push('SYNC');
+  if (async !== undefined) {
+    command.push(async ? 'ASYNC' : 'SYNC');
   }
 
   return command;

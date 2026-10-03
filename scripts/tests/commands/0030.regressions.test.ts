@@ -580,6 +580,7 @@ describe('regressions', () => {
 
     it('fills the omitted start of BITPOS and BITCOUNT ranges', async () => {
       const key = keyspace.key('bits');
+      const ones = keyspace.key('bits', 'ones');
 
       assert.deepStrictEqual(createBitcountCommand(key, { end: 5 }), [
         'BITCOUNT',
@@ -587,19 +588,26 @@ describe('regressions', () => {
         '0',
         '5',
       ]);
-      assert.deepStrictEqual(createBitposCommand(key, 1, { mode: 'BIT' }), [
-        'BITPOS',
-        key,
-        '1',
-        '0',
-        '-1',
-        'BIT',
-      ]);
+      assert.deepStrictEqual(
+        createBitposCommand(key, 1, { end: 5, mode: 'BIT' }),
+        ['BITPOS', key, '1', '0', '5', 'BIT'],
+      );
+      assert.deepStrictEqual(
+        createBitposCommand(key, 0, { mode: 'BYTE' } as never),
+        ['BITPOS', key, '0'],
+      );
 
       await client.send([['SET', key, Buffer.from([0xff, 0xf0, 0x00])]]);
+      await client.send([['SET', ones, Buffer.from([0xff, 0xff])]]);
 
       assert.strictEqual(await client.bitcount(key, { end: 0 }), 8);
       assert.strictEqual(await client.bitpos(key, 0, { end: 1 }), 12);
+      assert.strictEqual(await client.bitpos(ones, 0), 16);
+      assert.strictEqual(await client.bitpos(ones, 0, { start: 0 }), 16);
+      assert.strictEqual(
+        await client.bitpos(ones, 0, { start: 0, end: -1 }),
+        -1,
+      );
 
       if (!features.isAtLeast7) {
         return;
@@ -610,7 +618,7 @@ describe('regressions', () => {
         12,
       );
       assert.strictEqual(
-        await client.bitpos(key, 1, { start: 12, mode: 'BIT' }),
+        await client.bitpos(key, 1, { start: 12, end: -1, mode: 'BIT' }),
         -1,
       );
     });

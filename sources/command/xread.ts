@@ -22,9 +22,7 @@ export function createCommand(
     command.push('BLOCK', `${block}`);
   }
 
-  command.push('STREAMS', ...keys, ...ids);
-
-  return command;
+  return [...command, 'STREAMS', ...keys, ...ids];
 }
 
 export async function xread<T>(

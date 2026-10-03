@@ -182,7 +182,7 @@ export class SolidisClient extends EventEmitter {
 
   public extend<T extends Record<string, unknown>>(
     extensions: T & ThisType<SolidisClient>,
-  ): this & SolidisClientExtensions<T> {
+  ): this & SolidisClientExtensions<T, this> {
     for (const method of Object.getOwnPropertyNames(extensions)) {
       const extension = extensions[method];
 
@@ -191,7 +191,7 @@ export class SolidisClient extends EventEmitter {
       }
     }
 
-    return this as this & SolidisClientExtensions<T>;
+    return this as this & SolidisClientExtensions<T, this>;
   }
 
   #setupListeners() {

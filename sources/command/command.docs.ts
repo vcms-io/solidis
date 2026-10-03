@@ -15,13 +15,7 @@ import type {
 } from '../index.ts';
 
 export function createCommand(commands?: string[]) {
-  const command = ['COMMAND', 'DOCS'];
-
-  if (commands?.length) {
-    command.push(...commands);
-  }
-
-  return command;
+  return ['COMMAND', 'DOCS', ...(commands ?? [])];
 }
 
 function parseCommandDocs(

@@ -9,7 +9,7 @@ import {
 import type { RespHelloInfo, StringOrBuffer } from '../index.ts';
 
 export function createCommand(
-  protocol: SolidisProtocols,
+  protocol?: SolidisProtocols,
   username?: StringOrBuffer,
   password?: StringOrBuffer,
   clientName?: string,
@@ -33,7 +33,7 @@ export function createCommand(
 
 export async function hello<T>(
   this: T,
-  protocol: SolidisProtocols,
+  protocol?: SolidisProtocols,
   username?: StringOrBuffer,
   password?: StringOrBuffer,
   clientName?: string,

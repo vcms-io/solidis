@@ -1,6 +1,7 @@
 import { executeCommand, tryReplyArray, tryReplyTuple } from './utils/index.ts';
 
 import type {
+  CommandXpendingRange,
   RespStreamPendingEntry,
   RespStreamPendingInfo,
 } from '../index.ts';
@@ -8,20 +9,18 @@ import type {
 export function createCommand(
   key: string,
   group: string,
-  start?: string,
-  end?: string,
-  count?: number,
-  consumer?: string,
-  idleTime?: number,
+  ...range: [] | CommandXpendingRange
 ) {
   const command = ['XPENDING', key, group];
 
-  if (start !== undefined) {
+  if (range.length !== 0) {
+    const [start, end, count, consumer, idleTime] = range;
+
     if (idleTime !== undefined) {
       command.push('IDLE', `${idleTime}`);
     }
 
-    command.push(start, end ?? '+', `${count ?? 10}`);
+    command.push(start, end, `${count}`);
 
     if (consumer !== undefined) {
       command.push(consumer);
@@ -35,17 +34,30 @@ export async function xpending<T>(
   this: T,
   key: string,
   group: string,
-  start?: string,
-  end?: string,
-  count?: number,
-  consumer?: string,
-  idleTime?: number,
+): Promise<RespStreamPendingInfo>;
+export async function xpending<T>(
+  this: T,
+  key: string,
+  group: string,
+  ...range: CommandXpendingRange
+): Promise<RespStreamPendingEntry[]>;
+export async function xpending<T>(
+  this: T,
+  key: string,
+  group: string,
+  ...range: [] | CommandXpendingRange
+): Promise<RespStreamPendingInfo | RespStreamPendingEntry[]>;
+export async function xpending<T>(
+  this: T,
+  key: string,
+  group: string,
+  ...range: [] | CommandXpendingRange
 ): Promise<RespStreamPendingInfo | RespStreamPendingEntry[]> {
   return await executeCommand(
     this,
-    createCommand(key, group, start, end, count, consumer, idleTime),
+    createCommand(key, group, ...range),
     (reply, command) => {
-      if (start !== undefined) {
+      if (range.length !== 0) {
         return tryReplyArray(reply, command).map(
           (entry): RespStreamPendingEntry => {
             const [id, owner, deliveryTime, deliveryCount] = tryReplyTuple(

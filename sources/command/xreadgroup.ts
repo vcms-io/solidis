@@ -29,9 +29,7 @@ export function createCommand(
     command.push('NOACK');
   }
 
-  command.push('STREAMS', ...keys, ...ids);
-
-  return command;
+  return [...command, 'STREAMS', ...keys, ...ids];
 }
 
 export async function xreadgroup<T>(

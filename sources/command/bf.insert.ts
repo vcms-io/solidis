@@ -31,9 +31,7 @@ export function createCommand(
     }
   }
 
-  command.push('ITEMS', ...items);
-
-  return command;
+  return [...command, 'ITEMS', ...items];
 }
 
 export async function bfInsert<T>(

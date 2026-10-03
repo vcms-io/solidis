@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { SolidisFeaturedClient } from '../../../sources/client/featured.ts';
-import { select } from '../../../sources/command/index.ts';
+import { get, multi, select, set } from '../../../sources/command/index.ts';
+import { SolidisClient } from '../../../sources/index.ts';
 
 import type {
   CommandBufferOptions,
@@ -13,8 +14,9 @@ import type {
   CommandSortStoreOptions,
   RespInteger,
   RespSortedSetMember,
+  RespStreamPendingEntry,
+  RespStreamPendingInfo,
   RespString,
-  SolidisClient,
   SolidisClientExtensions,
   SolidisTransactionClient,
   StringOrBuffer,
@@ -172,6 +174,42 @@ describe('type-contracts', () => {
     client.quit();
   });
 
+  it('types a transaction from everything the extended client offers', () => {
+    const extended = new SolidisClient({ lazyConnect: true }).extend({
+      get,
+      set,
+      multi,
+    });
+    const chained = new SolidisClient({ lazyConnect: true })
+      .extend({ get, set })
+      .extend({ multi });
+    const transaction = extended.multi();
+    const chainedTransaction = chained.multi();
+
+    transaction.select(2);
+    transaction.info();
+    transaction.get('k');
+    chainedTransaction.get('k');
+    chainedTransaction.set('k', 'v');
+    // @ts-expect-error a transaction does not send raw commands
+    const send: unknown = chainedTransaction.send;
+
+    assert.strictEqual(send, undefined);
+
+    for (const name of ['select', 'info', 'get', 'set']) {
+      assert.strictEqual(typeof Reflect.get(transaction, name), 'function');
+      assert.strictEqual(
+        typeof Reflect.get(chainedTransaction, name),
+        'function',
+      );
+    }
+
+    transaction.discard();
+    chainedTransaction.discard();
+    extended.quit();
+    chained.quit();
+  });
+
   it('adds only functions to a client with extend()', () => {
     type Extended = SolidisClientExtensions<{
       label: string;
@@ -253,6 +291,32 @@ describe('type-contracts', () => {
       await client.scriptDebug('NO');
       // @ts-expect-error SCRIPT DEBUG YES breaks the pairing of replies
       await client.scriptDebug('YES');
+      await client.bitpos('k', 0, { start: 0, end: -1, mode: 'BIT' });
+      // @ts-expect-error BITPOS takes a mode only with an end
+      await client.bitpos('k', 0, { mode: 'BYTE' });
+      await client.bitfield('k', [
+        { operation: 'GET', type: 'u8', offset: '#1' },
+      ]);
+      await client.bitfieldRo('k', [{ type: 'u8', offset: '#1' }]);
+      await client.hello();
+      await client.clientList({ identifiers: [1] });
+      // @ts-expect-error CLIENT LIST takes TYPE or ID, not both
+      await client.clientList({ type: 'NORMAL', identifiers: [1] });
+
+      const pendingSummary: RespStreamPendingInfo = await client.xpending(
+        's',
+        'g',
+      );
+      const pendingEntries: RespStreamPendingEntry[] = await client.xpending(
+        's',
+        'g',
+        '-',
+        '+',
+        10,
+      );
+
+      // @ts-expect-error XPENDING takes an end and a count with a start
+      await client.xpending('s', 'g', '-');
 
       const { multi } = client;
       const options: XclaimOptions = { justid: true };
@@ -270,6 +334,8 @@ describe('type-contracts', () => {
         text,
         options,
         pipeline,
+        pendingSummary,
+        pendingEntries,
       ];
     }
 

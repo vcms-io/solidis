@@ -8,18 +8,37 @@ import { aclLog } from '../../../sources/command/acl.log.ts';
 import { createCommand as createBloomInsertCommand } from '../../../sources/command/bf.insert.ts';
 import { createCommand as createBitcountCommand } from '../../../sources/command/bitcount.ts';
 import { cfInfo } from '../../../sources/command/cf.info.ts';
-import { commandDocs } from '../../../sources/command/command.docs.ts';
+import { createCommand as createCuckooInsertCommand } from '../../../sources/command/cf.insert.ts';
+import { createCommand as createClientListCommand } from '../../../sources/command/client.list.ts';
+import {
+  commandDocs,
+  createCommand as createCommandDocsCommand,
+} from '../../../sources/command/command.docs.ts';
 import { dump } from '../../../sources/command/dump.ts';
 import { failover } from '../../../sources/command/failover.ts';
+import { createCommand as createFunctionFlushCommand } from '../../../sources/command/function.flush.ts';
 import { functionStats } from '../../../sources/command/function.stats.ts';
+import { createCommand as createHashExpireCommand } from '../../../sources/command/hexpire.ts';
 import { createCommand as createJsonArrpopCommand } from '../../../sources/command/json.arrpop.ts';
+import { createCommand as createJsonGetCommand } from '../../../sources/command/json.get.ts';
 import { latencyLatest } from '../../../sources/command/latency.latest.ts';
 import { lrange } from '../../../sources/command/lrange.ts';
 import { memoryStats } from '../../../sources/command/memory.stats.ts';
-import { migrate } from '../../../sources/command/migrate.ts';
-import { moduleLoad } from '../../../sources/command/module.load.ts';
-import { moduleLoadex } from '../../../sources/command/module.loadex.ts';
+import {
+  createCommand as createMigrateCommand,
+  migrate,
+} from '../../../sources/command/migrate.ts';
+import {
+  createCommand as createModuleLoadCommand,
+  moduleLoad,
+} from '../../../sources/command/module.load.ts';
+import {
+  createCommand as createModuleLoadexCommand,
+  moduleLoadex,
+} from '../../../sources/command/module.loadex.ts';
 import { moduleUnload } from '../../../sources/command/module.unload.ts';
+import { createCommand as createPubsubNumsubCommand } from '../../../sources/command/pubsub.numsub.ts';
+import { createCommand as createPubsubShardnumsubCommand } from '../../../sources/command/pubsub.shardnumsub.ts';
 import { replconf } from '../../../sources/command/replconf.ts';
 import { replicaof } from '../../../sources/command/replicaof.ts';
 import { shutdown } from '../../../sources/command/shutdown.ts';
@@ -27,6 +46,9 @@ import { tryReplyToNumber } from '../../../sources/command/utils/reply.ts';
 import { xautoclaim } from '../../../sources/command/xautoclaim.ts';
 import { xinfoStream } from '../../../sources/command/xinfo.stream.ts';
 import { createCommand as createXpendingCommand } from '../../../sources/command/xpending.ts';
+import { createCommand as createXreadCommand } from '../../../sources/command/xread.ts';
+import { createCommand as createXreadgroupCommand } from '../../../sources/command/xreadgroup.ts';
+import { createCommand as createZinterCommand } from '../../../sources/command/zinter.ts';
 import { RespError, SolidisConnectionError } from '../../../sources/index.ts';
 
 import type { SolidisData, StringOrBuffer } from '../../../sources/index.ts';
@@ -126,7 +148,49 @@ describe('reply-guards', () => {
     });
   });
 
-  it('builds the optional parts of BF.INSERT, BITCOUNT, JSON.ARRPOP and XPENDING', () => {
+  it('builds commands with more arguments than one call can spread', () => {
+    const items = Array.from({ length: 200_000 }, (_, index) => `${index}`);
+    const numbers = items.map(Number);
+    const commands = [
+      createBloomInsertCommand('key', items),
+      createCuckooInsertCommand('key', items),
+      createHashExpireCommand('key', 60, items),
+      createZinterCommand(items, { weights: numbers }),
+      createClientListCommand({ identifiers: numbers }),
+      createJsonGetCommand('key', { path: items }),
+      createMigrateCommand('host', 6379, '', 0, 1000, { keys: items }),
+      createPubsubNumsubCommand(items),
+      createPubsubShardnumsubCommand(items),
+      createXreadCommand(items, items),
+      createXreadgroupCommand('group', 'consumer', items, items),
+      createCommandDocsCommand(items),
+      createModuleLoadCommand('path', items),
+      createModuleLoadexCommand('path', undefined, items),
+    ];
+
+    for (const command of commands) {
+      assert.strictEqual(command.at(-1), '199999');
+    }
+
+    assert.deepStrictEqual(createPubsubNumsubCommand(), ['PUBSUB', 'NUMSUB']);
+    assert.deepStrictEqual(createPubsubShardnumsubCommand(), [
+      'PUBSUB',
+      'SHARDNUMSUB',
+    ]);
+  });
+
+  it('builds the optional parts of BF.INSERT, BITCOUNT, JSON.ARRPOP, XPENDING and FUNCTION FLUSH', () => {
+    assert.deepStrictEqual(createFunctionFlushCommand(), ['FUNCTION', 'FLUSH']);
+    assert.deepStrictEqual(createFunctionFlushCommand(true), [
+      'FUNCTION',
+      'FLUSH',
+      'ASYNC',
+    ]);
+    assert.deepStrictEqual(createFunctionFlushCommand(false), [
+      'FUNCTION',
+      'FLUSH',
+      'SYNC',
+    ]);
     assert.deepStrictEqual(
       createBloomInsertCommand('key', ['a'], {
         expansion: 2,
@@ -159,13 +223,22 @@ describe('reply-guards', () => {
       '.',
       '0',
     ]);
-    assert.deepStrictEqual(createXpendingCommand('key', 'group', '-'), [
+    assert.deepStrictEqual(createXpendingCommand('key', 'group', '-', '+', 5), [
       'XPENDING',
       'key',
       'group',
       '-',
       '+',
-      '10',
+      '5',
+    ]);
+    assert.deepStrictEqual(
+      createXpendingCommand('key', 'group', '-', '+', 5, 'reader', 1000),
+      ['XPENDING', 'key', 'group', 'IDLE', '1000', '-', '+', '5', 'reader'],
+    );
+    assert.deepStrictEqual(createXpendingCommand('key', 'group'), [
+      'XPENDING',
+      'key',
+      'group',
     ]);
   });
 

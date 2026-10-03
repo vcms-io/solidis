@@ -230,10 +230,15 @@ export type SolidisTransactionClient<T> = {
 
 export type SolidisClientExtensions<
   T extends Record<string, unknown> = Record<string, unknown>,
+  C = unknown,
 > = {
   [K in keyof T as T[K] extends SolidisFunction ? K : never]: K extends 'multi'
     ? T[K] extends (...parameters: infer Parameters) => unknown
-      ? (...parameters: Parameters) => SolidisTransactionClient<T>
+      ? (
+          ...parameters: Parameters
+        ) => SolidisTransactionClient<
+          C & SolidisClientExtensions<Omit<T, 'multi'>>
+        >
       : T[K]
     : OmitThisParameter<T[K]>;
 };

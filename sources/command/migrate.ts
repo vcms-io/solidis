@@ -36,13 +36,11 @@ export function createCommand(
     if (options.auth2 !== undefined) {
       command.push('AUTH2', options.auth2.username, options.auth2.password);
     }
-
-    if (options.keys?.length) {
-      command.push('KEYS', ...options.keys);
-    }
   }
 
-  return command;
+  return options?.keys?.length
+    ? [...command, 'KEYS', ...options.keys]
+    : command;
 }
 
 export async function migrate<T>(

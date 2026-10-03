@@ -3,13 +3,7 @@ import { executeCommand, tryReplyToNumberRecord } from './utils/index.ts';
 import type { RespPubsubNumsub } from '../index.ts';
 
 export function createCommand(channels?: string[]) {
-  const command = ['PUBSUB', 'NUMSUB'];
-
-  if (channels?.length) {
-    command.push(...channels);
-  }
-
-  return command;
+  return ['PUBSUB', 'NUMSUB', ...(channels ?? [])];
 }
 
 export async function pubsubNumsub<T>(

@@ -3,8 +3,10 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
+import { SolidisFeaturedClient } from '../../../sources/client/featured.ts';
 import { RespError, SolidisCommandError } from '../../../sources/index.ts';
 import {
+  buildClientOptions,
   closeClient,
   createClient,
   createKeyspace,
@@ -405,6 +407,35 @@ describe('transactions', () => {
     } finally {
       await closeClient(restricted);
       await client.aclDeluser(user);
+    }
+  });
+
+  it('queues the methods that a client subclass defines', async () => {
+    class SessionClient extends SolidisFeaturedClient {
+      touchSession(key: string) {
+        return this.expire(key, 60);
+      }
+    }
+
+    const session = new SessionClient(
+      buildClientOptions({ lazyConnect: true }),
+    );
+    const key = keyspace.key('session');
+
+    session.on('error', () => {});
+
+    try {
+      await session.connect();
+
+      const transaction = session.multi();
+
+      transaction.set(key, 'value');
+      transaction.touchSession(key);
+
+      assert.deepStrictEqual(await transaction.exec(), ['OK', 1]);
+      assert.ok((await client.ttl(key)) > 0);
+    } finally {
+      session.quit();
     }
   });
 

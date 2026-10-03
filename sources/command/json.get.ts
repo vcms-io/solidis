@@ -17,13 +17,9 @@ export function createCommand(key: string, options?: CommandJsonGetOptions) {
     if (options.space !== undefined) {
       command.push('SPACE', options.space);
     }
-
-    if (options.path?.length) {
-      command.push(...options.path);
-    }
   }
 
-  return command;
+  return [...command, ...(options?.path ?? [])];
 }
 
 export async function jsonGet<T>(

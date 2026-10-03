@@ -3,13 +3,7 @@ import { executeCommand, tryReplyToNumberRecord } from './utils/index.ts';
 import type { RespPubsubShardNumsub } from '../index.ts';
 
 export function createCommand(shardChannels?: string[]) {
-  const command = ['PUBSUB', 'SHARDNUMSUB'];
-
-  if (shardChannels?.length) {
-    command.push(...shardChannels);
-  }
-
-  return command;
+  return ['PUBSUB', 'SHARDNUMSUB', ...(shardChannels ?? [])];
 }
 
 export async function pubsubShardnumsub<T>(

@@ -56,28 +56,30 @@ export type CommandBloomFilterInsertOptions = CommandExclusiveOptions<
   nonScaling?: boolean;
 };
 
+export type CommandBitfieldOffset = number | `#${number}`;
+
 export interface CommandBitfieldGetOperationOption {
   operation: 'GET';
   type: RespBitfield;
-  offset: number;
+  offset: CommandBitfieldOffset;
 }
 
 export interface CommandBitfieldRoGetOperationOption {
   type: RespBitfield;
-  offset: number;
+  offset: CommandBitfieldOffset;
 }
 
 export interface CommandBitfieldSetOperationOption {
   operation: 'SET';
   type: RespBitfield;
-  offset: number;
+  offset: CommandBitfieldOffset;
   value: number | bigint;
 }
 
 export interface CommandBitfieldIncrbyOperationOption {
   operation: 'INCRBY';
   type: RespBitfield;
-  offset: number;
+  offset: CommandBitfieldOffset;
   increment: number | bigint;
 }
 
@@ -86,10 +88,10 @@ export type CommandBitfieldOperationOption =
   | CommandBitfieldSetOperationOption
   | CommandBitfieldIncrbyOperationOption;
 
-export interface CommandClientListOptions {
-  type?: 'NORMAL' | 'MASTER' | 'REPLICA' | 'PUBSUB';
-  identifiers?: number[];
-}
+export type CommandClientListOptions = CommandExclusiveOptions<
+  | { type?: 'NORMAL' | 'MASTER' | 'REPLICA' | 'PUBSUB' }
+  | { identifiers?: number[] }
+>;
 
 export interface CommandClientPauseOptions {
   mode?: 'WRITE' | 'ALL';
@@ -342,6 +344,18 @@ export interface CommandSortStoreOptions
   extends Omit<CommandSortOptions, 'store'> {
   store: string;
 }
+
+export type CommandXpendingRange = [
+  start: string,
+  end: string,
+  count: number,
+  consumer?: string,
+  idleTime?: number,
+];
+
+export type CommandBitposOptions =
+  | { start?: number; end?: undefined; mode?: undefined }
+  | { start?: number; end: number; mode?: CommandBitOrByteOption };
 
 export interface CommandStartToEndAndBitOrByteOptions {
   start?: number;

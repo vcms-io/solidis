@@ -1,3 +1,4 @@
+import { SolidisClient } from '../client.ts';
 import { SolidisTransactionBannedCommandNames } from '../common/constants.ts';
 import { RespError } from '../common/utils/error.ts';
 import {
@@ -7,7 +8,6 @@ import {
   SolidisTransactionQueues,
 } from './utils/index.ts';
 
-import type { SolidisClient } from '../client.ts';
 import type {
   SolidisData,
   SolidisTransactionClient,
@@ -88,7 +88,7 @@ export function multi<T extends object>(this: T): SolidisTransactionClient<T> {
 
           if (
             typeof method !== 'function' ||
-            !Object.hasOwn(client, property) ||
+            property in SolidisClient.prototype ||
             bannedCommandNames.has(property) ||
             Reflect.get(method, Symbol.toStringTag) === 'AsyncGeneratorFunction'
           ) {

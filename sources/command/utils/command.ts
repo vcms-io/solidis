@@ -126,9 +126,7 @@ export function buildCuckooFilterInsertCommand(
     }
   }
 
-  result.push('ITEMS', ...items);
-
-  return result;
+  return [...result, 'ITEMS', ...items];
 }
 
 function appendGeoResultOptions(
@@ -372,7 +370,11 @@ export function buildSortedSetInterCommand(
   const command = [...baseCommand, `${keys.length}`, ...keys];
 
   if (options.weights?.length) {
-    command.push('WEIGHTS', ...options.weights.map((weight) => `${weight}`));
+    command.push('WEIGHTS');
+
+    for (const weight of options.weights) {
+      command.push(`${weight}`);
+    }
   }
 
   if (options.aggregate) {
@@ -609,9 +611,7 @@ export function buildHashFieldExpireCommand(
     command.push(mode);
   }
 
-  command.push('FIELDS', `${fields.length}`, ...fields);
-
-  return command;
+  return [...command, 'FIELDS', `${fields.length}`, ...fields];
 }
 
 export function buildScriptCommand(

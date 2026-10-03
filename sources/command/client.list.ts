@@ -9,12 +9,11 @@ export function createCommand(options?: CommandClientListOptions) {
     if (options.type) {
       command.push('TYPE', options.type);
     }
-    if (options.identifiers && options.identifiers.length > 0) {
-      command.push('ID', ...options.identifiers.map(String));
-    }
   }
 
-  return command;
+  return options?.identifiers?.length
+    ? [...command, 'ID', ...options.identifiers.map(String)]
+    : command;
 }
 
 export async function clientList<T>(

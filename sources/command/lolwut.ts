@@ -10,11 +10,7 @@ export function createCommand(
     command.push('VERSION', `${version}`);
   }
 
-  if (optionalArguments.length) {
-    command.push(...optionalArguments);
-  }
-
-  return command;
+  return [...command, ...optionalArguments];
 }
 
 export async function lolwut<T>(
