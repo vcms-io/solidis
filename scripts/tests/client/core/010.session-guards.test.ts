@@ -13,6 +13,7 @@ import {
   SolidisCommandError,
   SolidisConnectionError,
   SolidisProtocols,
+  SolidisRequesterError,
 } from '../../../../sources/index.ts';
 import {
   buildClientOptions,
@@ -517,6 +518,45 @@ describe('session-guards', () => {
       }
     });
 
+    it('reports a throwing debug listener as a warning even with an error listener', async () => {
+      const server = await startServer(answerPong);
+      const client = new SolidisFeaturedClient(
+        mockClientOptions(server.port, { debug: true }),
+      );
+      const errors: Error[] = [];
+      const warnings: unknown[] = [];
+      const onWarning = (warning: unknown) => {
+        warnings.push(warning);
+      };
+
+      process.on('warning', onWarning);
+      client.on('error', (error) => errors.push(error));
+      client.on('debug', () => {
+        throw new Error('debug listener bug');
+      });
+
+      try {
+        await client.connect();
+
+        assert.deepStrictEqual(await client.send([['PING']]), [['PONG']]);
+
+        await delay(50);
+
+        assert.deepStrictEqual(errors, []);
+        assert.ok(
+          warnings.some(
+            (warning) =>
+              warning instanceof SolidisClientError &&
+              warning.message === "A 'debug' listener threw",
+          ),
+        );
+      } finally {
+        process.off('warning', onWarning);
+        client.quit();
+        await server.close();
+      }
+    });
+
     it('isolates debug listeners from the requester', async () => {
       const server = await startServer(answerPong);
       const warnings: Error[] = [];
@@ -674,7 +714,10 @@ describe('session-guards', () => {
 
         client.quit();
 
-        await assert.rejects(connecting, SolidisConnectionError);
+        await assert.rejects(connecting, {
+          name: 'SolidisClientError',
+          message: 'The client was quit.',
+        });
         await delay(50);
 
         assert.deepStrictEqual(events, ['connect', 'end']);
@@ -828,6 +871,129 @@ describe('session-guards', () => {
       } finally {
         client.quit();
         await server.close();
+      }
+    });
+
+    it('refuses a send() argument that is not an array without breaking the handshake', async () => {
+      const server = await startServer(answerPong);
+      const client = new SolidisFeaturedClient(mockClientOptions(server.port));
+      const events: string[] = [];
+
+      client.on('ready', () => events.push('ready'));
+
+      try {
+        const broken = client
+          .send(undefined as never)
+          .catch((error: unknown) => error);
+        const intact = client.send([['PING']]);
+
+        await client.connect();
+
+        assert.deepStrictEqual(await intact, [['PONG']]);
+
+        const error = await broken;
+
+        assert.ok(error instanceof SolidisRequesterError);
+        assert.strictEqual(
+          error.message,
+          'Cannot send an empty or non-array command.',
+        );
+        await assert.rejects(client.send(null as never), {
+          name: 'SolidisRequesterError',
+        });
+        assert.deepStrictEqual(events, ['ready']);
+      } finally {
+        client.quit();
+        await server.close();
+      }
+    });
+
+    it('settles waiting requests at once when a ready listener calls quit()', async () => {
+      const server = await startServer(answerPong);
+      const client = new SolidisFeaturedClient(
+        mockClientOptions(server.port, { commandTimeout: 0 }),
+      );
+      const startedAt = Date.now();
+
+      client.on('error', () => {});
+      client.once('ready', () => client.quit());
+
+      try {
+        await assert.rejects(client.connect(), {
+          name: 'SolidisClientError',
+          message: 'The client was quit.',
+        });
+        await assert.rejects(client.send([['PING']]), {
+          name: 'SolidisClientError',
+          message: 'Not connected with redis server.',
+        });
+
+        assert.ok(Date.now() - startedAt < 1000);
+      } finally {
+        await server.close();
+      }
+    });
+
+    it('settles waiting requests at once when quit() interrupts a ready-check wait', async () => {
+      const server = await startServer((socket) => {
+        socket.write('$11\r\nloading:1\r\n\r\n');
+      });
+      const client = new SolidisFeaturedClient(
+        mockClientOptions(server.port, {
+          enableReadyCheck: true,
+          readyCheckInterval: 60_000,
+          commandTimeout: 0,
+        }),
+      );
+
+      client.on('error', () => {});
+
+      try {
+        const connecting = client.connect().catch((error: unknown) => error);
+        const waiting = client
+          .send([['PING']])
+          .catch((error: unknown) => error);
+
+        await waitFor(() => server.received.length > 0);
+
+        const startedAt = Date.now();
+
+        client.quit();
+
+        const [connectError, sendError] = await Promise.all([
+          connecting,
+          waiting,
+        ]);
+
+        assert.ok(Date.now() - startedAt < 1000);
+        assert.ok(connectError instanceof SolidisClientError);
+        assert.strictEqual(connectError.message, 'The client was quit.');
+        assert.ok(sendError instanceof SolidisClientError);
+        assert.ok(sendError.cause instanceof SolidisClientError);
+        assert.strictEqual(sendError.cause.message, 'The client was quit.');
+      } finally {
+        await server.close();
+      }
+    });
+
+    it('accepts any listener limit and debug buffer size without throwing', () => {
+      for (const [value, limit] of [
+        [10_240, 10_240],
+        [0, 0],
+        [-1, 0],
+        [Number.NaN, 0],
+        [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY],
+      ] as const) {
+        const client = new SolidisClient({
+          lazyConnect: true,
+          debug: true,
+          debugMaxEntries: value,
+          maxEventListenersForClient: value,
+        });
+
+        assert.strictEqual(client.getMaxListeners(), limit, String(value));
+
+        client.quit();
       }
     });
 

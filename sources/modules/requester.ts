@@ -137,6 +137,8 @@ export class SolidisRequester {
   #parser: SolidisParser;
   #pendingRequests: SolidisRequest[] = [];
   #inflightQueue: SolidisPipeline[] = [];
+  #inflightHead = 0;
+  #timedOutCount = 0;
   #flushHandle: NodeJS.Immediate | undefined;
   #protocol: SolidisProtocols = SolidisProtocols.RESP2;
   #negotiatedProtocol: SolidisProtocols | undefined;
@@ -186,7 +188,9 @@ export class SolidisRequester {
     commands: StringOrBuffer[][],
     options?: SolidisSendOptions,
   ): Promise<SolidisData[][]> {
-    if (commands.length === 0) {
+    const batch = Array.isArray(commands) ? commands : [commands];
+
+    if (batch.length === 0) {
       return Promise.resolve([]);
     }
 
@@ -194,9 +198,9 @@ export class SolidisRequester {
 
     return new Promise((resolve, reject) => {
       this.#pendingRequests.push({
-        commands,
+        commands: batch,
         kinds: undefined,
-        replies: new Array<SolidisData[]>(commands.length),
+        replies: new Array<SolidisData[]>(batch.length),
         resolve,
         reject,
         timeout: resolveTimeout(
@@ -386,7 +390,10 @@ export class SolidisRequester {
     const channels: StringOrBuffer[] =
       this.#options.pubSub.getSubscriptions(kind);
 
-    for (const { subRequests } of [...this.#inflightQueue, pipeline]) {
+    for (const { subRequests } of [
+      ...this.#inflightQueue.slice(this.#inflightHead),
+      pipeline,
+    ]) {
       for (const subRequest of subRequests) {
         if (subRequest.kind === subscribeKind) {
           for (let index = 1; index < subRequest.command.length; index += 1) {
@@ -489,14 +496,14 @@ export class SolidisRequester {
   }
 
   #getExpectedConfirmation() {
-    const pipeline = this.#inflightQueue[0];
+    const pipeline = this.#inflightQueue[this.#inflightHead];
     const kind = pipeline?.subRequests[pipeline.subRequestIndex].kind;
 
     return isSubscriptionEventName(kind) ? kind : undefined;
   }
 
   #resolveNext(reply: SolidisData) {
-    const pipeline = this.#inflightQueue[0];
+    const pipeline = this.#inflightQueue[this.#inflightHead];
 
     if (!pipeline) {
       this.#options.emit(
@@ -533,7 +540,16 @@ export class SolidisRequester {
     if (pipeline.subRequestIndex === pipeline.subRequests.length) {
       clearTimeout(pipeline.timer);
 
-      this.#inflightQueue.shift();
+      if (pipeline.isTimedOut) {
+        this.#timedOutCount -= 1;
+      }
+
+      this.#inflightHead += 1;
+
+      if (this.#inflightHead * 2 >= this.#inflightQueue.length) {
+        this.#inflightQueue.splice(0, this.#inflightHead);
+        this.#inflightHead = 0;
+      }
     }
 
     this.#complete(subRequest, replies);
@@ -600,8 +616,12 @@ export class SolidisRequester {
           : SolidisProtocols.RESP2;
       this.#negotiatedProtocol = this.#protocol;
 
-      if (String(command[2]).toUpperCase() === 'AUTH') {
-        this.#authenticate(command[3], command[4]);
+      for (let index = 2; index < command.length; index += 2) {
+        if (String(command[index]).toUpperCase() === 'AUTH') {
+          this.#authenticate(command[index + 1], command[index + 2]);
+
+          index += 1;
+        }
       }
     } else if (kind === 'reset') {
       this.#protocol = SolidisProtocols.RESP2;
@@ -620,24 +640,32 @@ export class SolidisRequester {
 
   #timeOut(pipeline: SolidisPipeline) {
     const queue = this.#inflightQueue;
-    const previous = queue.slice(0, queue.indexOf(pipeline));
     const error = new SolidisRequesterError(
       `Command(s) timed out after ${pipeline.timeout} ms.`,
     );
-    const isStalled =
+
+    let isStalled =
       pipeline.timeout >= this.#options.commandTimeout &&
       pipeline.receivedChunks === this.#receivedChunks &&
-      previous.length > 0 &&
-      previous.every((inflight) => inflight.isTimedOut);
+      queue[this.#inflightHead] !== pipeline;
+
+    for (
+      let index = this.#inflightHead;
+      isStalled && queue[index] !== pipeline;
+      index += 1
+    ) {
+      isStalled = queue[index].isTimedOut;
+    }
 
     pipeline.isTimedOut = true;
+    this.#timedOutCount += 1;
 
     rejectPipeline(pipeline, error);
 
     if (
       pipeline.isBlocking ||
       isStalled ||
-      queue.every((inflight) => inflight.isTimedOut)
+      this.#timedOutCount === queue.length - this.#inflightHead
     ) {
       this.#options.connection.reset(
         new SolidisRequesterError(
@@ -649,7 +677,7 @@ export class SolidisRequester {
   }
 
   #fail(error: Error) {
-    const pipelines = this.#inflightQueue;
+    const pipelines = this.#inflightQueue.slice(this.#inflightHead);
     const requests = this.#pendingRequests;
 
     clearImmediate(this.#flushHandle);
@@ -657,6 +685,8 @@ export class SolidisRequester {
     this.#flushHandle = undefined;
     this.#pendingRequests = [];
     this.#inflightQueue = [];
+    this.#inflightHead = 0;
+    this.#timedOutCount = 0;
     this.#parser = new SolidisParser(this.#options);
     this.#protocol = SolidisProtocols.RESP2;
     this.#transaction = undefined;

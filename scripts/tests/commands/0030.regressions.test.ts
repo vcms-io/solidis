@@ -517,6 +517,70 @@ describe('regressions', () => {
       }
     });
 
+    it('redacts arguments the server joins into one quoted span', () => {
+      const error = toCommandError(
+        new RespError(
+          "ERR Error in ACL SETUSER modifier '(>hunter2 ~cache:*)': Syntax error",
+        ),
+        ['ACL', 'SETUSER', 'reader', 'on', '(>hunter2', '~cache:*)'],
+      );
+
+      assert.strictEqual(
+        error.message,
+        "[ACL SETUSER] ERR Error in ACL SETUSER modifier '***': Syntax error",
+      );
+      assert.ok(error.cause instanceof RespError);
+      assert.ok(!error.cause.message.includes('hunter2'));
+
+      const unterminated = toCommandError(
+        new RespError("ERR invalid 'reader and more"),
+        ['NOSUCH', 'reader'],
+      );
+
+      assert.strictEqual(
+        unterminated.message,
+        "[NOSUCH] ERR invalid 'reader and more",
+      );
+    });
+
+    it('redacts a long quoted argument in linear time', () => {
+      const argument = 'x'.repeat(200_000);
+      const startedAt = performance.now();
+      const error = toCommandError(
+        new RespError(`ERR invalid argument '${argument.slice(0, 100_000)}'`),
+        ['SET', 'key', argument],
+      );
+
+      assert.ok(performance.now() - startedAt < 500);
+      assert.strictEqual(error.message, "[SET] ERR invalid argument '***'");
+    });
+
+    it('redacts an ACL selector the server joins from several arguments', async (context) => {
+      if (!features.isAtLeast7) {
+        context.skip('selectors require Redis 7.0+');
+
+        return;
+      }
+
+      const user = `solidis-selector-${Date.now()}`;
+
+      try {
+        await assert.rejects(
+          client.aclSetuser(user, '(>hunter2-password', '~cache:*)'),
+          (error: unknown) => {
+            assert.ok(error instanceof SolidisCommandError);
+            assert.ok(error.message.includes("'***'"), error.message);
+            assert.ok(!error.message.includes('hunter2'));
+            assert.ok(!String(error.cause).includes('hunter2'));
+
+            return true;
+          },
+        );
+      } finally {
+        await client.aclDeluser(user);
+      }
+    });
+
     it('keeps the arguments of INCRBY and AUTH out of error messages', async () => {
       const key = keyspace.key('secret-key-name');
 

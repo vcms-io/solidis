@@ -61,6 +61,7 @@ export class SolidisClient extends EventEmitter {
   #pendingConnects = 0;
   #readyLock: Promise<void> | null = null;
   #initialization: Promise<void> | null = null;
+  #interruptReadyCheck: (() => void) | undefined;
   #waitingRequests = new Set<(cause?: unknown) => void>();
 
   declare public emit: SolidisClientEventHandlers<this>['emit'];
@@ -93,7 +94,9 @@ export class SolidisClient extends EventEmitter {
     });
 
     this.#setupListeners();
-    this.setMaxListeners(this.#options.maxEventListenersForClient);
+    this.setMaxListeners(
+      Math.max(0, this.#options.maxEventListenersForClient) || 0,
+    );
 
     if (!this.#options.lazyConnect) {
       this.connect().catch((error: unknown) => {
@@ -173,6 +176,7 @@ export class SolidisClient extends EventEmitter {
     this.#session += 1;
 
     this.#connection.quit();
+    this.#interruptReadyCheck?.();
   }
 
   public hello = hello.bind(this);
@@ -279,23 +283,26 @@ export class SolidisClient extends EventEmitter {
   }
 
   async #waitForReady() {
-    if (this.#connection.isQuitted) {
-      throw new SolidisClientError(SolidisClientQuitMessage);
-    }
-
     let attempt = 0;
 
     while (true) {
+      if (this.#connection.isQuitted) {
+        throw new SolidisClientError(SolidisClientQuitMessage);
+      }
+
       await this.#connection.connect();
 
       try {
         await this.#initialization;
 
-        return;
+        if (this.#isReady) {
+          return;
+        }
       } catch (error) {
         if (
-          !(error instanceof SolidisConnectionError) ||
-          attempt >= this.#options.maxConnectionRetries
+          !this.#connection.isQuitted &&
+          (!(error instanceof SolidisConnectionError) ||
+            attempt >= this.#options.maxConnectionRetries)
         ) {
           throw error;
         }
@@ -448,7 +455,9 @@ export class SolidisClient extends EventEmitter {
 
       attempt += 1;
 
-      await new Promise((resolve) => {
+      await new Promise<void>((resolve) => {
+        this.#interruptReadyCheck = resolve;
+
         setTimeout(
           resolve,
           Math.min(readyCheckInterval, SolidisMaximumTimerDelay),

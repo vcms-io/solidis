@@ -99,22 +99,31 @@ function redactArguments(
     const text = String(argument).replace(/[\r\n]/g, ' ');
 
     for (const quote of ["'", '`']) {
-      if (!result.includes(`${quote}${text[0]}`)) {
-        continue;
-      }
+      const opening = `${quote}${text[0]}`;
 
-      for (
-        let length = Math.min(text.length, result.length);
-        length > 0;
-        length -= 1
-      ) {
-        const quoted = `${quote}${text.slice(0, length)}${quote}`;
+      let start = result.indexOf(opening);
 
-        if (result.includes(quoted)) {
-          result = result.replaceAll(quoted, `${quote}***${quote}`);
+      while (start !== -1) {
+        let end = start + 1;
+        let matched = 0;
 
-          break;
+        while (matched < text.length && result[end] === text[matched]) {
+          end += 1;
+          matched += 1;
         }
+
+        if (matched === text.length && result[end] === ' ') {
+          const closing = result.indexOf(quote, end);
+
+          end = closing === -1 ? result.length : closing;
+        }
+
+        if (result[end] === quote) {
+          result = `${result.slice(0, start + 1)}***${result.slice(end)}`;
+          end = start + 4;
+        }
+
+        start = result.indexOf(opening, end);
       }
     }
   }

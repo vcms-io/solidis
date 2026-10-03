@@ -54,6 +54,81 @@ describe('debug-requester', () => {
   });
 
   describe('debug memory', () => {
+    it('keeps a usable buffer for any requested size', () => {
+      const messages = ['0', '1', '2', '3', '4'];
+
+      for (const [size, kept] of [
+        [Number.POSITIVE_INFINITY, 5],
+        [3, 3],
+        [1.5, 1],
+        [Number.NaN, 0],
+        [-1, 0],
+      ] as const) {
+        const memory = new SolidisDebugMemory(size);
+
+        for (const message of messages) {
+          memory.write({ type: 'info', message });
+        }
+
+        assert.deepStrictEqual(
+          memory.getLogs().map((log) => log.message),
+          messages.slice(messages.length - kept),
+          String(size),
+        );
+
+        memory.clearLogs();
+
+        assert.deepStrictEqual(memory.getLogs(), []);
+      }
+    });
+
+    it('prints entries only when DEBUG names solidis or everything', () => {
+      const originalDebug = process.env.DEBUG;
+      const originalWrite = process.stdout.write;
+      const printed: string[] = [];
+
+      process.stdout.write = ((chunk: string | Uint8Array) => {
+        printed.push(String(chunk));
+
+        return true;
+      }) as typeof process.stdout.write;
+
+      try {
+        for (const [pattern, isPrinted] of [
+          [undefined, false],
+          ['', false],
+          ['app', false],
+          ['*', true],
+          ['app,solidis', true],
+          ['SOLIDIS', true],
+        ] as const) {
+          if (pattern === undefined) {
+            Reflect.deleteProperty(process.env, 'DEBUG');
+          } else {
+            process.env.DEBUG = pattern;
+          }
+
+          printed.length = 0;
+
+          new SolidisDebugMemory(1).write({ type: 'info', message: 'probe' });
+
+          assert.strictEqual(
+            printed.some((line) => line.includes('[Solidis info] probe')),
+            isPrinted,
+            String(pattern),
+          );
+        }
+      } finally {
+        process.stdout.write = originalWrite;
+
+        if (originalDebug === undefined) {
+          Reflect.deleteProperty(process.env, 'DEBUG');
+        } else {
+          process.env.DEBUG = originalDebug;
+        }
+      }
+    });
+
     it('writes entries and respects max capacity', async () => {
       const { SolidisDebugMemory } = await import(
         '../../../../sources/modules/debug.ts'
@@ -1072,6 +1147,27 @@ describe('debug-requester', () => {
       assert.strictEqual(connection.writes.length, 0);
     });
 
+    it('refuses a send() argument that is not an array', async () => {
+      const { connection, requester } = createRequester();
+
+      const broken = [undefined, null, {}, 5, 'PING'].map((value) =>
+        settle(requester.send(value as never)),
+      );
+      const intact = requester.send([['PING']]);
+
+      for (const error of await Promise.all(broken)) {
+        assert.ok(error instanceof SolidisRequesterError);
+        assert.strictEqual(
+          error.message,
+          'Cannot send an empty or non-array command.',
+        );
+      }
+
+      connection.reply('+PONG\r\n');
+
+      assert.deepStrictEqual(await intact, [['PONG']]);
+    });
+
     it('refuses a command that is not an array and sends the rest of the batch', async () => {
       const { connection, requester } = createRequester();
       const shapes: unknown[] = [undefined, null, {}, 42, 'PING'];
@@ -1409,6 +1505,48 @@ describe('debug-requester', () => {
       assert.deepStrictEqual(await third, [['c']]);
     });
 
+    it('keeps the connection while an earlier request with a longer timeout still waits', async () => {
+      const { connection, requester } = createRequester({
+        commandTimeout: 100,
+      });
+
+      const first = settle(requester.send([['ECHO', 'a']]));
+      const patient = requester.send([['ECHO', 'b']], { timeout: 2000 });
+      const third = settle(requester.send([['ECHO', 'c']]));
+
+      assert.ok((await first) instanceof SolidisRequesterError);
+
+      const error = await third;
+
+      assert.ok(error instanceof SolidisRequesterError);
+      assert.strictEqual(error.message, 'Command(s) timed out after 100 ms.');
+      assert.strictEqual(connection.resets.length, 0);
+
+      connection.reply('+a\r\n+b\r\n+c\r\n');
+
+      assert.deepStrictEqual(await patient, [['b']]);
+    });
+
+    it('resets once the pipelines left in flight have timed out, after an earlier one completed late', async () => {
+      const { connection, requester } = createRequester({
+        commandTimeout: 100,
+      });
+
+      const first = settle(requester.send([['ECHO', 'a']], { timeout: 30 }));
+      const second = settle(requester.send([['ECHO', 'b']]));
+
+      assert.ok((await first) instanceof SolidisRequesterError);
+      assert.strictEqual(connection.resets.length, 0);
+
+      connection.reply('+a\r\n');
+
+      const error = await second;
+
+      assert.ok(error instanceof SolidisRequesterError);
+      assert.strictEqual(error.message, 'Command(s) timed out after 100 ms.');
+      assert.strictEqual(connection.resets.length, 1);
+    });
+
     it('keeps the connection when a shorter timeout expires behind a timed-out request', async () => {
       const { connection, requester } = createRequester({
         commandTimeout: 200,
@@ -1428,6 +1566,50 @@ describe('debug-requester', () => {
       connection.reply('+a\r\n+b\r\n+c\r\n');
 
       assert.deepStrictEqual(await trailing, [['c']]);
+    });
+
+    it('drains a hundred thousand in-flight pipelines in linear time', async () => {
+      const { connection, requester } = createRequester({
+        commandTimeout: 0,
+        maxCommandsPerPipeline: 1,
+      });
+      const count = 100_000;
+      const pending = requester.send(
+        Array.from({ length: count }, () => ['PING']),
+      );
+
+      await flushed();
+
+      assert.strictEqual(connection.writes.length, count);
+
+      const startedAt = performance.now();
+
+      connection.reply('+PONG\r\n'.repeat(count));
+
+      assert.strictEqual((await pending).length, count);
+      assert.ok(performance.now() - startedAt < 2000);
+    });
+
+    it('times out fifty thousand in-flight pipelines in linear time', async () => {
+      const { connection, requester } = createRequester({
+        commandTimeout: 60_000,
+        maxCommandsPerPipeline: 1,
+      });
+      const count = 50_000;
+      const startedAt = performance.now();
+      const pending = settle(
+        requester.send(
+          Array.from({ length: count }, (_, index) => ['ECHO', `${index}`]),
+          { timeout: 50 },
+        ),
+      );
+
+      assert.ok((await pending) instanceof SolidisRequesterError);
+
+      await waitFor(() => connection.resets.length > 0, { timeout: 4000 });
+
+      assert.ok(performance.now() - startedAt < 2000);
+      assert.strictEqual(connection.resets.length, 1);
     });
 
     it('gives a blocking request its own pipeline with an extended deadline', async () => {
@@ -2261,6 +2443,16 @@ describe('debug-requester', () => {
           ['HELLO', '3', 'SETNAME', 'AUTH'],
           '%1\r\n+proto\r\n:3\r\n',
           { username: 'alice', password: 'pw' },
+        ],
+        [
+          ['HELLO', '3', 'SETNAME', 'app', 'AUTH', 'dave', 'pw4'],
+          '%1\r\n+proto\r\n:3\r\n',
+          { username: 'dave', password: 'pw4' },
+        ],
+        [
+          ['HELLO', '3', 'SETNAME', 'AUTH', 'AUTH', 'erin', 'pw5'],
+          '%1\r\n+proto\r\n:3\r\n',
+          { username: 'erin', password: 'pw5' },
         ],
         [
           ['auth', 'bob', 'pw2'],

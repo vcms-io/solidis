@@ -9,6 +9,7 @@ import {
 } from '../common/internal.ts';
 import { generateDebugHandle } from '../common/utils/debug.ts';
 import {
+  SolidisClientError,
   SolidisConnectionError,
   wrapWithSolidisConnectionError,
 } from '../common/utils/error.ts';
@@ -72,9 +73,7 @@ export class SolidisConnection extends EventEmitter {
 
   public connect(): Promise<void> {
     if (this.#isQuitted) {
-      return Promise.reject(
-        new SolidisConnectionError(SolidisClientQuitMessage),
-      );
+      return Promise.reject(new SolidisClientError(SolidisClientQuitMessage));
     }
 
     if (this.#isConnected) {
@@ -144,7 +143,7 @@ export class SolidisConnection extends EventEmitter {
     this.#retryTimer = undefined;
 
     this.#destroySocket();
-    this.#rejectWaiters(new SolidisConnectionError(SolidisClientQuitMessage));
+    this.#rejectWaiters(new SolidisClientError(SolidisClientQuitMessage));
     this.emit('end');
   }
 

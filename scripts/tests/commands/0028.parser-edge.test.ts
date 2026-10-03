@@ -547,25 +547,30 @@ describe('parser-edge', () => {
       assert.deepStrictEqual(bulk, snapshot);
     });
 
-    it('copies small bulk strings but returns large ones as views', () => {
-      const small = bytes('$5\r\nhello\r\n');
-      const largePayload = Buffer.alloc(70000, 0x62);
-      const large = Buffer.concat([
-        bytes(`$${largePayload.length}\r\n`),
-        largePayload,
-        bytes('\r\n'),
-      ]);
+    it('copies bulk strings under 64 KB and returns longer ones as views', () => {
+      for (const [length, isView] of [
+        [5, false],
+        [65_535, false],
+        [65_536, true],
+        [70_000, true],
+      ] as const) {
+        const frame = Buffer.concat([
+          bytes(`$${length}\r\n`),
+          Buffer.alloc(length, 0x62),
+          bytes('\r\n'),
+        ]);
+        const [reply] = parseOnce(frame);
 
-      const [smallReply] = parseOnce(small);
-      const [largeReply] = parseOnce(large);
+        frame.fill(0x63);
 
-      small.fill(0);
-      large.fill(0x63);
-
-      assert.deepStrictEqual(smallReply, bytes('hello'));
-      assert.ok(Buffer.isBuffer(largeReply));
-      assert.strictEqual(largeReply.length, largePayload.length);
-      assert.ok(largeReply.every((byte) => byte === 0x63));
+        assert.ok(Buffer.isBuffer(reply));
+        assert.strictEqual(reply.length, length);
+        assert.strictEqual(
+          reply.every((byte) => byte === 0x63),
+          isView,
+          `${length}`,
+        );
+      }
     });
 
     it('reassembles a bulk body split across chunks', () => {

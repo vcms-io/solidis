@@ -544,7 +544,7 @@ describe('connection', () => {
       await assert.rejects(
         () => connection.connect(),
         (error: Error) =>
-          error instanceof SolidisConnectionError &&
+          error instanceof SolidisClientError &&
           error.message === 'The client was quit.',
       );
 
@@ -1088,7 +1088,7 @@ describe('connection', () => {
           connection.quit();
 
           await assert.rejects(connecting, {
-            name: 'SolidisConnectionError',
+            name: 'SolidisClientError',
             message: 'The client was quit.',
           });
           assert.strictEqual(sockets[0].destroyed, true);

@@ -17,9 +17,10 @@ export function formatDebugLog(entry: SolidisDebugLog): string {
 }
 
 export class SolidisDebugMemory extends EventEmitter {
-  readonly #entries: (SolidisDebugLog | undefined)[];
+  readonly #capacity: number;
   readonly #isPrinting: boolean;
 
+  #entries: SolidisDebugLog[] = [];
   #nextIndex = 0;
   #size = 0;
 
@@ -31,12 +32,12 @@ export class SolidisDebugMemory extends EventEmitter {
 
     const debugPattern = process.env.DEBUG?.toLowerCase() ?? '';
 
-    this.#entries = new Array(Math.max(0, maxEntries));
+    this.#capacity = Math.max(0, Math.floor(maxEntries)) || 0;
     this.#isPrinting = debugPattern === '*' || debugPattern.includes('solidis');
   }
 
   public write(entry: SolidisDebugLog) {
-    const capacity = this.#entries.length;
+    const capacity = this.#capacity;
 
     entry.timestamp ??= Date.now();
 
@@ -54,23 +55,19 @@ export class SolidisDebugMemory extends EventEmitter {
   }
 
   public getLogs(): readonly SolidisDebugLog[] {
-    const capacity = this.#entries.length;
-    const firstIndex = this.#nextIndex - this.#size + capacity;
+    const capacity = this.#capacity;
+    const firstIndex = this.#size < capacity ? 0 : this.#nextIndex;
     const logs: SolidisDebugLog[] = [];
 
     for (let offset = 0; offset < this.#size; offset += 1) {
-      const entry = this.#entries[(firstIndex + offset) % capacity];
-
-      if (entry) {
-        logs.push(entry);
-      }
+      logs.push(this.#entries[(firstIndex + offset) % capacity]);
     }
 
     return Object.freeze(logs);
   }
 
   public clearLogs() {
-    this.#entries.fill(undefined);
+    this.#entries = [];
     this.#nextIndex = 0;
     this.#size = 0;
   }

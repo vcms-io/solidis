@@ -1242,7 +1242,7 @@ describe('fragility', () => {
 
       const result = await connectPromise;
 
-      assert.ok(result instanceof SolidisConnectionError);
+      assert.ok(result instanceof SolidisClientError);
       assert.strictEqual(
         result.message,
         'The client was quit.',
