@@ -337,6 +337,37 @@ describe('session-recovery', () => {
       });
     }
 
+    it('restores a channel whose name is not valid UTF-8', async () => {
+      const subscriber = await createClient({ connectionRetryDelay: 10 });
+      const channel = Buffer.concat([
+        Buffer.from(keyspace.key('binary')),
+        Buffer.from([0xff, 0xfe]),
+      ]);
+      const received: string[] = [];
+
+      subscriber.on('message', (_channel, message) => {
+        received.push(String(message));
+      });
+
+      try {
+        const id = await subscriber.clientId();
+
+        await subscriber.send([['SUBSCRIBE', channel]]);
+        await forceReconnect(subscriber, id);
+
+        assert.deepStrictEqual(
+          await killer.send([['PUBLISH', channel, 'restored']]),
+          [[1]],
+        );
+
+        await waitFor(() => received.length === 1);
+
+        assert.deepStrictEqual(received, ['restored']);
+      } finally {
+        await closeClient(subscriber);
+      }
+    });
+
     it('restores only the subscription kinds enabled in autoRecovery', async () => {
       const subscriber = await createClient({
         connectionRetryDelay: 10,
@@ -386,55 +417,62 @@ describe('session-recovery', () => {
 
     const confirmation = '*3\r\n$9\r\nsubscribe\r\n$1\r\nx\r\n:1\r\n';
 
-    it('forgets subscriptions the server refuses to restore', async () => {
-      const server = await startSubscriptionServer((subscribeCount, socket) => {
-        socket.write(
-          subscribeCount === 1
-            ? confirmation
-            : "-NOPERM this user has no permissions to access the 'x' channel\r\n",
+    for (const rejectOnPartialPipelineError of [false, true]) {
+      it(`forgets subscriptions the server refuses to restore with rejectOnPartialPipelineError ${rejectOnPartialPipelineError}`, async () => {
+        const server = await startSubscriptionServer(
+          (subscribeCount, socket) => {
+            socket.write(
+              subscribeCount === 1
+                ? confirmation
+                : "-NOPERM this user has no permissions to access the 'x' channel\r\n",
+            );
+          },
         );
+        const client = new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            autoReconnect: true,
+            connectionRetryDelay: 10,
+            maxConnectionRetries: 5,
+            rejectOnPartialPipelineError,
+          }),
+        );
+        const errors: Error[] = [];
+        const messages: unknown[] = [];
+
+        client.on('error', (error) => errors.push(error));
+        client.on('message', (...parameters) => messages.push(parameters));
+
+        try {
+          await client.connect();
+          await client.subscribe('x');
+
+          const reconnected = nextEvent(client, 'reconnected');
+
+          server.destroySockets();
+
+          const error = await waitFor(() =>
+            errors.find(
+              (candidate) =>
+                candidate.message === 'Failed to restore subscriptions',
+            ),
+          );
+
+          await reconnected;
+
+          assert.ok(error instanceof SolidisClientError);
+          assert.ok(error.cause instanceof RespError);
+          assert.strictEqual(error.cause.code, 'NOPERM');
+          assert.deepStrictEqual(
+            await client.send([['LRANGE', 'x', '0', '-1']]),
+            [[[Buffer.from('message'), Buffer.from('x'), Buffer.from('data')]]],
+          );
+          assert.deepStrictEqual(messages, []);
+        } finally {
+          client.quit();
+          await server.close();
+        }
       });
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          autoReconnect: true,
-          connectionRetryDelay: 10,
-          maxConnectionRetries: 5,
-        }),
-      );
-      const errors: Error[] = [];
-      const messages: unknown[] = [];
-
-      client.on('error', (error) => errors.push(error));
-      client.on('message', (...parameters) => messages.push(parameters));
-
-      try {
-        await client.connect();
-        await client.subscribe('x');
-
-        const reconnected = nextEvent(client, 'reconnected');
-
-        server.destroySockets();
-
-        await reconnected;
-
-        const [error] = errors.filter(
-          (candidate) =>
-            candidate.message === 'Failed to restore subscriptions',
-        );
-
-        assert.ok(error instanceof SolidisClientError);
-        assert.ok(error.cause instanceof RespError);
-        assert.strictEqual(error.cause.code, 'NOPERM');
-        assert.deepStrictEqual(
-          await client.send([['LRANGE', 'x', '0', '-1']]),
-          [[[Buffer.from('message'), Buffer.from('x'), Buffer.from('data')]]],
-        );
-        assert.deepStrictEqual(messages, []);
-      } finally {
-        client.quit();
-        await server.close();
-      }
-    });
+    }
 
     it('does not report ready when the connection drops while restoring', async () => {
       const server = await startSubscriptionServer((subscribeCount, socket) => {

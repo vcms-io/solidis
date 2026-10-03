@@ -13,6 +13,7 @@ import { generateDebugHandle } from './common/utils/debug.ts';
 import {
   RespError,
   SolidisClientError,
+  SolidisCommandError,
   SolidisConnectionError,
   SolidisRequesterError,
   wrapWithError,
@@ -363,7 +364,7 @@ export class SolidisClient extends EventEmitter {
 
     this.#notify('ready');
 
-    if (isReconnected) {
+    if (isReconnected && session === this.#session) {
       this.#notify('reconnected');
     }
   }
@@ -477,7 +478,11 @@ export class SolidisClient extends EventEmitter {
 
       const error = await handshake
         .send([[eventName.toUpperCase(), ...subscriptions]])
-        .then(findErrorInReplies, (sendError: unknown) => sendError);
+        .then(findErrorInReplies, (sendError: unknown) =>
+          sendError instanceof SolidisCommandError
+            ? sendError.cause
+            : sendError,
+        );
 
       if (!error) {
         continue;

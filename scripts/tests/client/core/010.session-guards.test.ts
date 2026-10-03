@@ -346,6 +346,43 @@ describe('session-guards', () => {
       }
     });
 
+    it('announces no reconnect after quit() runs inside a ready listener', async () => {
+      const server = await startServer(answerPong);
+      const client = new SolidisFeaturedClient(
+        mockClientOptions(server.port, {
+          autoReconnect: true,
+          connectionRetryDelay: 10,
+        }),
+      );
+      const events: string[] = [];
+
+      client.on('error', () => {});
+
+      for (const event of ['ready', 'reconnected', 'end'] as const) {
+        client.on(event, () => events.push(event));
+      }
+
+      client.on('ready', () => {
+        if (events.length > 1) {
+          client.quit();
+        }
+      });
+
+      try {
+        await client.connect();
+
+        server.destroySockets();
+
+        await waitFor(() => events.includes('end'));
+        await delay(50);
+
+        assert.deepStrictEqual(events, ['ready', 'ready', 'end']);
+      } finally {
+        client.quit();
+        await server.close();
+      }
+    });
+
     it('keeps the session working when ready and close listeners throw', async () => {
       const server = await startServer(answerPong);
       const client = new SolidisFeaturedClient(
