@@ -1,32 +1,56 @@
+import { SolidisBulkZeroCopyThreshold } from '../common/constants.ts';
 import {
-  SolidisBulkZeroCopyThreshold,
-  SolidisReplyBytes,
-  SolidisSymbolBytes,
-} from '../common/constants.ts';
+  SolidisArrayReplyByte,
+  SolidisAttributeReplyByte,
+  SolidisBigNumberReplyByte,
+  SolidisBlobErrorReplyByte,
+  SolidisBooleanReplyByte,
+  SolidisBulkReplyByte,
+  SolidisCarriageReturnByte,
+  SolidisColonByte,
+  SolidisDoubleReplyByte,
+  SolidisErrorReplyByte,
+  SolidisIntegerReplyByte,
+  SolidisLineFeedByte,
+  SolidisLowercaseFByte,
+  SolidisLowercaseTByte,
+  SolidisMapReplyByte,
+  SolidisMinusByte,
+  SolidisNullReplyByte,
+  SolidisPushReplyByte,
+  SolidisSetReplyByte,
+  SolidisStringReplyByte,
+  SolidisVerbatimStringReplyByte,
+  SolidisZeroByte,
+} from '../common/internal.ts';
 import { RespError, SolidisParserError } from '../common/utils/error.ts';
 import { parseDouble } from '../common/utils/number.ts';
 import { RespPush } from '../types/resp.ts';
 
 import type { SolidisData, SolidisParserOptions } from '../types/solidis.ts';
 
-const { CR, LF, ZERO, MINUS, COLON, LOWER_T, LOWER_F } = SolidisSymbolBytes;
-const {
-  STRING,
-  ERROR,
-  INTEGER,
-  BULK,
-  ARRAY,
-  MAP,
-  NULL,
-  BOOLEAN,
-  DOUBLE,
-  BIG_NUMBER,
-  VERBATIM_STRING,
-  BLOB_ERROR,
-  SET,
-  ATTRIBUTE,
-  PUSH,
-} = SolidisReplyBytes;
+const CR = SolidisCarriageReturnByte;
+const LF = SolidisLineFeedByte;
+const ZERO = SolidisZeroByte;
+const MINUS = SolidisMinusByte;
+const COLON = SolidisColonByte;
+const LOWER_T = SolidisLowercaseTByte;
+const LOWER_F = SolidisLowercaseFByte;
+const STRING = SolidisStringReplyByte;
+const ERROR = SolidisErrorReplyByte;
+const INTEGER = SolidisIntegerReplyByte;
+const BULK = SolidisBulkReplyByte;
+const ARRAY = SolidisArrayReplyByte;
+const MAP = SolidisMapReplyByte;
+const NULL = SolidisNullReplyByte;
+const BOOLEAN = SolidisBooleanReplyByte;
+const DOUBLE = SolidisDoubleReplyByte;
+const BIG_NUMBER = SolidisBigNumberReplyByte;
+const VERBATIM_STRING = SolidisVerbatimStringReplyByte;
+const BLOB_ERROR = SolidisBlobErrorReplyByte;
+const SET = SolidisSetReplyByte;
+const ATTRIBUTE = SolidisAttributeReplyByte;
+const PUSH = SolidisPushReplyByte;
 
 const NeedsMoreData = Symbol();
 const NoValue = Symbol();
@@ -158,7 +182,7 @@ export class SolidisParser {
     while (true) {
       const frame = this.#frames.at(-1);
 
-      if (frame === undefined) {
+      if (!frame) {
         replies.push(completed);
 
         return;

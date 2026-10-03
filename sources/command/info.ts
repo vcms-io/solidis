@@ -1,4 +1,4 @@
-import { SolidisStringSymbols } from '../common/constants.ts';
+import { SolidisNewLine } from '../common/internal.ts';
 import { executeCommand, tryReplyToString } from './utils/index.ts';
 
 export function createCommand(section?: string) {
@@ -12,7 +12,7 @@ export function createCommand(section?: string) {
 }
 
 function parseInfo(reply: string): Record<string, string> {
-  const lines = reply.split(SolidisStringSymbols.NL);
+  const lines = reply.split(SolidisNewLine);
   const record: Record<string, string> = {};
 
   for (const line of lines) {

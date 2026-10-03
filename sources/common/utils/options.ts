@@ -29,7 +29,7 @@ export function parseConnectionUri(uri: string | URL): SolidisClientOptions {
     throw new SolidisClientError('Invalid URI');
   }
 
-  if (url.protocol !== 'redis:' && url.protocol !== 'rediss:') {
+  if (!/^rediss?:$/.test(url.protocol)) {
     throw new SolidisClientError(
       `Unsupported URI scheme '${url.protocol}', expected redis: or rediss:`,
     );
@@ -41,19 +41,19 @@ export function parseConnectionUri(uri: string | URL): SolidisClientOptions {
   const password = decodeUriComponent(url.password);
   const database = url.pathname.slice(1);
 
-  if (host !== '') {
+  if (host) {
     options.host = host;
   }
 
-  if (url.port !== '') {
+  if (url.port) {
     options.port = Number(url.port);
   }
 
-  if (username !== '' || password !== '') {
+  if (username || password) {
     options.authentication = { username, password };
   }
 
-  if (database !== '') {
+  if (database) {
     const index = Number(database);
 
     if (!Number.isInteger(index) || index < 0) {

@@ -1,12 +1,13 @@
-import { EventEmitter } from 'node:events';
 import net from 'node:net';
 import tls from 'node:tls';
 
+import { SolidisSocketNotConnectedMessage } from '../common/internal.ts';
 import { generateDebugHandle } from '../common/utils/debug.ts';
 import {
   SolidisConnectionError,
   wrapWithSolidisConnectionError,
 } from '../common/utils/error.ts';
+import { EventEmitter } from './internal.ts';
 
 import type {
   SolidisConnectionEventHandlers,
@@ -106,8 +107,8 @@ export class SolidisConnection extends EventEmitter {
   public write(buffer: Buffer): boolean {
     const socket = this.#socket;
 
-    if (socket === null || !this.#isConnected) {
-      throw new SolidisConnectionError('Socket is not connected.');
+    if (!socket || !this.#isConnected) {
+      throw new SolidisConnectionError(SolidisSocketNotConnectedMessage);
     }
 
     return socket.write(buffer);
@@ -147,11 +148,7 @@ export class SolidisConnection extends EventEmitter {
   }
 
   #startAttempts() {
-    if (
-      this.#isQuitted ||
-      this.#socket !== null ||
-      this.#retryTimer !== undefined
-    ) {
+    if (this.#isQuitted || this.#socket || this.#retryTimer) {
       return;
     }
 
@@ -186,8 +183,7 @@ export class SolidisConnection extends EventEmitter {
   }
 
   #attempt() {
-    const { host, port, connectionTimeout } = this.#options;
-    const tlsOptions = this.#options.tls;
+    const { host, port, connectionTimeout, tls: tlsOptions } = this.#options;
     const socket = tlsOptions
       ? tls.connect({ ...tlsOptions, host, port })
       : net.connect({ host, port });

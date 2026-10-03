@@ -1,4 +1,5 @@
 import { SolidisCredentialCommandNameSet } from '../constants.ts';
+import { SolidisDebugPreviewLength } from '../internal.ts';
 import { commandsToBuffer, getCommandName } from './request.ts';
 
 import type { SolidisDebugMemory } from '../../modules/debug.ts';
@@ -6,8 +7,6 @@ import type {
   SolidisDebugLogType,
   StringOrBuffer,
 } from '../../types/solidis.ts';
-
-const previewLength = 1024;
 
 export function generateDebugHandle(debugMemory?: SolidisDebugMemory) {
   if (!debugMemory) {
@@ -48,8 +47,8 @@ export function sanitizeCommandsBufferForDebug(
     ? commandsToBuffer(commands.map(maskCredentials))
     : buffer;
 
-  if (sanitizedBuffer.length > previewLength) {
-    return `${sanitizedBuffer.toString('utf8', 0, previewLength)}...`;
+  if (sanitizedBuffer.length > SolidisDebugPreviewLength) {
+    return `${sanitizedBuffer.toString('utf8', 0, SolidisDebugPreviewLength)}...`;
   }
 
   return sanitizedBuffer.toString();

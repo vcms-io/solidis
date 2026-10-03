@@ -1,5 +1,3 @@
-import { EventEmitter } from 'node:events';
-
 import { auth } from './command/auth.ts';
 import { clientSetname } from './command/client.setname.ts';
 import { hello } from './command/hello.ts';
@@ -9,6 +7,10 @@ import {
   SolidisMaximumTimerDelay,
   SolidisSubscribeEventNames,
 } from './common/constants.ts';
+import {
+  SolidisAuthenticationFailedMessage,
+  SolidisSocketNotConnectedMessage,
+} from './common/internal.ts';
 import { generateDebugHandle } from './common/utils/debug.ts';
 import {
   RespError,
@@ -21,6 +23,7 @@ import { resolveClientOptions } from './common/utils/options.ts';
 import { findErrorInReplies } from './common/utils/reply.ts';
 import { SolidisConnection } from './modules/connection.ts';
 import { SolidisDebugMemory } from './modules/debug.ts';
+import { EventEmitter } from './modules/internal.ts';
 import { SolidisPubSub } from './modules/pubsub.ts';
 import { SolidisRequester } from './modules/requester.ts';
 import { SolidisProtocols } from './types/solidis.ts';
@@ -316,7 +319,7 @@ export class SolidisClient extends EventEmitter {
         session === this.#session
           ? this.#requester.send(commands)
           : Promise.reject(
-              new SolidisRequesterError('Socket is not connected.'),
+              new SolidisRequesterError(SolidisSocketNotConnectedMessage),
             ),
     };
 
@@ -328,13 +331,15 @@ export class SolidisClient extends EventEmitter {
       await this.#restoreSession(handshake);
     } catch (error) {
       if (session === this.#session) {
+        const reason = wrapWithError(error);
+
         this.#debug?.('error', 'Initialization failed', error);
 
         if (this.#pendingConnects === 0) {
-          this.emit('error', wrapWithError(error));
+          this.emit('error', reason);
         }
 
-        this.#connection.reset(wrapWithError(error));
+        this.#connection.reset(reason);
 
         throw error;
       }
@@ -370,8 +375,8 @@ export class SolidisClient extends EventEmitter {
     const { username, password } =
       this.#requester.authentication ?? this.#options.authentication;
 
-    let isAuthenticated = password === '';
-    let isNamed = clientName === '';
+    let isAuthenticated = !password;
+    let isNamed = !clientName;
 
     if (protocol === SolidisProtocols.RESP3) {
       try {
@@ -385,7 +390,7 @@ export class SolidisClient extends EventEmitter {
         if (!/^NOPROTO|unknown command/.test(message)) {
           throw new SolidisClientError(
             /^(WRONGPASS|NOAUTH)/.test(message)
-              ? 'Authentication failed'
+              ? SolidisAuthenticationFailedMessage
               : 'Protocol negotiation failed',
             error,
           );
@@ -399,7 +404,7 @@ export class SolidisClient extends EventEmitter {
       try {
         await auth.call(handshake, username, password);
       } catch (error) {
-        throw new SolidisClientError('Authentication failed', error);
+        throw new SolidisClientError(SolidisAuthenticationFailedMessage, error);
       }
     }
 

@@ -225,7 +225,7 @@ export function buildSetCommand(
 ) {
   const command = ['SET', key, value];
 
-  if (options !== undefined) {
+  if (options) {
     appendExpireOptions(command, options);
 
     if (options.keepOriginalTimeToLive === true) {

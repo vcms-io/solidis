@@ -1,4 +1,4 @@
-import type { SolidisSessionCommandKinds } from '../common/internal.ts';
+import type { SolidisSessionCommandKinds } from '../modules/internal.ts';
 import type {
   SolidisData,
   SolidisSubscriptionEventName,
@@ -28,17 +28,12 @@ export interface SolidisSubRequest {
   index: number;
 }
 
-export interface SolidisPipelineDraft {
-  commands: StringOrBuffer[][];
-  subRequests: SolidisSubRequest[];
-  timeout: number;
-  isBlocking: boolean;
-}
-
 export interface SolidisPipeline {
+  commands: StringOrBuffer[][];
   subRequests: SolidisSubRequest[];
   subRequestIndex: number;
   subReplies: SolidisData[];
+  timeout: number;
   timer: NodeJS.Timeout | undefined;
   isBlocking: boolean;
   isTimedOut: boolean;

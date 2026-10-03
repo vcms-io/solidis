@@ -1,37 +1,38 @@
-import { SolidisSubscriptionEventNames } from './constants.ts';
+export const SolidisAsteriskByte = 42;
+export const SolidisDollarByte = 36;
+export const SolidisCarriageReturnByte = 13;
+export const SolidisLineFeedByte = 10;
+export const SolidisZeroByte = 48;
+export const SolidisMinusByte = 45;
+export const SolidisColonByte = 58;
+export const SolidisLowercaseTByte = 116;
+export const SolidisLowercaseFByte = 102;
 
-import type { SolidisCommandKind } from '../types/internal.ts';
+export const SolidisStringReplyByte = 43;
+export const SolidisErrorReplyByte = 45;
+export const SolidisIntegerReplyByte = 58;
+export const SolidisBulkReplyByte = 36;
+export const SolidisArrayReplyByte = 42;
+export const SolidisMapReplyByte = 37;
+export const SolidisNullReplyByte = 95;
+export const SolidisBooleanReplyByte = 35;
+export const SolidisDoubleReplyByte = 44;
+export const SolidisBigNumberReplyByte = 40;
+export const SolidisVerbatimStringReplyByte = 61;
+export const SolidisBlobErrorReplyByte = 33;
+export const SolidisSetReplyByte = 126;
+export const SolidisAttributeReplyByte = 124;
+export const SolidisPushReplyByte = 62;
 
-export const SolidisSessionCommandKinds = [
-  'select',
-  'hello',
-  'auth',
-  'reset',
-  'watch',
-  'unwatch',
-  'multi',
-  'exec',
-  'discard',
-] as const;
+export const SolidisInfinityText = 'inf';
+export const SolidisNegativeInfinityText = '-inf';
+export const SolidisNotANumberText = 'nan';
 
-export const SolidisUnsupportedCommandNameSet: ReadonlySet<string> = new Set([
-  'MONITOR',
-  'SYNC',
-  'PSYNC',
-  'CLIENT REPLY OFF',
-  'CLIENT REPLY SKIP',
-  'SCRIPT DEBUG YES',
-  'SCRIPT DEBUG SYNC',
-  'REPLCONF ACK',
-  'REPLCONF GETACK',
-]);
+export const SolidisNewLine = '\r\n';
 
-export const SolidisCommandKinds: ReadonlyMap<string, SolidisCommandKind> =
-  new Map<string, SolidisCommandKind>([
-    ...[...SolidisSubscriptionEventNames, ...SolidisSessionCommandKinds].map(
-      (kind) => [kind.toUpperCase(), kind] as const,
-    ),
-    ...[...SolidisUnsupportedCommandNameSet].map(
-      (name) => [name.split(' ')[0], 'restricted'] as const,
-    ),
-  ]);
+export const SolidisKilobyte = 1024;
+export const SolidisMegabyte = 1048576;
+export const SolidisDebugPreviewLength = 1024;
+
+export const SolidisSocketNotConnectedMessage = 'Socket is not connected.';
+export const SolidisAuthenticationFailedMessage = 'Authentication failed';

@@ -1,12 +1,18 @@
+import { SolidisContainerCommandNameSet } from '../constants.ts';
 import {
-  SolidisContainerCommandNameSet,
-  SolidisSymbolBytes,
-} from '../constants.ts';
+  SolidisAsteriskByte,
+  SolidisCarriageReturnByte,
+  SolidisDollarByte,
+  SolidisLineFeedByte,
+} from '../internal.ts';
 import { RespError, SolidisCommandError } from './error.ts';
 
 import type { StringOrBuffer } from '../../types/solidis.ts';
 
-const { ASTERISK, DOLLAR, CR, LF } = SolidisSymbolBytes;
+const ASTERISK = SolidisAsteriskByte;
+const DOLLAR = SolidisDollarByte;
+const CR = SolidisCarriageReturnByte;
+const LF = SolidisLineFeedByte;
 
 const numberTextCache = Array.from({ length: 8192 }, (_, index) => `${index}`);
 
@@ -97,7 +103,7 @@ function redactArguments(
   for (const argument of command.slice(visibleLength)) {
     const text = String(argument).replace(/[\r\n]/g, ' ');
 
-    if (text === '' || !result.includes(`'${text[0]}`)) {
+    if (!text || !result.includes(`'${text[0]}`)) {
       continue;
     }
 

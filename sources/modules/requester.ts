@@ -1,8 +1,5 @@
 import { SolidisMaximumTimerDelay } from '../common/constants.ts';
-import {
-  SolidisCommandKinds,
-  SolidisUnsupportedCommandNameSet,
-} from '../common/internal.ts';
+import { SolidisSocketNotConnectedMessage } from '../common/internal.ts';
 import {
   generateDebugHandle,
   sanitizeCommandsBufferForDebug,
@@ -26,12 +23,15 @@ import {
 } from '../common/utils/request.ts';
 import { RespPush } from '../types/resp.ts';
 import { SolidisProtocols } from '../types/solidis.ts';
+import {
+  SolidisCommandKinds,
+  SolidisUnsupportedCommandNameSet,
+} from './internal.ts';
 import { SolidisParser } from './parser.ts';
 
 import type {
   SolidisCommandKind,
   SolidisPipeline,
-  SolidisPipelineDraft,
   SolidisRequest,
   SolidisSubRequest,
 } from '../types/internal.ts';
@@ -62,7 +62,7 @@ function classifyCommand(command: StringOrBuffer[]) {
     }
   }
 
-  return kind ?? undefined;
+  return kind;
 }
 
 function isUnsupported(command: StringOrBuffer[]) {
@@ -73,8 +73,10 @@ function isUnsupported(command: StringOrBuffer[]) {
   );
 }
 
-function createCommandError(command: StringOrBuffer[], reason: string) {
-  return new SolidisRequesterError(`${getCommandName(command)} ${reason}`);
+function rejectCommand(command: StringOrBuffer[], reason: string) {
+  return Promise.reject(
+    new SolidisRequesterError(`${getCommandName(command)} ${reason}`),
+  );
 }
 
 function resolveTimeout(commandTimeout: number, blockingTimeout?: number) {
@@ -85,7 +87,7 @@ function resolveTimeout(commandTimeout: number, blockingTimeout?: number) {
     blockingTimeout === 0 ||
     timeout > SolidisMaximumTimerDelay
   ) {
-    return Number.POSITIVE_INFINITY;
+    return 0;
   }
 
   return timeout;
@@ -95,19 +97,31 @@ function getReplySpan(
   command: StringOrBuffer[],
   kind: SolidisCommandKind | undefined,
 ) {
-  if (kind === undefined || !isSubscriptionEventName(kind)) {
+  if (!isSubscriptionEventName(kind)) {
     return 1;
   }
 
   return Math.max(1, command.length - 1);
 }
 
-function createDraft(): SolidisPipelineDraft {
+function rejectPipeline(pipeline: SolidisPipeline, error: unknown) {
+  clearTimeout(pipeline.timer);
+
+  for (const subRequest of pipeline.subRequests) {
+    subRequest.request.reject(error);
+  }
+}
+
+function createPipeline(): SolidisPipeline {
   return {
     commands: [],
     subRequests: [],
+    subRequestIndex: 0,
+    subReplies: [],
     timeout: 0,
+    timer: undefined,
     isBlocking: false,
+    isTimedOut: false,
   };
 }
 
@@ -184,34 +198,28 @@ export class SolidisRequester {
 
       for (const argument of command) {
         if (typeof argument !== 'string' && !Buffer.isBuffer(argument)) {
-          return Promise.reject(
-            createCommandError(command, 'takes only strings and Buffers.'),
-          );
+          return rejectCommand(command, 'takes only strings and Buffers.');
         }
       }
 
       const kind = classifyCommand(command);
 
-      if (kind === undefined) {
+      if (kind === null) {
         continue;
       }
 
       if (kind === 'restricted') {
         if (isUnsupported(command)) {
-          return Promise.reject(
-            createCommandError(command, `is not supported: ${pairingReason}`),
-          );
+          return rejectCommand(command, `is not supported: ${pairingReason}`);
         }
 
         continue;
       }
 
       if (isQueueing && isSubscriptionEventName(kind)) {
-        return Promise.reject(
-          createCommandError(
-            command,
-            `is not supported inside a transaction: ${pairingReason}`,
-          ),
+        return rejectCommand(
+          command,
+          `is not supported inside a transaction: ${pairingReason}`,
         );
       }
 
@@ -249,9 +257,8 @@ export class SolidisRequester {
         resolve: isDiscarded
           ? () =>
               reject(
-                createCommandError(
-                  ['EXEC'],
-                  'was discarded: WATCH was lost with the connection.',
+                new SolidisRequesterError(
+                  'EXEC was discarded: WATCH was lost with the connection.',
                 ),
               )
           : resolve,
@@ -274,7 +281,7 @@ export class SolidisRequester {
     this.#pendingRequests = [];
 
     if (!this.#options.connection.isConnected) {
-      const error = new SolidisRequesterError('Socket is not connected.');
+      const error = new SolidisRequesterError(SolidisSocketNotConnectedMessage);
 
       for (const request of requests) {
         request.reject(error);
@@ -288,62 +295,58 @@ export class SolidisRequester {
       this.#options.maxCommandsPerPipeline,
     );
 
-    let draft = createDraft();
+    let pipeline = createPipeline();
 
     for (const request of requests) {
       if (
-        draft.commands.length > 0 &&
+        pipeline.commands.length > 0 &&
         (request.isBlocking ||
-          draft.isBlocking ||
-          request.timeout !== draft.timeout)
+          pipeline.isBlocking ||
+          request.timeout !== pipeline.timeout)
       ) {
-        this.#seal(draft);
+        this.#seal(pipeline);
 
-        draft = createDraft();
+        pipeline = createPipeline();
       }
 
       for (let index = 0; index < request.commands.length; index += 1) {
-        if (draft.commands.length >= maxCommandsPerPipeline) {
-          this.#seal(draft);
+        if (pipeline.commands.length >= maxCommandsPerPipeline) {
+          this.#seal(pipeline);
 
-          draft = createDraft();
+          pipeline = createPipeline();
         }
 
         const kind = request.kinds?.[index];
         const command = this.#expandCommand(
           request.commands[index],
           kind,
-          draft,
+          pipeline,
         );
 
-        draft.commands.push(command);
-        draft.subRequests.push({
+        pipeline.commands.push(command);
+        pipeline.subRequests.push({
           request,
           command,
           kind,
           span: getReplySpan(command, kind),
           index,
         });
-        draft.timeout = request.timeout;
-        draft.isBlocking ||= request.isBlocking;
+        pipeline.timeout = request.timeout;
+        pipeline.isBlocking ||= request.isBlocking;
       }
     }
 
-    if (draft.commands.length > 0) {
-      this.#seal(draft);
+    if (pipeline.commands.length > 0) {
+      this.#seal(pipeline);
     }
   }
 
   #expandCommand(
     command: StringOrBuffer[],
     kind: SolidisCommandKind | undefined,
-    draft: SolidisPipelineDraft,
+    pipeline: SolidisPipeline,
   ) {
-    if (
-      command.length > 1 ||
-      kind === undefined ||
-      !isUnsubscribeEventName(kind)
-    ) {
+    if (command.length > 1 || !isUnsubscribeEventName(kind)) {
       return command;
     }
 
@@ -351,8 +354,8 @@ export class SolidisRequester {
     const channels: StringOrBuffer[] =
       this.#options.pubSub.getSubscriptions(kind);
 
-    for (const pipeline of [...this.#inflightQueue, draft]) {
-      for (const subRequest of pipeline.subRequests) {
+    for (const { subRequests } of [...this.#inflightQueue, pipeline]) {
+      for (const subRequest of subRequests) {
         if (subRequest.kind === subscribeKind) {
           channels.push(...subRequest.command.slice(1));
         }
@@ -362,27 +365,19 @@ export class SolidisRequester {
     return channels.length === 0 ? command : [command[0], ...channels];
   }
 
-  #seal(draft: SolidisPipelineDraft) {
-    const buffer = commandsToBuffer(draft.commands);
-    const pipeline: SolidisPipeline = {
-      subRequests: draft.subRequests,
-      subRequestIndex: 0,
-      subReplies: [],
-      timer: undefined,
-      isBlocking: draft.isBlocking,
-      isTimedOut: false,
-    };
+  #seal(pipeline: SolidisPipeline) {
+    const buffer = commandsToBuffer(pipeline.commands);
 
-    if (Number.isFinite(draft.timeout)) {
+    if (pipeline.timeout > 0) {
       pipeline.timer = setTimeout(
-        () => this.#timeOut(pipeline, draft.timeout),
-        draft.timeout,
+        () => this.#timeOut(pipeline),
+        pipeline.timeout,
       );
     }
 
     this.#debug?.(
       'debug',
-      `Requester serialized: ${sanitizeCommandsBufferForDebug(buffer, draft.commands)}`,
+      `Requester serialized: ${sanitizeCommandsBufferForDebug(buffer, pipeline.commands)}`,
     );
 
     this.#inflightQueue.push(pipeline);
@@ -411,74 +406,52 @@ export class SolidisRequester {
   }
 
   #route(reply: SolidisData) {
-    if (!Array.isArray(reply)) {
-      this.#resolveNext(reply);
+    if (Array.isArray(reply)) {
+      const { pubSub } = this.#options;
+      const isPush = reply instanceof RespPush;
+      const isEvent =
+        isPush ||
+        (this.#protocol === SolidisProtocols.RESP2 &&
+          pubSub.hasActiveSubscriptions);
+      const confirmation = this.#getExpectedConfirmation();
 
-      return;
-    }
+      if (isEvent || confirmation) {
+        const eventName = getPubSubEventName(reply);
 
-    const isPush = reply instanceof RespPush;
-    const confirmation = this.#getExpectedConfirmation();
-    const isSubscribed =
-      this.#protocol === SolidisProtocols.RESP2 &&
-      this.#options.pubSub.hasActiveSubscriptions;
+        if (!eventName) {
+          if (isPush) {
+            pubSub.dispatchPush(reply);
 
-    if (!isPush && !isSubscribed && confirmation === undefined) {
-      this.#resolveNext(reply);
+            return;
+          }
+        } else if (eventName === confirmation) {
+          pubSub.dispatchSubscriptionChange(confirmation, reply);
+        } else if (isEvent) {
+          if (isMessageEventName(eventName)) {
+            pubSub.dispatchMessage(eventName, reply);
+          } else if (isSubscriptionEventName(eventName)) {
+            pubSub.dispatchSubscriptionChange(eventName, reply);
+          }
 
-      return;
-    }
-
-    const eventName = getPubSubEventName(reply);
-
-    if (eventName === undefined) {
-      if (isPush) {
-        this.#options.pubSub.dispatchPush(reply);
-      } else {
-        this.#resolveNext(reply);
+          return;
+        }
       }
-
-      return;
     }
 
-    if (eventName === confirmation) {
-      this.#options.pubSub.dispatchSubscriptionChange(confirmation, reply);
-      this.#resolveNext(reply);
-
-      return;
-    }
-
-    if (!isPush && !isSubscribed) {
-      this.#resolveNext(reply);
-
-      return;
-    }
-
-    if (isMessageEventName(eventName)) {
-      this.#options.pubSub.dispatchMessage(eventName, reply);
-    } else if (isSubscriptionEventName(eventName)) {
-      this.#options.pubSub.dispatchSubscriptionChange(eventName, reply);
-    }
+    this.#resolveNext(reply);
   }
 
   #getExpectedConfirmation() {
     const pipeline = this.#inflightQueue[0];
+    const kind = pipeline?.subRequests[pipeline.subRequestIndex].kind;
 
-    if (pipeline === undefined) {
-      return undefined;
-    }
-
-    const kind = pipeline.subRequests[pipeline.subRequestIndex].kind;
-
-    return kind !== undefined && isSubscriptionEventName(kind)
-      ? kind
-      : undefined;
+    return isSubscriptionEventName(kind) ? kind : undefined;
   }
 
   #resolveNext(reply: SolidisData) {
     const pipeline = this.#inflightQueue[0];
 
-    if (pipeline === undefined) {
+    if (!pipeline) {
       this.#options.emit(
         'error',
         new SolidisRequesterError('Received reply with no pending request'),
@@ -519,7 +492,7 @@ export class SolidisRequester {
   #complete(subRequest: SolidisSubRequest, replies: SolidisData[]) {
     const { request } = subRequest;
 
-    if (this.#transaction !== undefined && replies[0] === 'QUEUED') {
+    if (this.#transaction && replies[0] === 'QUEUED') {
       this.#transaction.push(subRequest);
     } else if (subRequest.kind !== undefined) {
       this.#track(subRequest, replies[0]);
@@ -527,9 +500,9 @@ export class SolidisRequester {
 
     request.replies[subRequest.index] = replies;
 
-    const error = this.#options.rejectOnPartialPipelineError
-      ? replies.find((reply): reply is RespError => reply instanceof RespError)
-      : undefined;
+    const error =
+      this.#options.rejectOnPartialPipelineError &&
+      replies.find((reply): reply is RespError => reply instanceof RespError);
 
     if (error) {
       request.reject(toCommandError(error, subRequest.command));
@@ -559,57 +532,31 @@ export class SolidisRequester {
       return;
     }
 
-    switch (kind) {
-      case 'multi': {
-        this.#transaction = [];
+    if (kind === 'multi') {
+      this.#transaction = [];
+    } else if (kind === 'select') {
+      this.#database = Number(argument);
+    } else if (kind === 'auth') {
+      this.#authenticate(
+        command.length > 2 ? argument : 'default',
+        command.at(-1),
+      );
+    } else if (kind === 'hello' && argument !== undefined) {
+      this.#protocol =
+        String(argument) === '3'
+          ? SolidisProtocols.RESP3
+          : SolidisProtocols.RESP2;
 
-        return;
+      if (String(command[2]).toUpperCase() === 'AUTH') {
+        this.#authenticate(command[3], command[4]);
       }
+    } else if (kind === 'reset') {
+      this.#protocol = SolidisProtocols.RESP2;
+      this.#database = 0;
+      this.#authentication = undefined;
+      this.#transaction = undefined;
 
-      case 'select': {
-        this.#database = Number(argument);
-
-        return;
-      }
-
-      case 'auth': {
-        this.#authenticate(
-          command.length > 2 ? argument : 'default',
-          command.at(-1),
-        );
-
-        return;
-      }
-
-      case 'hello': {
-        if (argument !== undefined) {
-          this.#protocol =
-            String(argument) === '3'
-              ? SolidisProtocols.RESP3
-              : SolidisProtocols.RESP2;
-
-          if (String(command[2]).toUpperCase() === 'AUTH') {
-            this.#authenticate(command[3], command[4]);
-          }
-        }
-
-        return;
-      }
-
-      case 'reset': {
-        this.#protocol = SolidisProtocols.RESP2;
-        this.#database = 0;
-        this.#authentication = undefined;
-        this.#transaction = undefined;
-
-        this.#options.pubSub.clear();
-
-        return;
-      }
-
-      default: {
-        return;
-      }
+      this.#options.pubSub.clear();
     }
   }
 
@@ -623,16 +570,14 @@ export class SolidisRequester {
     };
   }
 
-  #timeOut(pipeline: SolidisPipeline, timeout: number) {
+  #timeOut(pipeline: SolidisPipeline) {
     const error = new SolidisRequesterError(
-      `Command(s) timed out after ${timeout} ms.`,
+      `Command(s) timed out after ${pipeline.timeout} ms.`,
     );
 
     pipeline.isTimedOut = true;
 
-    for (const subRequest of pipeline.subRequests) {
-      subRequest.request.reject(error);
-    }
+    rejectPipeline(pipeline, error);
 
     if (
       pipeline.isBlocking ||
@@ -664,11 +609,7 @@ export class SolidisRequester {
     this.#isWatching = false;
 
     for (const pipeline of pipelines) {
-      clearTimeout(pipeline.timer);
-
-      for (const subRequest of pipeline.subRequests) {
-        subRequest.request.reject(error);
-      }
+      rejectPipeline(pipeline, error);
     }
 
     for (const request of requests) {

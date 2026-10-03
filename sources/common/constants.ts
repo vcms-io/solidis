@@ -1,9 +1,37 @@
+import {
+  SolidisArrayReplyByte,
+  SolidisAsteriskByte,
+  SolidisAttributeReplyByte,
+  SolidisBigNumberReplyByte,
+  SolidisBlobErrorReplyByte,
+  SolidisBooleanReplyByte,
+  SolidisBulkReplyByte,
+  SolidisCarriageReturnByte,
+  SolidisColonByte,
+  SolidisDollarByte,
+  SolidisDoubleReplyByte,
+  SolidisErrorReplyByte,
+  SolidisInfinityText,
+  SolidisIntegerReplyByte,
+  SolidisKilobyte,
+  SolidisLineFeedByte,
+  SolidisLowercaseFByte,
+  SolidisLowercaseTByte,
+  SolidisMapReplyByte,
+  SolidisMegabyte,
+  SolidisMinusByte,
+  SolidisNegativeInfinityText,
+  SolidisNewLine,
+  SolidisNotANumberText,
+  SolidisNullReplyByte,
+  SolidisPushReplyByte,
+  SolidisSetReplyByte,
+  SolidisStringReplyByte,
+  SolidisVerbatimStringReplyByte,
+  SolidisZeroByte,
+} from './internal.ts';
+
 import type { SolidisClientFrozenOptions } from '../types/solidis.ts';
-
-const KB = 1024 as const;
-const MB = 1048576 as const;
-
-const NL = '\r\n' as const;
 
 export const SolidisDefaultOptions: SolidisClientFrozenOptions = {
   authentication: { username: '', password: '' },
@@ -20,7 +48,7 @@ export const SolidisDefaultOptions: SolidisClientFrozenOptions = {
   connectionRetryDelay: 100,
   database: 0,
   debug: false,
-  debugMaxEntries: KB * 10,
+  debugMaxEntries: SolidisKilobyte * 10,
   enableReadyCheck: true,
   host: '127.0.0.1',
   uri: false,
@@ -28,9 +56,9 @@ export const SolidisDefaultOptions: SolidisClientFrozenOptions = {
   maxConnectionRetries: 20,
   maxConnectionRetryDelay: 2000,
   maxCommandsPerPipeline: 300,
-  maxEventListenersForClient: KB * 10,
+  maxEventListenersForClient: SolidisKilobyte * 10,
   parser: {
-    maxBulkStringLength: MB * 512,
+    maxBulkStringLength: SolidisMegabyte * 512,
   },
   port: 6379,
   protocol: 'RESP2',
@@ -39,48 +67,48 @@ export const SolidisDefaultOptions: SolidisClientFrozenOptions = {
   rejectOnPartialPipelineError: false,
 } as const;
 
-export const SolidisBulkZeroCopyThreshold = KB * 64;
+export const SolidisBulkZeroCopyThreshold = SolidisKilobyte * 64;
 
 export const SolidisMaximumTimerDelay = 2147483647;
 
 export const SolidisSymbolBytes = {
-  ASTERISK: 42,
-  DOLLAR: 36,
-  CR: 13,
-  LF: 10,
-  ZERO: 48,
-  MINUS: 45,
-  COLON: 58,
-  LOWER_T: 116,
-  LOWER_F: 102,
+  ASTERISK: SolidisAsteriskByte,
+  DOLLAR: SolidisDollarByte,
+  CR: SolidisCarriageReturnByte,
+  LF: SolidisLineFeedByte,
+  ZERO: SolidisZeroByte,
+  MINUS: SolidisMinusByte,
+  COLON: SolidisColonByte,
+  LOWER_T: SolidisLowercaseTByte,
+  LOWER_F: SolidisLowercaseFByte,
 } as const;
 
 export const SolidisReplyBytes = {
-  STRING: 43,
-  ERROR: 45,
-  INTEGER: 58,
-  BULK: 36,
-  ARRAY: 42,
-  MAP: 37,
-  NULL: 95,
-  BOOLEAN: 35,
-  DOUBLE: 44,
-  BIG_NUMBER: 40,
-  VERBATIM_STRING: 61,
-  BLOB_ERROR: 33,
-  SET: 126,
-  ATTRIBUTE: 124,
-  PUSH: 62,
+  STRING: SolidisStringReplyByte,
+  ERROR: SolidisErrorReplyByte,
+  INTEGER: SolidisIntegerReplyByte,
+  BULK: SolidisBulkReplyByte,
+  ARRAY: SolidisArrayReplyByte,
+  MAP: SolidisMapReplyByte,
+  NULL: SolidisNullReplyByte,
+  BOOLEAN: SolidisBooleanReplyByte,
+  DOUBLE: SolidisDoubleReplyByte,
+  BIG_NUMBER: SolidisBigNumberReplyByte,
+  VERBATIM_STRING: SolidisVerbatimStringReplyByte,
+  BLOB_ERROR: SolidisBlobErrorReplyByte,
+  SET: SolidisSetReplyByte,
+  ATTRIBUTE: SolidisAttributeReplyByte,
+  PUSH: SolidisPushReplyByte,
 } as const;
 
 export const SolidisNumberTypes = {
-  INFINITY: 'inf',
-  NEGATIVE_INFINITY: '-inf',
-  NAN: 'nan',
+  INFINITY: SolidisInfinityText,
+  NEGATIVE_INFINITY: SolidisNegativeInfinityText,
+  NAN: SolidisNotANumberText,
 } as const;
 
 export const SolidisStringSymbols = {
-  NL,
+  NL: SolidisNewLine,
 } as const;
 
 export const SolidisMessageEventNames = [

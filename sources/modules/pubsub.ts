@@ -125,9 +125,10 @@ export class SolidisPubSub {
   }
 
   #getSubscriptions(eventName: SolidisSubscriptionEventName) {
-    const index = SolidisSubscriptionEventNames.indexOf(eventName);
-
-    return this.#subscriptions[index % this.#subscriptions.length];
+    return this.#subscriptions[
+      SolidisSubscriptionEventNames.indexOf(eventName) %
+        this.#subscriptions.length
+    ];
   }
 
   #notify<E extends keyof SolidisClientEvents>(

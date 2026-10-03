@@ -13,11 +13,8 @@ export class RespError extends SolidisError {
   constructor(message: string) {
     super(message);
 
-    const separatorIndex = message.indexOf(' ');
-
     this.stack = undefined;
-    this.code =
-      separatorIndex === -1 ? message : message.slice(0, separatorIndex);
+    this.code = message.split(' ', 1)[0];
   }
 }
 

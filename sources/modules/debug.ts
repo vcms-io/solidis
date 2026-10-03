@@ -1,6 +1,6 @@
-import { EventEmitter } from 'node:events';
-import { stdout } from 'node:process';
 import { inspect } from 'node:util';
+
+import { EventEmitter } from './internal.ts';
 
 import type {
   SolidisDebugLog,
@@ -47,7 +47,7 @@ export class SolidisDebugMemory extends EventEmitter {
     }
 
     if (this.#isPrinting) {
-      stdout.write(formatDebugLog(entry));
+      process.stdout.write(formatDebugLog(entry));
     }
 
     this.emit('pushed', entry);
@@ -61,7 +61,7 @@ export class SolidisDebugMemory extends EventEmitter {
     for (let offset = 0; offset < this.#size; offset += 1) {
       const entry = this.#entries[(firstIndex + offset) % capacity];
 
-      if (entry !== undefined) {
+      if (entry) {
         logs.push(entry);
       }
     }
