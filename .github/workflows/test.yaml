@@ -7,6 +7,10 @@ on:
       - ".github/workflows/test.yaml"
       - "sources/**"
       - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "biome.json"
   workflow_dispatch:
   workflow_call:
 

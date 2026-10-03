@@ -7,12 +7,20 @@ on:
       - ".github/workflows/coverage.yaml"
       - "sources/**"
       - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "biome.json"
   pull_request:
     branches: [main]
     paths:
       - ".github/workflows/coverage.yaml"
       - "sources/**"
       - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "biome.json"
 
 concurrency:
   group: coverage-${{ github.ref }}
@@ -109,12 +117,12 @@ jobs:
           ${{ github.event.pull_request.number }}
           ${{ github.token }}
       - name: Update badge
-        if: github.event_name == 'push' && needs.coverage.result == 'success'
+        if: github.event_name == 'push'
         run: >-
           npm run --silent node:ts ./scripts/workflows/coverage/badge.ts
           coverage.txt README.md README.ko.md
       - name: Create pull request
-        if: github.event_name == 'push' && needs.coverage.result == 'success'
+        if: github.event_name == 'push'
         uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GITHUB_TOKEN }}

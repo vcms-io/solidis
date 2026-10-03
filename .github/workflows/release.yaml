@@ -19,8 +19,6 @@ jobs:
     outputs:
       version: ${{ steps.extract.outputs.version }}
       release: ${{ steps.check.outputs.release }}
-      published: ${{ steps.check.outputs.published }}
-      tagged: ${{ steps.check.outputs.tagged }}
 
     steps:
       - name: Checkout Repository
@@ -68,8 +66,6 @@ jobs:
           fi
 
           echo "Published: $PUBLISHED, tagged: $TAGGED, released: $RELEASED"
-          echo "published=$PUBLISHED" >> $GITHUB_OUTPUT
-          echo "tagged=$TAGGED" >> $GITHUB_OUTPUT
 
           if [[ "$PUBLISHED" == true && "$TAGGED" == true && "$RELEASED" == true ]]; then
             echo "release=false" >> $GITHUB_OUTPUT
@@ -115,14 +111,30 @@ jobs:
       - name: Verify Package
         run: npm run --silent node:ts ./scripts/workflows/release/verify.ts "${{ steps.pack.outputs.tarball }}"
 
+      - name: Check Package and Tag
+        id: state
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          VERSION="${{ needs.check-version.outputs.version }}"
+
+          if [[ -n "$(npm view "$NAME@$VERSION" version 2> /dev/null)" ]]; then
+            echo "published=true" >> $GITHUB_OUTPUT
+          fi
+
+          git fetch --tags --force
+
+          if git rev-parse --quiet --verify "refs/tags/v$VERSION" > /dev/null; then
+            echo "tagged=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Publish to NPM
-        if: needs.check-version.outputs.published != 'true'
+        if: steps.state.outputs.published != 'true'
         run: npm publish "./${{ steps.pack.outputs.tarball }}" --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Push Tag
-        if: needs.check-version.outputs.tagged != 'true'
+        if: steps.state.outputs.tagged != 'true'
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
