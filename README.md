@@ -124,7 +124,7 @@ const worker = new SolidisFeaturedClient({ host: '127.0.0.1', port: 6379 });
 const job = await worker.blpop(['jobs'], 0); // a timeout of 0 waits forever
 ```
 
-A blocking command gets its own deadline: `commandTimeout` plus its blocking timeout.
+A blocking command gets its own deadline: `commandTimeout` plus its blocking timeout, and none when it blocks forever as above.
 When that deadline passes, the connection is reset so the server cannot pop a value nobody receives.
 
 </details>
@@ -348,7 +348,8 @@ _100,000 iterations × 10,000 concurrency · 1 KB payload · 10 repeats_
 
 - Auto-reconnect with jittered exponential backoff
 - Commands wait until the handshake (AUTH, SELECT) is done
-- Auto-recovery: SELECT, Pub/Sub subscriptions
+- Auto-recovery: AUTH, SELECT, Pub/Sub subscriptions
+- A transaction whose WATCH was lost in a reconnect is discarded, not committed
 - Command timeout per pipeline or per `send()`; blocking commands get their own
 - Ready check (waits for server loading)
 - Deterministic in-flight rejection on fault
@@ -496,14 +497,14 @@ sequenceDiagram
 client.on('connect', () => {});                    // TCP connected
 client.on('ready', () => {});                      // Handshake done, ready for commands
 client.on('close', (error) => {});                 // Connection lost (reconnects when autoReconnect)
-client.on('reconnecting', (attempt, delay) => {}); // Next reconnect attempt scheduled
+client.on('reconnecting', (attempt, delay) => {}); // Before every reconnect attempt
 client.on('reconnected', () => {});                // Re-established after disconnect
 client.on('end', () => {});                        // Client quit
 client.on('error', (error) => {});                 // Non-fatal error (process.emitWarning() without a listener)
 client.on('message', (channel, message) => {});    // Pub/Sub message
 client.on('pmessage', (pattern, channel, message) => {});
 client.on('smessage', (channel, message) => {});   // Shard channel
-client.on('push', (reply) => {});                  // Other RESP3 pushes (e.g. client tracking)
+client.on('push', (reply) => {});                  // Other pushes, such as client tracking invalidations
 client.on('debug', (entry) => {});                 // Debug log entry
 ```
 
@@ -525,7 +526,7 @@ try {
 
 > [!NOTE]
 > Every error thrown by Solidis is an instance of `SolidisError` and links its origin through the standard `cause`.
-> Messages name the command (`[INCR] ERR ...`) but never include its arguments.
+> Messages name the command (`[INCR] ERR ...`) but never include its arguments: an argument the server quotes back becomes `'***'`, in the message and in its `cause`.
 > TS.MADD, BF.MADD and BF.INSERT store items one by one, so they return a rejected item as a `RespError` in their result instead of rejecting the call.
 
 | Error Class              | When                                                              |
@@ -533,9 +534,9 @@ try {
 | `SolidisCommandError`    | Server error reply (`cause` is the `RespError`), unexpected reply |
 | `SolidisClientError`     | Not ready within `commandTimeout`, authentication failure, quit   |
 | `SolidisConnectionError` | TCP/TLS connect failure, timeout, connection lost                 |
-| `SolidisRequesterError`  | Command timeout, empty command, MONITOR or CLIENT REPLY OFF       |
-| `SolidisParserError`     | Malformed RESP, oversized bulk string                             |
-| `SolidisPubSubError`     | Malformed pub/sub event, throwing listener                        |
+| `SolidisRequesterError`  | Command timeout, invalid argument, MONITOR, lost WATCH            |
+| `SolidisParserError`     | Malformed RESP, oversized bulk string or line                     |
+| `SolidisPubSubError`     | Malformed pub/sub event, throwing pub/sub or push listener        |
 
 ## Extensions
 
@@ -552,7 +553,8 @@ npm install @vcms-io/solidis-extensions
 
 ```bash
 git clone https://github.com/vcms-io/solidis.git && cd solidis
-npm install && npm run build && npm test
+npm install && npm run build
+SOLIDIS_TEST_PORT=6380 npm test # a disposable server: the tests flush it
 ```
 
 <sub>TypeScript strict · zero new deps · minimal bundle impact · SemVer</sub>

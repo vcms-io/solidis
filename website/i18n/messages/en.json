@@ -316,7 +316,7 @@
     "eventError": "Emitted when an error occurs",
     "eventMessage": "Emitted when a message is received on a subscribed channel",
     "eventShardMessage": "Emitted when a message is received on a shard channel",
-    "eventPush": "Emitted for RESP3 pushes that are not pub/sub messages, such as client tracking invalidations",
+    "eventPush": "Emitted for pushes that are not pub/sub messages, such as client tracking invalidations, including those RESP2 delivers on __redis__:invalidate",
     "eventDebug": "Emitted when a debug event is logged"
   },
   "benchmarks": {

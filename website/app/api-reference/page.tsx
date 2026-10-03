@@ -443,7 +443,9 @@ const queue = await client.lrange('jobs', 0, -1, { buffer: true }); // Buffer[]`
 try {
   await client.incr('views');
 } catch (error) {
-  console.log(error.cause); // the exact bigint beyond Number.MAX_SAFE_INTEGER
+  if (error instanceof SolidisCommandError) {
+    console.log(error.cause); // the exact bigint beyond Number.MAX_SAFE_INTEGER
+  }
 }`}
                       language="typescript"
                     />

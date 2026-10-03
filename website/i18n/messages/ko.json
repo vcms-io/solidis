@@ -316,7 +316,7 @@
     "eventError": "에러가 발생할 때 발생",
     "eventMessage": "구독된 채널에서 메시지가 수신될 때 발생",
     "eventShardMessage": "샤드 채널에서 메시지가 수신될 때 발생",
-    "eventPush": "client tracking 무효화처럼 pub/sub이 아닌 RESP3 push를 받을 때 발생",
+    "eventPush": "client tracking 무효화처럼 pub/sub이 아닌 push를 받을 때 발생하며, RESP2가 __redis__:invalidate로 보내는 무효화도 포함",
     "eventDebug": "디버그 이벤트가 기록될 때 발생"
   },
   "benchmarks": {

@@ -124,7 +124,7 @@ const worker = new SolidisFeaturedClient({ host: '127.0.0.1', port: 6379 });
 const job = await worker.blpop(['jobs'], 0); // 타임아웃 0은 무한 대기
 ```
 
-블로킹 커맨드는 `commandTimeout`에 자신의 블로킹 타임아웃을 더한 별도 기한을 가집니다.
+블로킹 커맨드는 `commandTimeout`에 자신의 블로킹 타임아웃을 더한 별도 기한을 가지며, 위 예처럼 무한히 기다리면 기한이 없습니다.
 기한이 지나면 연결을 리셋해서, 아무도 받지 못하는 값을 서버가 꺼내는 일이 없도록 합니다.
 
 </details>
@@ -348,7 +348,8 @@ _100,000번 반복 × 10,000 동시 실행 · 1 KB 페이로드 · 10회 측정_
 
 - 지터를 적용한 지수 백오프 기반 자동 재연결
 - 핸드셰이크(AUTH, SELECT) 완료 전에는 커맨드를 보내지 않음
-- 재연결 시 SELECT, Pub/Sub 구독 자동 복구
+- 재연결 시 AUTH, SELECT, Pub/Sub 구독 자동 복구
+- 재연결로 WATCH가 사라진 트랜잭션은 커밋하지 않고 버림
 - 파이프라인 또는 `send()` 호출 단위 커맨드 타임아웃, 블로킹 커맨드는 별도 기한
 - Ready check로 서버 로딩 완료까지 대기
 - 장애 발생 시 in-flight 요청 즉시 reject
@@ -504,14 +505,14 @@ sequenceDiagram
 client.on('connect', () => {});                    // TCP 연결 수립
 client.on('ready', () => {});                      // 핸드셰이크 완료, 커맨드 전송 가능
 client.on('close', (error) => {});                 // 연결 끊김 (autoReconnect면 재연결)
-client.on('reconnecting', (attempt, delay) => {}); // 다음 재연결 시도 예약
+client.on('reconnecting', (attempt, delay) => {}); // 재연결을 시도할 때마다
 client.on('reconnected', () => {});                // 재연결 성공
 client.on('end', () => {});                        // 클라이언트 종료 (quit)
 client.on('error', (error) => {});                 // 소켓/프로토콜 에러 (리스너가 없으면 process.emitWarning())
 client.on('message', (channel, message) => {});    // Pub/Sub 메시지 수신
 client.on('pmessage', (pattern, channel, message) => {});
 client.on('smessage', (channel, message) => {});   // Shard 채널 메시지
-client.on('push', (reply) => {});                  // 그 밖의 RESP3 push (예: client tracking)
+client.on('push', (reply) => {});                  // 그 밖의 push (예: client tracking 무효화)
 client.on('debug', (entry) => {});                 // 디버그 로그 엔트리
 ```
 
@@ -533,7 +534,7 @@ try {
 
 > [!NOTE]
 > Solidis가 throw하는 모든 에러는 `SolidisError`를 상속하고, 원인은 표준 `cause`로 연결됩니다.
-> 메시지에는 커맨드 이름(`[INCR] ERR ...`)만 들어가고 인자는 절대 들어가지 않습니다.
+> 메시지에는 커맨드 이름(`[INCR] ERR ...`)만 들어가고 인자는 절대 들어가지 않습니다. 서버가 인용해 돌려준 인자는 메시지와 `cause` 모두에서 `'***'`로 바뀝니다.
 > TS.MADD, BF.MADD, BF.INSERT는 항목을 하나씩 저장하므로, 거부된 항목은 호출 전체를 reject하는 대신 결과 배열 안의 `RespError`로 돌려줍니다.
 
 | 에러 클래스              | 발생 조건                                                 |
@@ -541,9 +542,9 @@ try {
 | `SolidisCommandError`    | 서버 에러 응답 (`cause`는 `RespError`), 예상과 다른 응답  |
 | `SolidisClientError`     | `commandTimeout` 안에 준비되지 않음, 인증 실패, quit 이후 |
 | `SolidisConnectionError` | TCP/TLS 연결 실패, 타임아웃, 연결 끊김                    |
-| `SolidisRequesterError`  | 커맨드 타임아웃, 빈 커맨드, MONITOR 또는 CLIENT REPLY OFF |
-| `SolidisParserError`     | 잘못된 RESP 포맷, bulk string 크기 초과                   |
-| `SolidisPubSubError`     | 잘못된 pub/sub 이벤트, 리스너 예외                        |
+| `SolidisRequesterError`  | 커맨드 타임아웃, 잘못된 인자, MONITOR, 사라진 WATCH       |
+| `SolidisParserError`     | 잘못된 RESP 포맷, bulk string 또는 줄 크기 초과           |
+| `SolidisPubSubError`     | 잘못된 pub/sub 이벤트, pub/sub 또는 push 리스너 예외      |
 
 ## 확장
 
@@ -560,7 +561,8 @@ npm install @vcms-io/solidis-extensions
 
 ```bash
 git clone https://github.com/vcms-io/solidis.git && cd solidis
-npm install && npm run build && npm test
+npm install && npm run build
+SOLIDIS_TEST_PORT=6380 npm test # 테스트가 데이터를 지우므로 버려도 되는 서버를 쓰세요
 ```
 
 <sub>TypeScript strict · 외부 의존성 추가 금지 · 번들 사이즈 최소화 · SemVer</sub>
