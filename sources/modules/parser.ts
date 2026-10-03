@@ -1,4 +1,3 @@
-import { SolidisBulkZeroCopyThreshold } from '../common/constants.ts';
 import {
   SolidisArrayReplyByte,
   SolidisAttributeReplyByte,
@@ -6,6 +5,7 @@ import {
   SolidisBlobErrorReplyByte,
   SolidisBooleanReplyByte,
   SolidisBulkReplyByte,
+  SolidisBulkZeroCopyThreshold,
   SolidisCarriageReturnByte,
   SolidisColonByte,
   SolidisDoubleReplyByte,

@@ -67,10 +67,6 @@ export const SolidisDefaultOptions: SolidisClientFrozenOptions = {
   rejectOnPartialPipelineError: false,
 } as const;
 
-export const SolidisBulkZeroCopyThreshold = SolidisKilobyte * 64;
-
-export const SolidisMaximumTimerDelay = 2147483647;
-
 export const SolidisSymbolBytes = {
   ASTERISK: SolidisAsteriskByte,
   DOLLAR: SolidisDollarByte,
@@ -145,23 +141,4 @@ export const SolidisCredentialCommandNameSet: ReadonlySet<string> = new Set([
   'MIGRATE',
   'ACL SETUSER',
   'CONFIG SET',
-]);
-
-export const SolidisContainerCommandNameSet: ReadonlySet<string> = new Set([
-  'ACL',
-  'CLIENT',
-  'CLUSTER',
-  'COMMAND',
-  'CONFIG',
-  'DEBUG',
-  'FUNCTION',
-  'LATENCY',
-  'MEMORY',
-  'MODULE',
-  'OBJECT',
-  'PUBSUB',
-  'SCRIPT',
-  'SLOWLOG',
-  'XGROUP',
-  'XINFO',
 ]);

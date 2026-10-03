@@ -1,7 +1,7 @@
-import { SolidisContainerCommandNameSet } from '../constants.ts';
 import {
   SolidisAsteriskByte,
   SolidisCarriageReturnByte,
+  SolidisContainerCommandNameSet,
   SolidisDollarByte,
   SolidisLineFeedByte,
 } from '../internal.ts';

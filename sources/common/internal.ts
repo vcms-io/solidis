@@ -33,6 +33,27 @@ export const SolidisNewLine = '\r\n';
 export const SolidisKilobyte = 1024;
 export const SolidisMegabyte = 1048576;
 export const SolidisDebugPreviewLength = 1024;
+export const SolidisBulkZeroCopyThreshold = 65536;
+export const SolidisMaximumTimerDelay = 2147483647;
+
+export const SolidisContainerCommandNameSet: ReadonlySet<string> = new Set([
+  'ACL',
+  'CLIENT',
+  'CLUSTER',
+  'COMMAND',
+  'CONFIG',
+  'DEBUG',
+  'FUNCTION',
+  'LATENCY',
+  'MEMORY',
+  'MODULE',
+  'OBJECT',
+  'PUBSUB',
+  'SCRIPT',
+  'SLOWLOG',
+  'XGROUP',
+  'XINFO',
+]);
 
 export const SolidisSocketNotConnectedMessage = 'Socket is not connected.';
 export const SolidisAuthenticationFailedMessage = 'Authentication failed';

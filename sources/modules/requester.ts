@@ -1,5 +1,7 @@
-import { SolidisMaximumTimerDelay } from '../common/constants.ts';
-import { SolidisSocketNotConnectedMessage } from '../common/internal.ts';
+import {
+  SolidisMaximumTimerDelay,
+  SolidisSocketNotConnectedMessage,
+} from '../common/internal.ts';
 import {
   generateDebugHandle,
   sanitizeCommandsBufferForDebug,

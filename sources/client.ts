@@ -3,12 +3,10 @@ import { clientSetname } from './command/client.setname.ts';
 import { hello } from './command/hello.ts';
 import { info } from './command/info.ts';
 import { select } from './command/select.ts';
-import {
-  SolidisMaximumTimerDelay,
-  SolidisSubscribeEventNames,
-} from './common/constants.ts';
+import { SolidisSubscribeEventNames } from './common/constants.ts';
 import {
   SolidisAuthenticationFailedMessage,
+  SolidisMaximumTimerDelay,
   SolidisSocketNotConnectedMessage,
 } from './common/internal.ts';
 import { generateDebugHandle } from './common/utils/debug.ts';
