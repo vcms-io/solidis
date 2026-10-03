@@ -46,9 +46,21 @@ function readProtocol(value: string | undefined) {
   return protocol;
 }
 
+function readPort(value: string | undefined) {
+  const port = readNumber(value, Number.NaN);
+
+  if (!Number.isInteger(port)) {
+    throw new Error(
+      'Set SOLIDIS_TEST_PORT to the port of a disposable server: the suites flush its data.',
+    );
+  }
+
+  return port;
+}
+
 export function resolveConnectionTarget(): TestConnectionTarget {
   const host = process.env.SOLIDIS_TEST_HOST ?? '127.0.0.1';
-  const port = readNumber(process.env.SOLIDIS_TEST_PORT, 6379);
+  const port = readPort(process.env.SOLIDIS_TEST_PORT);
   const username = process.env.SOLIDIS_TEST_USERNAME;
   const password = process.env.SOLIDIS_TEST_PASSWORD;
   const label = process.env.SOLIDIS_TEST_LABEL ?? `${host}:${port}`;

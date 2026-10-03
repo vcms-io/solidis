@@ -69,11 +69,18 @@ function readMode(): BenchmarkMode {
 export function readConfig(): BenchConfig {
   const username = process.env.SOLIDIS_TEST_USERNAME;
   const password = process.env.SOLIDIS_TEST_PASSWORD;
+  const port = readNumber('SOLIDIS_TEST_PORT', Number.NaN);
+
+  if (!Number.isInteger(port)) {
+    throw new Error(
+      'Set SOLIDIS_TEST_PORT to the port of a disposable server: the benchmarks flush its data.',
+    );
+  }
 
   return {
     target: {
       host: process.env.SOLIDIS_TEST_HOST ?? '127.0.0.1',
-      port: readNumber('SOLIDIS_TEST_PORT', 6379),
+      port,
       username: username && username.length > 0 ? username : undefined,
       password: password && password.length > 0 ? password : undefined,
     },

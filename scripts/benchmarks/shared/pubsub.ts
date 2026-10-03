@@ -22,7 +22,7 @@ async function runPubSubMessages(
   clients: number,
   concurrency: number,
   payloadOffsetStart: number,
-  latenciesMilliseconds: Float64Array | null,
+  issuedAt: Float64Array | null,
   publish: (clientIndex: number, payloadOffset: number) => Promise<unknown>,
 ): Promise<void> {
   if (total <= 0) {
@@ -39,13 +39,12 @@ async function runPubSubMessages(
       while (nextPayloadOffset < total) {
         const payloadOffset = nextPayloadOffset;
         nextPayloadOffset += 1;
-        const issuedAt = performance.now();
+
+        if (issuedAt) {
+          issuedAt[payloadOffset] = performance.now();
+        }
 
         await publish(clientIndex, payloadOffsetStart + payloadOffset);
-
-        if (latenciesMilliseconds) {
-          latenciesMilliseconds[payloadOffset] = performance.now() - issuedAt;
-        }
       }
     }),
   );
@@ -98,7 +97,7 @@ async function publishAndWaitForDelivery(
   payloadOffsetStart: number,
   getReceived: () => number,
   expectedStart: number,
-  latenciesMilliseconds: Float64Array | null,
+  issuedAt: Float64Array | null,
   publish: (clientIndex: number, payloadOffset: number) => Promise<unknown>,
 ): Promise<void> {
   const publishBatchSize = getPubSubPublishBatchSize(context, total);
@@ -112,8 +111,7 @@ async function publishAndWaitForDelivery(
       context.config.clients,
       context.config.concurrency,
       payloadOffsetStart + delivered,
-      latenciesMilliseconds?.subarray(delivered, delivered + batchTotal) ??
-        null,
+      issuedAt?.subarray(delivered, delivered + batchTotal) ?? null,
       publish,
     );
 
@@ -142,9 +140,16 @@ export async function runPubSubBenchmark(
     context.config.clients,
   );
   const channel = `${context.keyPrefix}:channel`;
+  const latenciesMilliseconds = new Float64Array(context.config.iterations);
+  const issuedAt = new Float64Array(context.config.iterations);
   let received = 0;
+  let isMeasuring = false;
 
   subscriber.onMessage(() => {
+    if (isMeasuring && received < issuedAt.length) {
+      latenciesMilliseconds[received] = performance.now() - issuedAt[received];
+    }
+
     received += 1;
   });
 
@@ -166,8 +171,8 @@ export async function runPubSubBenchmark(
       publish,
     );
     received = 0;
+    isMeasuring = true;
 
-    const latenciesMilliseconds = new Float64Array(context.config.iterations);
     const startedAt = performance.now();
 
     await publishAndWaitForDelivery(
@@ -176,7 +181,7 @@ export async function runPubSubBenchmark(
       context.config.warmup,
       () => received,
       0,
-      latenciesMilliseconds,
+      issuedAt,
       publish,
     );
 

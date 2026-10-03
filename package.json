@@ -26,7 +26,7 @@
     "benchmark:replace:readme": "npm run --silent node:ts ./scripts/benchmarks/shared/markdown/replace.readme.ts --",
     "benchmark:replace:website": "npm run --silent node:ts ./scripts/benchmarks/shared/markdown/replace.website.ts --",
     "test": "concurrently --raw --max-processes 1 \"npm run test:commands\" \"npm run test:client\"",
-    "test:commands": "node --import=./scripts/esm/register.js --test ./scripts/tests/commands/*.test.ts",
+    "test:commands": "node --import=./scripts/esm/register.js --test --test-concurrency=1 ./scripts/tests/commands/*.test.ts",
     "test:client": "node --import=./scripts/esm/register.js --test --test-concurrency=1 ./scripts/tests/client/**/*.test.ts",
     "test:coverage": "npm run node:ts ./scripts/tests/coverage.ts",
     "bundle": "npm run node:ts ./scripts/bundle/bundle.ts",
