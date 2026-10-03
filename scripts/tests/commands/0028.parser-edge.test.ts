@@ -390,6 +390,65 @@ describe('parser-edge', () => {
       assert.ok(elapsed < 500, `took ${Math.round(elapsed)} ms`);
     });
 
+    it('rejects an over-long line even when its CRLF arrives with it', () => {
+      for (const chunks of [
+        [`+${'a'.repeat(100)}\r\n`],
+        ['+aaaaa', `${'a'.repeat(95)}\r\n`],
+      ]) {
+        const parser = new SolidisParser({
+          parser: { maxBulkStringLength: 10 },
+        });
+
+        assert.throws(() => {
+          for (const chunk of chunks) {
+            parser.parse(bytes(chunk));
+          }
+        }, isParserError('Line length exceeds maximum allowed 10'));
+      }
+    });
+
+    it('waits for a CRLF before joining the chunks of a line full of line feeds', (context) => {
+      const parser = createParser();
+      const replies = parser.parse(bytes('+'));
+      const concat = context.mock.method(Buffer, 'concat');
+
+      for (let index = 0; index < 100; index += 1) {
+        replies.push(...parser.parse(bytes('a\n'.repeat(512))));
+      }
+
+      replies.push(...parser.parse(bytes('\r\n')));
+
+      assert.strictEqual(concat.mock.callCount(), 1);
+      assert.deepStrictEqual(replies, ['a\n'.repeat(51200)]);
+    });
+
+    it('ends a line whose CR and LF arrive in separate chunks', () => {
+      assert.deepStrictEqual(
+        parseOnce(bytes('+'), bytes('O'), bytes('K\r'), bytes('\n')),
+        ['OK'],
+      );
+      assert.deepStrictEqual(parseOnce(bytes('+OK\r'), bytes('\n')), ['OK']);
+    });
+
+    it('joins the chunks of a bulk string once, when its last byte arrives', (context) => {
+      const parser = createParser();
+      const payload = Buffer.alloc(1024 * 1024, 0x61);
+      const frame = Buffer.concat([
+        bytes(`$${payload.length}\r\n`),
+        payload,
+        bytes('\r\n'),
+      ]);
+      const concat = context.mock.method(Buffer, 'concat');
+      const replies: SolidisData[] = [];
+
+      for (let offset = 0; offset < frame.length; offset += 65536) {
+        replies.push(...parser.parse(frame.subarray(offset, offset + 65536)));
+      }
+
+      assert.strictEqual(concat.mock.callCount(), 1);
+      assert.deepStrictEqual(replies, [payload]);
+    });
+
     it('accepts a bulk string exactly at the configured maximum', () => {
       const parser = new SolidisParser({
         parser: { maxBulkStringLength: 4 },

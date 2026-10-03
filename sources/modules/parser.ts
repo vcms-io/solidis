@@ -16,6 +16,7 @@ import {
   SolidisLowercaseTByte,
   SolidisMapReplyByte,
   SolidisMinusByte,
+  SolidisNewLine,
   SolidisNullReplyByte,
   SolidisPushReplyByte,
   SolidisSetReplyByte,
@@ -28,6 +29,8 @@ import { parseDouble } from '../common/utils/number.ts';
 import { RespPush } from '../types/resp.ts';
 
 import type { SolidisData, SolidisParserOptions } from '../types/solidis.ts';
+
+const NEWLINE = Buffer.from(SolidisNewLine);
 
 const NeedsMoreData = Symbol();
 const NoValue = Symbol();
@@ -121,17 +124,22 @@ export class SolidisParser {
       return true;
     }
 
+    const previous = this.#pendingChunks.at(-1) ?? this.#buffer;
+
     this.#pendingChunks.push(chunk);
     this.#pendingLength += chunk.length;
 
     const availableLength =
       this.#buffer.length - this.#offset + this.#pendingLength;
 
-    if (this.#requiredLength < 0 && !chunk.includes(SolidisLineFeedByte)) {
+    if (
+      this.#requiredLength < 0 &&
+      !chunk.includes(NEWLINE) &&
+      (previous[previous.length - 1] !== SolidisCarriageReturnByte ||
+        chunk[0] !== SolidisLineFeedByte)
+    ) {
       if (availableLength > this.#maxBulkStringLength) {
-        throw new SolidisParserError(
-          `Line length exceeds maximum allowed ${this.#maxBulkStringLength}`,
-        );
+        throw this.#createLineLengthError();
       }
 
       return false;
@@ -375,6 +383,10 @@ export class SolidisParser {
       index += 1;
     }
 
+    if (index - from > this.#maxBulkStringLength) {
+      throw this.#createLineLengthError();
+    }
+
     if (index + 1 >= buffer.length) {
       this.#requiredLength = -1;
 
@@ -386,6 +398,12 @@ export class SolidisParser {
     }
 
     return index;
+  }
+
+  #createLineLengthError() {
+    return new SolidisParserError(
+      `Line length exceeds maximum allowed ${this.#maxBulkStringLength}`,
+    );
   }
 
   #readText(start: number, end: number) {
