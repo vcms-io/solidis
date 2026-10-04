@@ -96,7 +96,7 @@ const replies = await client.send([
 const job = await client.send([['BLPOP', 'jobs', '30']], { timeout: 35_000 });
 ```
 
-`exec()` sends `MULTI`, the queued commands and `EXEC` together, in one `send()` call. An `exec()` that rejects because a queued call failed, and `discard()`, send `UNWATCH`, so a `WATCH` ends with its transaction.
+`exec()` sends `MULTI`, the queued commands and `EXEC` together, in one `send()` call made at once, so the transaction keeps its place before the commands sent after it. A call that queues no command, such as one whose arguments are refused, makes `exec()` reject, and so does a queued command that `send()` refuses, such as one with an `undefined` argument. An `exec()` that rejects this way, and `discard()`, send `UNWATCH`, so a `WATCH` ends with its transaction.
 Only the synchronous part of a queued call joins the transaction: an `extend()` method that awaits a reply runs its later commands outside it.
 If the server refuses `MULTI`, as for an ACL user without `@transaction`, the queued commands run on their own and `exec()` rejects with the `[MULTI]` error, so do not retry it blindly.
 When a reconnect loses a `WATCH`, the next `EXEC` is sent as `DISCARD` and returns `null`. When it loses a `MULTI` sent with `send()`, other commands are refused until `MULTI`, `EXEC`, `DISCARD` or `RESET`.
@@ -389,7 +389,7 @@ _100,000 iterations × 10,000 concurrency · 1 KB payload · 10 repeats_
 - ACL username/password authentication
 - Credential masking in debug output
 - Error messages add no command arguments and mask the ones the server quotes back
-- `maxBulkStringLength` oversized reply guard
+- `maxBulkStringLength` oversized reply guard and a 512-level nesting limit
 
 </td>
 </tr>
@@ -567,9 +567,9 @@ try {
 | :----------------------- | :-------------------------------------------------------------------------------------------------------------------------------------- |
 | `SolidisCommandError`    | Server error reply (`cause` is the `RespError`), unexpected reply, options a command refuses                                            |
 | `SolidisClientError`     | Not ready within `commandTimeout`, a refused handshake (authentication, HELLO, SELECT, CLIENT SETNAME), quit, a throwing event listener |
-| `SolidisConnectionError` | TCP/TLS connect failure, invalid port, timeout, connection lost, retries spent                                                          |
+| `SolidisConnectionError` | TCP/TLS connect failure, invalid port, timeout, connection lost, retries spent, a server that refuses the connection                    |
 | `SolidisRequesterError`  | Command timeout, a malformed command in `send()`, a refused command such as MONITOR                                                     |
-| `SolidisParserError`     | Malformed RESP, oversized bulk string or line                                                                                           |
+| `SolidisParserError`     | Malformed RESP, oversized bulk string or line, nesting deeper than 512 levels                                                           |
 | `SolidisPubSubError`     | Malformed pub/sub event, throwing pub/sub or push listener                                                                              |
 
 ## Extensions

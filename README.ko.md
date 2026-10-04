@@ -96,7 +96,7 @@ const replies = await client.send([
 const job = await client.send([['BLPOP', 'jobs', '30']], { timeout: 35_000 });
 ```
 
-`exec()`는 `MULTI`, 쌓인 커맨드, `EXEC`를 한 번의 `send()` 호출로 함께 보냅니다. 쌓인 호출이 실패해 reject되는 `exec()`와 `discard()`는 `UNWATCH`를 보내므로, `WATCH`는 트랜잭션과 함께 끝납니다.
+`exec()`는 `MULTI`, 쌓인 커맨드, `EXEC`를 호출 즉시 한 번의 `send()`로 함께 보내므로, 트랜잭션은 그 뒤에 보낸 커맨드보다 먼저 실행됩니다. 인자가 거부된 경우처럼 커맨드를 하나도 쌓지 못한 호출이 있거나, `undefined` 인자를 가진 커맨드처럼 `send()`가 거부하는 커맨드가 쌓여 있으면 `exec()`는 reject됩니다. 이렇게 reject되는 `exec()`와 `discard()`는 `UNWATCH`를 보내므로, `WATCH`는 트랜잭션과 함께 끝납니다.
 쌓인 호출의 동기 부분만 트랜잭션에 들어갑니다. 응답을 await하는 `extend()` 메서드는 그 뒤의 커맨드를 트랜잭션 밖에서 실행합니다.
 ACL 사용자에게 `@transaction`이 없을 때처럼 서버가 `MULTI`를 거부하면 쌓인 커맨드가 각각 실행되고 `exec()`는 `[MULTI]` 에러로 reject되므로, 무작정 재시도하지 마세요.
 재연결로 `WATCH`가 사라지면 다음 `EXEC`는 `DISCARD`로 바뀌어 `null`을 반환합니다. `send()`로 보낸 `MULTI`가 사라지면 `MULTI`, `EXEC`, `DISCARD`, `RESET` 전까지 다른 커맨드를 거부합니다.
@@ -389,7 +389,7 @@ _100,000번 반복 × 10,000 동시 실행 · 1 KB 페이로드 · 10회 측정_
 - ACL 인증 (username/password)
 - 디버그 로그에서 자격 증명 자동 마스킹
 - 에러 메시지에 커맨드 인자를 덧붙이지 않고, 서버가 인용해 돌려준 인자는 가림
-- `maxBulkStringLength`로 비정상 응답 차단
+- `maxBulkStringLength`와 512단계 중첩 제한으로 비정상 응답 차단
 
 </td>
 </tr>
@@ -567,9 +567,9 @@ try {
 | :----------------------- | :------------------------------------------------------------------------------------------------------------------------------ |
 | `SolidisCommandError`    | 서버 에러 응답 (`cause`는 `RespError`), 예상과 다른 응답, 커맨드가 거부한 옵션                                                  |
 | `SolidisClientError`     | `commandTimeout` 안에 준비되지 않음, 핸드셰이크 거부(인증, HELLO, SELECT, CLIENT SETNAME), quit 이후, 예외를 던진 이벤트 리스너 |
-| `SolidisConnectionError` | TCP/TLS 연결 실패, 잘못된 포트, 타임아웃, 연결 끊김, 재시도 소진                                                                |
+| `SolidisConnectionError` | TCP/TLS 연결 실패, 잘못된 포트, 타임아웃, 연결 끊김, 재시도 소진, 서버의 연결 거부                                              |
 | `SolidisRequesterError`  | 커맨드 타임아웃, `send()`의 잘못된 커맨드, MONITOR처럼 거부되는 커맨드                                                          |
-| `SolidisParserError`     | 잘못된 RESP 포맷, bulk string 또는 줄 크기 초과                                                                                 |
+| `SolidisParserError`     | 잘못된 RESP 포맷, bulk string 또는 줄 크기 초과, 512단계를 넘는 중첩                                                            |
 | `SolidisPubSubError`     | 잘못된 pub/sub 이벤트, pub/sub 또는 push 리스너 예외                                                                            |
 
 ## 확장
