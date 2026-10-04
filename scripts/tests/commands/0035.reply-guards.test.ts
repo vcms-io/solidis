@@ -18,10 +18,14 @@ import { dump } from '../../../sources/command/dump.ts';
 import { failover } from '../../../sources/command/failover.ts';
 import { createCommand as createFunctionFlushCommand } from '../../../sources/command/function.flush.ts';
 import { functionStats } from '../../../sources/command/function.stats.ts';
+import { createCommand as createGetsetCommand } from '../../../sources/command/getset.ts';
 import { createCommand as createHashExpireCommand } from '../../../sources/command/hexpire.ts';
+import { createCommand as createHmsetCommand } from '../../../sources/command/hmset.ts';
+import { createCommand as createHsetnxCommand } from '../../../sources/command/hsetnx.ts';
 import { createCommand as createJsonArrpopCommand } from '../../../sources/command/json.arrpop.ts';
 import { createCommand as createJsonGetCommand } from '../../../sources/command/json.get.ts';
 import { latencyLatest } from '../../../sources/command/latency.latest.ts';
+import { createCommand as createLatencyResetCommand } from '../../../sources/command/latency.reset.ts';
 import { lrange } from '../../../sources/command/lrange.ts';
 import { memoryStats } from '../../../sources/command/memory.stats.ts';
 import {
@@ -37,16 +41,26 @@ import {
   moduleLoadex,
 } from '../../../sources/command/module.loadex.ts';
 import { moduleUnload } from '../../../sources/command/module.unload.ts';
+import { createCommand as createMsetCommand } from '../../../sources/command/mset.ts';
+import { createCommand as createPsetexCommand } from '../../../sources/command/psetex.ts';
+import { createCommand as createPublishCommand } from '../../../sources/command/publish.ts';
 import { createCommand as createPubsubNumsubCommand } from '../../../sources/command/pubsub.numsub.ts';
 import { createCommand as createPubsubShardnumsubCommand } from '../../../sources/command/pubsub.shardnumsub.ts';
 import { replconf } from '../../../sources/command/replconf.ts';
 import { replicaof } from '../../../sources/command/replicaof.ts';
+import { createCommand as createRpushxCommand } from '../../../sources/command/rpushx.ts';
+import { createCommand as createSetexCommand } from '../../../sources/command/setex.ts';
+import { createCommand as createSetnxCommand } from '../../../sources/command/setnx.ts';
+import { createCommand as createSetrangeCommand } from '../../../sources/command/setrange.ts';
 import { shutdown } from '../../../sources/command/shutdown.ts';
+import { createCommand as createSmismemberCommand } from '../../../sources/command/smismember.ts';
+import { createCommand as createSpublishCommand } from '../../../sources/command/spublish.ts';
 import { createCommand as createTimeSeriesMrangeCommand } from '../../../sources/command/ts.mrange.ts';
 import { createCommand as createTimeSeriesMrevrangeCommand } from '../../../sources/command/ts.mrevrange.ts';
 import { createCommand as createTimeSeriesRangeCommand } from '../../../sources/command/ts.range.ts';
 import { createCommand as createTimeSeriesRevrangeCommand } from '../../../sources/command/ts.revrange.ts';
 import { tryReplyToNumber } from '../../../sources/command/utils/reply.ts';
+import { createCommand as createXaddCommand } from '../../../sources/command/xadd.ts';
 import { xautoclaim } from '../../../sources/command/xautoclaim.ts';
 import { xinfoStream } from '../../../sources/command/xinfo.stream.ts';
 import { createCommand as createXpendingCommand } from '../../../sources/command/xpending.ts';
@@ -202,6 +216,51 @@ describe('reply-guards', () => {
       'PUBSUB',
       'SHARDNUMSUB',
     ]);
+  });
+
+  it('keeps a Buffer value byte for byte in every write that takes one', () => {
+    const value = Buffer.from([0xff, 0x00, 0xfe]);
+    const commands = [
+      createSetnxCommand('k', value),
+      createSetexCommand('k', 1, value),
+      createPsetexCommand('k', 1, value),
+      createGetsetCommand('k', value),
+      createSetrangeCommand('k', 0, value),
+      createMsetCommand({ k: value }),
+      createHmsetCommand('k', { f: value }),
+      createHsetnxCommand('k', 'f', value),
+      createRpushxCommand('k', [value]),
+      createSmismemberCommand('k', [value]),
+      createPublishCommand('c', value),
+      createSpublishCommand('c', value),
+      createXaddCommand('k', '*', { f: value }),
+    ];
+
+    for (const command of commands) {
+      assert.strictEqual(command.at(-1), value);
+    }
+  });
+
+  it('sends an empty selection as given, or refuses one that would select everything', () => {
+    assert.deepStrictEqual(createClientListCommand({ identifiers: [] }), [
+      'CLIENT',
+      'LIST',
+      'ID',
+    ]);
+    assert.deepStrictEqual(
+      createTimeSeriesRangeCommand('key', '-', '+', { filterByTs: [] }),
+      ['TS.RANGE', 'key', '-', '+', 'FILTER_BY_TS'],
+    );
+    assert.deepStrictEqual(
+      createMigrateCommand('host', 6379, '', 0, 1000, { keys: [] }),
+      ['MIGRATE', 'host', '6379', '', '0', '1000', 'KEYS'],
+    );
+    assert.deepStrictEqual(createLatencyResetCommand(), ['LATENCY', 'RESET']);
+    assert.throws(() => createLatencyResetCommand([]), {
+      name: 'SolidisCommandError',
+      message:
+        '[LATENCY RESET] An empty list of events would reset every event',
+    });
   });
 
   it('builds the optional parts of BF.INSERT, BITCOUNT, JSON.ARRPOP, XPENDING and FUNCTION FLUSH', () => {

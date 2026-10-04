@@ -540,9 +540,9 @@ export function tryReplyToJsonNumberText(
     return `[${texts.join(',')}]`;
   }
 
-  const [text] = texts;
+  const text = texts.filter((value) => value !== 'null').at(-1);
 
-  if (text === undefined || text === 'null') {
+  if (text === undefined) {
     throw newUnexpectedReplyError(reply, commandName);
   }
 

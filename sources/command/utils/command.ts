@@ -326,7 +326,7 @@ export function buildTimeSeriesRangeCommand(
 ) {
   const command = [...baseCommand];
 
-  if (options.filterByTs?.length) {
+  if (options.filterByTs) {
     command.push('FILTER_BY_TS');
 
     for (const timestamp of options.filterByTs) {

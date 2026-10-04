@@ -38,9 +38,7 @@ export function createCommand(
     }
   }
 
-  return options?.keys?.length
-    ? [...command, 'KEYS', ...options.keys]
-    : command;
+  return options?.keys ? [...command, 'KEYS', ...options.keys] : command;
 }
 
 export async function migrate<T>(

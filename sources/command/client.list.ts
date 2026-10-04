@@ -11,7 +11,7 @@ export function createCommand(options?: CommandClientListOptions) {
     }
   }
 
-  return options?.identifiers?.length
+  return options?.identifiers
     ? [...command, 'ID', ...options.identifiers.map(String)]
     : command;
 }

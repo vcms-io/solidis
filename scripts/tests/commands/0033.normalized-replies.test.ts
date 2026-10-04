@@ -510,6 +510,9 @@ describe('normalized-replies', () => {
           '[3,null,9007199254740993,8.5]',
         ],
         [[4], '.a', '4'],
+        [[11, 3], '..n', '3'],
+        [[null, 2], '..a', '2'],
+        [bulk('3'), '..n', '3'],
       ];
 
       for (const [reply, path, text] of exchanges) {
@@ -604,6 +607,29 @@ describe('normalized-replies', () => {
         '',
       ]);
       assert.deepStrictEqual(createSortCommand('list', {}), ['SORT', 'list']);
+      assert.deepStrictEqual(createSortCommand('list', { by: '' }), [
+        'SORT',
+        'list',
+        'BY',
+        '',
+      ]);
+      assert.deepStrictEqual(
+        createGeoradiusCommand('places', 0, 0, 1, 'KM', { storedist: '' }),
+        ['GEORADIUS', 'places', '0', '0', '1', 'km', 'STOREDIST', ''],
+      );
+
+      for (const [filter, keyword] of [
+        [{ module: '' }, 'MODULE'],
+        [{ aclcat: '' }, 'ACLCAT'],
+      ] as const) {
+        assert.deepStrictEqual(createCommandListCommand(filter), [
+          'COMMAND',
+          'LIST',
+          'FILTERBY',
+          keyword,
+          '',
+        ]);
+      }
     });
   });
 
