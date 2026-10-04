@@ -134,6 +134,34 @@ describe('distributions', () => {
     assert.deepStrictEqual(importers, []);
   });
 
+  it('keeps one copy of the helpers that the constants module does not inline', async () => {
+    const copies = new Map<string, string[]>();
+
+    for (const file of await readdir(outputDirectory, { recursive: true })) {
+      if (!file.endsWith('.mjs')) {
+        continue;
+      }
+
+      const contents = await readFile(join(outputDirectory, file), 'utf8');
+
+      for (const text of [
+        'Socket is not connected.',
+        'The client was quit.',
+        'length*4',
+        'delay<=2147483647',
+      ]) {
+        if (contents.includes(text)) {
+          copies.set(text, [...(copies.get(text) ?? []), file]);
+        }
+      }
+    }
+
+    assert.deepStrictEqual(
+      [...copies.values()].map((files) => files.length),
+      [1, 1, 1, 1],
+    );
+  });
+
   it('exposes the same client API through CommonJS and ES modules', () => {
     const script = (load: string) =>
       `${load}

@@ -56,7 +56,7 @@ export function parseConnectionUri(uri: string | URL): SolidisClientOptions {
   if (database) {
     const index = Number(database);
 
-    if (!Number.isInteger(index) || index < 0) {
+    if (!Number.isSafeInteger(index) || index < 0) {
       throw new SolidisClientError(`Invalid database '${database}' in URI`);
     }
 

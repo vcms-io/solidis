@@ -5,12 +5,9 @@ import { info } from './command/info.ts';
 import { select } from './command/select.ts';
 import { SolidisSubscribeEventNames } from './common/constants.ts';
 import {
-  resolveTimerDelay,
   SolidisAuthenticationErrorPattern,
   SolidisAuthenticationFailedMessage,
-  SolidisClientQuitMessage,
   SolidisMaximumTimerDelay,
-  SolidisSocketNotConnectedMessage,
 } from './common/internal.ts';
 import { generateDebugHandle } from './common/utils/debug.ts';
 import {
@@ -21,6 +18,11 @@ import {
   SolidisRequesterError,
   wrapWithError,
 } from './common/utils/error.ts';
+import {
+  resolveTimerDelay,
+  SolidisClientQuitMessage,
+  SolidisSocketNotConnectedMessage,
+} from './common/utils/internal.ts';
 import { resolveClientOptions } from './common/utils/options.ts';
 import { findErrorInReplies } from './common/utils/reply.ts';
 import { SolidisConnection } from './modules/connection.ts';
@@ -115,7 +117,7 @@ export class SolidisClient extends EventEmitter {
   public get uri() {
     const { host, port, tls, authentication } = this.#options;
     const credentials =
-      authentication.username && authentication.password
+      authentication.username || authentication.password
         ? `${encodeURIComponent(authentication.username)}:***@`
         : '';
 
@@ -405,16 +407,20 @@ export class SolidisClient extends EventEmitter {
   }
 
   async #negotiate(handshake: SolidisHandshake) {
-    const { clientName } = this.#options;
+    const clientName = this.#options.clientName || undefined;
     const protocol =
       this.#requester.negotiatedProtocol ?? this.#options.protocol;
     const { username, password } =
       this.#requester.authentication ?? this.#options.authentication;
+    const credentials =
+      username || password
+        ? ([username, password] as const)
+        : ([undefined, undefined] as const);
 
     const negotiation =
       protocol === SolidisProtocols.RESP3 &&
       (await this.#runStep(
-        hello.call(handshake, protocol, username, password, clientName),
+        hello.call(handshake, protocol, ...credentials, clientName),
         'Protocol negotiation failed',
         /^NOPROTO|unknown command/,
       ));

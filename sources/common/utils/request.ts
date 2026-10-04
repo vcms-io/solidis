@@ -4,9 +4,9 @@ import {
   SolidisContainerCommandNameSet,
   SolidisDollarByte,
   SolidisLineFeedByte,
-  toTextPrefix,
 } from '../internal.ts';
 import { RespError, SolidisCommandError } from './error.ts';
+import { toTextPrefix } from './internal.ts';
 
 import type { StringOrBuffer } from '../../types/solidis.ts';
 

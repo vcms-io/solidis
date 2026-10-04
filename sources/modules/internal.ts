@@ -1,9 +1,7 @@
 import { SolidisSubscriptionEventNames } from '../common/constants.ts';
-import {
-  SolidisCommandKindCacheLimit,
-  toTextPrefix,
-} from '../common/internal.ts';
+import { SolidisCommandKindCacheLimit } from '../common/internal.ts';
 import { SolidisRequesterError } from '../common/utils/error.ts';
+import { toTextPrefix } from '../common/utils/internal.ts';
 import { getCommandName } from '../common/utils/request.ts';
 
 import type { SolidisCommandKind } from '../types/internal.ts';
@@ -12,6 +10,11 @@ import type { SolidisSendOptions, StringOrBuffer } from '../types/solidis.ts';
 export { EventEmitter, errorMonitor } from 'node:events';
 
 export const SolidisSessionSendOptions: SolidisSendOptions = {};
+
+export const SolidisTransactionQueues = new WeakMap<
+  object,
+  StringOrBuffer[][]
+>();
 
 export function copyCommands(commands: StringOrBuffer[][]) {
   return Array.isArray(commands)

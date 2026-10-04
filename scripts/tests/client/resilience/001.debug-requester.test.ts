@@ -1306,6 +1306,89 @@ describe('debug-requester', () => {
       ]);
     });
 
+    it('keeps the transaction and the WATCH when DISCARD fails', async () => {
+      const { connection, requester } = createRequester();
+
+      async function exchange(commands: string[][], reply: string) {
+        const pending = requester.send(commands);
+
+        await flushed();
+
+        connection.reply(reply);
+
+        return await pending;
+      }
+
+      await exchange([['MULTI']], '+OK\r\n');
+      await exchange(
+        [['DISCARD', 'extra']],
+        "-ERR wrong number of arguments for 'discard' command\r\n",
+      );
+      await assert.rejects(requester.send([['SUBSCRIBE', 'a']]), {
+        message:
+          'SUBSCRIBE is not supported inside a transaction: it breaks the pairing of requests and replies.',
+      });
+      await exchange([['DISCARD']], '+OK\r\n');
+      await exchange([['WATCH', 'k']], '+OK\r\n');
+      await exchange([['DISCARD']], '-ERR DISCARD without MULTI\r\n');
+
+      connection.emit('close', new SolidisConnectionError('lost'));
+      connection.isConnected = true;
+
+      const ended = requester.send([['MULTI'], ['SET', 'k', 'v'], ['EXEC']]);
+
+      await flushed();
+
+      assert.deepStrictEqual(
+        connection.writes.at(-1),
+        commandsToBuffer([['MULTI'], ['SET', 'k', 'v'], ['DISCARD']]),
+      );
+
+      connection.reply('+OK\r\n+QUEUED\r\n+OK\r\n');
+
+      assert.deepStrictEqual(await ended, [['OK'], ['QUEUED'], [null]]);
+
+      await exchange([['WATCH', 'k']], '+OK\r\n');
+      await exchange([['MULTI']], '+OK\r\n');
+      await exchange(
+        [['EXEC']],
+        '-EXECABORT Transaction discarded because of previous errors.\r\n',
+      );
+
+      connection.emit('close', new SolidisConnectionError('lost'));
+      connection.isConnected = true;
+
+      assert.deepStrictEqual(await exchange([['EXEC']], '*0\r\n'), [[[]]]);
+    });
+
+    it('rejects a batch that cannot be serialized and resets the connection', async () => {
+      const { connection, requester } = createRequester();
+      const failure = new RangeError('Array buffer allocation failed');
+      const poisoned = Buffer.from('v');
+
+      Object.defineProperty(poisoned, 'copy', {
+        value: () => {
+          throw failure;
+        },
+      });
+
+      const sent = settle(requester.send([['GET', 'a']]));
+      const unsendable = settle(requester.send([['SET', 'k', poisoned]]));
+      const later = settle(requester.send([['GET', 'b']], { timeout: 99 }));
+
+      await flushed();
+
+      const errors = await Promise.all([sent, unsendable, later]);
+
+      for (const error of errors) {
+        assert.ok(error instanceof SolidisRequesterError);
+        assert.strictEqual(error.message, 'Array buffer allocation failed');
+        assert.strictEqual(error.cause, failure);
+      }
+
+      assert.deepStrictEqual(connection.resets, [errors[1]]);
+    });
+
     it('forgets a MULTI or WATCH that the server refuses', async () => {
       function exchange(
         requester: SolidisRequester,

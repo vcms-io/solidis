@@ -1527,6 +1527,10 @@ describe('session-guards', () => {
               Buffer.concat(server.received).includes('CLIENT'),
               helloReply,
             );
+            assert.ok(
+              !Buffer.concat(server.received).includes('AUTH'),
+              helloReply,
+            );
           } else {
             await assert.rejects(client.connect(), (error: unknown) => {
               assert.ok(error instanceof SolidisClientError);
@@ -1581,6 +1585,14 @@ describe('session-guards', () => {
       assert.strictEqual(
         new SolidisClient({ host: '127.0.0.1', lazyConnect: true }).uri,
         'redis://127.0.0.1:6379',
+      );
+      assert.strictEqual(
+        new SolidisClient({
+          host: '127.0.0.1',
+          lazyConnect: true,
+          authentication: { password: 'secret' },
+        }).uri,
+        'redis://:***@127.0.0.1:6379',
       );
     });
   });

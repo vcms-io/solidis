@@ -94,7 +94,14 @@ describe('options', () => {
     });
 
     it('rejects a database that is not a non-negative integer', () => {
-      for (const database of ['x', '-1', '1.5', '2/3', '1e3x']) {
+      for (const database of [
+        'x',
+        '-1',
+        '1.5',
+        '2/3',
+        '1e3x',
+        '999999999999999999999',
+      ]) {
         assert.throws(() => parseConnectionUri(`redis://host/${database}`), {
           name: 'SolidisClientError',
           message: `Invalid database '${database}' in URI`,

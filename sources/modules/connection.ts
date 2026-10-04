@@ -1,18 +1,18 @@
 import net from 'node:net';
 import tls from 'node:tls';
 
-import {
-  resolveTimerDelay,
-  SolidisClientQuitMessage,
-  SolidisMaximumTimerDelay,
-  SolidisSocketNotConnectedMessage,
-} from '../common/internal.ts';
+import { SolidisMaximumTimerDelay } from '../common/internal.ts';
 import { generateDebugHandle } from '../common/utils/debug.ts';
 import {
   SolidisClientError,
   SolidisConnectionError,
   wrapWithSolidisConnectionError,
 } from '../common/utils/error.ts';
+import {
+  resolveTimerDelay,
+  SolidisClientQuitMessage,
+  SolidisSocketNotConnectedMessage,
+} from '../common/utils/internal.ts';
 import { EventEmitter } from './internal.ts';
 
 import type {
