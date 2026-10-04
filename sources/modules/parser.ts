@@ -317,7 +317,7 @@ export class SolidisParser {
       buffer[dataEnd] !== SolidisCarriageReturnByte ||
       buffer[dataEnd + 1] !== SolidisLineFeedByte
     ) {
-      throw new SolidisParserError('Bulk: missing CRLF');
+      throw new SolidisParserError('Missing CRLF');
     }
 
     this.#offset = dataEnd + 2;

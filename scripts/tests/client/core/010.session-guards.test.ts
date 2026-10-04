@@ -858,6 +858,41 @@ describe('session-guards', () => {
       }
     });
 
+    it('announces the first attempt of a reconnect that a request starts', async () => {
+      const server = await startServer(answerPong);
+      const client = new SolidisFeaturedClient(
+        mockClientOptions(server.port, { maxConnectionRetryDelay: 1 }),
+      );
+      const events: unknown[][] = [];
+
+      client.on('error', () => {});
+      client.on('reconnecting', (attempt, delay) => {
+        events.push(['reconnecting', attempt, delay]);
+      });
+      client.on('reconnected', () => {
+        events.push(['reconnected']);
+      });
+
+      try {
+        await client.connect();
+        await delay(10);
+
+        const closed = new Promise((resolve) => client.once('close', resolve));
+
+        server.destroySockets();
+        await closed;
+
+        assert.deepStrictEqual(await client.send([['PING']]), [['PONG']]);
+        assert.deepStrictEqual(events, [
+          ['reconnecting', 1, 0],
+          ['reconnected'],
+        ]);
+      } finally {
+        client.quit();
+        await server.close();
+      }
+    });
+
     it('ends a ready-check wait as soon as its connection closes', async () => {
       let readyChecks = 0;
 
@@ -1255,7 +1290,7 @@ describe('session-guards', () => {
       }
     });
 
-    it('accepts any listener limit and debug buffer size without throwing', () => {
+    it('accepts any listener limit without throwing', () => {
       for (const [value, limit] of [
         [10_240, 10_240],
         [0, 0],
@@ -1266,7 +1301,6 @@ describe('session-guards', () => {
         const client = new SolidisClient({
           lazyConnect: true,
           debug: true,
-          debugMaxEntries: value,
           maxEventListenersForClient: value,
         });
 

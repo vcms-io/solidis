@@ -1,7 +1,7 @@
 /**
- * Debug infrastructure and requester module internals: debug memory capacity
- * and lifecycle, debug transforms, debug handle generation, requester fault
- * recovery and pipeline chunking, and the DEBUG command itself.
+ * Debug infrastructure and requester module internals: debug entries and
+ * their formatting, requester fault recovery and pipeline chunking, and the
+ * DEBUG command itself.
  */
 
 import assert from 'node:assert/strict';
@@ -16,7 +16,6 @@ import {
   SolidisClientError,
   SolidisCommandError,
   SolidisConnectionError,
-  SolidisDebugMemory,
   SolidisDefaultOptions,
   SolidisParserError,
   SolidisProtocols,
@@ -37,6 +36,8 @@ import {
 import type {
   SolidisClientEmit,
   SolidisClientFrozenOptions,
+  SolidisDebugHandle,
+  SolidisDebugLog,
   SolidisSendOptions,
 } from '../../../../sources/index.ts';
 import type { FeaturedClient } from '../../utils/index.ts';
@@ -53,196 +54,46 @@ describe('debug-requester', () => {
     await closeClient(client);
   });
 
-  describe('debug memory', () => {
-    it('keeps a usable buffer for any requested size', () => {
-      const messages = ['0', '1', '2', '3', '4'];
-
-      for (const [size, kept] of [
-        [Number.POSITIVE_INFINITY, 5],
-        [3, 3],
-        [1.5, 1],
-        [Number.NaN, 0],
-        [-1, 0],
-      ] as const) {
-        const memory = new SolidisDebugMemory(size);
-
-        for (const message of messages) {
-          memory.write({ type: 'info', message });
-        }
-
-        assert.deepStrictEqual(
-          memory.getLogs().map((log) => log.message),
-          messages.slice(messages.length - kept),
-          String(size),
-        );
-
-        memory.clearLogs();
-
-        assert.deepStrictEqual(memory.getLogs(), []);
-      }
-    });
-
-    it('prints entries only when DEBUG names solidis or everything', () => {
-      const originalDebug = process.env.DEBUG;
-      const originalWrite = process.stdout.write;
-      const printed: string[] = [];
-
-      process.stdout.write = ((chunk: string | Uint8Array) => {
-        printed.push(String(chunk));
-
-        return true;
-      }) as typeof process.stdout.write;
+  describe('debug entries', () => {
+    it('delivers timestamped entries through the debug event only when debug is on', async () => {
+      const debugging = await createClient({ debug: true });
+      const quiet = await createClient();
+      const entries: SolidisDebugLog[] = [];
+      const silent: SolidisDebugLog[] = [];
 
       try {
-        for (const [pattern, isPrinted] of [
-          [undefined, false],
-          ['', false],
-          ['app', false],
-          ['*', true],
-          ['app,solidis', true],
-          ['SOLIDIS', true],
-        ] as const) {
-          if (pattern === undefined) {
-            Reflect.deleteProperty(process.env, 'DEBUG');
-          } else {
-            process.env.DEBUG = pattern;
-          }
+        debugging.on('debug', (entry) => entries.push(entry));
+        quiet.on('debug', (entry) => silent.push(entry));
 
-          printed.length = 0;
+        const startedAt = Date.now();
 
-          new SolidisDebugMemory(1).write({ type: 'info', message: 'probe' });
+        await debugging.set(keyspace.key('debug-entry'), 'value');
+        await quiet.set(keyspace.key('quiet-entry'), 'value');
+        await delay(10);
 
-          assert.strictEqual(
-            printed.some((line) => line.includes('[Solidis info] probe')),
-            isPrinted,
-            String(pattern),
+        assert.ok(
+          entries.some(
+            ({ type, message }) =>
+              type === 'debug' &&
+              /^Requester serialized \d+ bytes: SET$/.test(message),
+          ),
+          JSON.stringify(entries.map(({ message }) => message)),
+        );
+
+        for (const entry of entries) {
+          assert.ok(
+            Number.isFinite(entry.timestamp) &&
+              entry.timestamp >= startedAt &&
+              entry.timestamp <= Date.now(),
+            `expected a timestamp after ${startedAt}, got ${entry.timestamp}`,
           );
         }
+
+        assert.deepStrictEqual(silent, []);
       } finally {
-        process.stdout.write = originalWrite;
-
-        if (originalDebug === undefined) {
-          Reflect.deleteProperty(process.env, 'DEBUG');
-        } else {
-          process.env.DEBUG = originalDebug;
-        }
+        await closeClient(debugging);
+        await closeClient(quiet);
       }
-    });
-
-    it('writes entries and respects max capacity', async () => {
-      const { SolidisDebugMemory } = await import(
-        '../../../../sources/modules/debug.ts'
-      );
-
-      const memory = new SolidisDebugMemory(3);
-
-      memory.write({ type: 'debug', message: 'one' });
-      memory.write({ type: 'debug', message: 'two' });
-      memory.write({ type: 'debug', message: 'three' });
-      memory.write({ type: 'debug', message: 'four' });
-
-      const logs = memory.getLogs();
-
-      assert.strictEqual(logs.length, 3);
-      assert.strictEqual(logs[0].type, 'debug');
-      assert.strictEqual(logs[0].message, 'two');
-      assert.strictEqual(logs[1].type, 'debug');
-      assert.strictEqual(logs[1].message, 'three');
-      assert.strictEqual(logs[2].type, 'debug');
-      assert.strictEqual(logs[2].message, 'four');
-
-      for (const entry of logs) {
-        assert.ok(
-          typeof entry.timestamp === 'number' &&
-            Number.isFinite(entry.timestamp) &&
-            entry.timestamp > 0,
-          `expected positive finite timestamp, got ${entry.timestamp}`,
-        );
-      }
-    });
-
-    it('clears logs', async () => {
-      const { SolidisDebugMemory } = await import(
-        '../../../../sources/modules/debug.ts'
-      );
-
-      const memory = new SolidisDebugMemory(10);
-
-      memory.write({ type: 'info', message: 'data' });
-
-      const logsBeforeClear = memory.getLogs();
-
-      assert.strictEqual(logsBeforeClear.length, 1);
-      assert.strictEqual(logsBeforeClear[0].type, 'info');
-      assert.strictEqual(logsBeforeClear[0].message, 'data');
-      assert.ok(
-        typeof logsBeforeClear[0].timestamp === 'number' &&
-          Number.isFinite(logsBeforeClear[0].timestamp) &&
-          logsBeforeClear[0].timestamp > 0,
-      );
-
-      memory.clearLogs();
-
-      assert.strictEqual(memory.getLogs().length, 0);
-    });
-
-    it('adds timestamp when not provided', async () => {
-      const { SolidisDebugMemory } = await import(
-        '../../../../sources/modules/debug.ts'
-      );
-
-      const memory = new SolidisDebugMemory(10);
-
-      memory.write({ type: 'warn', message: 'no timestamp' });
-
-      const logs = memory.getLogs();
-
-      assert.strictEqual(logs.length, 1);
-      assert.strictEqual(logs[0].type, 'warn');
-      assert.strictEqual(logs[0].message, 'no timestamp');
-      assert.ok(
-        typeof logs[0].timestamp === 'number' &&
-          Number.isFinite(logs[0].timestamp) &&
-          logs[0].timestamp > 0,
-      );
-    });
-
-    it('emits pushed event on write', async () => {
-      const { SolidisDebugMemory } = await import(
-        '../../../../sources/modules/debug.ts'
-      );
-
-      const memory = new SolidisDebugMemory(10);
-
-      let emittedEntry: unknown = null;
-
-      memory.on('pushed', (entry) => {
-        emittedEntry = entry;
-      });
-
-      memory.write({ type: 'debug', message: 'event test' });
-
-      await new Promise<void>((resolve) => setImmediate(resolve));
-
-      if (typeof emittedEntry !== 'object' || emittedEntry === null) {
-        assert.fail('write must emit a debug log entry object');
-      }
-
-      if (
-        !('type' in emittedEntry) ||
-        !('message' in emittedEntry) ||
-        !('timestamp' in emittedEntry)
-      ) {
-        assert.fail('emitted entry must include type, message, and timestamp');
-      }
-
-      assert.strictEqual(emittedEntry.type, 'debug');
-      assert.strictEqual(emittedEntry.message, 'event test');
-      assert.ok(
-        typeof emittedEntry.timestamp === 'number' &&
-          Number.isFinite(emittedEntry.timestamp) &&
-          emittedEntry.timestamp > 0,
-      );
     });
 
     it('formats a debug log with data', () => {
@@ -272,165 +123,6 @@ describe('debug-requester', () => {
         formatDebugLog({ type: 'debug', message: 'cyclic', data }),
         '[Solidis debug] cyclic <ref *1> { value: 1n, self: [Circular *1] }\n',
       );
-    });
-
-    it('keeps no entries at zero capacity but still emits pushed', () => {
-      const memory = new SolidisDebugMemory(0);
-      const pushed: unknown[] = [];
-
-      memory.on('pushed', (entry) => pushed.push(entry));
-      memory.write({ type: 'info', message: 'dropped' });
-
-      assert.deepStrictEqual(memory.getLogs(), []);
-      assert.strictEqual(pushed.length, 1);
-    });
-
-    it('returns logs oldest first as a frozen snapshot after wrapping', () => {
-      const memory = new SolidisDebugMemory(3);
-
-      for (let index = 0; index < 7; index += 1) {
-        memory.write({ type: 'info', message: `${index}`, timestamp: index });
-      }
-
-      const logs = memory.getLogs();
-
-      assert.deepStrictEqual(
-        logs.map(({ message }) => message),
-        ['4', '5', '6'],
-      );
-      assert.strictEqual(Object.isFrozen(logs), true);
-
-      memory.write({ type: 'info', message: '7', timestamp: 7 });
-
-      assert.deepStrictEqual(
-        logs.map(({ message }) => message),
-        ['4', '5', '6'],
-      );
-    });
-  });
-
-  describe('debug handle generator', () => {
-    it('returns undefined when no debug memory provided', async () => {
-      const { generateDebugHandle } = await import(
-        '../../../../sources/common/utils/debug.ts'
-      );
-
-      const handle = generateDebugHandle(undefined);
-
-      assert.strictEqual(handle, undefined);
-    });
-
-    it('returns a function that writes to debug memory', async () => {
-      const { generateDebugHandle } = await import(
-        '../../../../sources/common/utils/debug.ts'
-      );
-      const { SolidisDebugMemory } = await import(
-        '../../../../sources/modules/debug.ts'
-      );
-
-      const memory = new SolidisDebugMemory(10);
-      const handle = generateDebugHandle(memory);
-
-      if (handle === undefined) {
-        assert.fail(
-          'generateDebugHandle must return a function when memory is provided',
-        );
-      }
-
-      handle('info', 'test message', { extra: true });
-
-      await new Promise<void>((resolve) => setImmediate(resolve));
-
-      const logs = memory.getLogs();
-
-      assert.strictEqual(logs.length, 1);
-      assert.strictEqual(logs[0].type, 'info');
-      assert.strictEqual(logs[0].message, 'test message');
-      assert.ok(
-        typeof logs[0].timestamp === 'number' &&
-          Number.isFinite(logs[0].timestamp) &&
-          logs[0].timestamp > 0,
-      );
-      assert.deepStrictEqual(logs[0].data, { extra: true });
-    });
-  });
-
-  describe('debug stream via DEBUG environment variable', () => {
-    it('pipes formatted log entries to stdout when DEBUG includes solidis', async () => {
-      const originalDebug = process.env.DEBUG;
-
-      process.env.DEBUG = 'solidis';
-
-      try {
-        const { SolidisDebugMemory } = await import(
-          '../../../../sources/modules/debug.ts'
-        );
-
-        const memory = new SolidisDebugMemory(10);
-
-        const stdoutChunks: string[] = [];
-        const originalStdoutWrite = process.stdout.write.bind(process.stdout);
-
-        const interceptingWrite: typeof process.stdout.write = (
-          chunk: Uint8Array | string,
-          encodingOrCallback?:
-            | BufferEncoding
-            | ((error?: Error | null) => void),
-          callback?: (error?: Error | null) => void,
-        ): boolean => {
-          stdoutChunks.push(
-            typeof chunk === 'string'
-              ? chunk
-              : Buffer.from(chunk).toString('utf8'),
-          );
-          if (typeof encodingOrCallback === 'function') {
-            return originalStdoutWrite(chunk, encodingOrCallback);
-          }
-          return originalStdoutWrite(chunk, encodingOrCallback, callback);
-        };
-
-        process.stdout.write = interceptingWrite;
-
-        try {
-          memory.write({ type: 'info', message: 'env-activated debug' });
-
-          await waitFor(
-            () => stdoutChunks.join('').includes('[Solidis info]'),
-            {
-              timeout: 3000,
-              interval: 10,
-              description: 'debug entry piped to stdout',
-            },
-          );
-
-          const combinedOutput = stdoutChunks.join('');
-
-          assert.ok(
-            combinedOutput.includes('[Solidis info] env-activated debug'),
-            'when DEBUG=solidis, SolidisDebugMemory must pipe formatted ' +
-              `entries to stdout but captured: ${combinedOutput.slice(0, 200)}`,
-          );
-        } finally {
-          process.stdout.write = originalStdoutWrite;
-        }
-
-        const logs = memory.getLogs();
-
-        assert.strictEqual(logs.length, 1);
-        assert.strictEqual(logs[0].type, 'info');
-        assert.strictEqual(logs[0].message, 'env-activated debug');
-        assert.ok(
-          typeof logs[0].timestamp === 'number' &&
-            Number.isFinite(logs[0].timestamp) &&
-            logs[0].timestamp > 0,
-        );
-      } finally {
-        if (originalDebug === undefined) {
-          delete process.env.DEBUG;
-        } else {
-          process.env.DEBUG = originalDebug;
-        }
-      }
     });
   });
 
@@ -683,163 +375,6 @@ describe('debug-requester', () => {
     });
   });
 
-  describe('sanitizeCommandsBufferForDebug', () => {
-    it('returns the original buffer for commands without credentials', async () => {
-      const { commandsToBuffer, sanitizeCommandsBufferForDebug } = await import(
-        '../../../../sources/index.ts'
-      );
-
-      const commands = [
-        ['SET', 'key', 'value'],
-        ['GET', 'key'],
-      ];
-
-      const buffer = commandsToBuffer(commands);
-      const result = sanitizeCommandsBufferForDebug(buffer, commands);
-
-      assert.strictEqual(result, buffer.toString());
-    });
-
-    it('masks all arguments of an AUTH command', async () => {
-      const { commandsToBuffer, sanitizeCommandsBufferForDebug } = await import(
-        '../../../../sources/index.ts'
-      );
-
-      const commands = [['AUTH', 'myuser', 'supersecret']];
-      const buffer = commandsToBuffer(commands);
-      const result = sanitizeCommandsBufferForDebug(buffer, commands);
-
-      assert.strictEqual(
-        result,
-        '*3\r\n$4\r\nAUTH\r\n$3\r\n***\r\n$3\r\n***\r\n',
-      );
-    });
-
-    it('masks all arguments of a HELLO command', async () => {
-      const { commandsToBuffer, sanitizeCommandsBufferForDebug } = await import(
-        '../../../../sources/index.ts'
-      );
-
-      const commands = [['HELLO', '3', 'AUTH', 'admin', 'password123']];
-      const buffer = commandsToBuffer(commands);
-      const result = sanitizeCommandsBufferForDebug(buffer, commands);
-
-      assert.strictEqual(
-        result,
-        '*5\r\n$5\r\nHELLO\r\n$3\r\n***\r\n$3\r\n***\r\n$3\r\n***\r\n$3\r\n***\r\n',
-      );
-    });
-
-    it('masks the SENTINEL subcommands that carry passwords', async () => {
-      const { commandsToBuffer, sanitizeCommandsBufferForDebug } = await import(
-        '../../../../sources/index.ts'
-      );
-
-      const commands = [
-        ['SENTINEL', 'SET', 'mymaster', 'auth-pass', 'secret'],
-        ['sentinel', 'config', 'set', 'sentinel-pass', 'secret'],
-      ];
-      const result = sanitizeCommandsBufferForDebug(
-        commandsToBuffer(commands),
-        commands,
-      );
-
-      assert.ok(!result.includes('secret'), result);
-      assert.ok(result.includes('$8\r\nSENTINEL\r\n$3\r\nSET\r\n'));
-    });
-
-    it('only masks credential commands in a mixed pipeline', async () => {
-      const { commandsToBuffer, sanitizeCommandsBufferForDebug } = await import(
-        '../../../../sources/index.ts'
-      );
-
-      const commands = [
-        ['SET', 'visible-key', 'visible-value'],
-        ['AUTH', 'secret-user', 'secret-pass'],
-        ['GET', 'another-key'],
-      ];
-
-      const buffer = commandsToBuffer(commands);
-      const result = sanitizeCommandsBufferForDebug(buffer, commands);
-
-      assert.strictEqual(
-        result,
-        '*3\r\n$3\r\nSET\r\n$11\r\nvisible-key\r\n$13\r\nvisible-value\r\n*3\r\n$4\r\nAUTH\r\n$3\r\n***\r\n$3\r\n***\r\n*2\r\n$3\r\nGET\r\n$11\r\nanother-key\r\n',
-      );
-    });
-
-    it('handles case-insensitive command names', async () => {
-      const { commandsToBuffer, sanitizeCommandsBufferForDebug } = await import(
-        '../../../../sources/index.ts'
-      );
-
-      const commands = [['auth', 'user', 'pass']];
-      const buffer = commandsToBuffer(commands);
-      const result = sanitizeCommandsBufferForDebug(buffer, commands);
-
-      assert.strictEqual(
-        result,
-        '*3\r\n$4\r\nauth\r\n$3\r\n***\r\n$3\r\n***\r\n',
-      );
-    });
-
-    it('masks MIGRATE, ACL SETUSER and CONFIG SET arguments but keeps their names', async () => {
-      const { commandsToBuffer, sanitizeCommandsBufferForDebug } = await import(
-        '../../../../sources/index.ts'
-      );
-
-      const commands = [
-        ['MIGRATE', 'host', '6379', 'key', '0', '1000', 'AUTH', 'secret'],
-        ['acl', 'setuser', 'alice', '>secret'],
-        ['CONFIG', 'SET', 'requirepass', 'secret'],
-        ['CONFIG', 'GET', 'maxmemory'],
-      ];
-
-      const result = sanitizeCommandsBufferForDebug(
-        commandsToBuffer(commands),
-        commands,
-      );
-
-      assert.strictEqual(result.includes('secret'), false);
-      assert.strictEqual(
-        result,
-        commandsToBuffer([
-          ['MIGRATE', '***', '***', '***', '***', '***', '***', '***'],
-          ['acl', 'setuser', '***', '***'],
-          ['CONFIG', 'SET', '***', '***'],
-          ['CONFIG', 'GET', 'maxmemory'],
-        ]).toString(),
-      );
-    });
-
-    it('masks credential commands given as buffers', async () => {
-      const { commandsToBuffer, sanitizeCommandsBufferForDebug } = await import(
-        '../../../../sources/index.ts'
-      );
-
-      const commands = [[Buffer.from('AUTH'), Buffer.from('secret')]];
-
-      assert.strictEqual(
-        sanitizeCommandsBufferForDebug(commandsToBuffer(commands), commands),
-        '*2\r\n$4\r\nAUTH\r\n$3\r\n***\r\n',
-      );
-    });
-
-    it('truncates a long preview', async () => {
-      const { commandsToBuffer, sanitizeCommandsBufferForDebug } = await import(
-        '../../../../sources/index.ts'
-      );
-
-      const commands = [['SET', 'key', 'x'.repeat(2000)]];
-      const buffer = commandsToBuffer(commands);
-
-      assert.strictEqual(
-        sanitizeCommandsBufferForDebug(buffer, commands),
-        `${buffer.toString('utf8', 0, 1024)}...`,
-      );
-    });
-  });
-
   describe('requester internals', () => {
     class FakeConnection extends EventEmitter {
       public isConnected = true;
@@ -864,7 +399,7 @@ describe('debug-requester', () => {
     function createRequester(
       options: Partial<SolidisClientFrozenOptions> = {},
       listener?: (event: string) => void,
-      debugMemory?: SolidisDebugMemory,
+      debugHandle?: SolidisDebugHandle,
     ) {
       const connection = new FakeConnection();
       const events: unknown[][] = [];
@@ -881,7 +416,7 @@ describe('debug-requester', () => {
         connection: connection as never,
         pubSub,
         emit,
-        debugMemory,
+        debugHandle,
       });
 
       return { connection, events, pubSub, requester };
@@ -2611,30 +2146,30 @@ describe('debug-requester', () => {
       assert.deepStrictEqual(await next, [['PONG']]);
     });
 
-    it('logs serialized pipelines with credentials masked', async () => {
-      const debugMemory = new SolidisDebugMemory(10);
+    it('logs serialized pipelines by command name, without arguments', async () => {
+      const messages: string[] = [];
       const { connection, requester } = createRequester(
         {},
         undefined,
-        debugMemory,
+        (_type, message) => messages.push(message),
       );
+      const commands = [
+        ['AUTH', 'user', 'secret'],
+        ['acl', 'setuser', 'alice', '>secret'],
+        ['PING'],
+      ];
 
-      const pending = requester.send([['AUTH', 'user', 'secret'], ['PING']]);
+      const pending = requester.send(commands);
 
       await flushed();
 
-      connection.reply('+OK\r\n+PONG\r\n');
+      connection.reply('+OK\r\n+OK\r\n+PONG\r\n');
 
       await pending;
 
-      const messages = debugMemory.getLogs().map(({ message }) => message);
-
       assert.deepStrictEqual(messages, [
-        `Requester serialized: ${commandsToBuffer([
-          ['AUTH', '***', '***'],
-          ['PING'],
-        ])}`,
-        'Requester received 12 bytes',
+        `Requester serialized ${commandsToBuffer(commands).length} bytes: AUTH, ACL SETUSER, PING`,
+        'Requester received 17 bytes',
       ]);
     });
 

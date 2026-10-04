@@ -2,7 +2,6 @@ import net from 'node:net';
 import tls from 'node:tls';
 
 import { SolidisMaximumTimerDelay } from '../common/internal.ts';
-import { generateDebugHandle } from '../common/utils/debug.ts';
 import {
   SolidisClientError,
   SolidisConnectionError,
@@ -18,7 +17,7 @@ import { EventEmitter } from './internal.ts';
 import type {
   SolidisConnectionEventHandlers,
   SolidisConnectionOptions,
-  SolidisDebugLogType,
+  SolidisDebugHandle,
   SolidisSocket,
 } from '../types/solidis.ts';
 
@@ -37,16 +36,13 @@ interface SolidisConnectionWaiter {
 
 export class SolidisConnection extends EventEmitter {
   readonly #options: SolidisConnectionOptions;
-  readonly #debug?: (
-    type: SolidisDebugLogType,
-    message: string,
-    data?: unknown,
-  ) => void;
+  readonly #debug?: SolidisDebugHandle;
 
   #socket: SolidisSocket | null = null;
   #isConnected = false;
   #isQuitted = false;
   #isReconnecting = false;
+  #hasConnected = false;
   #readyAt = Number.NaN;
   #failedAttempts = 0;
   #remainingReconnects = 0;
@@ -60,7 +56,7 @@ export class SolidisConnection extends EventEmitter {
     super();
 
     this.#options = options;
-    this.#debug = generateDebugHandle(options.debugMemory);
+    this.#debug = options.debugHandle;
   }
 
   public get isConnected() {
@@ -154,7 +150,7 @@ export class SolidisConnection extends EventEmitter {
 
     const delay = this.#getRetryDelay();
 
-    if (delay === 0 && !this.#isReconnecting) {
+    if (delay === 0 && !this.#isReconnecting && !this.#hasConnected) {
       this.#attempt();
 
       return;
@@ -261,6 +257,7 @@ export class SolidisConnection extends EventEmitter {
     socket.setKeepAlive(true);
 
     this.#isConnected = true;
+    this.#hasConnected = true;
     this.#readyAt = Number.NaN;
     this.#waiters = [];
 

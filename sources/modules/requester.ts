@@ -1,8 +1,4 @@
 import {
-  generateDebugHandle,
-  sanitizeCommandsBufferForDebug,
-} from '../common/utils/debug.ts';
-import {
   RespError,
   SolidisClientError,
   SolidisRequesterError,
@@ -21,7 +17,11 @@ import {
   isSubscriptionEventName,
   isUnsubscribeEventName,
 } from '../common/utils/reply.ts';
-import { commandsToBuffer, toCommandError } from '../common/utils/request.ts';
+import {
+  commandsToBuffer,
+  getCommandName,
+  toCommandError,
+} from '../common/utils/request.ts';
 import { RespPush } from '../types/resp.ts';
 import { SolidisProtocols } from '../types/solidis.ts';
 import {
@@ -41,7 +41,7 @@ import type {
 } from '../types/internal.ts';
 import type {
   SolidisData,
-  SolidisDebugLogType,
+  SolidisDebugHandle,
   SolidisRequesterOptions,
   SolidisSendOptions,
   StringOrBuffer,
@@ -93,11 +93,7 @@ function createPipeline(): SolidisPipeline {
 
 export class SolidisRequester {
   readonly #options: SolidisRequesterOptions;
-  readonly #debug?: (
-    type: SolidisDebugLogType,
-    message: string,
-    data?: unknown,
-  ) => void;
+  readonly #debug?: SolidisDebugHandle;
 
   #parser: SolidisParser;
   #pendingRequests: SolidisRequest[] = [];
@@ -126,7 +122,7 @@ export class SolidisRequester {
     this.#options = options;
     this.#parser = new SolidisParser(options);
     this.#database = options.database;
-    this.#debug = generateDebugHandle(options.debugMemory);
+    this.#debug = options.debugHandle;
 
     connection.on('data', (chunk) => this.#receive(chunk));
     connection.on('close', (error) => this.#fail(error));
@@ -382,7 +378,7 @@ export class SolidisRequester {
 
     this.#debug?.(
       'debug',
-      `Requester serialized: ${sanitizeCommandsBufferForDebug(buffer, pipeline.commands)}`,
+      `Requester serialized ${buffer.length} bytes: ${pipeline.commands.map(getCommandName).join(', ')}`,
     );
 
     pipeline.receivedChunks = this.#receivedChunks;
@@ -429,7 +425,9 @@ export class SolidisRequester {
         isPush ||
         (this.#protocol === SolidisProtocols.RESP2 &&
           pubSub.hasActiveSubscriptions);
-      const confirmation = this.#getExpectedConfirmation();
+      const pipeline = this.#inflightQueue[this.#inflightHead];
+      const kind = pipeline?.subRequests[pipeline.subRequestIndex].kind;
+      const confirmation = isSubscriptionEventName(kind) ? kind : undefined;
 
       if (isEvent || confirmation) {
         const eventName = getPubSubEventName(reply);
@@ -458,13 +456,6 @@ export class SolidisRequester {
     }
 
     this.#resolveNext(reply);
-  }
-
-  #getExpectedConfirmation() {
-    const pipeline = this.#inflightQueue[this.#inflightHead];
-    const kind = pipeline?.subRequests[pipeline.subRequestIndex].kind;
-
-    return isSubscriptionEventName(kind) ? kind : undefined;
   }
 
   #resolveNext(reply: SolidisData) {

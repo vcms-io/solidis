@@ -404,6 +404,7 @@ describe('regressions', () => {
         'secret',
       ]);
       assert.deepStrictEqual(createAuthCommand('secret'), ['AUTH', 'secret']);
+      assert.deepStrictEqual(createAuthCommand(''), ['AUTH', '']);
       assert.deepStrictEqual(createHelloCommand('RESP3', 'user', ''), [
         'HELLO',
         '3',
@@ -654,12 +655,46 @@ describe('regressions', () => {
         "[ACL SETUSER] ERR Error in ACL SETUSER modifier '***': Syntax error",
       );
 
+      const quotedPattern = toCommandError(
+        new RespError(
+          "ERR Error in ACL SETUSER modifier '(~'my key' >s3cr3t-Passw0rd)': Syntax error",
+        ),
+        ['ACL', 'SETUSER', 'u', 'on', "(~'my", "key'", '>s3cr3t-Passw0rd)'],
+      );
+
+      assert.strictEqual(
+        quotedPattern.message,
+        "[ACL SETUSER] ERR Error in ACL SETUSER modifier '***': Syntax error",
+      );
+
+      const spaced = toCommandError(
+        new RespError(
+          "ERR unknown command 'SETT', with args beginning with: 'k' ' ' secret-tail' ",
+        ),
+        ['SETT', 'k', " ' secret-tail"],
+      );
+
+      assert.strictEqual(
+        spaced.message,
+        "[SETT] ERR unknown command 'SETT', with args beginning with: '***' ",
+      );
+
       const similar = toCommandError(new RespError("ERR unknown 'O'Neil'"), [
         'NOSUCH',
         "O'Brien",
       ]);
 
-      assert.strictEqual(similar.message, "[NOSUCH] ERR unknown '***'Neil'");
+      assert.strictEqual(similar.message, "[NOSUCH] ERR unknown '***'");
+
+      const unquoted = toCommandError(
+        new RespError("ERR missing 'value' and 'kept'"),
+        ['NOSUCH', 'value', 'other'],
+      );
+
+      assert.strictEqual(
+        unquoted.message,
+        "[NOSUCH] ERR missing '***' and 'kept'",
+      );
 
       const unterminated = toCommandError(
         new RespError("ERR invalid 'reader and more"),
@@ -693,14 +728,14 @@ describe('regressions', () => {
         texts.map((text) => `'${text}'`).join(' ');
       const startedAt = performance.now();
       const error = toCommandError(
-        new RespError(`ERR missing ${quoted(values)} and 'O'Brien' 'kept'`),
-        ['EVALSHA', 'sha', '0', ...values, "O'Brien"],
+        new RespError(`ERR missing ${quoted(values)} and 'kept'`),
+        ['EVALSHA', 'sha', '0', ...values],
       );
 
       assert.ok(performance.now() - startedAt < 1000);
       assert.strictEqual(
         error.message,
-        `[EVALSHA] ERR missing ${quoted(values.map(() => '***'))} and '***' 'kept'`,
+        `[EVALSHA] ERR missing ${quoted(values.map(() => '***'))} and 'kept'`,
       );
     });
 

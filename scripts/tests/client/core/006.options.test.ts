@@ -101,6 +101,12 @@ describe('options', () => {
         '2/3',
         '1e3x',
         '999999999999999999999',
+        '0x10',
+        '1e1',
+        '1.0',
+        '+3',
+        '0b11',
+        '0o7',
       ]) {
         assert.throws(() => parseConnectionUri(`redis://host/${database}`), {
           name: 'SolidisClientError',
@@ -127,7 +133,6 @@ describe('options', () => {
         connectionRetryDelay: 100,
         database: 0,
         debug: false,
-        debugMaxEntries: 10_240,
         enableReadyCheck: true,
         host: '127.0.0.1',
         uri: false,

@@ -48,7 +48,6 @@ export const SolidisDefaultOptions: SolidisClientFrozenOptions = {
   connectionRetryDelay: 100,
   database: 0,
   debug: false,
-  debugMaxEntries: SolidisKilobyte * 10,
   enableReadyCheck: true,
   host: '127.0.0.1',
   uri: false,
@@ -150,13 +149,3 @@ export const SolidisTransactionBannedCommandNames = [
   'hello',
   'reset',
 ] as const;
-
-export const SolidisCredentialCommandNameSet: ReadonlySet<string> = new Set([
-  'AUTH',
-  'HELLO',
-  'MIGRATE',
-  'ACL SETUSER',
-  'CONFIG SET',
-  'SENTINEL CONFIG',
-  'SENTINEL SET',
-]);

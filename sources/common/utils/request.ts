@@ -114,43 +114,6 @@ function findLowerBound(texts: readonly string[], text: string) {
   return low;
 }
 
-function findMaskEnd(
-  source: string,
-  start: number,
-  quote: string,
-  texts: readonly string[],
-  index: number,
-) {
-  let position = start;
-
-  for (let next = index; next < texts.length; next += 1) {
-    const text = texts[next];
-
-    let matched = 0;
-
-    while (
-      matched < text.length &&
-      source[position + matched] === text[matched]
-    ) {
-      matched += 1;
-    }
-
-    position += matched;
-
-    if (source[position] === quote) {
-      return position;
-    }
-
-    if (matched < text.length || source[position] !== ' ') {
-      return next === index ? -1 : source.indexOf(quote, position);
-    }
-
-    position += 1;
-  }
-
-  return source.indexOf(quote, position);
-}
-
 function redactArguments(
   message: string,
   command: readonly StringOrBuffer[],
@@ -163,74 +126,51 @@ function redactArguments(
     return source;
   }
 
-  const ordered = command
+  const texts = command
     .slice(visibleLength)
     .map((argument) =>
       toTextPrefix(argument, source.length).replace(/[\r\n]/g, ' '),
     );
-  const firstIndexes = new Map<string, number>();
-
-  ordered.forEach((text, index) => {
-    if (starts.has(text[0]) && !firstIndexes.has(text)) {
-      firstIndexes.set(text, index);
-    }
-  });
-
-  const texts = [...firstIndexes.keys()].sort();
-  const lengths = new Set(texts.map((text) => text.length));
+  const joined = texts.join('');
+  const innerQuotes = ["'", '`'].filter((quote) => joined.includes(quote));
+  const candidates = new Set(texts.filter((text) => starts.has(text[0])));
+  const sorted = [...candidates].sort();
+  const lengths = new Set(sorted.map((text) => text.length));
 
   let result = '';
   let copied = 0;
+  let cursor = 0;
 
   for (const { index } of source.matchAll(/['`]/g)) {
     const quote = source[index];
     const start = index + 1;
     const closing = source.indexOf(quote, start);
 
-    if (index < copied || closing === -1) {
+    if (index < cursor || closing === -1) {
       continue;
     }
 
     const span = source.slice(start, closing);
-    const prefix = span + quote;
 
-    let end =
-      span !== '' && texts[findLowerBound(texts, span)]?.startsWith(span)
-        ? closing
-        : -1;
+    let isArgument =
+      span !== '' && sorted[findLowerBound(sorted, span)]?.startsWith(span);
 
     for (
       let space = span.indexOf(' ');
-      space > 0;
+      !isArgument && space > 0;
       space = span.indexOf(' ', space + 1)
     ) {
-      const index = lengths.has(space)
-        ? firstIndexes.get(span.slice(0, space))
-        : undefined;
-
-      if (index !== undefined) {
-        end = Math.max(
-          end,
-          closing,
-          findMaskEnd(source, start, quote, ordered, index),
-        );
-      }
+      isArgument = lengths.has(space) && candidates.has(span.slice(0, space));
     }
 
-    for (
-      let candidate = findLowerBound(texts, prefix);
-      texts[candidate]?.startsWith(prefix);
-      candidate += 1
-    ) {
-      end = Math.max(
-        end,
-        findMaskEnd(source, start, quote, [texts[candidate]], 0),
-      );
-    }
+    if (isArgument) {
+      const end = innerQuotes.includes(quote)
+        ? source.lastIndexOf(quote)
+        : closing;
 
-    if (end !== -1) {
       result += `${source.slice(copied, start)}***`;
       copied = end;
+      cursor = end + 1;
     }
   }
 

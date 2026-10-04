@@ -387,7 +387,7 @@ describe('parser', () => {
   it('rejects a bulk payload that is not terminated by CRLF', () => {
     assert.throws(() => parseOnce(bytes('$3\r\nabcXY')), {
       name: 'SolidisParserError',
-      message: 'Bulk: missing CRLF',
+      message: 'Missing CRLF',
     });
   });
 

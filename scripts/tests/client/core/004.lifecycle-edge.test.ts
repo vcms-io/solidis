@@ -200,9 +200,7 @@ describe('lifecycle-edge', () => {
   });
 
   it('streams debug entries and survives a debug-enabled command flow', async () => {
-    const client = track(
-      await createClient({ debug: true, debugMaxEntries: 64 }),
-    );
+    const client = track(await createClient({ debug: true }));
 
     const entries: unknown[] = [];
     client.on('debug', (entry) => entries.push(entry));
@@ -217,7 +215,7 @@ describe('lifecycle-edge', () => {
             typeof entry === 'object' &&
             entry !== null &&
             'message' in entry &&
-            String(entry.message).includes('$3\r\nSET\r\n'),
+            String(entry.message).endsWith(' bytes: SET'),
         ),
       {
         timeout: 1000,
@@ -232,15 +230,13 @@ describe('lifecycle-edge', () => {
     );
 
     assert.ok(
-      messages.some(
-        (message) =>
-          message.startsWith('Requester serialized:') &&
-          message.includes('$3\r\nSET\r\n'),
+      messages.some((message) =>
+        /^Requester serialized \d+ bytes: SET$/.test(message),
       ),
     );
     assert.ok(
       messages.some(
-        (message) => message === 'Requester serialized: *1\r\n$4\r\nPING\r\n',
+        (message) => message === 'Requester serialized 14 bytes: PING',
       ),
     );
   });

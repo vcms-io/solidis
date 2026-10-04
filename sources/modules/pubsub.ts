@@ -16,11 +16,7 @@ import type {
 } from '../types/solidis.ts';
 
 function toText(value: SolidisData | undefined) {
-  if (Buffer.isBuffer(value)) {
-    return value.toString();
-  }
-
-  return typeof value === 'string' ? value : undefined;
+  return isPayload(value) ? value.toString() : undefined;
 }
 
 function isPayload(value: SolidisData | undefined): value is StringOrBuffer {

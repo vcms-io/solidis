@@ -8,7 +8,6 @@ import type {
 } from '../common/constants.ts';
 import type { RespError } from '../common/utils/error.ts';
 import type { SolidisConnection } from '../modules/connection.ts';
-import type { SolidisDebugMemory } from '../modules/debug.ts';
 import type { SolidisPubSub } from '../modules/pubsub.ts';
 import type { RespPush } from './resp.ts';
 
@@ -56,7 +55,6 @@ export interface SolidisClientOptions {
   connectionRetryDelay?: number;
   database?: number;
   debug?: boolean;
-  debugMaxEntries?: number;
   enableReadyCheck?: boolean;
   host?: string;
   uri?: string | URL | false;
@@ -83,7 +81,7 @@ export type SolidisClientFrozenOptions = Readonly<
 >;
 
 export type SolidisConnectionOptions = SolidisClientFrozenOptions & {
-  debugMemory?: SolidisDebugMemory;
+  debugHandle?: SolidisDebugHandle;
 };
 
 export type SolidisParserOptions = Pick<SolidisClientFrozenOptions, 'parser'>;
@@ -96,7 +94,7 @@ export type SolidisRequesterOptions = SolidisClientFrozenOptions & {
   connection: SolidisConnection;
   pubSub: SolidisPubSub;
   emit: SolidisClientEmit;
-  debugMemory?: SolidisDebugMemory;
+  debugHandle?: SolidisDebugHandle;
 };
 
 export interface SolidisSendOptions {
@@ -175,25 +173,16 @@ export interface SolidisConnectionEventHandlers<T = SolidisConnection> {
   ) => T;
 }
 
-export interface SolidisDebugEvents {
-  pushed: (entry: SolidisDebugLog) => void;
-}
-
-export interface SolidisDebugMemoryEventHandlers<T = SolidisDebugMemory> {
-  emit: <E extends keyof SolidisDebugEvents>(
-    event: E,
-    ...parameters: Parameters<SolidisDebugEvents[E]>
-  ) => boolean;
-  on: <E extends keyof SolidisDebugEvents>(
-    event: E,
-    listener: SolidisDebugEvents[E],
-  ) => T;
-}
-
 export type SolidisDebugLogType = 'error' | 'info' | 'debug' | 'warn';
 
+export type SolidisDebugHandle = (
+  type: SolidisDebugLogType,
+  message: string,
+  data?: unknown,
+) => void;
+
 export interface SolidisDebugLog {
-  timestamp?: number;
+  timestamp: number;
   type: SolidisDebugLogType;
   message: string;
   data?: unknown;
@@ -232,7 +221,11 @@ export type SolidisClientExtensions<
   T extends Record<string, unknown> = Record<string, unknown>,
   C = unknown,
 > = {
-  [K in keyof T as T[K] extends SolidisFunction ? K : never]: K extends 'multi'
+  [K in keyof T as K extends symbol | 'constructor'
+    ? never
+    : T[K] extends SolidisFunction
+      ? K
+      : never]: K extends 'multi'
     ? T[K] extends (...parameters: infer Parameters) => unknown
       ? (
           ...parameters: Parameters

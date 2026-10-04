@@ -9,7 +9,6 @@ import {
   SolidisAuthenticationFailedMessage,
   SolidisMaximumTimerDelay,
 } from './common/internal.ts';
-import { generateDebugHandle } from './common/utils/debug.ts';
 import {
   RespError,
   SolidisClientError,
@@ -26,7 +25,6 @@ import {
 import { resolveClientOptions } from './common/utils/options.ts';
 import { findErrorInReplies } from './common/utils/reply.ts';
 import { SolidisConnection } from './modules/connection.ts';
-import { SolidisDebugMemory } from './modules/debug.ts';
 import {
   copyCommands,
   EventEmitter,
@@ -44,7 +42,7 @@ import type {
   SolidisClientFrozenOptions,
   SolidisClientOptions,
   SolidisData,
-  SolidisDebugLogType,
+  SolidisDebugHandle,
   SolidisSendOptions,
   StringOrBuffer,
 } from './types/solidis.ts';
@@ -56,12 +54,7 @@ export class SolidisClient extends EventEmitter {
   readonly #pubSub: SolidisPubSub;
   readonly #connection: SolidisConnection;
   readonly #requester: SolidisRequester;
-  readonly #debugMemory?: SolidisDebugMemory;
-  readonly #debug?: (
-    type: SolidisDebugLogType,
-    message: string,
-    data?: unknown,
-  ) => void;
+  readonly #debug?: SolidisDebugHandle;
 
   #isReady = false;
   #hasBeenReady = false;
@@ -83,21 +76,24 @@ export class SolidisClient extends EventEmitter {
     const emit = this.emit.bind(this);
 
     this.#options = resolveClientOptions(options);
-    this.#debugMemory = this.#options.debug
-      ? new SolidisDebugMemory(this.#options.debugMaxEntries)
+    this.#debug = this.#options.debug
+      ? (type, message, data) => {
+          const entry = { timestamp: Date.now(), type, message, data };
+
+          queueMicrotask(() => this.#notify('debug', entry));
+        }
       : undefined;
-    this.#debug = generateDebugHandle(this.#debugMemory);
     this.#pubSub = new SolidisPubSub(emit);
     this.#connection = new SolidisConnection({
       ...this.#options,
-      debugMemory: this.#debugMemory,
+      debugHandle: this.#debug,
     });
     this.#requester = new SolidisRequester({
       ...this.#options,
       connection: this.#connection,
       pubSub: this.#pubSub,
       emit,
-      debugMemory: this.#debugMemory,
+      debugHandle: this.#debug,
     });
 
     this.#setupListeners();
@@ -240,10 +236,6 @@ export class SolidisClient extends EventEmitter {
 
   #setupListeners() {
     const connection = this.#connection;
-
-    this.#debugMemory?.on('pushed', (entry) =>
-      queueMicrotask(() => this.#notify('debug', entry)),
-    );
 
     connection.on('connect', () => this.#onConnect());
     connection.on('close', (error) => this.#onClose(error));
