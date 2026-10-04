@@ -54,13 +54,13 @@ export default function BenchmarksPage() {
       ioredisNumber: 3095,
     },
     {
-      name: 'Set',
-      description: 'SET (1 KB payload)',
-      solidis: '740ms',
-      ioredis: '1306ms',
+      name: 'Hash Mutation',
+      description: 'HMSET + HMGET + HDEL',
+      solidis: '2046ms',
+      ioredis: '3776ms',
       improvement: '1.8x',
-      solidisNumber: 740,
-      ioredisNumber: 1306,
+      solidisNumber: 2046,
+      ioredisNumber: 3776,
     },
     {
       name: 'Multi-Key',
@@ -72,15 +72,6 @@ export default function BenchmarksPage() {
       ioredisNumber: 3242,
     },
     {
-      name: 'Stream',
-      description: 'XADD + XRANGE + XLEN',
-      solidis: '1830ms',
-      ioredis: '3263ms',
-      improvement: '1.8x',
-      solidisNumber: 1830,
-      ioredisNumber: 3263,
-    },
-    {
       name: 'Sorted Set',
       description: 'ZADD + ZRANGE + ZREM',
       solidis: '1639ms',
@@ -88,15 +79,6 @@ export default function BenchmarksPage() {
       improvement: '1.8x',
       solidisNumber: 1639,
       ioredisNumber: 3007,
-    },
-    {
-      name: 'Hash Mutation',
-      description: 'HMSET + HMGET + HDEL',
-      solidis: '2046ms',
-      ioredis: '3776ms',
-      improvement: '1.8x',
-      solidisNumber: 2046,
-      ioredisNumber: 3776,
     },
     {
       name: 'Expire',
@@ -108,6 +90,24 @@ export default function BenchmarksPage() {
       ioredisNumber: 1840,
     },
     {
+      name: 'Stream',
+      description: 'XADD + XRANGE + XLEN',
+      solidis: '1830ms',
+      ioredis: '3263ms',
+      improvement: '1.8x',
+      solidisNumber: 1830,
+      ioredisNumber: 3263,
+    },
+    {
+      name: 'Set',
+      description: 'SET (1 KB payload)',
+      solidis: '740ms',
+      ioredis: '1306ms',
+      improvement: '1.8x',
+      solidisNumber: 740,
+      ioredisNumber: 1306,
+    },
+    {
       name: 'Hash Round-Trip',
       description: 'HSET + HGET + HGETALL',
       solidis: '1632ms',
@@ -115,15 +115,6 @@ export default function BenchmarksPage() {
       improvement: '1.7x',
       solidisNumber: 1632,
       ioredisNumber: 2703,
-    },
-    {
-      name: 'Counter',
-      description: 'INCR + DECR',
-      solidis: '921ms',
-      ioredis: '1474ms',
-      improvement: '1.6x',
-      solidisNumber: 921,
-      ioredisNumber: 1474,
     },
     {
       name: 'Non-Transaction',
@@ -135,13 +126,13 @@ export default function BenchmarksPage() {
       ioredisNumber: 1739,
     },
     {
-      name: 'Get Buffer',
-      description: 'GETBUFFER (1 KB payload)',
-      solidis: '473ms',
-      ioredis: '716ms',
-      improvement: '1.5x',
-      solidisNumber: 473,
-      ioredisNumber: 716,
+      name: 'Counter',
+      description: 'INCR + DECR',
+      solidis: '921ms',
+      ioredis: '1474ms',
+      improvement: '1.6x',
+      solidisNumber: 921,
+      ioredisNumber: 1474,
     },
     {
       name: 'Pipeline Mixed',
@@ -151,6 +142,15 @@ export default function BenchmarksPage() {
       improvement: '1.5x',
       solidisNumber: 1690,
       ioredisNumber: 2600,
+    },
+    {
+      name: 'Get Buffer',
+      description: 'GETBUFFER (1 KB payload)',
+      solidis: '473ms',
+      ioredis: '716ms',
+      improvement: '1.5x',
+      solidisNumber: 473,
+      ioredisNumber: 716,
     },
   ];
 
@@ -180,7 +180,7 @@ export default function BenchmarksPage() {
         </div>
         <div className="card-base p-5 text-center">
           <div className="text-2xl font-bold text-foreground mb-1">
-            &lt;30KB
+            &lt;31KB
           </div>
           <div className="text-xs text-muted-foreground">
             {t('benchmarks.bundleSize')}

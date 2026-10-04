@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-This release rebuilds the client core around one guarantee: every reply reaches the request that asked for it. Sessions survive reconnects, replies have one shape across RESP2, RESP3 and module versions, and reads can return Buffers or BigInts on request.
+This release rebuilds the client core around one guarantee: every reply reaches the request that asked for it. Sessions survive reconnects, command methods return one shape across RESP2, RESP3 and module versions, and reads can return Buffers or BigInts on request.
 
 > [!IMPORTANT]
 > This release contains breaking changes. Follow [Upgrading from 0.4.x](#upgrading-from-04x) before you update.
@@ -97,7 +97,8 @@ try {
 | `cfInsert()`, `cfInsertnx()`         | Rejected the whole call with `Invalid reply` when the filter was full               | `null` for each item the full filter could not take                                 |
 | `xreadgroup()`                       | Rejected the batch when it contained a deleted entry                                | Returns deleted entries as `{ id, fields: null }` (`RespStreamGroupReadResult`)     |
 | `xinfoGroups()`, `xinfoStream()`     | Turned an unknown `entriesRead` into `0`, and `xinfoGroups()` also an unknown `lag` | `number \| null`                                                                    |
-| `xinfoStream()`, `xinfoConsumers()`  | Fields that older servers omit became `"undefined"` or `NaN`                        | `null`                                                                              |
+| `xinfoStream()`, `xinfoConsumers()`  | Fields older servers omit, also in `xinfoGroups()`, became `"undefined"` or `NaN`   | `null`                                                                              |
+| `xinfoStream(key, true, count)`      | Declared `firstEntry` and `lastEntry`, always `null` with FULL                      | `RespStreamInfoFull` drops them; `count` needs `full: true`                         |
 | `xautoclaim()`, `xclaim()`           | Rejected after claiming when Redis 6.2 reported a deleted entry                     | Skip the deleted entries                                                            |
 | `tsMget()`                           | Rejected the call when a matching series had no samples                             | `timestamp` and `value` are `null` for a series without samples                     |
 | `jsonObjkeys()`                      | Rejected a missing key with `Unexpected reply: null`                                | `null` for a missing key with a legacy path, and the server's error with a JSONPath |
@@ -144,7 +145,7 @@ for (const { stream, entries } of (await client.xreadgroup('group', 'consumer', 
 }
 ```
 
-**Transactions.** `multi()` exposes only commands. `reset`, `quit`, `send`, the scan iterators (`scan`, `hscan`, `sscan` and `zscan`), the event methods and non-function members such as `uri` are gone from its type and return `undefined` on it: `RESET` ends the transaction on the server, and a scan iterator needs each reply before it sends the next command. If the connection drops after `WATCH`, the next `exec()` sends `DISCARD` instead of `EXEC` and resolves `null`, as when a watched key changed, even if `WATCH` was sent again in between, so a transaction never commits without the guard it asked for and the usual retry loop covers it. An `EXEC` sent with `send()` gets `null` the same way. An empty `exec()` now sends `MULTI` and `EXEC` too, so it ends a `WATCH` and resolves `null` when a watched key changed. `discard()`, and an `exec()` that rejects because a queued call failed or because `send()` refuses a queued command, send `UNWATCH`, so a `WATCH` ends with its transaction. If the server refuses `MULTI`, as for an ACL user without `@transaction`, the queued commands have run on their own and `exec()` rejects with the `[MULTI]` error instead of `EXECABORT`.
+**Transactions.** `multi()` exposes only commands. `reset`, `quit`, `send`, the scan iterators (`scan`, `hscan`, `sscan` and `zscan`), the event methods and non-function members such as `uri` are gone from its type and return `undefined` on it: `RESET` ends the transaction on the server, and a scan iterator needs each reply before it sends the next command. If the connection drops after `WATCH`, the next `exec()` sends `DISCARD` instead of `EXEC` and resolves `null`, as when a watched key changed, even if `WATCH` was sent again in between, so a transaction never commits without the guard it asked for and the usual retry loop covers it. An `EXEC` sent with `send()` gets `null` the same way. As in 0.4.x, `exec()` resolves with the raw replies of the queued commands. An empty `exec()` now sends `MULTI` and `EXEC` too, so it ends a `WATCH` and resolves `null` when a watched key changed. `discard()`, and an `exec()` that rejects because a queued call failed or because `send()` refuses a queued command, send `UNWATCH`, so a `WATCH` ends with its transaction. If the server refuses `MULTI`, as for an ACL user without `@transaction`, the queued commands have run on their own and `exec()` rejects with the `[MULTI]` error instead of `EXECABORT`.
 
 ```typescript
 for (;;) {
@@ -169,7 +170,7 @@ const total = await client.incrby('counter', 10n, { bigint: true }); // bigint
 
 #### 5. Update changed signatures
 
-- `expireat(key, timestamp, { notExists: true })` becomes `expireat(key, timestamp, 'NX')`. The mode is `'NX'`, `'XX'`, `'GT'` or `'LT'`, as for `expire`, `pexpire` and `pexpireat`.
+- `expireat(key, timestamp, { notExists: true })` becomes `expireat(key, timestamp, 'NX')`. The mode is `'NX'`, `'XX'`, `'GT'`, `'LT'`, `'XX GT'` or `'XX LT'` (`CommandKeyExpireMode`), as for `expire`, `pexpire` and `pexpireat`.
 - `zintercard(keys, limit, options)` loses `options`. The server accepts neither `WEIGHTS` nor `AGGREGATE` for `ZINTERCARD`.
 - `migrate()` with `keys` requires `''` as its key, as the server does.
 - `scriptDebug()` accepts only `'NO'`; `send()` refuses `SCRIPT DEBUG YES` and `SCRIPT DEBUG SYNC`.
@@ -216,9 +217,11 @@ await client.set('key', 'value', { expireInSeconds: 60, expireInMilliseconds: 50
 | `bitpos`                                           | `mode` only with `end`                                                                                                                                           |
 | `bfInsert`, `cfInsert`                             | `nocreate` only without `capacity` (and, on `bfInsert`, without `error`)                                                                                         |
 | `migrate`                                          | `auth` or `auth2`                                                                                                                                                |
+| `bfReserve`                                        | `expansion` or `nonScaling`                                                                                                                                      |
+| `jsonDebug`                                        | `'HELP'` alone, or `'MEMORY'` with a key                                                                                                                         |
 | `restore`                                          | `idletime` or `freq`                                                                                                                                             |
 | `lcs`                                              | `len` or `idx`                                                                                                                                                   |
-| `tsRange`, `tsRevrange`, `tsMrange`, `tsMrevrange` | `align` only with `aggregation`                                                                                                                                  |
+| `tsRange`, `tsRevrange`, `tsMrange`, `tsMrevrange` | `align` only with `aggregation`; `'start'` or `'-'` only after a numeric start, `'end'` or `'+'` only before a numeric end                                       |
 
 Other option changes:
 
@@ -275,7 +278,7 @@ Skip this step unless you construct the internal classes yourself or write custo
   - `newCommandError(message, commandName, cause)` replaces the `prefix` parameter with a command name and an optional cause.
   - `tryReplyArray()` returns `unknown[]`, and `tryReplyToStringArray()` no longer has a `nullable` overload; use `tryReplyToNullableStringArray()`.
   - Removed: `InvalidReplyPrefix`, `tryReplyToStringRecordRecursively()` and `tryReplyToSortedSetMembersOrNull()`, and from `common/utils`, `checkReplyIsArray()` and `checkReplyIsMessageEvent()`.
-  - Added: `tryReplyTuple()`, `tryReplyToInteger()`, `tryReplyToStringOrBuffer()` with its nullable, array and record variants, `executeIntegerCommand()`, `newUnexpectedReplyError()` and `describeReply()`.
+  - Added: `tryReplyTuple()`, `tryReplyToInteger()`, `tryReplyToStringOrBuffer()` with its nullable, array and record variants, `executeIntegerCommand()`, `newUnexpectedReplyError()`, `describeReply()`, `setRecordEntry()`, `tryReplyToCuckooFilterInsertResults()`, `tryReplyToJsonNumberText()`, `tryReplyToJsonNumbers()`, `tryReplyToNumberOrErrorArray()`, `tryReplyToStreamEntryOrDeleted()`, `tryReplyToStreamGroupReadResultsOrNull()`, `buildKeyIntegerExecutor()`, `buildKeyPopExecutor()` and `buildKeyStringOrBufferExecutor()`. `tryReplyToKeyValuePairOrNull()` and `tryReplyToKeyStringElementsOrNull()` take an optional `options` argument.
 - **Removed types:** `SolidisRecursiveStringRecord`, `RespClientReplyMode`, `RespAclLogKey`, `RespAclLogNumberKey`, `SolidisClientRecoveryStep`, `SolidisSubscribeMethod`, `SolidisSSubscribeMethod`, `SolidisPSubscribeMethod`, `SolidisTranslatedPubSubReplies`, `SolidisSocketWriteEventHandlers`, `SolidisRejectHandler`, `SolidisRequestResolveHandler` and `SolidisSubRequestResolveHandler`, and the internal parser and pipeline types `SolidisParsed`, `SolidisParsedBufferWithLength`, `SolidisRespType`, `SolidisRespPrimitiveType`, `SolidisRespLengthType`, `SolidisRespSimpleLineType`, `SolidisRequest`, `SolidisPipelineRequest`, `SolidisPipelineRequestChunk`, `SolidisPipelineRequestChunkContext` and `SolidisPipelineSubRequest`.
 
 ### Added
@@ -294,7 +297,7 @@ Skip this step unless you construct the internal classes yourself or write custo
 - With RESP2 client tracking redirected to a subscribed client, invalidations on `__redis__:invalidate` are emitted as `push` events shaped like the RESP3 ones.
 - `auth()` and `hello()` accept `Buffer` usernames and passwords, and a password chosen at runtime is sent again byte for byte after a reconnect.
 - `tsIncrby()` and `tsDecrby()` take a `timestamp` option, `tsAdd()` and `tsMadd()` accept `'*'` for the server's clock, `tsDel()` accepts `'-'` and `'+'`, `bitop()` accepts `DIFF`, `DIFF1`, `ANDOR` and `ONE`, `scan()` takes module type names such as `ReJSON-RL` for `type`, and `latencyHistogram()` can be called without commands.
-- Types: `CommandExclusiveOptions`, `CommandExactOptions`, `CommandBufferOptions`, `CommandIntegerOptions`, `CommandScoreBound`, `CommandBitposOptions`, `CommandBitfieldOffset`, `CommandHelloParameters`, `CommandXpendingRange`, `CommandTimeSeriesTimestamp`, `CommandTimeSeriesSampleTimestamp`, `RespString`, `RespInteger`, `SolidisSendOptions`, `RespHashEntry`, `RespRoleSentinel`, `RespTimeSeriesInfo`, `RespTimeSeriesRule`, `RespStreamDeletedEntry` and `RespStreamGroupReadResult`. `XclaimOptions` is exported from the package root, and `select` from `@vcms-io/solidis/command`.
+- Types: `CommandExclusiveOptions`, `CommandExactOptions`, `CommandBufferOptions`, `CommandIntegerOptions`, `CommandScoreBound`, `CommandBitposOptions`, `CommandBitfieldOffset`, `CommandHelloParameters`, `CommandXpendingRange`, `CommandTimeSeriesTimestamp`, `CommandTimeSeriesSampleTimestamp`, `CommandTimeSeriesRangeParameters`, `CommandKeyExpireMode`, `RespString`, `RespInteger`, `SolidisSendOptions`, `RespHashEntry`, `RespRoleSentinel`, `RespTimeSeriesInfo`, `RespTimeSeriesRule`, `RespStreamDeletedEntry`, `RespStreamGroupReadResult`, `SolidisClientEmit`, `SolidisParserOptions`, `SolidisMessageEventName`, `SolidisSubscriptionEventName` and `SolidisUnsubscribeEventName`. `XclaimOptions` is exported from the package root, and `select` from `@vcms-io/solidis/command`.
 - Utilities: `parseConnectionUri()`, `resolveClientOptions()`, `getCommandName()`, `toCommandError()`, `parseDouble()`, `formatDouble()` and `formatDebugLog()`, and for pub/sub event names `SolidisMessageEventNames`, `SolidisSubscribeEventNames`, `SolidisUnsubscribeEventNames`, `SolidisSubscriptionEventNames`, `getPubSubEventName()`, `isMessageEventName()`, `isSubscriptionEventName()` and `isUnsubscribeEventName()`. `SolidisTransactionBannedCommandNames` lists the command methods that a transaction leaves out; it also leaves out the scan iterators and the client's own methods, such as `send` and `quit`.
 - The CommonJS entry points have their own declarations (`.d.cts`), so `require()` consumers on `node16` resolution type-check, and the declarations no longer need `esModuleInterop`.
 
@@ -326,6 +329,7 @@ Skip this step unless you construct the internal classes yourself or write custo
 - The published files keep the names of classes and functions, so errors print as `SolidisCommandError: ...` and stack traces name the methods.
 - An `error` listener that throws no longer interrupts the client, which still resets the connection and routes the remaining replies; the exception is thrown again asynchronously, so it reaches `uncaughtException` as before.
 - `clientList({ identifiers: [] })`, `migrate()` with `keys: []` and the time-series range commands with `filterByTs: []` send the empty list, which the server refuses or migrates nothing for, instead of acting on every client, key or sample, and `latencyReset([])` rejects instead of resetting every event.
+- `cfMexists()` is typed as returning `boolean[]`, which it does.
 - `debugMaxEntries` and `maxEventListenersForClient` accept any number: a negative value or `NaN` keeps no debug entries and sets no listener limit, a fraction is rounded down, and `Infinity` keeps every entry.
 
 ### Removed
@@ -358,7 +362,7 @@ See [Upgrading from 0.4.x](#upgrading-from-04x) for replacements.
 - A server that refused the connection, such as one in protected mode or at `maxclients`, was retried as if the connection had dropped, and its reason was not reported.
 - A command that is not an array, such as `send([undefined])`, rejected every request sent in the same tick.
 - Replies parsed before a protocol error in the same chunk were rejected with the parser error, although the server had executed their commands.
-- An empty password was treated as none: `auth(user, '')` sent the username as the password, `hello()` skipped `AUTH`, and `authentication: { username, password: '' }` sent `AUTH <username>` and failed with `Authentication failed`.
+- An empty password was treated as none: `auth(user, '')` sent the username as the password, `hello()` skipped `AUTH`, and `authentication: { username, password: '' }` sent `AUTH <username>` and failed with `Authentication failed`. `hello()` also dropped an empty client name, which clears the name.
 - `jsonArrpop(key, undefined, index)` ignored the index and popped the last element.
 - Changing, clearing or reusing a command array after `send()` changed the commands that were sent, dropped them, or left the promise pending. `send()` copies the arrays now.
 - `send()` with an argument that is not an array split a string into one command per character, so `send('GET')` sent `G`, `E` and `T`, and never settled for a number.
@@ -370,7 +374,7 @@ See [Upgrading from 0.4.x](#upgrading-from-04x) for replacements.
 - A non-string argument, such as `undefined` from an optional property passed to `mset` or `hmset`, failed every request sent in the same tick. Only that request is rejected now.
 - An invalid `port` was retried for about two seconds before `connect()` rejected with `Connection failed after 20 retries.` It now rejects at once with a `SolidisConnectionError`.
 - RESP3 doubles spelled `-nan`, as Redis 6.2 sends them, failed to parse, and long simple string replies split across many chunks took quadratic time.
-- `bitop()` threw a plain `Error`, and an unparsable URI a `TypeError`; both are `SolidisError`s now. The `uri` getter brackets IPv6 hosts and encodes the username.
+- `bitop()` threw a plain `Error`, and an unparsable URI a `TypeError`; both are `SolidisError`s now. The `uri` getter brackets IPv6 hosts, encodes the username, and masks a password that comes without a username.
 - The parser re-read partially received arrays from the start on every chunk, so large replies took quadratic time.
 - URIs ignored the database, did not decode percent-encoded credentials and kept the brackets of IPv6 hosts.
 - RESP2 infinite scores failed to parse in `zscore`, `zrange` with scores, `zincrby` and `zmpop`, and `bzmpop` failed after the server had already popped the members.
@@ -393,7 +397,7 @@ See [Upgrading from 0.4.x](#upgrading-from-04x) for replacements.
 - Serialization measures each argument once, and each reply allocates less.
 - In alternating benchmark runs against 0.4.0, throughput is on par or better across the suite.
 - Replies and timeouts for tens of thousands of pipelines in flight take linear time. Masking arguments in an error message looks each quoted span up instead of comparing it with every argument, and reads only the start of each argument.
-- The featured client shrinks from 99,356 to 97,811 bytes. The minimal client with `get` and `set` is 30,678 bytes, against 29,457 in 0.4.0.
+- Bundled from the published files, the featured client shrinks from 99,356 to 98,046 bytes, and the minimal client with `get` and `set` is 30,802 bytes, against 29,457 in 0.4.0.
 
 ## [0.4.0] and earlier
 

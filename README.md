@@ -10,7 +10,7 @@
   <a href="https://www.npmjs.com/package/@vcms-io/solidis"><img src="https://img.shields.io/npm/v/@vcms-io/solidis.svg?style=flat-square&labelColor=000&color=f5a623" alt="npm"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/coverage-100%25-brightgreen?style=flat-square&labelColor=000" alt="coverage"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square&labelColor=000" alt="deps"></a>
-  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/bundle-<30KB-blue?style=flat-square&labelColor=000" alt="bundle"></a>
+  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/min_bundle-<31KB-blue?style=flat-square&labelColor=000" alt="bundle"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/RESP2%2FRESP3-supported-orange?style=flat-square&labelColor=000" alt="RESP"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/ESM%2FCJS-dual-yellow?style=flat-square&labelColor=000" alt="modules"></a>
 </p>
@@ -30,7 +30,7 @@
 <td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Rocket.png?raw=true" alt="Rocket" width="32" height="32" /><br/><strong>0 deps</strong><br/><sub>zero dependencies</sub></td>
 <td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Package.png?raw=true" alt="Package" width="32" height="32" /><br/><strong>383</strong><br/><sub>commands</sub></td>
 <td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Test%20Tube.png?raw=true" alt="Test Tube" width="32" height="32" /><br/><strong>25K+</strong><br/><sub>lines of tests</sub></td>
-<td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Animals/Feather.png?raw=true" alt="Feather" width="32" height="32" /><br/><strong>&lt; 30KB</strong><br/><sub>min bundle</sub></td>
+<td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Animals/Feather.png?raw=true" alt="Feather" width="32" height="32" /><br/><strong>&lt; 31KB</strong><br/><sub>min bundle</sub></td>
 </tr>
 </table>
 
@@ -53,7 +53,7 @@ const value = await client.get('key');
 
 > [!TIP]
 > **Need a smaller bundle?** Use `SolidisClient` with `.extend()` to import only the commands you use.
-> Minimum bundle drops to **< 30KB** with tree-shaking.
+> Minimum bundle drops to **< 31KB** with tree-shaking.
 
 <details>
 <summary>&nbsp;&nbsp;<b>Tree-shakable client</b></summary>
@@ -96,7 +96,7 @@ const replies = await client.send([
 const job = await client.send([['BLPOP', 'jobs', '30']], { timeout: 35_000 });
 ```
 
-`exec()` sends `MULTI`, the queued commands and `EXEC` together, in one `send()` call made at once, so the transaction keeps its place before the commands sent after it. A call that queues no command, such as one whose arguments are refused, makes `exec()` reject, and so does a queued command that `send()` refuses, such as one with an `undefined` argument. An `exec()` that rejects this way, and `discard()`, send `UNWATCH`, so a `WATCH` ends with its transaction.
+`exec()` sends `MULTI`, the queued commands and `EXEC` together, in one `send()` call made at once, so the transaction keeps its place before the commands sent after it. Like `send()`, it resolves with the raw replies: their shape follows the protocol, and options of queued calls such as `{ buffer: true }` do not apply. A call that queues no command, such as one whose arguments are refused, makes `exec()` reject, and so does a queued command that `send()` refuses, such as one with an `undefined` argument. An `exec()` that rejects this way, and `discard()`, send `UNWATCH`, so a `WATCH` ends with its transaction.
 Only the synchronous part of a queued call joins the transaction: an `extend()` method that awaits a reply runs its later commands outside it.
 If the server refuses `MULTI`, as for an ACL user without `@transaction`, the queued commands run on their own and `exec()` rejects with the `[MULTI]` error, so do not retry it blindly.
 When a reconnect loses a `WATCH`, the next `EXEC` is sent as `DISCARD` and returns `null`. When it loses a `MULTI` sent with `send()`, other commands are refused until `MULTI`, `EXEC`, `DISCARD` or `RESET`.
@@ -167,7 +167,7 @@ SET, SETNX, SETEX, PSETEX, GETSET, SETRANGE, APPEND, MSET, MSETNX, HSET, HSETNX,
 LINSERT, LREM, LPOS, SMISMEMBER, DELEX and SET also take `Buffer`s for the values they compare, PUBLISH and SPUBLISH for messages, BF.LOADCHUNK and CF.LOADCHUNK for chunks, and AUTH and HELLO for credentials; other arguments are strings, and `send()` takes a `Buffer` for any argument.
 `send()` copies the command arrays it receives, so they can be changed or reused at once, but not the `Buffer`s in them: keep a `Buffer` unchanged until its command settles.
 Reads decode UTF-8 by default; pass `{ buffer: true }` to receive the exact bytes as a `Buffer` from GET, GETDEL, GETEX, GETRANGE, MGET, HGET, HMGET, HGETALL, HVALS, LINDEX, LRANGE, LPOP, RPOP, LMOVE, BLMOVE, RPOPLPUSH, BRPOPLPUSH, BLPOP, BRPOP, LMPOP, BLMPOP.
-Field names, as in HGETALL, HSCAN and stream entries, and the keys of RESP3 maps, even from `send()`, are always decoded as UTF-8 text, so names that are not valid UTF-8 can collide; keep binary data in values.
+Commands decode field names, as in HGETALL, HSCAN and stream entries, as UTF-8 text, and the keys of RESP3 maps are decoded as UTF-8 text even from `send()`, so names that are not valid UTF-8 can collide; keep binary data in values.
 The return type follows the option.
 
 </details>

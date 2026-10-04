@@ -312,7 +312,7 @@ export class CacheManager {
             <CodeBlock
               code={`import { CacheManager } from './cache-manager';
 
-interface User {
+export interface User {
   id: string;
   username: string;
   email: string;
@@ -464,7 +464,10 @@ export class UserRepository {
         <CardContent>
           <div className="rounded-lg text-sm overflow-x-auto">
             <CodeBlock
-              code={`export class CacheWarmer {
+              code={`import { CacheManager } from './cache-manager';
+import type { User } from './user-repository';
+
+export class CacheWarmer {
   private cache: CacheManager;
   private db: any;
 

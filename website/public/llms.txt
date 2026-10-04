@@ -1,6 +1,6 @@
 # Solidis
 
-> The fastest Redis & Valkey client for Node.js. Zero dependencies, RESP2 and RESP3, TypeScript-first, up to 2x faster than ioredis, < 30KB minimum bundle.
+> The fastest Redis & Valkey client for Node.js. Zero dependencies, RESP2 and RESP3, TypeScript-first, up to 2x faster than ioredis, < 31KB minimum bundle.
 
 Solidis is a zero-dependency RESP (Redis Serialization Protocol) client for Node.js, published on npm as `@vcms-io/solidis`. It ships 383 commands, dual ESM/CJS builds, and two clients: the batteries-included `SolidisFeaturedClient` and the tree-shakable `SolidisClient` with `.extend()` for minimal bundles.
 

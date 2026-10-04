@@ -41,10 +41,10 @@ const BENCHMARK_DATA = [
     multiplier: '1.9x',
   },
   {
-    name: 'Set',
-    commands: 'SET (1 KB payload)',
-    solidis: 740,
-    ioredis: 1306,
+    name: 'Hash Mutation',
+    commands: 'HMSET + HMGET + HDEL',
+    solidis: 2046,
+    ioredis: 3776,
     multiplier: '1.8x',
   },
   {
@@ -226,7 +226,7 @@ export default function HomePage() {
             <span className="text-foreground/15">·</span>
             <span>383 commands</span>
             <span className="text-foreground/15">·</span>
-            <span>&lt; 30 KB</span>
+            <span>&lt; 31 KB</span>
             <span className="text-foreground/15">·</span>
             <span>100% coverage</span>
           </div>
