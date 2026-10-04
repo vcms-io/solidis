@@ -327,6 +327,18 @@ describe('type-contracts', () => {
       await client.hello(undefined, 'user', 'password');
       // @ts-expect-error HELLO sends a username only with a password
       await client.hello('RESP3', 'user');
+
+      const keys: (string | undefined)[] = [];
+
+      await client.mget('a', 'b', undefined);
+      // @ts-expect-error MGET takes options only last
+      await client.mget('a', undefined, 'b');
+      // @ts-expect-error MGET keys are strings
+      await client.mget(...keys);
+      // @ts-expect-error HMGET takes options only last
+      await client.hmget('h', 'a', undefined, 'b');
+      // @ts-expect-error HMGET fields are strings
+      await client.hmget('h', ...keys);
       // @ts-expect-error HELLO sends a username only with a password
       await client.hello('RESP3', 'user', undefined, 'name');
 

@@ -439,6 +439,128 @@ describe('transactions', () => {
     }
   });
 
+  it('keeps the place of exec() among the commands sent after it', async () => {
+    const counter = keyspace.key('order', 'counter');
+    const value = keyspace.key('order', 'value');
+    const watched = keyspace.key('order', 'watched');
+    const other = await createClient();
+
+    try {
+      await client.set(counter, '0');
+
+      const counting = client.multi();
+
+      counting.incr(counter);
+
+      const executed = counting.exec();
+      const read = client.get(counter);
+
+      assert.deepStrictEqual(await executed, [1]);
+      assert.strictEqual(await read, '1');
+
+      const overwriting = client.multi();
+
+      overwriting.set(value, 'from-transaction');
+
+      await Promise.all([overwriting.exec(), client.set(value, 'after')]);
+
+      assert.strictEqual(await client.get(value), 'after');
+
+      const reused = client.multi();
+
+      reused.set(value, 'first');
+
+      const first = reused.exec();
+
+      reused.set(value, 'second');
+
+      assert.deepStrictEqual(await first, ['OK']);
+      assert.deepStrictEqual(await reused.exec(), ['OK']);
+      assert.strictEqual(await client.get(value), 'second');
+
+      const guarding = client.multi();
+
+      guarding.set(value, 'guarded');
+
+      await Promise.all([guarding.exec(), client.watch(watched)]);
+      await other.set(watched, 'changed');
+
+      const aborted = client.multi();
+
+      aborted.set(value, 'lost');
+
+      assert.strictEqual(await aborted.exec(), null);
+      assert.strictEqual(await client.get(value), 'guarded');
+
+      const failing = client.multi();
+
+      failing.xread(['a', 'b'], ['0']);
+
+      const rejected = failing.exec();
+      const watching = client.watch(watched);
+
+      await assert.rejects(rejected, {
+        message: '[XREAD] Keys and IDs must have the same length',
+      });
+      await watching;
+      await other.set(watched, 'changed again');
+
+      const guarded = client.multi();
+
+      guarded.set(value, 'lost again');
+
+      assert.strictEqual(await guarded.exec(), null);
+      assert.strictEqual(await client.get(value), 'guarded');
+    } finally {
+      await closeClient(other);
+    }
+  });
+
+  it('refuses a queued command whose argument is not a string, and ends the WATCH', async () => {
+    const watched = keyspace.key('refused', 'watched');
+    const target = keyspace.key('refused', 'target');
+    const other = await createClient();
+
+    try {
+      await client.watch(watched);
+
+      const refused = client.multi();
+
+      refused.mset({ [target]: 'v', missing: undefined as unknown as string });
+
+      await assert.rejects(refused.exec(), {
+        name: 'SolidisRequesterError',
+        message: 'MSET takes only strings and Buffers.',
+      });
+      await other.set(watched, 'changed');
+
+      const next = client.multi();
+
+      next.set(target, 'committed');
+
+      assert.deepStrictEqual(await next.exec(), ['OK']);
+    } finally {
+      await closeClient(other);
+    }
+  });
+
+  it('rejects exec() when a queued call queues no command', async () => {
+    const extended = (await createClient()).extend({ async idle() {} });
+
+    try {
+      const transaction = extended.multi();
+
+      transaction.idle();
+
+      await assert.rejects(transaction.exec(), {
+        name: 'SolidisCommandError',
+        message: '[EXEC] A call queued no command',
+      });
+    } finally {
+      await closeClient(extended);
+    }
+  });
+
   it('ends a WATCH that an empty exec, a discard or a rejected exec leaves behind', async () => {
     const watched = keyspace.key('armed', 'watched');
     const target = keyspace.key('armed', 'target');

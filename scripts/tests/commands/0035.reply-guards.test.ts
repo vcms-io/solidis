@@ -20,6 +20,7 @@ import { createCommand as createFunctionFlushCommand } from '../../../sources/co
 import { functionStats } from '../../../sources/command/function.stats.ts';
 import { createCommand as createGetsetCommand } from '../../../sources/command/getset.ts';
 import { createCommand as createHashExpireCommand } from '../../../sources/command/hexpire.ts';
+import { hmget } from '../../../sources/command/hmget.ts';
 import { createCommand as createHmsetCommand } from '../../../sources/command/hmset.ts';
 import { createCommand as createHsetnxCommand } from '../../../sources/command/hsetnx.ts';
 import { createCommand as createJsonArrpopCommand } from '../../../sources/command/json.arrpop.ts';
@@ -28,6 +29,7 @@ import { latencyLatest } from '../../../sources/command/latency.latest.ts';
 import { createCommand as createLatencyResetCommand } from '../../../sources/command/latency.reset.ts';
 import { lrange } from '../../../sources/command/lrange.ts';
 import { memoryStats } from '../../../sources/command/memory.stats.ts';
+import { mget } from '../../../sources/command/mget.ts';
 import {
   createCommand as createMigrateCommand,
   migrate,
@@ -215,6 +217,33 @@ describe('reply-guards', () => {
     assert.deepStrictEqual(createPubsubShardnumsubCommand(), [
       'PUBSUB',
       'SHARDNUMSUB',
+    ]);
+  });
+
+  it('refuses a key or field that is not a string instead of dropping it', async () => {
+    const recorder = createRecorder([bulk('a'), null]);
+    const missing = undefined as unknown as string;
+
+    await assert.rejects(mget.call(recorder, 'a', missing, 'b'), {
+      name: 'SolidisCommandError',
+      message: '[MGET] Keys must be strings',
+    });
+    await assert.rejects(hmget.call(recorder, 'h', 'a', missing, 'b'), {
+      name: 'SolidisCommandError',
+      message: '[HMGET] Fields must be strings',
+    });
+    assert.deepStrictEqual(recorder.commands, []);
+    assert.deepStrictEqual(await mget.call(recorder, 'a', 'b', undefined), [
+      'a',
+      null,
+    ]);
+    assert.deepStrictEqual(
+      await hmget.call(recorder, 'h', 'a', 'b', { buffer: true }),
+      [bulk('a'), null],
+    );
+    assert.deepStrictEqual(recorder.commands, [
+      ['MGET', 'a', 'b'],
+      ['HMGET', 'h', 'a', 'b'],
     ]);
   });
 

@@ -1,5 +1,6 @@
 import {
   executeCommand,
+  newCommandError,
   tryReplyToNullableStringOrBufferArray,
 } from './utils/index.ts';
 
@@ -23,16 +24,27 @@ export async function mget<T, Options extends CommandBufferOptions>(
 ): Promise<(RespString<Options> | null)[]>;
 export async function mget<T>(
   this: T,
-  ...parameters: (string | CommandBufferOptions | undefined)[]
+  ...parameters:
+    | string[]
+    | [...keys: string[], options: CommandBufferOptions | undefined]
 ): Promise<(StringOrBuffer | null)[]>;
 export async function mget<T>(
   this: T,
   ...parameters: (string | CommandBufferOptions | undefined)[]
 ): Promise<(StringOrBuffer | null)[]> {
-  const keys = parameters.filter((parameter) => typeof parameter === 'string');
-  const options = parameters.find((parameter) => typeof parameter !== 'string');
+  const options = parameters.at(-1);
+  const keys =
+    typeof options === 'string' ? parameters : parameters.slice(0, -1);
+
+  if (!keys.every((key) => typeof key === 'string')) {
+    throw newCommandError('Keys must be strings', 'MGET');
+  }
 
   return await executeCommand(this, createCommand(...keys), (reply, command) =>
-    tryReplyToNullableStringOrBufferArray(reply, command, options),
+    tryReplyToNullableStringOrBufferArray(
+      reply,
+      command,
+      typeof options === 'string' ? undefined : options,
+    ),
   );
 }

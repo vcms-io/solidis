@@ -1,6 +1,7 @@
 import { SolidisClient } from '../client.ts';
 import { SolidisTransactionBannedCommandNames } from '../common/constants.ts';
-import { RespError } from '../common/utils/error.ts';
+import { RespError, SolidisRequesterError } from '../common/utils/error.ts';
+import { inspectCommand } from '../modules/internal.ts';
 import {
   assertSender,
   newCommandError,
@@ -25,20 +26,20 @@ function unwatch(client: Pick<SolidisClient, 'send'>) {
 async function exec(
   client: Pick<SolidisClient, 'send'>,
   transactionQueue: StringOrBuffer[][],
-  commandPromises: Promise<unknown>[],
+  failedCalls: Promise<unknown>[],
 ): Promise<SolidisData[] | null> {
-  const results = await Promise.allSettled(commandPromises);
-  const rejected = results.find(
-    (result): result is PromiseRejectedResult => result.status === 'rejected',
-  );
   const commands = transactionQueue.splice(0);
+  const failures = failedCalls.splice(0);
+  const refusal = commands
+    .map(inspectCommand)
+    .find((kind) => kind instanceof SolidisRequesterError);
 
-  commandPromises.length = 0;
-
-  if (rejected) {
+  if (failures.length > 0 || refusal) {
     unwatch(client);
 
-    throw rejected.reason;
+    await Promise.all(failures);
+
+    throw refusal ?? newCommandError('A call queued no command', 'EXEC');
   }
 
   const replies = await client.send([['MULTI'], ...commands, ['EXEC']]);
@@ -63,7 +64,7 @@ async function exec(
 export function multi<T extends object>(this: T): SolidisTransactionClient<T> {
   const client = this;
   const transactionQueue: StringOrBuffer[][] = [];
-  const commandPromises: Promise<unknown>[] = [];
+  const failedCalls: Promise<unknown>[] = [];
 
   assertSender(client, ['MULTI']);
 
@@ -71,13 +72,13 @@ export function multi<T extends object>(this: T): SolidisTransactionClient<T> {
     get(_, property) {
       switch (property) {
         case 'exec': {
-          return () => exec(client, transactionQueue, commandPromises);
+          return () => exec(client, transactionQueue, failedCalls);
         }
 
         case 'discard': {
           return () => {
             transactionQueue.length = 0;
-            commandPromises.length = 0;
+            failedCalls.length = 0;
 
             unwatch(client);
           };
@@ -96,17 +97,18 @@ export function multi<T extends object>(this: T): SolidisTransactionClient<T> {
           }
 
           return (...parameters: unknown[]) => {
+            const length = transactionQueue.length;
+
             SolidisTransactionQueues.set(client, transactionQueue);
 
-            try {
-              const promise = Promise.resolve(
-                Reflect.apply(method, client, parameters),
-              );
+            const call = (async () =>
+              Reflect.apply(method, client, parameters))();
 
-              commandPromises.push(promise);
-              promise.catch(() => {});
-            } finally {
-              SolidisTransactionQueues.delete(client);
+            SolidisTransactionQueues.delete(client);
+            call.catch(() => {});
+
+            if (transactionQueue.length === length) {
+              failedCalls.push(call);
             }
           };
         }
