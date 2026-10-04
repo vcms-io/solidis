@@ -214,18 +214,26 @@ export class SolidisClient extends EventEmitter {
     event: E,
     ...parameters: Parameters<SolidisClientEvents[E]>
   ) {
-    if (event === 'error') {
-      this.#debug?.('error', 'Encountered an error', parameters[0]);
-
-      if (this.listenerCount('error') === 0) {
-        super.emit(errorMonitor, ...parameters);
-        process.emitWarning(wrapWithError(parameters[0]));
-
-        return false;
-      }
+    if (event !== 'error') {
+      return super.emit(event, ...parameters);
     }
 
-    return super.emit(event, ...parameters);
+    this.#debug?.('error', 'Encountered an error', parameters[0]);
+
+    try {
+      if (this.listenerCount('error') > 0) {
+        return super.emit(event, ...parameters);
+      }
+
+      super.emit(errorMonitor, ...parameters);
+      process.emitWarning(wrapWithError(parameters[0]));
+    } catch (error) {
+      queueMicrotask(() => {
+        throw error;
+      });
+    }
+
+    return false;
   }
 
   #setupListeners() {

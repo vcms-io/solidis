@@ -517,6 +517,20 @@ describe('regressions', () => {
       }
     });
 
+    it('keeps the subcommand of a container command visible', () => {
+      const error = toCommandError(
+        new RespError(
+          "ERR unknown subcommand 'NOSUCH'. Try CLIENT HELP. 'hunter2'",
+        ),
+        ['CLIENT', 'NOSUCH', 'hunter2'],
+      );
+
+      assert.strictEqual(
+        error.message,
+        "[CLIENT NOSUCH] ERR unknown subcommand 'NOSUCH'. Try CLIENT HELP. '***'",
+      );
+    });
+
     it('redacts arguments the server joins into one quoted span', () => {
       const error = toCommandError(
         new RespError(
@@ -531,6 +545,20 @@ describe('regressions', () => {
       );
       assert.ok(error.cause instanceof RespError);
       assert.ok(!error.cause.message.includes('hunter2'));
+
+      const named = toCommandError(
+        new RespError("ERR invalid 'O'Brien Smith': unknown"),
+        ['NOSUCH', "O'Brien", 'Smith'],
+      );
+
+      assert.strictEqual(named.message, "[NOSUCH] ERR invalid '***': unknown");
+
+      const similar = toCommandError(new RespError("ERR unknown 'O'Neil'"), [
+        'NOSUCH',
+        "O'Brien",
+      ]);
+
+      assert.strictEqual(similar.message, "[NOSUCH] ERR unknown '***'Neil'");
 
       const unterminated = toCommandError(
         new RespError("ERR invalid 'reader and more"),
@@ -553,6 +581,26 @@ describe('regressions', () => {
 
       assert.ok(performance.now() - startedAt < 500);
       assert.strictEqual(error.message, "[SET] ERR invalid argument '***'");
+    });
+
+    it('redacts many quoted arguments in one pass', () => {
+      const values = Array.from(
+        { length: 20_000 },
+        (_, index) => `value${index}`,
+      );
+      const quoted = (texts: string[]) =>
+        texts.map((text) => `'${text}'`).join(' ');
+      const startedAt = performance.now();
+      const error = toCommandError(
+        new RespError(`ERR missing ${quoted(values)} and 'O'Brien' 'kept'`),
+        ['EVALSHA', 'sha', '0', ...values, "O'Brien"],
+      );
+
+      assert.ok(performance.now() - startedAt < 1000);
+      assert.strictEqual(
+        error.message,
+        `[EVALSHA] ERR missing ${quoted(values.map(() => '***'))} and '***' 'kept'`,
+      );
     });
 
     it('redacts an ACL selector the server joins from several arguments', async (context) => {

@@ -45,6 +45,13 @@ describe('parser-edge', () => {
     it('parses a null push', () => {
       assert.deepStrictEqual(parseOnce(bytes('>-1\r\n')), [null]);
     });
+
+    it('parses an empty map and an empty set', () => {
+      assert.deepStrictEqual(parseOnce(bytes('%0\r\n~0\r\n')), [
+        new Map(),
+        new Set(),
+      ]);
+    });
   });
 
   describe('frames truncated at every boundary wait for more data', () => {
@@ -409,6 +416,34 @@ describe('parser-edge', () => {
 
       assert.strictEqual(limit, BigInt('7'.repeat(4096)));
       assert.ok(beyond instanceof RespError);
+    });
+
+    it('quotes only the start of a malformed line in its error', () => {
+      const line = 'x'.repeat(1000);
+      const preview = `'${'x'.repeat(32)}...'`;
+      const [integer, double, number] = parseOnce(
+        bytes(`:${line}\r\n,${line}\r\n(${line}\r\n`),
+      );
+
+      assert.ok(integer instanceof RespError);
+      assert.strictEqual(integer.message, `Integer: ${preview}`);
+      assert.ok(double instanceof RespError);
+      assert.strictEqual(double.message, `Double: ${preview}`);
+      assert.ok(number instanceof RespError);
+      assert.strictEqual(number.message, `BigNumber: ${preview}`);
+      assert.throws(
+        () => parseOnce(bytes(`$${line}\r\n`)),
+        isParserError(`Invalid length ${preview}`),
+      );
+      assert.throws(
+        () => parseOnce(bytes(`#${line}\r\n`)),
+        isParserError(`Boolean: invalid value ${preview}`),
+      );
+
+      const [long] = parseOnce(bytes(`(${'7'.repeat(5000)}\r\n`));
+
+      assert.ok(long instanceof RespError);
+      assert.strictEqual(long.message, `BigNumber: '${'7'.repeat(32)}...'`);
     });
 
     it('rejects an over-long line even when its CRLF arrives with it', () => {

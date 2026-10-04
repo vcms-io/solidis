@@ -104,8 +104,52 @@ describe('options', () => {
   });
 
   describe('resolveClientOptions', () => {
-    it('returns the defaults for no options', () => {
-      assert.deepStrictEqual(resolveClientOptions({}), SolidisDefaultOptions);
+    it('returns the documented defaults for no options', () => {
+      assert.deepStrictEqual(resolveClientOptions({}), {
+        authentication: { username: '', password: '' },
+        autoReconnect: true,
+        autoRecovery: {
+          database: true,
+          subscribe: true,
+          ssubscribe: true,
+          psubscribe: true,
+        },
+        clientName: 'solidis',
+        commandTimeout: 5000,
+        connectionTimeout: 2000,
+        connectionRetryDelay: 100,
+        database: 0,
+        debug: false,
+        debugMaxEntries: 10_240,
+        enableReadyCheck: true,
+        host: '127.0.0.1',
+        uri: false,
+        lazyConnect: false,
+        maxConnectionRetries: 20,
+        maxConnectionRetryDelay: 2000,
+        maxCommandsPerPipeline: 300,
+        maxEventListenersForClient: 10_240,
+        parser: { maxBulkStringLength: 536_870_912 },
+        port: 6379,
+        protocol: 'RESP2',
+        readyCheckInterval: 100,
+        maxReadyCheckRetries: 100,
+        rejectOnPartialPipelineError: false,
+      });
+    });
+
+    it('ignores undefined nested options', () => {
+      const resolved = resolveClientOptions({
+        uri: 'redis://alice:secret@uri-host',
+        authentication: { password: undefined },
+        parser: { maxBulkStringLength: undefined },
+      });
+
+      assert.deepStrictEqual(resolved.authentication, {
+        username: 'alice',
+        password: 'secret',
+      });
+      assert.strictEqual(resolved.parser.maxBulkStringLength, 536_870_912);
     });
 
     it('lets explicit options override the URI part by part', () => {

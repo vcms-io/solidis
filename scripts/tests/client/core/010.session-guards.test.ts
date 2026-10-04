@@ -435,6 +435,53 @@ describe('session-guards', () => {
       }
     });
 
+    it('keeps resetting and routing when an error listener throws', async (context) => {
+      const rethrown: (() => void)[] = [];
+      const server = await startServer((socket, data, mock) => {
+        if (data.includes('PING')) {
+          socket.write(
+            mock.acceptedCount === 1 ? '+PONG\r\n?garbage\r\n' : '+PONG\r\n',
+          );
+        }
+      });
+      const client = new SolidisFeaturedClient(
+        mockClientOptions(server.port, {
+          autoReconnect: true,
+          maxConnectionRetries: 1,
+          connectionRetryDelay: 10,
+        }),
+      );
+
+      context.mock.method(
+        globalThis,
+        'queueMicrotask',
+        (callback: () => void) => {
+          rethrown.push(callback);
+        },
+      );
+      client.on('error', () => {
+        throw new Error('listener bug');
+      });
+
+      try {
+        await client.connect();
+
+        assert.deepStrictEqual(await client.send([['PING']]), [['PONG']]);
+
+        await waitFor(() => server.acceptedCount === 2);
+
+        assert.deepStrictEqual(await client.send([['PING']]), [['PONG']]);
+        assert.ok(rethrown.length > 0);
+
+        for (const callback of rethrown) {
+          assert.throws(callback, { message: 'listener bug' });
+        }
+      } finally {
+        client.quit();
+        await server.close();
+      }
+    });
+
     it('keeps the session working when a drain listener throws', async (context) => {
       const server = await startServer(answerPong);
       const connect = net.connect;

@@ -37,6 +37,7 @@ export interface SolidisPipeline {
   timeout: number;
   timer: NodeJS.Timeout | undefined;
   receivedChunks: number;
+  writtenAt: number;
   isBlocking: boolean;
   isTimedOut: boolean;
 }

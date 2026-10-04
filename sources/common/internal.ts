@@ -33,6 +33,7 @@ export const SolidisNewLine = '\r\n';
 export const SolidisKilobyte = 1024;
 export const SolidisMegabyte = 1048576;
 export const SolidisDebugPreviewLength = 1024;
+export const SolidisLinePreviewLength = 32;
 export const SolidisBulkZeroCopyThreshold = 65536;
 export const SolidisMaximumTimerDelay = 2147483647;
 export const SolidisIntegerMaximumLength = 20;

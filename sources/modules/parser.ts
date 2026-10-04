@@ -14,6 +14,7 @@ import {
   SolidisIntegerMaximumLength,
   SolidisIntegerReplyByte,
   SolidisLineFeedByte,
+  SolidisLinePreviewLength,
   SolidisLowercaseFByte,
   SolidisLowercaseTByte,
   SolidisMapReplyByte,
@@ -248,7 +249,7 @@ export class SolidisParser {
       case SolidisIntegerReplyByte: {
         return (
           this.#parseInteger(start, end) ??
-          new RespError(`Integer: '${this.#readText(start, end)}'`)
+          new RespError(`Integer: ${this.#describeLine(start, end)}`)
         );
       }
 
@@ -267,11 +268,14 @@ export class SolidisParser {
       case SolidisDoubleReplyByte: {
         const text = this.#readText(start, end);
 
-        return parseDouble(text) ?? new RespError(`Double: '${text}'`);
+        return (
+          parseDouble(text) ??
+          new RespError(`Double: ${this.#describeLine(start, end)}`)
+        );
       }
 
       default: {
-        return this.#readBigNumber(this.#readText(start, end));
+        return this.#readBigNumber(start, end);
       }
     }
   }
@@ -444,7 +448,7 @@ export class SolidisParser {
 
     if (typeof length !== 'number') {
       throw new SolidisParserError(
-        `Invalid length '${this.#readText(start, end)}'`,
+        `Invalid length ${this.#describeLine(start, end)}`,
       );
     }
 
@@ -459,18 +463,32 @@ export class SolidisParser {
       (value !== SolidisLowercaseTByte && value !== SolidisLowercaseFByte)
     ) {
       throw new SolidisParserError(
-        `Boolean: invalid value '${this.#readText(start, end)}'`,
+        `Boolean: invalid value ${this.#describeLine(start, end)}`,
       );
     }
 
     return value === SolidisLowercaseTByte;
   }
 
-  #readBigNumber(text: string) {
-    if (text.length <= SolidisBigNumberMaximumLength && /^-?\d+$/.test(text)) {
-      return BigInt(text);
-    }
+  #readBigNumber(start: number, end: number) {
+    const text =
+      end - start <= SolidisBigNumberMaximumLength
+        ? this.#readText(start, end)
+        : '';
 
-    return new RespError(`BigNumber: '${text}'`);
+    return /^-?\d+$/.test(text)
+      ? BigInt(text)
+      : new RespError(`BigNumber: ${this.#describeLine(start, end)}`);
+  }
+
+  #describeLine(start: number, end: number) {
+    const text = this.#readText(
+      start,
+      Math.min(end, start + SolidisLinePreviewLength),
+    );
+
+    return end - start > SolidisLinePreviewLength
+      ? `'${text}...'`
+      : `'${text}'`;
   }
 }

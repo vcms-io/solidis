@@ -122,6 +122,7 @@ function createPipeline(): SolidisPipeline {
     timeout: 0,
     timer: undefined,
     receivedChunks: 0,
+    writtenAt: 0,
     isBlocking: false,
     isTimedOut: false,
   };
@@ -152,7 +153,9 @@ export class SolidisRequester {
   #isQueueing = false;
   #isQueueingLost = false;
   #isWatching = false;
+  #isWatchingConfirmed = false;
   #isWatchLost = false;
+  #inflightKindCount = 0;
 
   constructor(options: SolidisRequesterOptions) {
     const { connection } = options;
@@ -281,6 +284,11 @@ export class SolidisRequester {
           span: getReplySpan(command, kind),
           index,
         });
+
+        if (kind !== undefined) {
+          this.#inflightKindCount += 1;
+        }
+
         pipeline.timeout = request.timeout;
         pipeline.isBlocking ||= request.isBlocking;
       }
@@ -423,6 +431,7 @@ export class SolidisRequester {
     );
 
     pipeline.receivedChunks = this.#receivedChunks;
+    pipeline.writtenAt = performance.now();
 
     this.#inflightQueue.push(pipeline);
     this.#options.connection.write(buffer);
@@ -565,6 +574,15 @@ export class SolidisRequester {
       this.#track(subRequest, replies[0]);
     }
 
+    if (subRequest.kind !== undefined) {
+      this.#inflightKindCount -= 1;
+
+      if (this.#inflightKindCount === 0) {
+        this.#isQueueing = this.#transaction !== undefined;
+        this.#isWatching = this.#isWatchingConfirmed;
+      }
+    }
+
     const result =
       subRequest.command === discardedExecCommand ? [null] : replies;
     const error =
@@ -587,6 +605,7 @@ export class SolidisRequester {
       const queued = this.#transaction;
 
       this.#transaction = undefined;
+      this.#isWatchingConfirmed = false;
 
       if (Array.isArray(reply)) {
         queued?.forEach((subRequest, index) => {
@@ -603,6 +622,8 @@ export class SolidisRequester {
 
     if (kind === 'multi') {
       this.#transaction = [];
+    } else if (kind === 'watch' || kind === 'unwatch') {
+      this.#isWatchingConfirmed = kind === 'watch';
     } else if (kind === 'select') {
       this.#database = Number(argument);
     } else if (kind === 'auth') {
@@ -630,6 +651,7 @@ export class SolidisRequester {
       this.#database = 0;
       this.#authentication = undefined;
       this.#transaction = undefined;
+      this.#isWatchingConfirmed = false;
 
       this.#options.pubSub.clear();
     }
@@ -646,7 +668,8 @@ export class SolidisRequester {
     );
 
     let isStalled =
-      pipeline.timeout >= this.#options.commandTimeout &&
+      performance.now() - queue[this.#inflightHead].writtenAt >=
+        this.#options.commandTimeout &&
       pipeline.receivedChunks === this.#receivedChunks &&
       queue[this.#inflightHead] !== pipeline;
 
@@ -695,6 +718,8 @@ export class SolidisRequester {
     this.#isQueueing = false;
     this.#isWatchLost ||= this.#isWatching;
     this.#isWatching = false;
+    this.#isWatchingConfirmed = false;
+    this.#inflightKindCount = 0;
 
     for (const pipeline of pipelines) {
       rejectPipeline(pipeline, error);

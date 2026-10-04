@@ -158,6 +158,30 @@ describe('stream-integrity', () => {
     assert.strictEqual(await client.echo('aligned'), 'aligned');
   });
 
+  it('returns RESP3 list data shaped like pub/sub frames as plain data while subscribed', async () => {
+    const client = await track(createClient({ protocol: 'RESP3' }));
+    const writer = await track(createClient());
+    const key = keyspace.key('lookalike', 'resp3');
+    const channel = keyspace.key('lookalike', 'resp3', 'channel');
+    const messages: unknown[] = [];
+
+    client.on('message', (...parameters: unknown[]) => {
+      messages.push(parameters);
+    });
+
+    await client.subscribe(channel);
+    await writer.rpush(key, 'message', channel, 'payload');
+
+    assert.deepStrictEqual(await client.lrange(key, 0, -1), [
+      'message',
+      channel,
+      'payload',
+    ]);
+    assert.deepStrictEqual(messages, []);
+
+    await client.unsubscribe();
+  });
+
   it('emits unsolicited pushes and keeps replies aligned', async () => {
     const server = await startMockServer();
     const push = '>2\r\n$10\r\ninvalidate\r\n_\r\n';

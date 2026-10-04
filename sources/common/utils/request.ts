@@ -77,15 +77,59 @@ export function commandsToBuffer(commands: StringOrBuffer[][]): Buffer {
   return result;
 }
 
+function toText(value: unknown) {
+  try {
+    return String(value);
+  } catch {
+    return '?';
+  }
+}
+
 export function getCommandName(command: readonly StringOrBuffer[]): string {
-  const name = String(command[0] ?? '').toUpperCase();
+  const name = toText(command[0] ?? '').toUpperCase();
   const subcommand = command[1];
 
   if (subcommand === undefined || !SolidisContainerCommandNameSet.has(name)) {
     return name;
   }
 
-  return `${name} ${String(subcommand).toUpperCase()}`;
+  return `${name} ${toText(subcommand).toUpperCase()}`;
+}
+
+function findLowerBound(texts: readonly string[], text: string) {
+  let low = 0;
+  let high = texts.length;
+
+  while (low < high) {
+    const middle = (low + high) >>> 1;
+
+    if (texts[middle] < text) {
+      low = middle + 1;
+    } else {
+      high = middle;
+    }
+  }
+
+  return low;
+}
+
+function findMaskEnd(
+  source: string,
+  start: number,
+  quote: string,
+  text: string,
+) {
+  let end = start;
+
+  while (end - start < text.length && source[end] === text[end - start]) {
+    end += 1;
+  }
+
+  if (end - start === text.length && source[end] === ' ') {
+    end = source.indexOf(quote, end);
+  }
+
+  return source[end] === quote ? end : -1;
 }
 
 function redactArguments(
@@ -93,42 +137,67 @@ function redactArguments(
   command: readonly StringOrBuffer[],
   visibleLength: number,
 ) {
-  let result = message.replace(/\uFFFD+(?=['`])/g, '');
+  const source = message.replace(/\uFFFD+(?=['`])/g, '');
+  const texts = [
+    ...new Set(
+      command
+        .slice(visibleLength)
+        .map((argument) => String(argument).replace(/[\r\n]/g, ' ')),
+    ),
+  ]
+    .filter(Boolean)
+    .sort();
+  const lengths = new Set(texts.map((text) => text.length));
 
-  for (const argument of command.slice(visibleLength)) {
-    const text = String(argument).replace(/[\r\n]/g, ' ');
+  let result = '';
+  let copied = 0;
 
-    for (const quote of ["'", '`']) {
-      const opening = `${quote}${text[0]}`;
+  for (const { index } of source.matchAll(/['`]/g)) {
+    const quote = source[index];
+    const start = index + 1;
+    const closing = source.indexOf(quote, start);
 
-      let start = result.indexOf(opening);
+    if (index < copied || closing === -1) {
+      continue;
+    }
 
-      while (start !== -1) {
-        let end = start + 1;
-        let matched = 0;
+    const span = source.slice(start, closing);
+    const prefix = span + quote;
 
-        while (matched < text.length && result[end] === text[matched]) {
-          end += 1;
-          matched += 1;
-        }
+    let end =
+      span !== '' && texts[findLowerBound(texts, span)]?.startsWith(span)
+        ? closing
+        : -1;
 
-        if (matched === text.length && result[end] === ' ') {
-          const closing = result.indexOf(quote, end);
-
-          end = closing === -1 ? result.length : closing;
-        }
-
-        if (result[end] === quote) {
-          result = `${result.slice(0, start + 1)}***${result.slice(end)}`;
-          end = start + 4;
-        }
-
-        start = result.indexOf(opening, end);
+    for (
+      let space = span.indexOf(' ');
+      space > 0;
+      space = span.indexOf(' ', space + 1)
+    ) {
+      if (
+        lengths.has(space) &&
+        texts[findLowerBound(texts, span.slice(0, space))] ===
+          span.slice(0, space)
+      ) {
+        end = closing;
       }
+    }
+
+    for (
+      let candidate = findLowerBound(texts, prefix);
+      texts[candidate]?.startsWith(prefix);
+      candidate += 1
+    ) {
+      end = Math.max(end, findMaskEnd(source, start, quote, texts[candidate]));
+    }
+
+    if (end !== -1) {
+      result += `${source.slice(copied, start)}***`;
+      copied = end;
     }
   }
 
-  return result;
+  return result + source.slice(copied);
 }
 
 export function toCommandError(

@@ -904,10 +904,14 @@ describe('fragility', () => {
     it('rejects connect when the server stays loading beyond maxReadyCheckRetries', async () => {
       const server = await startMockServer();
 
+      let readyChecks = 0;
+
       server.onData((socket, data) => {
         const text = data.toString();
 
         if (text.includes('INFO')) {
+          readyChecks += 1;
+
           const infoPayload =
             'loading:1\r\nloading_start_time:1000000\r\nloading_total_bytes:100000000\r\n';
 
@@ -974,6 +978,7 @@ describe('fragility', () => {
         connectOutcome.error.message,
         'Ready check failed: still loading after 10 retries',
       );
+      assert.strictEqual(readyChecks, 11);
     });
 
     it('does not emit ready when the ready check encounters an error', async () => {

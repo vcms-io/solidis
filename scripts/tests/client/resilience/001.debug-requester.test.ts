@@ -1275,6 +1275,261 @@ describe('debug-requester', () => {
       ]);
     });
 
+    it('forgets a MULTI or WATCH that the server refuses', async () => {
+      function exchange(
+        requester: SolidisRequester,
+        connection: { reply: (data: string) => void },
+        commands: string[][],
+        reply: string,
+      ) {
+        const pending = requester.send(commands);
+
+        return flushed().then(() => {
+          connection.reply(reply);
+
+          return pending;
+        });
+      }
+
+      const refused = createRequester();
+
+      await exchange(
+        refused.requester,
+        refused.connection,
+        [['MULTI']],
+        "-NOPERM User has no permissions to run the 'multi' command\r\n",
+      );
+
+      const subscription = settle(
+        refused.requester.send([['SUBSCRIBE', 'news']]),
+      );
+
+      await flushed();
+
+      assert.deepStrictEqual(
+        refused.connection.writes.at(-1),
+        commandsToBuffer([['SUBSCRIBE', 'news']]),
+      );
+
+      refused.connection.emit('close', new SolidisConnectionError('lost'));
+
+      assert.ok((await subscription) instanceof SolidisConnectionError);
+      assert.deepStrictEqual(
+        await exchange(
+          refused.requester,
+          refused.connection,
+          [['GET', 'k']],
+          '$-1\r\n',
+        ),
+        [[null]],
+      );
+
+      await exchange(
+        refused.requester,
+        refused.connection,
+        [['WATCH', 'other']],
+        '-NOPERM No permissions to access a key\r\n',
+      );
+
+      refused.connection.emit('close', new SolidisConnectionError('lost'));
+
+      assert.deepStrictEqual(
+        await exchange(
+          refused.requester,
+          refused.connection,
+          [['MULTI'], ['INCR', 'counter'], ['EXEC']],
+          '+OK\r\n+QUEUED\r\n*1\r\n:1\r\n',
+        ),
+        [['OK'], ['QUEUED'], [[1]]],
+      );
+
+      const nested = createRequester();
+
+      await exchange(
+        nested.requester,
+        nested.connection,
+        [['MULTI']],
+        '+OK\r\n',
+      );
+      await exchange(
+        nested.requester,
+        nested.connection,
+        [['MULTI']],
+        '-ERR MULTI calls can not be nested\r\n',
+      );
+      await assert.rejects(nested.requester.send([['SUBSCRIBE', 'news']]), {
+        message:
+          'SUBSCRIBE is not supported inside a transaction: it breaks the pairing of requests and replies.',
+      });
+
+      nested.connection.emit('close', new SolidisConnectionError('lost'));
+
+      await assert.rejects(nested.requester.send([['GET', 'k']]), {
+        message: 'GET is refused after a lost MULTI.',
+      });
+
+      const pipelined = createRequester();
+
+      await exchange(
+        pipelined.requester,
+        pipelined.connection,
+        [
+          ['WATCH', 'other'],
+          ['WATCH', 'mine'],
+        ],
+        '-NOPERM No permissions to access a key\r\n+OK\r\n',
+      );
+
+      pipelined.connection.emit('close', new SolidisConnectionError('lost'));
+
+      const aborted = pipelined.requester.send([
+        ['MULTI'],
+        ['INCR', 'counter'],
+        ['EXEC'],
+      ]);
+
+      await flushed();
+
+      assert.deepStrictEqual(
+        pipelined.connection.writes.at(-1),
+        commandsToBuffer([['MULTI'], ['INCR', 'counter'], ['DISCARD']]),
+      );
+
+      pipelined.connection.reply('+OK\r\n+QUEUED\r\n+OK\r\n');
+
+      assert.deepStrictEqual(await aborted, [['OK'], ['QUEUED'], [null]]);
+    });
+
+    it('drops a silent connection under traffic with timeouts shorter than commandTimeout', async () => {
+      const { connection, requester } = createRequester({
+        commandTimeout: 300,
+      });
+      const greeting = requester.send([['PING']]);
+
+      await flushed();
+
+      connection.reply('+PONG\r\n');
+
+      assert.deepStrictEqual(await greeting, [['PONG']]);
+
+      const pending: Promise<unknown>[] = [];
+      const startedAt = performance.now();
+
+      for (
+        let round = 0;
+        round < 60 && connection.resets.length === 0;
+        round += 1
+      ) {
+        pending.push(settle(requester.send([['PING']], { timeout: 100 })));
+
+        await delay(20);
+      }
+
+      assert.ok(performance.now() - startedAt >= 300);
+      assert.ok(pending.length < 60);
+      assert.strictEqual(connection.resets.length, 1);
+
+      await Promise.all(pending);
+
+      assert.strictEqual(
+        connection.resets[0].message,
+        'Connection reset because a command timed out.',
+      );
+    });
+
+    it('refuses a command whose name cannot become text without stranding its batch', async () => {
+      const { connection, requester } = createRequester();
+      const nameless = Object.create(null) as string;
+      const refused = [
+        settle(requester.send([[nameless, 'k']])),
+        settle(requester.send([['CLIENT', nameless]])),
+      ];
+      const valid = requester.send([['PING']]);
+      const [unnamed, unknownSubcommand] = await Promise.all(refused);
+
+      assert.ok(unnamed instanceof SolidisRequesterError);
+      assert.strictEqual(unnamed.message, '? takes only strings and Buffers.');
+      assert.ok(unknownSubcommand instanceof SolidisRequesterError);
+      assert.strictEqual(
+        unknownSubcommand.message,
+        'CLIENT ? takes only strings and Buffers.',
+      );
+
+      await flushed();
+
+      connection.reply('+PONG\r\n');
+
+      assert.deepStrictEqual(await valid, [['PONG']]);
+    });
+
+    it('remembers a lost WATCH and a lost MULTI across several drops', async () => {
+      const { connection, requester } = createRequester();
+
+      async function exchange(commands: string[][], reply: string) {
+        const pending = requester.send(commands);
+
+        await flushed();
+
+        connection.reply(reply);
+
+        return await pending;
+      }
+
+      function drop() {
+        connection.emit('close', new SolidisConnectionError('lost'));
+      }
+
+      await exchange([['WATCH', 'k']], '+OK\r\n');
+
+      drop();
+      drop();
+
+      const aborted = requester.send([
+        ['MULTI'],
+        ['INCR', 'counter'],
+        ['EXEC'],
+      ]);
+
+      await flushed();
+
+      assert.deepStrictEqual(
+        connection.writes.at(-1),
+        commandsToBuffer([['MULTI'], ['INCR', 'counter'], ['DISCARD']]),
+      );
+
+      connection.reply('+OK\r\n+QUEUED\r\n+OK\r\n');
+
+      assert.deepStrictEqual(await aborted, [['OK'], ['QUEUED'], [null]]);
+
+      await exchange([['MULTI']], '+OK\r\n');
+
+      drop();
+      drop();
+
+      await assert.rejects(requester.send([['GET', 'k']]), {
+        message: 'GET is refused after a lost MULTI.',
+      });
+    });
+
+    it('classifies a command whose name is a Buffer', async () => {
+      const { connection, requester } = createRequester();
+
+      await assert.rejects(requester.send([[Buffer.from('MONITOR')]]), {
+        message:
+          'MONITOR is not supported: it breaks the pairing of requests and replies.',
+      });
+
+      const selected = requester.send([[Buffer.from('select'), '3']]);
+
+      await flushed();
+
+      connection.reply('+OK\r\n');
+
+      await selected;
+
+      assert.strictEqual(requester.database, 3);
+    });
+
     it('copies the commands at send(), so later changes to the arrays are not sent', async () => {
       const { connection, requester } = createRequester();
 
@@ -1453,12 +1708,31 @@ describe('debug-requester', () => {
         'Connection reset because a command timed out.',
       );
       assert.ok(reset.cause instanceof SolidisRequesterError);
+
+      connection.isConnected = true;
+
+      const patient = requester.send([['ECHO', 'y']], { timeout: 2000 });
+      const quick = settle(requester.send([['ECHO', 'z']]));
+
+      assert.ok((await quick) instanceof SolidisRequesterError);
+      assert.strictEqual(connection.resets.length, 1);
+
+      connection.reply('+y\r\n+z\r\n');
+
+      assert.deepStrictEqual(await patient, [['y']]);
     });
 
     it('resets a connection that stays silent through two timeouts while requests keep coming', async () => {
       const { connection, requester } = createRequester({
         commandTimeout: 100,
       });
+      const greeting = requester.send([['PING']]);
+
+      await flushed();
+
+      connection.reply('+PONG\r\n');
+
+      assert.deepStrictEqual(await greeting, [['PONG']]);
 
       const first = settle(requester.send([['ECHO', 'a']]));
 
@@ -1556,16 +1830,16 @@ describe('debug-requester', () => {
       assert.strictEqual(connection.resets.length, 1);
     });
 
-    it('keeps the connection when a shorter timeout expires behind a timed-out request', async () => {
+    it('keeps the connection while short timeouts expire before the oldest request has waited commandTimeout', async () => {
       const { connection, requester } = createRequester({
         commandTimeout: 200,
       });
 
-      const first = settle(requester.send([['ECHO', 'a']]));
+      const first = settle(requester.send([['ECHO', 'a']], { timeout: 50 }));
 
-      await delay(100);
+      await delay(10);
 
-      const quick = settle(requester.send([['ECHO', 'b']], { timeout: 120 }));
+      const quick = settle(requester.send([['ECHO', 'b']], { timeout: 50 }));
       const trailing = requester.send([['ECHO', 'c']]);
 
       assert.ok((await first) instanceof SolidisRequesterError);
@@ -2467,6 +2741,11 @@ describe('debug-requester', () => {
           ['auth', 'bob', 'pw2'],
           '+OK\r\n',
           { username: 'bob', password: 'pw2' },
+        ],
+        [
+          ['hello', '3', 'auth', 'frank', 'pw6'],
+          '%1\r\n+proto\r\n:3\r\n',
+          { username: 'frank', password: 'pw6' },
         ],
         [['RESET'], '+RESET\r\n', undefined],
       ];
