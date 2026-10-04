@@ -96,7 +96,7 @@ const job = await client.send([['BLPOP', 'jobs', '30']], { timeout: 35_000 });
 ```
 
 `exec()`는 `MULTI`, 쌓인 커맨드, `EXEC`를 호출 즉시 한 번의 `send()`로 함께 보내므로, 트랜잭션은 그 뒤에 보낸 커맨드보다 먼저 실행됩니다. `send()`처럼 원시 응답으로 resolve되므로, 응답 형태는 프로토콜을 따르고 `{ buffer: true }` 같은 쌓인 호출의 옵션은 적용되지 않습니다. 인자가 거부된 경우처럼 커맨드를 하나도 쌓지 못한 호출이 있거나, `undefined` 인자를 가진 커맨드처럼 `send()`가 거부하는 커맨드가 쌓여 있으면 `exec()`는 reject됩니다. 이렇게 reject되는 `exec()`와 `discard()`는 `UNWATCH`를 보내므로, `WATCH`는 트랜잭션과 함께 끝납니다.
-쌓인 호출의 동기 부분만 트랜잭션에 들어갑니다. 응답을 await하는 `extend()` 메서드는 그 뒤의 커맨드를 트랜잭션 밖에서 실행합니다.
+쌓인 호출의 동기 부분만 트랜잭션에 들어갑니다. 응답을 await하는 `extend()` 메서드는 그 뒤의 커맨드를 트랜잭션 밖에서 실행하고, 커맨드를 쌓은 뒤 예외를 던지는 메서드는 이미 쌓은 커맨드를 멈추지 못하므로, 인자는 커맨드를 쌓기 전에 검사하세요.
 ACL 사용자에게 `@transaction`이 없을 때처럼 서버가 `MULTI`를 거부하면 쌓인 커맨드가 각각 실행되고 `exec()`는 `[MULTI]` 에러로 reject되므로, 무작정 재시도하지 마세요.
 재연결로 `WATCH`가 사라지면 다음 `EXEC`는 `DISCARD`로 바뀌어 `null`을 반환합니다. `send()`로 보낸 `MULTI`가 사라지면 `MULTI`, `EXEC`, `DISCARD`, `RESET` 전까지 다른 커맨드를 거부합니다.
 
@@ -167,7 +167,7 @@ LINSERT, LREM, LPOS, SMISMEMBER, DELEX, SET은 비교할 값으로, PUBLISH와 S
 `send()`는 받은 커맨드 배열을 복사하므로 바로 바꾸거나 다시 써도 되지만, 그 안의 `Buffer`는 복사하지 않으니 커맨드가 끝날 때까지 바꾸지 마세요.
 읽을 때는 기본적으로 UTF-8로 디코딩하고, GET, GETDEL, GETEX, GETRANGE, MGET, HGET, HMGET, HGETALL, HVALS, LINDEX, LRANGE, LPOP, RPOP, LMOVE, BLMOVE, RPOPLPUSH, BRPOPLPUSH, BLPOP, BRPOP, LMPOP, BLMPOP에 `{ buffer: true }`를 넘기면 정확한 바이트를 `Buffer`로 받습니다.
 커맨드는 HGETALL, HSCAN, 스트림 항목의 필드 이름을 UTF-8 텍스트로 디코딩하고, RESP3 맵의 키는 `send()`에서도 UTF-8 텍스트로 디코딩하므로, UTF-8로 유효하지 않은 이름끼리는 겹칠 수 있습니다. 바이너리 데이터는 값에 담으세요.
-반환 타입도 옵션을 따라갑니다.
+반환 타입도 옵션을 따라갑니다. MGET과 HMGET은 마지막 인자가 `undefined`이면 키가 아니라 옵션이 없는 것으로 읽습니다.
 
 </details>
 

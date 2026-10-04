@@ -96,7 +96,7 @@ const job = await client.send([['BLPOP', 'jobs', '30']], { timeout: 35_000 });
 ```
 
 `exec()` sends `MULTI`, the queued commands and `EXEC` together, in one `send()` call made at once, so the transaction keeps its place before the commands sent after it. Like `send()`, it resolves with the raw replies: their shape follows the protocol, and options of queued calls such as `{ buffer: true }` do not apply. A call that queues no command, such as one whose arguments are refused, makes `exec()` reject, and so does a queued command that `send()` refuses, such as one with an `undefined` argument. An `exec()` that rejects this way, and `discard()`, send `UNWATCH`, so a `WATCH` ends with its transaction.
-Only the synchronous part of a queued call joins the transaction: an `extend()` method that awaits a reply runs its later commands outside it.
+Only the synchronous part of a queued call joins the transaction: an `extend()` method that awaits a reply runs its later commands outside it, and one that throws after queueing commands does not stop them, so check arguments before queueing.
 If the server refuses `MULTI`, as for an ACL user without `@transaction`, the queued commands run on their own and `exec()` rejects with the `[MULTI]` error, so do not retry it blindly.
 When a reconnect loses a `WATCH`, the next `EXEC` is sent as `DISCARD` and returns `null`. When it loses a `MULTI` sent with `send()`, other commands are refused until `MULTI`, `EXEC`, `DISCARD` or `RESET`.
 
@@ -167,7 +167,7 @@ LINSERT, LREM, LPOS, SMISMEMBER, DELEX and SET also take `Buffer`s for the value
 `send()` copies the command arrays it receives, so they can be changed or reused at once, but not the `Buffer`s in them: keep a `Buffer` unchanged until its command settles.
 Reads decode UTF-8 by default; pass `{ buffer: true }` to receive the exact bytes as a `Buffer` from GET, GETDEL, GETEX, GETRANGE, MGET, HGET, HMGET, HGETALL, HVALS, LINDEX, LRANGE, LPOP, RPOP, LMOVE, BLMOVE, RPOPLPUSH, BRPOPLPUSH, BLPOP, BRPOP, LMPOP, BLMPOP.
 Commands decode field names, as in HGETALL, HSCAN and stream entries, as UTF-8 text, and the keys of RESP3 maps are decoded as UTF-8 text even from `send()`, so names that are not valid UTF-8 can collide; keep binary data in values.
-The return type follows the option.
+The return type follows the option. MGET and HMGET read a last argument that is `undefined` as missing options, not as a key.
 
 </details>
 

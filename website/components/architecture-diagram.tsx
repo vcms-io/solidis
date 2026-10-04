@@ -254,8 +254,8 @@ export function ArchitectureDiagram({
         y={debugY}
         width={debugWidth}
         height={debugHeight}
-        title="Debug Memory"
-        subtitle="Ring buffer · Sanitized"
+        title="Debug"
+        subtitle="debug event · No arguments"
         variant="secondary"
       />
 
