@@ -122,6 +122,21 @@ export async function executeCommand<T, R, Options extends object | undefined>(
   return replyTo ? replyTo(reply, command, replyOptions) : reply;
 }
 
+export function appendRecordEntries(
+  command: StringOrBuffer[],
+  record: Record<string, StringOrBuffer>,
+) {
+  if (typeof record !== 'object' || record === null) {
+    throw newCommandError('Expected an object of names and values', command);
+  }
+
+  for (const [name, value] of Object.entries(record)) {
+    command.push(name, value);
+  }
+
+  return command;
+}
+
 export function buildCuckooFilterInsertCommand(
   command: string,
   key: string,
@@ -311,7 +326,7 @@ export function buildTimeSeriesCommand<
     command.push('DUPLICATE_POLICY', options.duplicatePolicy);
   }
 
-  if ('onDuplicate' in options && options.onDuplicate) {
+  if (options.onDuplicate) {
     command.push('ON_DUPLICATE', options.onDuplicate);
   }
 

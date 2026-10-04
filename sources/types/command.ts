@@ -394,18 +394,19 @@ export interface CommandTimeSeriesOptions {
 
 export type CommandTimeSeriesCreateOptions = Omit<
   CommandTimeSeriesOptions,
-  'timestamp' | 'value' | 'onDuplicate'
+  'onDuplicate'
 >;
 
 export type CommandTimeSeriesAlterOptions = Omit<
   CommandTimeSeriesOptions,
-  'timestamp' | 'value' | 'onDuplicate' | 'encoding'
+  'onDuplicate' | 'encoding'
 >;
 
-export type CommandTimeSeriesAddOptions = Omit<
-  CommandTimeSeriesOptions,
-  'timestamp' | 'value'
->;
+export type CommandTimeSeriesAddOptions = CommandTimeSeriesOptions;
+
+export type CommandReplicaofTarget =
+  | [host: string, port: number]
+  | [host: 'NO', port: 'ONE'];
 
 export type CommandTimeSeriesIncrDecrOptions = Omit<
   CommandTimeSeriesOptions,

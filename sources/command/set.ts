@@ -19,6 +19,36 @@ export async function set<T>(
   this: T,
   key: string,
   value: StringOrBuffer,
+  options?: CommandSetOptions & { returnOldValue?: false },
+): Promise<RespOK | null>;
+export async function set<T>(
+  this: T,
+  key: string,
+  value: StringOrBuffer,
+  options: CommandSetOptions & {
+    returnOldValue: true;
+    returnOldValueAsBuffer?: false;
+  },
+): Promise<string | null>;
+export async function set<T>(
+  this: T,
+  key: string,
+  value: StringOrBuffer,
+  options: CommandSetOptions & {
+    returnOldValue: true;
+    returnOldValueAsBuffer: true;
+  },
+): Promise<Buffer | null>;
+export async function set<T>(
+  this: T,
+  key: string,
+  value: StringOrBuffer,
+  options?: CommandSetOptions,
+): Promise<StringOrBuffer | RespOK | null>;
+export async function set<T>(
+  this: T,
+  key: string,
+  value: StringOrBuffer,
   options?: CommandSetOptions,
 ): Promise<StringOrBuffer | RespOK | null> {
   return await executeCommand(

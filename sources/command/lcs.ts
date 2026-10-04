@@ -1,5 +1,6 @@
 import {
   executeCommand,
+  tryReplyArray,
   tryReplyNumber,
   tryReplyToMap,
   tryReplyToString,
@@ -57,29 +58,26 @@ export async function lcs<T>(
          */
         const map = tryReplyToMap(reply, command);
 
-        const matches: RespLCSMatch[] = [];
-        const matchesData = map.get('matches');
+        const matches = tryReplyArray(map.get('matches'), command).map(
+          (matchInfo) => {
+            const [first, second, matchLength] = tryReplyArray(
+              matchInfo,
+              command,
+            );
+            const [firstStart, firstEnd] = tryReplyArray(first, command);
+            const [secondStart, secondEnd] = tryReplyArray(second, command);
+            const match: RespLCSMatch = {
+              a: [Number(firstStart), Number(firstEnd)],
+              b: [Number(secondStart), Number(secondEnd)],
+            };
 
-        if (Array.isArray(matchesData)) {
-          for (const matchInfo of matchesData) {
-            if (Array.isArray(matchInfo)) {
-              const [position1, position2, matchLength] = matchInfo;
-              if (Array.isArray(position1) && Array.isArray(position2)) {
-                const match: RespLCSMatch = {
-                  a: [Number(position1[0]), Number(position1[1])],
-                  b: [Number(position2[0]), Number(position2[1])],
-                };
-                if (
-                  replyOptions.withmatchlen &&
-                  typeof matchLength === 'number'
-                ) {
-                  match.length = matchLength;
-                }
-                matches.push(match);
-              }
+            if (replyOptions.withmatchlen && typeof matchLength === 'number') {
+              match.length = matchLength;
             }
-          }
-        }
+
+            return match;
+          },
+        );
 
         return {
           matches,

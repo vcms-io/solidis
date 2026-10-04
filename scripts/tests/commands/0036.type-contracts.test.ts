@@ -18,6 +18,7 @@ import type {
   CommandSortStoreOptions,
   RespInteger,
   RespLmpop,
+  RespOK,
   RespSortedSetMember,
   RespStreamInfo,
   RespStreamInfoFull,
@@ -377,6 +378,25 @@ describe('type-contracts', () => {
       });
       // @ts-expect-error returnOldValueAsBuffer needs returnOldValue
       await client.set('k', 'v', { returnOldValueAsBuffer: true });
+
+      const written: RespOK | null = await client.set('k', 'v', {
+        expireInSeconds: 1,
+      });
+      const previous: string | null = await client.set('k', 'v', {
+        returnOldValue: true,
+      });
+      const previousBytes: Buffer | null = await client.set('k', 'v', {
+        returnOldValue: true,
+        returnOldValueAsBuffer: true,
+      });
+
+      // @ts-expect-error a plain SET answers OK, not the old value
+      const unwritten: Buffer | null = await client.set('k', 'v');
+
+      await client.replicaof('NO', 'ONE');
+      await client.replicaof('10.0.0.1', 6379);
+      // @ts-expect-error only NO takes ONE as the port
+      await client.replicaof('10.0.0.1', 'ONE');
       await client.scriptDebug('NO');
       // @ts-expect-error SCRIPT DEBUG YES breaks the pairing of replies
       await client.scriptDebug('YES');
@@ -455,6 +475,10 @@ describe('type-contracts', () => {
         found,
         summary,
         detail,
+        written,
+        previous,
+        previousBytes,
+        unwritten,
       ];
     }
 

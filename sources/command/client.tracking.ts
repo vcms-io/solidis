@@ -1,4 +1,4 @@
-import { executeCommand, tryReplyOK } from './utils/index.ts';
+import { executeCommand, newCommandError, tryReplyOK } from './utils/index.ts';
 
 import type { CommandClientTrackingOptions, RespOnOrOff } from '../index.ts';
 
@@ -13,11 +13,15 @@ export function createCommand(
       command.push('REDIRECT', `${options.redirect}`);
     }
 
-    if (options.prefixes) {
-      for (const prefix of options.prefixes) {
-        command.push('PREFIX');
-        command.push(prefix);
-      }
+    if (options.prefixes?.length === 0) {
+      throw newCommandError(
+        'An empty list of prefixes would track every key',
+        command,
+      );
+    }
+
+    for (const prefix of options.prefixes ?? []) {
+      command.push('PREFIX', prefix);
     }
 
     if (options.bcast) {

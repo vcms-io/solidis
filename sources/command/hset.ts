@@ -1,4 +1,8 @@
-import { executeCommand, tryReplyNumber } from './utils/index.ts';
+import {
+  appendRecordEntries,
+  executeCommand,
+  tryReplyNumber,
+} from './utils/index.ts';
 
 import type { StringOrBuffer } from '../index.ts';
 
@@ -12,7 +16,7 @@ export function createCommand(
     return ['HSET', key, ...parameters];
   }
 
-  return ['HSET', key, ...Object.entries(parameters[0]).flat()];
+  return appendRecordEntries(['HSET', key], parameters[0]);
 }
 
 export async function hset<T>(

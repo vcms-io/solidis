@@ -13,6 +13,7 @@ import { createCommand as createBitcountCommand } from '../../../sources/command
 import { cfInfo } from '../../../sources/command/cf.info.ts';
 import { createCommand as createCuckooInsertCommand } from '../../../sources/command/cf.insert.ts';
 import { createCommand as createClientListCommand } from '../../../sources/command/client.list.ts';
+import { createCommand as createClientTrackingCommand } from '../../../sources/command/client.tracking.ts';
 import {
   commandDocs,
   createCommand as createCommandDocsCommand,
@@ -33,6 +34,7 @@ import { createCommand as createJsonArrpopCommand } from '../../../sources/comma
 import { createCommand as createJsonGetCommand } from '../../../sources/command/json.get.ts';
 import { latencyLatest } from '../../../sources/command/latency.latest.ts';
 import { createCommand as createLatencyResetCommand } from '../../../sources/command/latency.reset.ts';
+import { lcs } from '../../../sources/command/lcs.ts';
 import { lrange } from '../../../sources/command/lrange.ts';
 import { memoryStats } from '../../../sources/command/memory.stats.ts';
 import { mget } from '../../../sources/command/mget.ts';
@@ -50,6 +52,7 @@ import {
 } from '../../../sources/command/module.loadex.ts';
 import { moduleUnload } from '../../../sources/command/module.unload.ts';
 import { createCommand as createMsetCommand } from '../../../sources/command/mset.ts';
+import { createCommand as createMsetnxCommand } from '../../../sources/command/msetnx.ts';
 import { createCommand as createPsetexCommand } from '../../../sources/command/psetex.ts';
 import { createCommand as createPublishCommand } from '../../../sources/command/publish.ts';
 import { createCommand as createPubsubNumsubCommand } from '../../../sources/command/pubsub.numsub.ts';
@@ -389,6 +392,72 @@ describe('reply-guards', () => {
       message:
         '[LATENCY RESET] An empty list of events would reset every event',
     });
+    assert.throws(
+      () => createClientTrackingCommand('ON', { bcast: true, prefixes: [] }),
+      {
+        name: 'SolidisCommandError',
+        message:
+          '[CLIENT TRACKING] An empty list of prefixes would track every key',
+      },
+    );
+    assert.deepStrictEqual(
+      createClientTrackingCommand('ON', { bcast: true, prefixes: ['a', 'b'] }),
+      ['CLIENT', 'TRACKING', 'ON', 'PREFIX', 'a', 'PREFIX', 'b', 'BCAST'],
+    );
+    assert.throws(() => createCommandDocsCommand([]), {
+      name: 'SolidisCommandError',
+      message:
+        '[COMMAND DOCS] An empty list of commands would return every command',
+    });
+  });
+
+  it('refuses fields that are not an object, as ioredis-style calls pass them', async () => {
+    const pairs: Record<string, string> = JSON.parse('"f1"');
+    const refusal = (name: string) => ({
+      name: 'SolidisCommandError',
+      message: `[${name}] Expected an object of names and values`,
+    });
+
+    assert.throws(() => createMsetCommand(pairs), refusal('MSET'));
+    assert.throws(() => createMsetnxCommand(pairs), refusal('MSETNX'));
+    assert.throws(() => createHmsetCommand('h', pairs), refusal('HMSET'));
+    assert.throws(() => createXaddCommand('s', '*', pairs), refusal('XADD'));
+    await assert.rejects(
+      Reflect.apply(hset, createRecorder(2), ['h', 'f1', 'v1', 'f2', 'v2']),
+      refusal('HSET'),
+    );
+    assert.deepStrictEqual(createMsetCommand({ a: '1', b: '2' }), [
+      'MSET',
+      'a',
+      '1',
+      'b',
+      '2',
+    ]);
+  });
+
+  it('rejects a malformed LCS match instead of dropping it', async () => {
+    const reply = (matches: SolidisData) =>
+      createRecorder(
+        new Map<string, SolidisData>([
+          ['matches', matches],
+          ['len', 4],
+        ]),
+      );
+
+    assert.deepStrictEqual(
+      await lcs.call(reply([[[0, 1], [2, 3], 2]]), 'a', 'b', {
+        idx: true,
+        withmatchlen: true,
+      }),
+      { matches: [{ a: [0, 1], b: [2, 3], length: 2 }], length: 4 },
+    );
+
+    for (const matches of [[bulk('bad')], [[[0, 1], bulk('bad')]], null]) {
+      await assert.rejects(lcs.call(reply(matches), 'a', 'b', { idx: true }), {
+        name: 'SolidisCommandError',
+        message: /^\[LCS\] Unexpected reply: /,
+      });
+    }
   });
 
   it('builds the optional parts of BF.INSERT, BITCOUNT, JSON.ARRPOP, XPENDING and FUNCTION FLUSH', () => {
@@ -679,43 +748,46 @@ describe('reply-guards', () => {
       [
         'LUA',
         new Map<string, SolidisData>([
-          ['libraries', 2],
-          ['functions', 3],
+          ['libraries_count', 2],
+          ['functions_count', 3],
         ]),
       ],
     ]);
+    const stats = await functionStats.call(
+      createRecorder(
+        new Map<string, SolidisData>([
+          [
+            'running_script',
+            new Map<string, SolidisData>([
+              ['name', bulk('slow')],
+              ['command', [bulk('FCALL'), bulk('slow'), bulk('0')]],
+              ['duration_ms', 1500],
+            ]),
+          ],
+          ['engines', engines],
+        ]),
+      ),
+    );
 
-    const scriptCommands: SolidisData[] = [
-      [bulk('FCALL'), bulk('slow'), bulk('0')],
-      bulk('FCALL slow 0'),
-    ];
-
-    for (const scriptCommand of scriptCommands) {
-      const stats = await functionStats.call(
+    assert.deepStrictEqual(stats, {
+      runningScript: {
+        name: 'slow',
+        command: 'FCALL slow 0',
+        duration: 1500,
+      },
+      engines: [{ name: 'LUA', libraries: 2, functions: 3 }],
+    });
+    assert.deepStrictEqual(
+      await functionStats.call(
         createRecorder(
           new Map<string, SolidisData>([
-            [
-              'running_script',
-              new Map<string, SolidisData>([
-                ['name', bulk('slow')],
-                ['command', scriptCommand],
-                ['duration_ms', 1500],
-              ]),
-            ],
-            ['engines', engines],
+            ['running_script', null],
+            ['engines', new Map()],
           ]),
         ),
-      );
-
-      assert.deepStrictEqual(stats, {
-        runningScript: {
-          name: 'slow',
-          command: 'FCALL slow 0',
-          duration: 1500,
-        },
-        engines: [{ name: 'LUA', libraries: 2, functions: 3 }],
-      });
-    }
+      ),
+      { runningScript: null, engines: [] },
+    );
   });
 
   it('reads nested COMMAND DOCS subcommands and keeps only known doc flags', async () => {

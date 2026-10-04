@@ -1,5 +1,6 @@
 import {
   executeCommand,
+  newCommandError,
   processPairedArray,
   setRecordEntry,
   tryReplyArray,
@@ -15,6 +16,13 @@ import type {
 } from '../index.ts';
 
 export function createCommand(commands?: string[]) {
+  if (commands?.length === 0) {
+    throw newCommandError(
+      'An empty list of commands would return every command',
+      'COMMAND DOCS',
+    );
+  }
+
   return ['COMMAND', 'DOCS', ...(commands ?? [])];
 }
 

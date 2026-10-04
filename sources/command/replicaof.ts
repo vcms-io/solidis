@@ -5,18 +5,19 @@ import {
   tryReplyToString,
 } from './utils/index.ts';
 
-export function createCommand(host: string, port: number | 'ONE') {
+import type { CommandReplicaofTarget } from '../index.ts';
+
+export function createCommand(...[host, port]: CommandReplicaofTarget) {
   return ['REPLICAOF', host, `${port}`];
 }
 
 export async function replicaof<T>(
   this: T,
-  host: string,
-  port: number | 'ONE',
+  ...target: CommandReplicaofTarget
 ): Promise<RespOK> {
   return await executeCommand(
     this,
-    createCommand(host, port),
+    createCommand(...target),
     (reply, command) => {
       if (tryReplyToString(reply, command).startsWith(RespOK)) {
         return RespOK;

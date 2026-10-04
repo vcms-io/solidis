@@ -24,38 +24,26 @@ export async function functionStats<T>(this: T): Promise<RespFunctionStats> {
 
     const runningScript = map.get('running_script');
 
-    if (runningScript !== null && runningScript !== undefined) {
+    if (runningScript !== null) {
       const scriptMap = tryReplyToMap(runningScript, command);
-
-      const scriptCommand = scriptMap.get('command');
 
       result.runningScript = {
         name: tryReplyToString(scriptMap.get('name'), command),
-        command: Array.isArray(scriptCommand)
-          ? tryReplyToStringArray(scriptCommand, command).join(' ')
-          : tryReplyToString(scriptCommand, command),
+        command: tryReplyToStringArray(scriptMap.get('command'), command).join(
+          ' ',
+        ),
         duration: tryReplyToNumber(scriptMap.get('duration_ms'), command),
       };
     }
 
-    const engines = map.get('engines');
+    for (const [name, engine] of tryReplyToMap(map.get('engines'), command)) {
+      const engineMap = tryReplyToMap(engine, command);
 
-    if (engines !== null && engines !== undefined) {
-      for (const [engineName, engineInfo] of tryReplyToMap(engines, command)) {
-        const engineMap = tryReplyToMap(engineInfo, command);
-
-        result.engines.push({
-          name: `${engineName}`,
-          libraries: tryReplyToNumber(
-            engineMap.get('libraries_count') ?? engineMap.get('libraries'),
-            command,
-          ),
-          functions: tryReplyToNumber(
-            engineMap.get('functions_count') ?? engineMap.get('functions'),
-            command,
-          ),
-        });
-      }
+      result.engines.push({
+        name: `${name}`,
+        libraries: tryReplyToNumber(engineMap.get('libraries_count'), command),
+        functions: tryReplyToNumber(engineMap.get('functions_count'), command),
+      });
     }
 
     return result;

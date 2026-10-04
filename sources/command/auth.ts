@@ -9,7 +9,7 @@ export function createCommand(
   const commands: StringOrBuffer[] = ['AUTH'];
 
   if (password !== undefined) {
-    commands.push(username || 'default', password);
+    commands.push(username?.length ? username : 'default', password);
   } else if (username !== undefined) {
     commands.push(username);
   }
