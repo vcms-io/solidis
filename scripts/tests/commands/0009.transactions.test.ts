@@ -544,6 +544,44 @@ describe('transactions', () => {
     }
   });
 
+  it('refuses a queued subscription command before sending the transaction, and ends the WATCH', async () => {
+    const watched = keyspace.key('subscribing', 'watched');
+    const target = keyspace.key('subscribing', 'target');
+    const other = await createClient();
+    const extended = (await createClient()).extend({
+      listen(this: FeaturedClient, channel: string) {
+        return this.subscribe(channel);
+      },
+    });
+
+    try {
+      await extended.watch(watched);
+
+      const refused = extended.multi();
+
+      refused.set(target, 'refused');
+      refused.listen(keyspace.key('subscribing', 'channel'));
+
+      await assert.rejects(refused.exec(), {
+        name: 'SolidisRequesterError',
+        message:
+          'SUBSCRIBE is not supported inside a transaction: it breaks the pairing of requests and replies.',
+      });
+      await other.set(watched, 'changed');
+
+      assert.strictEqual(await other.get(target), null);
+
+      const next = extended.multi();
+
+      next.set(target, 'committed');
+
+      assert.deepStrictEqual(await next.exec(), ['OK']);
+    } finally {
+      await closeClient(extended);
+      await closeClient(other);
+    }
+  });
+
   it('rejects exec() when a queued call queues no command', async () => {
     const extended = (await createClient()).extend({ async idle() {} });
 

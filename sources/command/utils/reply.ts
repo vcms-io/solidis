@@ -319,6 +319,14 @@ export function processPairedArray(
 }
 
 export function tryReplyArray(
+  reply: SolidisData,
+  commandName?: CommandName,
+): SolidisData[];
+export function tryReplyArray(
+  reply: unknown,
+  commandName?: CommandName,
+): unknown[];
+export function tryReplyArray(
   reply: unknown,
   commandName?: CommandName,
 ): unknown[] {
@@ -414,16 +422,16 @@ export function tryReplyToNumberArray(
 }
 
 export function tryReplyToNumberOrErrorArray(
-  reply: unknown,
+  reply: SolidisData,
   commandName: CommandName | undefined,
   length: number,
 ): (number | RespError)[] {
   const results = tryReplyArray(reply, commandName).map((item) =>
-    item instanceof RespError ? item : tryReplyToNumber(item, commandName),
+    item instanceof Error ? item : tryReplyToNumber(item, commandName),
   );
   const last = results.at(-1);
 
-  while (results.length < length && last instanceof RespError) {
+  while (results.length < length && last instanceof Error) {
     results.push(last);
   }
 

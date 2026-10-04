@@ -1,6 +1,4 @@
-import { RespError } from '../../common/utils/error.ts';
 import { toCommandError } from '../../common/utils/request.ts';
-import { SolidisTransactionQueues } from '../../modules/internal.ts';
 import {
   escapeReply,
   newCommandError,
@@ -61,17 +59,6 @@ export function guard(
 ): client is Pick<SolidisClient, 'send'> {
   assertSender(client, command);
 
-  const transactionQueue = SolidisTransactionQueues.get(client);
-
-  /**
-   * Returns false only when the client is in a transaction context
-   */
-  if (transactionQueue && command) {
-    transactionQueue.push(command);
-
-    return false;
-  }
-
   return true;
 }
 
@@ -108,14 +95,12 @@ export async function executeCommand<T, R, Options extends object | undefined>(
   options?: Options,
   sendOptions?: SolidisSendOptions,
 ): Promise<R | SolidisData> {
-  if (!guard(client, command)) {
-    return undefined as never;
-  }
+  assertSender(client, command);
 
   const replyOptions = options && { ...options };
   const reply = escapeReply(await client.send([command], sendOptions));
 
-  if (reply instanceof RespError) {
+  if (reply instanceof Error) {
     throw toCommandError(reply, command);
   }
 
@@ -126,7 +111,7 @@ export function appendRecordEntries(
   command: StringOrBuffer[],
   record: Record<string, StringOrBuffer>,
 ) {
-  if (typeof record !== 'object' || record === null) {
+  if (typeof record !== 'object' || record === null || Array.isArray(record)) {
     throw newCommandError('Expected an object of names and values', command);
   }
 

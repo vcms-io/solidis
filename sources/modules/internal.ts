@@ -2,6 +2,7 @@ import { SolidisSubscriptionEventNames } from '../common/constants.ts';
 import { SolidisCommandKindCacheLimit } from '../common/internal.ts';
 import { SolidisRequesterError } from '../common/utils/error.ts';
 import { toTextPrefix } from '../common/utils/internal.ts';
+import { isSubscriptionEventName } from '../common/utils/reply.ts';
 import { getCommandName } from '../common/utils/request.ts';
 
 import type { SolidisCommandKind } from '../types/internal.ts';
@@ -10,11 +11,6 @@ import type { SolidisSendOptions, StringOrBuffer } from '../types/solidis.ts';
 export { EventEmitter, errorMonitor } from 'node:events';
 
 export const SolidisSessionSendOptions: SolidisSendOptions = {};
-
-export const SolidisTransactionQueues = new WeakMap<
-  object,
-  StringOrBuffer[][]
->();
 
 export function copyCommands(commands: StringOrBuffer[][]) {
   return Array.isArray(commands)
@@ -93,7 +89,10 @@ export function createRefusal(command: StringOrBuffer[], reason: string) {
   return new SolidisRequesterError(`${getCommandName(command)} ${reason}`);
 }
 
-export function inspectCommand(command: StringOrBuffer[]) {
+export function inspectCommand(
+  command: StringOrBuffer[],
+  isQueueing?: boolean,
+) {
   if (!Array.isArray(command) || command.length === 0) {
     return new SolidisRequesterError(
       'Cannot send an empty or non-array command.',
@@ -108,7 +107,14 @@ export function inspectCommand(command: StringOrBuffer[]) {
 
   const kind = classifyCommand(command);
 
-  return kind === 'restricted' && isUnsupported(command)
-    ? createRefusal(command, `is not supported: ${SolidisPairingReason}`)
+  if (kind === 'restricted' && isUnsupported(command)) {
+    return createRefusal(command, `is not supported: ${SolidisPairingReason}`);
+  }
+
+  return isQueueing && isSubscriptionEventName(kind)
+    ? createRefusal(
+        command,
+        `is not supported inside a transaction: ${SolidisPairingReason}`,
+      )
     : kind;
 }

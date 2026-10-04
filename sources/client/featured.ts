@@ -392,11 +392,7 @@ export class SolidisFeaturedClient extends SolidisClient {
   constructor(options?: SolidisClientOptions) {
     super(options);
 
-    for (const method of Object.getOwnPropertyNames(this)) {
-      if (typeof this[method] === 'function') {
-        this[method] = this[method].bind(this);
-      }
-    }
+    this.extend(this);
   }
 
   aclCat = aclCat;

@@ -66,7 +66,7 @@ export function isMessageEventName(
 }
 
 export function isSubscriptionEventName(
-  eventName: string | undefined,
+  eventName: unknown,
 ): eventName is SolidisSubscriptionEventName {
   return SolidisSubscriptionEventNameSet.has(eventName);
 }

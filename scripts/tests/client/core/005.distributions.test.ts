@@ -188,6 +188,40 @@ describe('distributions', () => {
     assert.ok(JSON.parse(commonjs)[1] > 300);
   });
 
+  it('queues transaction calls and rejects error replies when the ES module and CommonJS builds are mixed', () => {
+    const output = runNode(
+      'module',
+      `import { createRequire } from 'node:module';
+      const require = createRequire(import.meta.url);
+      const { RespError } = await import('./index.mjs');
+      const { multi } = await import('./command/multi.mjs');
+      const { set } = require('./command/set.cjs');
+      const { get } = require('./command/get.cjs');
+      const replies = { MULTI: 'OK', SET: 'QUEUED', EXEC: ['OK'], GET: new RespError('WRONGTYPE Operation against a key holding the wrong kind of value') };
+      const sent = [];
+      const client = {
+        async send(commands) {
+          sent.push(commands.map(([name]) => name));
+          return commands.map(([name]) => [replies[name]]);
+        },
+      };
+      client.set = set.bind(client);
+      client.get = get.bind(client);
+      const transaction = multi.call(client);
+      transaction.set('key', 'value');
+      const result = await transaction.exec();
+      const error = await client.get('key').catch((caught) => caught);
+      process.stdout.write(JSON.stringify([sent, result, error.name, error.message]));`,
+    );
+
+    assert.deepStrictEqual(JSON.parse(output), [
+      [['MULTI', 'SET', 'EXEC'], ['GET']],
+      ['OK'],
+      'SolidisCommandError',
+      '[GET] WRONGTYPE Operation against a key holding the wrong kind of value',
+    ]);
+  });
+
   it('writes CommonJS declarations that import each other', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'solidis-declarations-'));
 

@@ -150,26 +150,30 @@ describe('pipeline', () => {
     });
   });
 
-  it('queues a command only while the client has an active transaction queue', async () => {
-    const { SolidisTransactionQueues } = await import(
-      '../../../sources/modules/internal.ts'
-    );
+  it('queues transaction calls through the send() of a client and puts it back', async () => {
     const { guard } = await import('../../../sources/command/utils/command.ts');
+    const { set } = await import('../../../sources/command/set.ts');
+    const { multi } = await import('../../../sources/command/multi.ts');
+    const sent: StringOrBuffer[][][] = [];
+    const send = async (commands: StringOrBuffer[][]) => {
+      sent.push(commands);
 
-    const fakeClient = { send: () => Promise.resolve([]) };
-    const queue: StringOrBuffer[][] = [];
-
-    SolidisTransactionQueues.set(fakeClient, queue);
-
-    try {
-      assert.strictEqual(guard(fakeClient, ['SET', 'key', 'value']), false);
-      assert.strictEqual(guard(fakeClient), true);
-    } finally {
-      SolidisTransactionQueues.delete(fakeClient);
-    }
+      return commands.map(([name]) => [name === 'EXEC' ? ['OK'] : 'OK']);
+    };
+    const fakeClient = { send, set, multi };
 
     assert.strictEqual(guard(fakeClient, ['GET', 'key']), true);
-    assert.deepStrictEqual(queue, [['SET', 'key', 'value']]);
+
+    const transaction = fakeClient.multi();
+
+    transaction.set('key', 'value');
+
+    assert.strictEqual(fakeClient.send, send);
+    assert.deepStrictEqual(sent, []);
+    assert.deepStrictEqual(await transaction.exec(), ['OK']);
+    assert.deepStrictEqual(sent, [
+      [['MULTI'], ['SET', 'key', 'value'], ['EXEC']],
+    ]);
   });
 
   it('returns every reply of a featured pipeline in order', async () => {

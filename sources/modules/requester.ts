@@ -28,7 +28,6 @@ import {
   copyCommands,
   createRefusal,
   inspectCommand,
-  SolidisPairingReason,
   SolidisSessionSendOptions,
 } from './internal.ts';
 import { SolidisParser } from './parser.ts';
@@ -253,7 +252,7 @@ export class SolidisRequester {
     for (let index = 0; index < commands.length; index += 1) {
       const command = commands[index];
 
-      let kind = inspectCommand(command);
+      let kind = inspectCommand(command, isQueueing);
 
       if (kind instanceof SolidisRequesterError) {
         return kind;
@@ -275,13 +274,6 @@ export class SolidisRequester {
 
       if (kind === null || kind === 'restricted') {
         continue;
-      }
-
-      if (isQueueing && isSubscriptionEventName(kind)) {
-        return createRefusal(
-          command,
-          `is not supported inside a transaction: ${SolidisPairingReason}`,
-        );
       }
 
       if (kind === 'exec' && isWatchLost) {

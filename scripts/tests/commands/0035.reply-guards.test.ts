@@ -422,6 +422,12 @@ describe('reply-guards', () => {
     assert.throws(() => createMsetnxCommand(pairs), refusal('MSETNX'));
     assert.throws(() => createHmsetCommand('h', pairs), refusal('HMSET'));
     assert.throws(() => createXaddCommand('s', '*', pairs), refusal('XADD'));
+
+    const flat: Record<string, string> = JSON.parse('["f1", "v1"]');
+
+    assert.throws(() => createMsetCommand(flat), refusal('MSET'));
+    assert.throws(() => createHmsetCommand('h', flat), refusal('HMSET'));
+    assert.throws(() => createXaddCommand('s', '*', flat), refusal('XADD'));
     await assert.rejects(
       Reflect.apply(hset, createRecorder(2), ['h', 'f1', 'v1', 'f2', 'v2']),
       refusal('HSET'),

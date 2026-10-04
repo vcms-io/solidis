@@ -1,10 +1,7 @@
 import { SolidisClient } from '../client.ts';
 import { SolidisTransactionBannedCommandNames } from '../common/constants.ts';
-import { RespError, SolidisRequesterError } from '../common/utils/error.ts';
-import {
-  inspectCommand,
-  SolidisTransactionQueues,
-} from '../modules/internal.ts';
+import { SolidisRequesterError } from '../common/utils/error.ts';
+import { inspectCommand } from '../modules/internal.ts';
 import {
   assertSender,
   newCommandError,
@@ -33,7 +30,7 @@ async function exec(
   const commands = transactionQueue.splice(0);
   const failures = failedCalls.splice(0);
   const refusal = commands
-    .map(inspectCommand)
+    .map((command) => inspectCommand(command, true))
     .find((kind) => kind instanceof SolidisRequesterError);
 
   if (failures.length > 0 || refusal) {
@@ -48,11 +45,11 @@ async function exec(
   const [[accepted]] = replies;
   const reply = replies[replies.length - 1][0];
 
-  if (accepted instanceof RespError) {
+  if (accepted instanceof Error) {
     throw newCommandError(accepted.message, 'MULTI', accepted);
   }
 
-  if (reply instanceof RespError) {
+  if (reply instanceof Error) {
     throw newCommandError(reply.message, 'EXEC', reply);
   }
 
@@ -70,6 +67,13 @@ export function multi<T extends object>(this: T): SolidisTransactionClient<T> {
 
   assertSender(client, ['MULTI']);
 
+  const queue = (commands: StringOrBuffer[][]) => {
+    for (const command of commands) {
+      transactionQueue.push(command);
+    }
+
+    return new Promise<never>(() => {});
+  };
   const proxyHandler: ProxyHandler<object> = {
     get(_, property) {
       switch (property) {
@@ -100,13 +104,15 @@ export function multi<T extends object>(this: T): SolidisTransactionClient<T> {
 
           return (...parameters: unknown[]) => {
             const length = transactionQueue.length;
+            const { send } = client;
 
-            SolidisTransactionQueues.set(client, transactionQueue);
+            client.send = queue;
 
             const call = (async () =>
               Reflect.apply(method, client, parameters))();
 
-            SolidisTransactionQueues.delete(client);
+            client.send = send;
+
             call.catch(() => {});
 
             if (transactionQueue.length === length) {
