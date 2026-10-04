@@ -11,12 +11,6 @@ import { toTextPrefix } from './internal.ts';
 
 import type { StringOrBuffer } from '../../types/solidis.ts';
 
-const numberTextCache = Array.from({ length: 8192 }, (_, index) => `${index}`);
-
-function getNumberText(value: number) {
-  return numberTextCache[value] ?? `${value}`;
-}
-
 function writeCRLF(buffer: Buffer, offset: number) {
   buffer[offset] = SolidisCarriageReturnByte;
   buffer[offset + 1] = SolidisLineFeedByte;
@@ -25,7 +19,7 @@ function writeCRLF(buffer: Buffer, offset: number) {
 }
 
 function writeAsciiNumber(buffer: Buffer, value: number, offset: number) {
-  return offset + buffer.write(getNumberText(value), offset, 'ascii');
+  return offset + buffer.write(`${value}`, offset, 'ascii');
 }
 
 export function commandsToBuffer(commands: StringOrBuffer[][]): Buffer {
@@ -34,14 +28,14 @@ export function commandsToBuffer(commands: StringOrBuffer[][]): Buffer {
   let totalLength = 0;
 
   for (const commandArguments of commands) {
-    totalLength += 3 + getNumberText(commandArguments.length).length;
+    totalLength += 3 + `${commandArguments.length}`.length;
 
     for (const argument of commandArguments) {
       const argumentLength = Buffer.byteLength(argument);
 
       argumentLengths.push(argumentLength);
 
-      totalLength += 5 + getNumberText(argumentLength).length + argumentLength;
+      totalLength += 5 + `${argumentLength}`.length + argumentLength;
     }
   }
 

@@ -6,7 +6,6 @@ import {
   SolidisBlobErrorReplyByte,
   SolidisBooleanReplyByte,
   SolidisBulkReplyByte,
-  SolidisBulkZeroCopyThreshold,
   SolidisCarriageReturnByte,
   SolidisColonByte,
   SolidisDoubleReplyByte,
@@ -94,9 +93,7 @@ export class SolidisParser {
   }
 
   public parse(chunk: Buffer, replies: SolidisData[] = []): SolidisData[] {
-    if (!this.#append(chunk)) {
-      return replies;
-    }
+    const tail = this.#append(chunk);
 
     while (this.#offset < this.#buffer.length) {
       const step = this.#readStep();
@@ -115,15 +112,14 @@ export class SolidisParser {
       this.#offset = 0;
     }
 
-    return replies;
+    return tail ? this.parse(tail, replies) : replies;
   }
 
   #append(chunk: Buffer) {
-    if (this.#offset === this.#buffer.length) {
+    if (this.#buffer.length === 0) {
       this.#buffer = chunk;
-      this.#offset = 0;
 
-      return true;
+      return;
     }
 
     const previous = this.#pendingChunks.at(-1) ?? this.#buffer;
@@ -135,32 +131,35 @@ export class SolidisParser {
       this.#buffer.length - this.#offset + this.#pendingLength;
 
     if (
-      this.#requiredLength < 0 &&
+      !this.#requiredLength &&
       !chunk.includes(NEWLINE) &&
-      (previous[previous.length - 1] !== SolidisCarriageReturnByte ||
+      (previous.at(-1) !== SolidisCarriageReturnByte ||
         chunk[0] !== SolidisLineFeedByte)
     ) {
       if (availableLength > this.#maxBulkStringLength) {
         throw this.#createLineLengthError();
       }
 
-      return false;
+      return;
     }
 
     if (availableLength < this.#requiredLength) {
-      return false;
+      return;
     }
 
-    this.#buffer = Buffer.concat([
-      this.#buffer.subarray(this.#offset),
-      ...this.#pendingChunks,
-    ]);
+    const length = this.#requiredLength || availableLength;
+
+    this.#buffer = Buffer.concat(
+      [this.#buffer.subarray(this.#offset), ...this.#pendingChunks],
+      length,
+    );
     this.#offset = 0;
     this.#pendingChunks = [];
     this.#pendingLength = 0;
-    this.#requiredLength = 0;
 
-    return true;
+    return length < availableLength
+      ? chunk.subarray(length - availableLength)
+      : undefined;
   }
 
   #collect(value: SolidisData, replies: SolidisData[]) {
@@ -335,9 +334,7 @@ export class SolidisParser {
       return buffer.toString('utf8', textStart, dataEnd);
     }
 
-    const data = buffer.subarray(dataStart, dataEnd);
-
-    return length < SolidisBulkZeroCopyThreshold ? Buffer.from(data) : data;
+    return buffer.subarray(dataStart, dataEnd);
   }
 
   #readAggregate(type: number): SolidisParserStep {
@@ -399,7 +396,7 @@ export class SolidisParser {
     }
 
     if (index + 1 >= buffer.length) {
-      this.#requiredLength = -1;
+      this.#requiredLength = 0;
 
       return -1;
     }

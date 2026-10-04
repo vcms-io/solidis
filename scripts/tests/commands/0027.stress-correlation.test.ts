@@ -275,7 +275,7 @@ describe('stress-correlation', () => {
     ['direct', Number.POSITIVE_INFINITY],
     ['fragmented', 1000],
   ] as const) {
-    it(`keeps payloads around the zero-copy threshold intact (${label})`, async () => {
+    it(`keeps payloads around 64 KB intact (${label})`, async () => {
       const proxy = await startFragmentingProxy(
         Number.POSITIVE_INFINITY,
         replyChunkSize,

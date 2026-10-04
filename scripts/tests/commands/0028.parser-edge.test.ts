@@ -553,15 +553,16 @@ describe('parser-edge', () => {
   });
 
   describe('bulk buffer ownership', () => {
-    it('returns bulk buffers that are independent from the input chunk', () => {
+    it('returns a bulk reply as a view of the received chunk', () => {
       const parser = createParser();
       const chunk = bytes('$5\r\nhello\r\n');
 
       const [reply] = parser.parse(chunk);
 
-      chunk.fill(0);
-
+      assert.ok(Buffer.isBuffer(reply));
       assert.deepStrictEqual(reply, bytes('hello'));
+      assert.strictEqual(reply.buffer, chunk.buffer);
+      assert.strictEqual(reply.byteOffset, chunk.byteOffset + 4);
     });
 
     it('keeps a returned bulk buffer stable after caller mutation and later parses', () => {
@@ -599,10 +600,10 @@ describe('parser-edge', () => {
       assert.deepStrictEqual(bulk, snapshot);
     });
 
-    it('copies bulk strings under 64 KB and returns longer ones as views', () => {
+    it('returns bulk strings of every length as views', () => {
       for (const [length, isView] of [
-        [5, false],
-        [65_535, false],
+        [5, true],
+        [65_535, true],
         [65_536, true],
         [70_000, true],
       ] as const) {
@@ -643,6 +644,47 @@ describe('parser-edge', () => {
       const result = parser.parse(bytes(`${payload.slice(200)}\r\n`));
 
       assert.deepStrictEqual(result, [Buffer.from(payload, 'latin1')]);
+    });
+
+    it('copies only the rest of a bulk string from the chunk that ends it and parses the remainder in place', (context) => {
+      const parser = createParser();
+      const concat = context.mock.method(Buffer, 'concat');
+
+      assert.deepStrictEqual(parser.parse(bytes('$10\r\n01234')), []);
+      assert.deepStrictEqual(
+        parser.parse(bytes('56789\r\n+OK\r\n:5\r\n$3\r\nab')),
+        [bytes('0123456789'), 'OK', 5],
+      );
+      assert.strictEqual(concat.mock.callCount(), 1);
+      assert.strictEqual(concat.mock.calls[0].result?.length, 17);
+      assert.deepStrictEqual(parser.parse(bytes('c\r\n')), [bytes('abc')]);
+      assert.deepStrictEqual(parser.parse(bytes('+next\r\n')), ['next']);
+    });
+
+    it('starts the next chunk clean after a bulk string that ends exactly at a chunk end', () => {
+      const parser = createParser();
+
+      assert.deepStrictEqual(parser.parse(bytes('$3\r\na')), []);
+      assert.deepStrictEqual(parser.parse(bytes('bc\r\n')), [bytes('abc')]);
+      assert.deepStrictEqual(parser.parse(bytes('+OK\r\n')), ['OK']);
+    });
+
+    it('keeps waiting on a line that the rest of a bulk chunk starts and a CR|LF split ends', () => {
+      const parser = createParser();
+
+      assert.deepStrictEqual(parser.parse(bytes('$1\r\n')), []);
+      assert.deepStrictEqual(parser.parse(bytes('x\r\n+O')), [bytes('x')]);
+      assert.deepStrictEqual(parser.parse(bytes('K\r')), []);
+      assert.deepStrictEqual(parser.parse(bytes('\n:1\r\n')), ['OK', 1]);
+    });
+
+    it('completes an array whose bulk element ends in the next chunk', () => {
+      const parser = createParser();
+
+      assert.deepStrictEqual(parser.parse(bytes('*2\r\n$3\r\nab')), []);
+      assert.deepStrictEqual(parser.parse(bytes('c\r\n:7\r\n')), [
+        [bytes('abc'), 7],
+      ]);
     });
 
     it('resumes a truncated simple string followed by many replies', () => {

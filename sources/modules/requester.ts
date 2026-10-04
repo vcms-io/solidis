@@ -80,7 +80,6 @@ export class SolidisRequester {
   #inflightQueue: SolidisPipeline[] = [];
   #inflightHead = 0;
   #timedOutCount = 0;
-  #flushHandle: NodeJS.Immediate | undefined;
   #protocol: SolidisProtocols = SolidisProtocols.RESP2;
   #negotiatedProtocol: SolidisProtocols | undefined;
   #database: number;
@@ -140,7 +139,7 @@ export class SolidisRequester {
     const timeout = options?.timeout ?? this.#options.commandTimeout;
 
     return new Promise((resolve, reject) => {
-      this.#pendingRequests.push({
+      const count = this.#pendingRequests.push({
         commands: batch,
         kinds: undefined,
         replies: new Array<SolidisData[]>(batch.length),
@@ -154,7 +153,9 @@ export class SolidisRequester {
         isSession: options === SolidisSessionSendOptions,
       });
 
-      this.#flushHandle ??= setImmediate(() => this.#flush());
+      if (count === 1) {
+        setImmediate(() => this.#flush());
+      }
     });
   }
 
@@ -169,7 +170,6 @@ export class SolidisRequester {
 
     const requests = this.#pendingRequests;
 
-    this.#flushHandle = undefined;
     this.#pendingRequests = [];
 
     const maxCommandsPerPipeline = Math.max(
@@ -639,9 +639,6 @@ export class SolidisRequester {
   #rejectPendingRequests(error: Error) {
     const requests = this.#pendingRequests;
 
-    clearImmediate(this.#flushHandle);
-
-    this.#flushHandle = undefined;
     this.#pendingRequests = [];
 
     for (const request of requests) {
