@@ -91,8 +91,10 @@ export type RespLatencyEvent =
   | 'eviction-lazyfree'
   | 'fast-command'
   | 'fork'
+  | 'module-acquire-GIL'
   | 'rdb-unlink-temp-file'
-  | 'while-blocked-cron';
+  | 'while-blocked-cron'
+  | (string & {});
 
 export interface RespAclLogEntry {
   count: number;

@@ -327,10 +327,11 @@ export function buildTimeSeriesRangeCommand(
   const command = [...baseCommand];
 
   if (options.filterByTs?.length) {
-    command.push(
-      'FILTER_BY_TS',
-      ...options.filterByTs.map((timestamp) => `${timestamp}`),
-    );
+    command.push('FILTER_BY_TS');
+
+    for (const timestamp of options.filterByTs) {
+      command.push(`${timestamp}`);
+    }
   }
 
   if (options.filterByValue) {

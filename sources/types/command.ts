@@ -4,7 +4,7 @@ import type {
   RespDuplicatePolicy,
   RespEncoding,
 } from './resp.ts';
-import type { StringOrBuffer } from './solidis.ts';
+import type { SolidisProtocols, StringOrBuffer } from './solidis.ts';
 
 export type CommandBitOrByteOption = 'BIT' | 'BYTE';
 export type CommandLeftOrRightOption = 'LEFT' | 'RIGHT';
@@ -344,6 +344,21 @@ export interface CommandSortStoreOptions
   extends Omit<CommandSortOptions, 'store'> {
   store: string;
 }
+
+export type CommandHelloParameters =
+  | []
+  | [
+      protocol: SolidisProtocols,
+      username?: undefined,
+      password?: undefined,
+      clientName?: string,
+    ]
+  | [
+      protocol: SolidisProtocols,
+      username: StringOrBuffer | undefined,
+      password: StringOrBuffer,
+      clientName?: string,
+    ];
 
 export type CommandXpendingRange = [
   start: string,

@@ -6,14 +6,14 @@ import {
   tryReplyToModuleInfo,
 } from './utils/index.ts';
 
-import type { RespHelloInfo, StringOrBuffer } from '../index.ts';
+import type {
+  CommandHelloParameters,
+  RespHelloInfo,
+  StringOrBuffer,
+} from '../index.ts';
 
-export function createCommand(
-  protocol?: SolidisProtocols,
-  username?: StringOrBuffer,
-  password?: StringOrBuffer,
-  clientName?: string,
-) {
+export function createCommand(...parameters: CommandHelloParameters) {
+  const [protocol, username, password, clientName] = parameters;
   const command: StringOrBuffer[] = ['HELLO'];
 
   if (protocol !== undefined) {
@@ -33,14 +33,11 @@ export function createCommand(
 
 export async function hello<T>(
   this: T,
-  protocol?: SolidisProtocols,
-  username?: StringOrBuffer,
-  password?: StringOrBuffer,
-  clientName?: string,
+  ...parameters: CommandHelloParameters
 ): Promise<RespHelloInfo> {
   return await executeCommand(
     this,
-    createCommand(protocol, username, password, clientName),
+    createCommand(...parameters),
     (reply, command) => {
       const map = tryReplyToMap(reply, command);
 

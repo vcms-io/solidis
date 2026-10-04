@@ -42,6 +42,10 @@ import { createCommand as createPubsubShardnumsubCommand } from '../../../source
 import { replconf } from '../../../sources/command/replconf.ts';
 import { replicaof } from '../../../sources/command/replicaof.ts';
 import { shutdown } from '../../../sources/command/shutdown.ts';
+import { createCommand as createTimeSeriesMrangeCommand } from '../../../sources/command/ts.mrange.ts';
+import { createCommand as createTimeSeriesMrevrangeCommand } from '../../../sources/command/ts.mrevrange.ts';
+import { createCommand as createTimeSeriesRangeCommand } from '../../../sources/command/ts.range.ts';
+import { createCommand as createTimeSeriesRevrangeCommand } from '../../../sources/command/ts.revrange.ts';
 import { tryReplyToNumber } from '../../../sources/command/utils/reply.ts';
 import { xautoclaim } from '../../../sources/command/xautoclaim.ts';
 import { xinfoStream } from '../../../sources/command/xinfo.stream.ts';
@@ -166,10 +170,31 @@ describe('reply-guards', () => {
       createCommandDocsCommand(items),
       createModuleLoadCommand('path', items),
       createModuleLoadexCommand('path', undefined, items),
+      createTimeSeriesRangeCommand('key', '-', '+', { filterByTs: numbers }),
+      createTimeSeriesRevrangeCommand('key', '-', '+', { filterByTs: numbers }),
     ];
 
     for (const command of commands) {
       assert.strictEqual(command.at(-1), '199999');
+    }
+
+    for (const createCommand of [
+      createTimeSeriesMrangeCommand,
+      createTimeSeriesMrevrangeCommand,
+    ]) {
+      const command = createCommand(
+        '-',
+        '+',
+        { label: 'value' },
+        { filterByTs: numbers },
+      );
+
+      assert.deepStrictEqual(command.slice(-3), [
+        '199999',
+        'FILTER',
+        'label=value',
+      ]);
+      assert.strictEqual(command.length, 200_006);
     }
 
     assert.deepStrictEqual(createPubsubNumsubCommand(), ['PUBSUB', 'NUMSUB']);

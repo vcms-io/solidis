@@ -536,7 +536,17 @@ export function tryReplyToJsonNumberText(
       : formatDouble(tryReplyToNumber(text, commandName));
   });
 
-  return path.startsWith('$') ? `[${texts.join(',')}]` : texts[0];
+  if (path.startsWith('$')) {
+    return `[${texts.join(',')}]`;
+  }
+
+  const [text] = texts;
+
+  if (text === undefined || text === 'null') {
+    throw newUnexpectedReplyError(reply, commandName);
+  }
+
+  return text;
 }
 
 export function tryReplyToNumberScalarOrArray(

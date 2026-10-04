@@ -210,6 +210,28 @@ describe('type-contracts', () => {
     chained.quit();
   });
 
+  it('types this in an extension as the client it extends', () => {
+    const client = new SolidisClient({ lazyConnect: true })
+      .extend({ get })
+      .extend({
+        async read(key: string): Promise<string | null> {
+          return await this.get(key);
+        },
+        async readTwice(key: string) {
+          return [await this.read(key), await this.get(key)];
+        },
+      });
+    const checks: [
+      Is<ReturnType<typeof client.read>, Promise<string | null>>,
+      Is<ReturnType<typeof client.readTwice>, Promise<(string | null)[]>>,
+    ] = [true, true];
+
+    assert.deepStrictEqual(checks, [true, true]);
+    assert.strictEqual(typeof client.readTwice, 'function');
+
+    client.quit();
+  });
+
   it('adds only functions to a client with extend()', () => {
     type Extended = SolidisClientExtensions<{
       label: string;
@@ -299,6 +321,21 @@ describe('type-contracts', () => {
       ]);
       await client.bitfieldRo('k', [{ type: 'u8', offset: '#1' }]);
       await client.hello();
+      await client.hello('RESP3', undefined, 'password');
+      await client.hello('RESP2', undefined, undefined, 'name');
+      // @ts-expect-error HELLO authenticates and names only after a protocol
+      await client.hello(undefined, 'user', 'password');
+      // @ts-expect-error HELLO sends a username only with a password
+      await client.hello('RESP3', 'user');
+      // @ts-expect-error HELLO sends a username only with a password
+      await client.hello('RESP3', 'user', undefined, 'name');
+
+      for (const { event } of await client.latencyLatest()) {
+        await client.latencyHistory(event);
+        await client.latencyGraph(event);
+        await client.latencyReset([event, 'module-acquire-GIL']);
+      }
+
       await client.clientList({ identifiers: [1] });
       // @ts-expect-error CLIENT LIST takes TYPE or ID, not both
       await client.clientList({ type: 'NORMAL', identifiers: [1] });

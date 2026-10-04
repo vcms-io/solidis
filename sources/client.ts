@@ -185,7 +185,7 @@ export class SolidisClient extends EventEmitter {
   public select = select.bind(this);
 
   public extend<T extends Record<string, unknown>>(
-    extensions: T & ThisType<SolidisClient>,
+    extensions: T & ThisType<this & SolidisClientExtensions<T, this>>,
   ): this & SolidisClientExtensions<T, this> {
     for (const method of Object.getOwnPropertyNames(extensions)) {
       const extension = extensions[method];

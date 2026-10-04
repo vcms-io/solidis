@@ -13,6 +13,7 @@ import { createCommand as createGeoradiusCommand } from '../../../sources/comman
 import { createCommand as createGeosearchCommand } from '../../../sources/command/geosearch.ts';
 import { hrandfield } from '../../../sources/command/hrandfield.ts';
 import { jsonNumincrby } from '../../../sources/command/json.numincrby.ts';
+import { jsonNummultby } from '../../../sources/command/json.nummultby.ts';
 import { jsonType } from '../../../sources/command/json.type.ts';
 import { ping } from '../../../sources/command/ping.ts';
 import { replicaof } from '../../../sources/command/replicaof.ts';
@@ -522,6 +523,20 @@ describe('normalized-replies', () => {
         jsonNumincrby.call(createSender(bulk('[abc]')), 'key', '$.a', 1),
         { message: '[JSON.NUMINCRBY] Unexpected reply: string' },
       );
+
+      for (const reply of [[], [null], bulk('[]'), bulk('null')]) {
+        await assert.rejects(
+          jsonNumincrby.call(createSender(reply), 'key', '.missing', 1),
+          {
+            name: 'SolidisCommandError',
+            message: `[JSON.NUMINCRBY] Unexpected reply: ${Buffer.isBuffer(reply) ? 'Buffer' : 'Array'}(${reply.length})`,
+          },
+        );
+        await assert.rejects(
+          jsonNummultby.call(createSender(reply), 'key', '.missing', 2),
+          { name: 'SolidisCommandError' },
+        );
+      }
     });
 
     it('formats BZPOPMIN scores the same way on both protocols', async () => {
