@@ -50,6 +50,41 @@ jobs:
           TARBALL=$(npm pack --ignore-scripts)
           npm run --silent node:ts ./scripts/workflows/release/verify.ts "$TARBALL"
 
+  compatibility:
+    name: Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [18, 20]
+    services:
+      server:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - run: npm run build
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Run the published files
+        run: node scripts/workflows/compatibility/smoke.mjs
+        env:
+          SOLIDIS_TEST_PORT: 6379
+
   integration:
     name: Integration (${{ matrix.server.label }}, ${{ matrix.protocol }})
     runs-on: ubuntu-latest

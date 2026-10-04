@@ -72,13 +72,13 @@ jobs:
           SOLIDIS_TEST_HOST: 127.0.0.1
           SOLIDIS_TEST_PORT: 6379
       - name: Generate report
-        if: always()
+        if: ${{ !cancelled() }}
         run: npm run --silent node:ts ./scripts/workflows/coverage/report.ts coverage.txt coverage.md
       - name: Job summary
-        if: always()
+        if: ${{ !cancelled() }}
         run: cat coverage.md >> "$GITHUB_STEP_SUMMARY"
       - name: Upload report
-        if: always()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
           name: coverage
@@ -91,7 +91,7 @@ jobs:
     name: Publish coverage
     needs: coverage
     if: >-
-      always() && needs.coverage.result != 'skipped' && (
+      !cancelled() && needs.coverage.result != 'skipped' && (
         (github.event_name == 'pull_request' &&
           github.event.pull_request.head.repo.full_name == github.repository) ||
         (github.event_name == 'push' && github.ref == 'refs/heads/main'))

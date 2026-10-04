@@ -91,6 +91,8 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -139,10 +141,21 @@ jobs:
       - name: Push Tag
         if: steps.state.outputs.tagged != 'true'
         run: |
+          VERSION="${{ needs.check-version.outputs.version }}"
+
+          if [[ "${{ steps.state.outputs.published }}" == "true" ]]; then
+            BUMP=$(git log -n 1 --format=%H -G "\"version\": \"$VERSION\"" -- package.json)
+
+            if [[ "$BUMP" != "$GITHUB_SHA" ]]; then
+              echo "::error::v$VERSION is on npm without a tag, and this run is not at its version bump ($BUMP). Tag that commit by hand."
+              exit 1
+            fi
+          fi
+
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git tag -a "v${{ needs.check-version.outputs.version }}" -m "Release v${{ needs.check-version.outputs.version }}"
-          git push origin "v${{ needs.check-version.outputs.version }}"
+          git tag -a "v$VERSION" -m "Release v$VERSION"
+          git push origin "v$VERSION"
 
       - name: Extract Release Notes
         run: |
