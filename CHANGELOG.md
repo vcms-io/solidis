@@ -34,6 +34,9 @@ Delete these options from your configuration. TypeScript reports them as unknown
 | `maxProcessReplyBytesPerChunk`, `maxProcessRepliesPerChunk` | The parser reads each socket chunk incrementally and resolves replies as soon as they are complete. |
 | `parser.buffer.initial`, `parser.buffer.shiftThreshold`     | The parser no longer keeps a growing internal buffer.                                               |
 | `maxEventListenersForSocket`                                | The client no longer adds socket listeners for each write.                                          |
+| `debugMaxEntries`                                           | The client kept debug entries that nothing could read. Listen to the `debug` event instead.         |
+
+With `debug: true`, debug entries reach only the `debug` event; they are no longer printed when `DEBUG` names solidis. Print them yourself with `client.on('debug', (entry) => process.stdout.write(formatDebugLog(entry)))`.
 
 #### 2. Replace removed commands
 
@@ -50,7 +53,7 @@ Delete these options from your configuration. TypeScript reports them as unknown
 
 #### 3. Handle command errors through `cause`
 
-A server error now always rejects the command with a `SolidisCommandError`. The message is the command name followed by the server's message, without the command's arguments, and `cause` is the `RespError` the server sent. When the server quotes an argument back with `'` or `` ` ``, as in `ERR Error in ACL SETUSER modifier '***'`, the argument is replaced with `***` in the message and in `cause`, even when the server cut it short. A value the server repeats without quotes, such as the coordinates in a `GEOADD` error or text a script passes to `redis.error_reply()`, stays as the server sent it. `RespError` has a new `code` property.
+A server error now always rejects the command with a `SolidisCommandError`. The message is the command name followed by the server's message, without the command's arguments, and `cause` is the `RespError` the server sent. When the server quotes an argument back with `'` or `` ` ``, as in `ERR Error in ACL SETUSER modifier '***'`, the argument is replaced with `***` in the message and in `cause`, even when the server cut it short. When an argument contains the quote the server used, everything from it to the last such quote is masked. A value the server repeats without quotes, such as the coordinates in a `GEOADD` error or text a script passes to `redis.error_reply()`, stays as the server sent it. `RespError` has a new `code` property.
 
 ```typescript
 import { RespError, SolidisCommandError } from '@vcms-io/solidis';
@@ -174,6 +177,7 @@ const total = await client.incrby('counter', 10n, { bigint: true }); // bigint
 - `zintercard(keys, limit, options)` loses `options`. The server accepts neither `WEIGHTS` nor `AGGREGATE` for `ZINTERCARD`.
 - `migrate()` with `keys` requires `''` as its key, as the server does.
 - `scriptDebug()` accepts only `'NO'`; `send()` refuses `SCRIPT DEBUG YES` and `SCRIPT DEBUG SYNC`.
+- `auth()` takes a password, after an optional username, as `auth(password)` or `auth(username, password)`; a call without a password no longer compiles. As in `hello()`, an empty username means the default user.
 - `hello()` takes a username, password or client name only after a protocol, and a username only with a password (`CommandHelloParameters`). `HELLO` ignored them otherwise, so such a call resolved without authenticating.
 - `xpending()` takes `start`, `end` and `count` together (`CommandXpendingRange`) and no longer sends a count of 10 when `count` is missing. The summary form and the range form have their own return types.
 - `zrange()`, `zrangebyscore()`, `zdiff()`, `zinter()`, `zunion()` and `zrandmember()` return `RespSortedSetMember[]` when scores are requested and `string[]` otherwise, instead of a union of both.
@@ -271,10 +275,10 @@ Skip this step unless you construct the internal classes yourself or write custo
 - **`SolidisRequester`:** `setNegotiatedProtocol()`, `onReply()` and `recoveryFromFault()` are removed. The requester tracks `protocol`, `database` and `authentication` itself, `send()` takes request options, and its options require an `emit` function.
 - **`SolidisParser`:** the constructor takes `{ parser }` options, and the asynchronous `queueParse(...buffers)` is replaced by the synchronous `parse(chunk)`.
 - **`SolidisPubSub`:** the constructor takes the client's `emit`. The per-kind getters and clear methods, `getChannelsForUnsubscribeCommand()` and `dispatchPubSubEvent()` are replaced by `getSubscriptions()`, `clearSubscriptions()`, `clear()`, `dispatchPush()`, `dispatchMessage()` and `dispatchSubscriptionChange()`. `getSubscriptions()` returns the exact bytes of each channel as `Buffer[]`.
-- **`SolidisDebugMemory`:** now an `EventEmitter` with a plain `write(entry)` instead of a `Writable` stream. `SolidisDebugTransform` is replaced by `formatDebugLog(entry)`.
+- **Debug:** `SolidisDebugMemory`, `SolidisDebugTransform`, `generateDebugHandle()`, `sanitizeCommandsBufferForDebug()` and `SolidisCredentialCommandNameSet` are removed. `SolidisConnection` and `SolidisRequester` take the function that receives debug entries as `debugHandle` (`SolidisDebugHandle`) instead of `debugMemory`, every `SolidisDebugLog` has a `timestamp`, and `formatDebugLog(entry)` formats an entry for printing. An entry for a written pipeline names its commands and its size instead of showing the serialized bytes, so no entry contains an argument.
 - **Command helpers** in `@vcms-io/solidis/command/utils/*`:
   - `guard()` only requires a `send()` method, and `assertSender()` is new.
-  - `executeCommand()` takes request options and rejects error replies.
+  - `executeCommand(client, command, replyTo, options, sendOptions)` passes `replyTo` a copy of `options` taken when the command is called, takes request options last, and rejects error replies.
   - `newCommandError(message, commandName, cause)` replaces the `prefix` parameter with a command name and an optional cause.
   - `tryReplyArray()` returns `unknown[]`, and `tryReplyToStringArray()` no longer has a `nullable` overload; use `tryReplyToNullableStringArray()`.
   - Removed: `InvalidReplyPrefix`, `tryReplyToStringRecordRecursively()` and `tryReplyToSortedSetMembersOrNull()`, and from `common/utils`, `checkReplyIsArray()` and `checkReplyIsMessageEvent()`.
@@ -291,6 +295,7 @@ Skip this step unless you construct the internal classes yourself or write custo
 - `maxConnectionRetryDelay` caps the reconnect backoff.
 - The `reconnecting(attempt, delay)` and `push(reply)` events, and the cause as the argument of `close(error)`. `push` carries RESP3 pushes that are not pub/sub messages, such as client tracking invalidations.
 - `expire(key, seconds, mode)`, `lpop(key, count)` and `rpop(key, count)`.
+- `hset(key, fields)` sets several fields in one command.
 - `hello()` without a protocol, and BITFIELD offsets such as `'#1'` that count in units of the field type (`CommandBitfieldOffset`).
 - `RespError#code`, and `deletedIds` in the result of `xautoclaim()`.
 - `role()` reads a Sentinel's `ROLE` reply as `{ role: 'sentinel', masterNames }`, `replicaof(host, port)` accepts `'ONE'` as the port for `REPLICAOF NO ONE`, and the time-series range commands accept `'-'` and `'+'` as timestamps and `'start'` and `'end'` for `align`.
@@ -312,7 +317,7 @@ Skip this step unless you construct the internal classes yourself or write custo
 - Pipelines go to the socket as soon as they are sealed instead of waiting for `drain` after each write.
 - Bulk replies of 64 KB or more are returned as views of the received data instead of copies.
 - `zpopmin`, `zpopmax`, `bitfield`, `jsonNumincrby` and `jsonNummultby` never return `null`. `type()` returns the core types upper-cased and module type names, such as `ReJSON-RL`, as the server reports them.
-- `jsonNumincrby` and `jsonNummultby` return the same text on RESP2 and RESP3, with exact integers beyond `Number.MAX_SAFE_INTEGER`: for a legacy path, the last number it updated. Both protocols reject when a legacy path matches no number; `bzpopmin` and `bzpopmax` format scores the same way on both protocols.
+- `jsonNumincrby` and `jsonNummultby` return the same text on RESP2 and RESP3, with exact integers beyond `Number.MAX_SAFE_INTEGER`: for a legacy path, the last number it updated. Both protocols reject with the same error when a legacy path matches no number; `bzpopmin` and `bzpopmax` format scores the same way on both protocols.
 - Commands added with `extend()` keep their generic signatures, so options such as `{ buffer: true }` type their results. `extend()` types only the functions it adds, and `this` inside them as the extended client, with the commands of earlier `extend()` calls.
 - Every overload of a command can be called on a transaction, such as `multi().lpop(key)` and `multi().mget(a, b)`.
 - `{ buffer: true }` and `{ bigint: true }` type a result regardless of the other options passed with them, and `getex` rejects misspelled options next to `buffer`.
@@ -328,20 +333,24 @@ Skip this step unless you construct the internal classes yourself or write custo
 - `functionFlush()` without an argument sends no mode, so the server's `lazyfree-lazy-user-flush` setting applies, as it does for `scriptFlush()`. Pass `false` for `SYNC`.
 - The published files keep the names of classes and functions, so errors print as `SolidisCommandError: ...` and stack traces name the methods.
 - An `error` listener that throws no longer interrupts the client, which still resets the connection and routes the remaining replies; the exception is thrown again asynchronously, so it reaches `uncaughtException` as before.
-- `clientList({ identifiers: [] })`, `migrate()` with `keys: []` and the time-series range commands with `filterByTs: []` send the empty list, which the server refuses or migrates nothing for, instead of acting on every client, key or sample, and `latencyReset([])` rejects instead of resetting every event.
+- `clientList({ identifiers: [] })`, `migrate()` with `keys: []`, the time-series range commands with `filterByTs: []` and `zinter()`, `zinterstore()`, `zunion()` and `zunionstore()` with `weights: []` send the empty list, which the server refuses or migrates nothing for, instead of acting on every client, key or sample, and `latencyReset([])` rejects instead of resetting every event.
 - `cfMexists()` is typed as returning `boolean[]`, which it does.
-- `debugMaxEntries` and `maxEventListenersForClient` accept any number: a negative value or `NaN` keeps no debug entries and sets no listener limit, a fraction is rounded down, and `Infinity` keeps every entry.
+- `maxEventListenersForClient` accepts any number: a negative value or `NaN` sets no listener limit.
 
 ### Removed
 
 - `clientReply()` and `sync()`.
-- The client options `maxEventListenersForSocket`, `maxProcessReplyBytesPerChunk`, `maxProcessRepliesPerChunk`, `maxSocketWriteSizePerOnce`, `socketWriteTimeout` and `parser.buffer`.
+- The client options `debugMaxEntries`, `maxEventListenersForSocket`, `maxProcessReplyBytesPerChunk`, `maxProcessRepliesPerChunk`, `maxSocketWriteSizePerOnce`, `socketWriteTimeout` and `parser.buffer`, and printing debug entries when `DEBUG` names solidis.
+- `SolidisDebugMemory`, `SolidisDebugTransform`, `generateDebugHandle()`, `sanitizeCommandsBufferForDebug()` and `SolidisCredentialCommandNameSet`.
 - `SolidisError#getOriginalError()`.
 
 See [Upgrading from 0.4.x](#upgrading-from-04x) for replacements.
 
 ### Fixed
 
+- `set()` and `delex()` sent any digest. With `returnOldValue`, a digest that is not 16 characters made Redis 8.4 and later answer one `SET` twice, and every later reply reached the wrong request. A digest that is not 16 hexadecimal digits now rejects before anything is sent.
+- Commands read the options and arrays that shape their replies, such as `withScores`, `{ buffer: true }` or the items of `bfInsert()`, when the reply arrived, so changing them after the call changed the result. They are read when the command is called.
+- `auth('')` sent `AUTH` without the empty password.
 - The CommonJS build failed to load because of a circular import. Every entry point now loads through both `require()` and `import()`, and releases verify the packed tarball.
 - A connection timeout could crash the process with an uncaught exception when the abandoned socket failed later. Timed-out sockets are destroyed, and events from replaced sockets are ignored.
 - With RESP3 and `CLIENT TRACKING`, invalidation pushes were taken as command replies, so a `GET` could return the value of another key.
@@ -387,7 +396,7 @@ See [Upgrading from 0.4.x](#upgrading-from-04x) for replacements.
 
 ### Security
 
-- Error messages and stack traces no longer list command arguments. A failed `AUTH` used to put the password into the message, and a failed `SET` the value. Arguments the server quotes back in its own message, such as an ACL rule or the arguments of an unknown command, are replaced with `***`, also when the server joins several of them into one quoted span, as it does for an ACL selector.
+- Error messages, stack traces and debug entries no longer list command arguments. A failed `AUTH` used to put the password into the message, and a failed `SET` the value. Arguments the server quotes back in its own message, such as an ACL rule or the arguments of an unknown command, are replaced with `***`, also when the server joins several of them into one quoted span, as it does for an ACL selector.
 - User data shaped like a pub/sub message can no longer be dispatched as a `message` event on RESP2.
 - An integer reply longer than 20 characters or a big number longer than 4,096 characters is returned as an error reply instead of being converted, and a length line longer than 20 characters is a protocol error, so one reply can no longer stall the event loop for seconds. A reply nested more than 512 levels deep is a protocol error too. Errors about a malformed line quote at most its first 32 characters.
 
@@ -397,7 +406,7 @@ See [Upgrading from 0.4.x](#upgrading-from-04x) for replacements.
 - Serialization measures each argument once, and each reply allocates less.
 - In alternating benchmark runs against 0.4.0, throughput is on par or better across the suite.
 - Replies and timeouts for tens of thousands of pipelines in flight take linear time. Masking arguments in an error message looks each quoted span up instead of comparing it with every argument, and reads only the start of each argument.
-- Bundled from the published files, the featured client shrinks from 99,356 to 98,046 bytes, and the minimal client with `get` and `set` is 30,802 bytes, against 29,457 in 0.4.0.
+- Bundled from the published files, the featured client shrinks from 99,356 to 96,627 bytes and the minimal client with `get` and `set` from 29,457 to 29,439 bytes.
 
 ## [0.4.0] and earlier
 

@@ -10,7 +10,7 @@
   <a href="https://www.npmjs.com/package/@vcms-io/solidis"><img src="https://img.shields.io/npm/v/@vcms-io/solidis.svg?style=flat-square&labelColor=000&color=f5a623" alt="npm"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/coverage-100%25-brightgreen?style=flat-square&labelColor=000" alt="coverage"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square&labelColor=000" alt="deps"></a>
-  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/min_bundle-<31KB-blue?style=flat-square&labelColor=000" alt="bundle"></a>
+  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/min_bundle-<29KB-blue?style=flat-square&labelColor=000" alt="bundle"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/RESP2%2FRESP3-supported-orange?style=flat-square&labelColor=000" alt="RESP"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/ESM%2FCJS-dual-yellow?style=flat-square&labelColor=000" alt="modules"></a>
 </p>
@@ -30,7 +30,7 @@
 <td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Rocket.png?raw=true" alt="Rocket" width="32" height="32" /><br/><strong>0 deps</strong><br/><sub>제로 의존성</sub></td>
 <td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Package.png?raw=true" alt="Package" width="32" height="32" /><br/><strong>383</strong><br/><sub>커맨드</sub></td>
 <td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Test%20Tube.png?raw=true" alt="Test Tube" width="32" height="32" /><br/><strong>25K+</strong><br/><sub>테스트 라인</sub></td>
-<td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Animals/Feather.png?raw=true" alt="Feather" width="32" height="32" /><br/><strong>&lt; 31KB</strong><br/><sub>최소 번들</sub></td>
+<td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Animals/Feather.png?raw=true" alt="Feather" width="32" height="32" /><br/><strong>&lt; 29KB</strong><br/><sub>최소 번들</sub></td>
 </tr>
 </table>
 
@@ -53,7 +53,7 @@ const value = await client.get('key');
 
 > [!TIP]
 > **번들 크기가 중요하다면?** `SolidisClient` + `.extend()`로 쓰는 커맨드만 가져오세요.
-> 트리 쉐이킹 적용 시 **< 31KB**까지 줄일 수 있습니다.
+> 트리 쉐이킹 적용 시 **< 29KB**까지 줄일 수 있습니다.
 
 <details>
 <summary>&nbsp;&nbsp;<b>트리 쉐이킹 클라이언트</b></summary>
@@ -65,11 +65,10 @@ import { SolidisClient } from '@vcms-io/solidis';
 import { get } from '@vcms-io/solidis/command/get';
 import { set } from '@vcms-io/solidis/command/set';
 
-import type { SolidisClientExtensions } from '@vcms-io/solidis';
-
-const extensions = { get, set } satisfies SolidisClientExtensions;
-const client = new SolidisClient({ host: '127.0.0.1', port: 6379 }).extend(extensions);
+const client = new SolidisClient({ host: '127.0.0.1', port: 6379 }).extend({ get, set });
 ```
+
+`extend()`는 객체가 직접 가진 함수 속성을 클라이언트에 바인딩해 추가합니다.
 
 </details>
 
@@ -387,7 +386,7 @@ _100,000번 반복 × 10,000 동시 실행 · 1 KB 페이로드 · 10회 측정_
 
 - TLS/SSL 지원 (`rediss://` 또는 `tls` 옵션)
 - ACL 인증 (username/password)
-- 디버그 로그에서 자격 증명 자동 마스킹
+- 디버그 항목에는 커맨드 이름만 남기고 인자는 남기지 않음
 - 에러 메시지에 커맨드 인자를 덧붙이지 않고, 서버가 인용해 돌려준 인자는 가림
 - `maxBulkStringLength`와 512단계 중첩 제한으로 비정상 응답 차단
 
@@ -431,7 +430,7 @@ const client = new SolidisClient({
   lazyConnect: false,
 
   // 인증
-  authentication: { username: 'user', password: 'pass' },
+  authentication: { username: 'user', password: 'pass' }, // 빈 username은 default 사용자
   database: 0,
 
   // 프로토콜 / 복구
@@ -467,7 +466,6 @@ const client = new SolidisClient({
   // 기타
   maxEventListenersForClient: 10_240,
   debug: false,
-  debugMaxEntries: 10_240,
 });
 ```
 
@@ -485,7 +483,7 @@ graph TD
     Req[Requester<br/><sub>Queue · Pipeline · Timeout</sub>]
     Parse[Parser<br/><sub>RESP2 · RESP3 · Binary-safe</sub>]
     PS[PubSub<br/><sub>Channel · Pattern · Shard</sub>]
-    DM[Debug Memory<br/><sub>Ring buffer · Sanitized</sub>]
+    DM[Debug<br/><sub>debug event · No arguments</sub>]
   end
 
   Conn -->|socket data| Req
@@ -517,13 +515,13 @@ sequenceDiagram
   Client-->>App: 'OK'
 ```
 
-| 모듈             | 역할                                            |
-| :--------------- | :---------------------------------------------- |
-| **Connection**   | TCP/TLS 소켓 관리, 재연결 백오프                |
-| **Requester**    | 커맨드 큐, 파이프라인 청킹, 응답 매칭, 타임아웃 |
-| **Parser**       | RESP 증분 디코딩, 바이너리 세이프 응답 처리     |
-| **PubSub**       | 채널/패턴/샤드 상태 추적, 메시지 디스패치       |
-| **Debug Memory** | 링 버퍼 기반 디버그 로그, credential 마스킹     |
+| 모듈           | 역할                                                    |
+| :------------- | :------------------------------------------------------ |
+| **Connection** | TCP/TLS 소켓 관리, 재연결 백오프                        |
+| **Requester**  | 커맨드 큐, 파이프라인 청킹, 응답 매칭, 타임아웃         |
+| **Parser**     | RESP 증분 디코딩, 바이너리 세이프 응답 처리             |
+| **PubSub**     | 채널/패턴/샤드 상태 추적, 메시지 디스패치               |
+| **Debug**      | 커맨드 이름만 담고 인자는 담지 않는 `debug` 이벤트 항목 |
 
 ## 이벤트
 

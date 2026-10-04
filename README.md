@@ -10,7 +10,7 @@
   <a href="https://www.npmjs.com/package/@vcms-io/solidis"><img src="https://img.shields.io/npm/v/@vcms-io/solidis.svg?style=flat-square&labelColor=000&color=f5a623" alt="npm"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/coverage-100%25-brightgreen?style=flat-square&labelColor=000" alt="coverage"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square&labelColor=000" alt="deps"></a>
-  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/min_bundle-<31KB-blue?style=flat-square&labelColor=000" alt="bundle"></a>
+  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/min_bundle-<29KB-blue?style=flat-square&labelColor=000" alt="bundle"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/RESP2%2FRESP3-supported-orange?style=flat-square&labelColor=000" alt="RESP"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/ESM%2FCJS-dual-yellow?style=flat-square&labelColor=000" alt="modules"></a>
 </p>
@@ -30,7 +30,7 @@
 <td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Rocket.png?raw=true" alt="Rocket" width="32" height="32" /><br/><strong>0 deps</strong><br/><sub>zero dependencies</sub></td>
 <td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Package.png?raw=true" alt="Package" width="32" height="32" /><br/><strong>383</strong><br/><sub>commands</sub></td>
 <td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Test%20Tube.png?raw=true" alt="Test Tube" width="32" height="32" /><br/><strong>25K+</strong><br/><sub>lines of tests</sub></td>
-<td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Animals/Feather.png?raw=true" alt="Feather" width="32" height="32" /><br/><strong>&lt; 31KB</strong><br/><sub>min bundle</sub></td>
+<td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Animals/Feather.png?raw=true" alt="Feather" width="32" height="32" /><br/><strong>&lt; 29KB</strong><br/><sub>min bundle</sub></td>
 </tr>
 </table>
 
@@ -53,7 +53,7 @@ const value = await client.get('key');
 
 > [!TIP]
 > **Need a smaller bundle?** Use `SolidisClient` with `.extend()` to import only the commands you use.
-> Minimum bundle drops to **< 31KB** with tree-shaking.
+> Minimum bundle drops to **< 29KB** with tree-shaking.
 
 <details>
 <summary>&nbsp;&nbsp;<b>Tree-shakable client</b></summary>
@@ -65,11 +65,10 @@ import { SolidisClient } from '@vcms-io/solidis';
 import { get } from '@vcms-io/solidis/command/get';
 import { set } from '@vcms-io/solidis/command/set';
 
-import type { SolidisClientExtensions } from '@vcms-io/solidis';
-
-const extensions = { get, set } satisfies SolidisClientExtensions;
-const client = new SolidisClient({ host: '127.0.0.1', port: 6379 }).extend(extensions);
+const client = new SolidisClient({ host: '127.0.0.1', port: 6379 }).extend({ get, set });
 ```
+
+`extend()` adds the object's own function properties to the client, bound to it.
 
 </details>
 
@@ -387,7 +386,7 @@ _100,000 iterations × 10,000 concurrency · 1 KB payload · 10 repeats_
 
 - TLS/SSL (`rediss://` or explicit `tls` option)
 - ACL username/password authentication
-- Credential masking in debug output
+- Debug entries name commands without their arguments
 - Error messages add no command arguments and mask the ones the server quotes back
 - `maxBulkStringLength` oversized reply guard and a 512-level nesting limit
 
@@ -431,7 +430,7 @@ const client = new SolidisClient({
   lazyConnect: false,
 
   // Auth
-  authentication: { username: 'user', password: 'pass' },
+  authentication: { username: 'user', password: 'pass' }, // an empty username means the default user
   database: 0,
 
   // Protocol & Recovery
@@ -467,7 +466,6 @@ const client = new SolidisClient({
   // Misc
   maxEventListenersForClient: 10_240,
   debug: false,
-  debugMaxEntries: 10_240,
 });
 ```
 
@@ -485,7 +483,7 @@ graph TD
     Req[Requester<br/><sub>Queue · Pipeline · Timeout</sub>]
     Parse[Parser<br/><sub>RESP2 · RESP3 · Binary-safe</sub>]
     PS[PubSub<br/><sub>Channel · Pattern · Shard</sub>]
-    DM[Debug Memory<br/><sub>Ring buffer · Sanitized</sub>]
+    DM[Debug<br/><sub>debug event · No arguments</sub>]
   end
 
   Conn -->|socket data| Req
@@ -517,13 +515,13 @@ sequenceDiagram
   Client-->>App: 'OK'
 ```
 
-| Module           | Responsibility                                             |
-| :--------------- | :--------------------------------------------------------- |
-| **Connection**   | TCP/TLS socket management, reconnect backoff               |
-| **Requester**    | Command queue, pipeline chunking, reply matching, timeouts |
-| **Parser**       | Incremental RESP decoding, binary-safe replies             |
-| **PubSub**       | Channel, pattern and shard state, message dispatch         |
-| **Debug Memory** | Ring-buffer debug log, credential masking                  |
+| Module         | Responsibility                                                  |
+| :------------- | :-------------------------------------------------------------- |
+| **Connection** | TCP/TLS socket management, reconnect backoff                    |
+| **Requester**  | Command queue, pipeline chunking, reply matching, timeouts      |
+| **Parser**     | Incremental RESP decoding, binary-safe replies                  |
+| **PubSub**     | Channel, pattern and shard state, message dispatch              |
+| **Debug**      | `debug` event entries that name commands, never their arguments |
 
 ## Events
 

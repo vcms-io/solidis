@@ -351,7 +351,6 @@ await client.subscribe('news');`}
     maxBulkStringLength: 536870912,
   },
   debug: false,
-  debugMaxEntries: 10240,
 });`}
                   language="typescript"
                   showLineNumbers={true}
@@ -391,7 +390,6 @@ await client.subscribe('news');`}
                     <CodeBlock
                       code={`import { SolidisClient } from '@vcms-io/solidis';
 import { get, set } from '@vcms-io/solidis/command';
-import type { SolidisClientExtensions } from '@vcms-io/solidis';
 
 const extensions = {
   get,
@@ -399,7 +397,7 @@ const extensions = {
   fill: async function(this: typeof client, keys: string[], value: string) {
     return await Promise.all(keys.map((key) => this.set(key, value)));
   },
-} satisfies SolidisClientExtensions;
+};
 
 const client = new SolidisClient({
   host: '127.0.0.1',

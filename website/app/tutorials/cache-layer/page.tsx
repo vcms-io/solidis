@@ -168,13 +168,13 @@ export class CacheManager {
     const cacheKey = this.getKey(key);
     const value = await this.client.get(cacheKey);
 
-    if (value) {
-      this.hits++;
-      return JSON.parse(value) as T;
+    if (value === null) {
+      this.misses++;
+      return null;
     }
 
-    this.misses++;
-    return null;
+    this.hits++;
+    return JSON.parse(value) as T;
   }
 
   /**
@@ -209,9 +209,12 @@ export class CacheManager {
       return cached;
     }
 
-    // Cache miss - fetch from source
+    // Cache miss - fetch from source, and cache only a value that exists
     const value = await fetchFn();
-    await this.set(key, value, options);
+
+    if (value !== null) {
+      await this.set(key, value, options);
+    }
 
     return value;
   }

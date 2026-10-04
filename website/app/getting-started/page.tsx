@@ -123,7 +123,6 @@ export default function GettingStartedPage() {
                 <CodeBlock
                   code={`import { SolidisClient } from '@vcms-io/solidis';
 import { del, get, incr, multi, set } from '@vcms-io/solidis/command';
-import type { SolidisClientExtensions } from '@vcms-io/solidis';
 
 const extensions = {
   get,
@@ -131,7 +130,7 @@ const extensions = {
   del,
   incr,
   multi,
-} satisfies SolidisClientExtensions;
+};
 
 const client = new SolidisClient({
   host: '127.0.0.1',
