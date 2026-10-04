@@ -336,11 +336,16 @@ describe('reply-guards', () => {
       null,
     ]);
     assert.deepStrictEqual(
+      await hmget.call(recorder, 'h', 'a', 'b', undefined),
+      ['a', null],
+    );
+    assert.deepStrictEqual(
       await hmget.call(recorder, 'h', 'a', 'b', { buffer: true }),
       [bulk('a'), null],
     );
     assert.deepStrictEqual(recorder.commands, [
       ['MGET', 'a', 'b'],
+      ['HMGET', 'h', 'a', 'b'],
       ['HMGET', 'h', 'a', 'b'],
     ]);
   });
@@ -458,7 +463,12 @@ describe('reply-guards', () => {
       { matches: [{ a: [0, 1], b: [2, 3], length: 2 }], length: 4 },
     );
 
-    for (const matches of [[bulk('bad')], [[[0, 1], bulk('bad')]], null]) {
+    for (const matches of [
+      [bulk('bad')],
+      [[[0, 1], bulk('bad')]],
+      [[bulk('bad'), [2, 3]]],
+      null,
+    ]) {
       await assert.rejects(lcs.call(reply(matches), 'a', 'b', { idx: true }), {
         name: 'SolidisCommandError',
         message: /^\[LCS\] Unexpected reply: /,

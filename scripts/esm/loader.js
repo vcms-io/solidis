@@ -36,6 +36,7 @@ async function load(url, context, defaultLoad) {
     absWorkingDir: executePath,
     external: ['esbuild', '@napi-rs/*'],
     packages: 'bundle',
+    ignoreAnnotations: true,
   });
   const took = Date.now() - startedAt;
 
