@@ -11,7 +11,7 @@
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/coverage-100%25-brightgreen?style=flat-square&labelColor=000" alt="coverage"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square&labelColor=000" alt="deps"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/bundle-<29KB-blue?style=flat-square&labelColor=000" alt="bundle"></a>
-  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/RESP2%2FRESP3-full-orange?style=flat-square&labelColor=000" alt="RESP"></a>
+  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/RESP2%2FRESP3-supported-orange?style=flat-square&labelColor=000" alt="RESP"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/ESM%2FCJS-dual-yellow?style=flat-square&labelColor=000" alt="modules"></a>
 </p>
 
@@ -130,7 +130,8 @@ const job = await worker.blpop(['jobs'], 0); // a timeout of 0 waits forever
 ```
 
 A blocking command gets its own deadline: `commandTimeout` plus its blocking timeout, and none when it blocks forever as above.
-When that deadline passes, the connection is reset so the server cannot pop a value nobody receives.
+When that deadline passes, the connection is reset, so a late reply can never reach another command.
+A command the server has not run yet, for example because it is busy, may still run after the reset and pop a value that nobody receives.
 
 </details>
 
@@ -164,6 +165,7 @@ const images = await client.mget('image', 'logo', { buffer: true }); // (Buffer 
 
 SET, SETNX, SETEX, PSETEX, GETSET, SETRANGE, APPEND, MSET, MSETNX, HSET, HSETNX, HMSET, LPUSH, RPUSH, LPUSHX, RPUSHX, LSET, XADD and RESTORE take `Buffer` values and store them byte for byte.
 LINSERT, LREM, LPOS, SMISMEMBER, DELEX and SET also take `Buffer`s for the values they compare, PUBLISH and SPUBLISH for messages, BF.LOADCHUNK and CF.LOADCHUNK for chunks, and AUTH and HELLO for credentials; other arguments are strings, and `send()` takes a `Buffer` for any argument.
+`send()` copies the command arrays it receives, so they can be changed or reused at once, but not the `Buffer`s in them: keep a `Buffer` unchanged until its command settles.
 Reads decode UTF-8 by default; pass `{ buffer: true }` to receive the exact bytes as a `Buffer` from GET, GETDEL, GETEX, GETRANGE, MGET, HGET, HMGET, HGETALL, HVALS, LINDEX, LRANGE, LPOP, RPOP, LMOVE, BLMOVE, RPOPLPUSH, BRPOPLPUSH, BLPOP, BRPOP, LMPOP, BLMPOP.
 The return type follows the option.
 
@@ -356,10 +358,10 @@ _100,000 iterations × 10,000 concurrency · 1 KB payload · 10 repeats_
 
 ### <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Electric%20Plug.png?raw=true" alt="Electric Plug" width="25" height="25" /> Protocol
 
-- Full RESP2 + RESP3 wire-level implementation
+- RESP2 + RESP3 wire-level implementation, except streamed replies, which Redis and Valkey never send
 - All 15 RESP3 reply types (Map, Set, Push, Attribute, BigNumber, ...)
 - RESP3 pushes never consume a command reply
-- Automatic BigInt promotion for unsafe integers
+- BigInt for integers beyond 2^53: automatic in raw replies, `{ bigint: true }` for commands
 - Binary-safe: `Buffer` values for string, hash, list and stream writes, `{ buffer: true }` bytes out
 
 </td>
@@ -514,6 +516,14 @@ sequenceDiagram
   Client-->>App: 'OK'
 ```
 
+| Module           | Responsibility                                             |
+| :--------------- | :--------------------------------------------------------- |
+| **Connection**   | TCP/TLS socket management, reconnect backoff               |
+| **Requester**    | Command queue, pipeline chunking, reply matching, timeouts |
+| **Parser**       | Incremental RESP decoding, binary-safe replies             |
+| **PubSub**       | Channel, pattern and shard state, message dispatch         |
+| **Debug Memory** | Ring-buffer debug log, credential masking                  |
+
 ## Events
 
 ```typescript
@@ -548,18 +558,18 @@ try {
 ```
 
 > [!NOTE]
-> Every error thrown by Solidis is an instance of `SolidisError` and links its origin through the standard `cause`.
+> Every error Solidis throws for arguments of the declared types is an instance of `SolidisError` and links its origin through the standard `cause`.
 > Messages name the command (`[INCR] ERR ...`) and add none of its arguments. An argument the server quotes back becomes `'***'`, in the message and in its `cause`; a value the server repeats without quotes, such as the coordinates in a GEOADD error or text a script passes to `redis.error_reply()`, stays as the server sent it.
 > TS.MADD, BF.MADD and BF.INSERT store items one by one, so they return a rejected item as a `RespError` in their result instead of rejecting the call.
 
-| Error Class              | When                                                                                                                            |
-| :----------------------- | :------------------------------------------------------------------------------------------------------------------------------ |
-| `SolidisCommandError`    | Server error reply (`cause` is the `RespError`), unexpected reply, options a command refuses                                    |
-| `SolidisClientError`     | Not ready within `commandTimeout`, a refused handshake (authentication, HELLO, CLIENT SETNAME), quit, a throwing event listener |
-| `SolidisConnectionError` | TCP/TLS connect failure, invalid port, timeout, connection lost, retries spent                                                  |
-| `SolidisRequesterError`  | Command timeout, a malformed command in `send()`, a refused command such as MONITOR                                             |
-| `SolidisParserError`     | Malformed RESP, oversized bulk string or line                                                                                   |
-| `SolidisPubSubError`     | Malformed pub/sub event, throwing pub/sub or push listener                                                                      |
+| Error Class              | When                                                                                                                                    |
+| :----------------------- | :-------------------------------------------------------------------------------------------------------------------------------------- |
+| `SolidisCommandError`    | Server error reply (`cause` is the `RespError`), unexpected reply, options a command refuses                                            |
+| `SolidisClientError`     | Not ready within `commandTimeout`, a refused handshake (authentication, HELLO, SELECT, CLIENT SETNAME), quit, a throwing event listener |
+| `SolidisConnectionError` | TCP/TLS connect failure, invalid port, timeout, connection lost, retries spent                                                          |
+| `SolidisRequesterError`  | Command timeout, a malformed command in `send()`, a refused command such as MONITOR                                                     |
+| `SolidisParserError`     | Malformed RESP, oversized bulk string or line                                                                                           |
+| `SolidisPubSubError`     | Malformed pub/sub event, throwing pub/sub or push listener                                                                              |
 
 ## Extensions
 
@@ -577,6 +587,7 @@ npm install @vcms-io/solidis-extensions
 ```bash
 git clone https://github.com/vcms-io/solidis.git && cd solidis
 npm install && npm run build
+npm run lint:check # lint, formatting and the type tests
 SOLIDIS_TEST_PORT=6380 npm test # a disposable server: the tests flush it
 ```
 

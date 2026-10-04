@@ -80,6 +80,9 @@ export default function DistributedLockingTutorial() {
             </div>
             {t('tutorialLocking.simpleLock')}
           </CardTitle>
+          <CardDescription>
+            {t('tutorialLocking.simpleLockRequirement')}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="rounded-lg text-sm overflow-x-auto">

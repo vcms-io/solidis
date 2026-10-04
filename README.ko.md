@@ -11,7 +11,7 @@
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/coverage-100%25-brightgreen?style=flat-square&labelColor=000" alt="coverage"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square&labelColor=000" alt="deps"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/min_bundle-<29KB-blue?style=flat-square&labelColor=000" alt="bundle"></a>
-  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/RESP2%2FRESP3-full-orange?style=flat-square&labelColor=000" alt="RESP"></a>
+  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/RESP2%2FRESP3-supported-orange?style=flat-square&labelColor=000" alt="RESP"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/ESM%2FCJS-dual-yellow?style=flat-square&labelColor=000" alt="modules"></a>
 </p>
 
@@ -130,7 +130,8 @@ const job = await worker.blpop(['jobs'], 0); // 타임아웃 0은 무한 대기
 ```
 
 블로킹 커맨드는 `commandTimeout`에 자신의 블로킹 타임아웃을 더한 별도 기한을 가지며, 위 예처럼 무한히 기다리면 기한이 없습니다.
-기한이 지나면 연결을 리셋해서, 아무도 받지 못하는 값을 서버가 꺼내는 일이 없도록 합니다.
+기한이 지나면 연결을 리셋해서, 늦게 온 응답이 다른 커맨드에 전달되지 않게 합니다.
+다만 서버가 바빠서 아직 실행하지 않은 커맨드는 리셋 뒤에도 실행되어, 아무도 받지 못하는 값을 꺼낼 수 있습니다.
 
 </details>
 
@@ -164,6 +165,7 @@ const images = await client.mget('image', 'logo', { buffer: true }); // (Buffer 
 
 SET, SETNX, SETEX, PSETEX, GETSET, SETRANGE, APPEND, MSET, MSETNX, HSET, HSETNX, HMSET, LPUSH, RPUSH, LPUSHX, RPUSHX, LSET, XADD, RESTORE는 `Buffer` 값을 받아 바이트 그대로 저장합니다.
 LINSERT, LREM, LPOS, SMISMEMBER, DELEX, SET은 비교할 값으로, PUBLISH와 SPUBLISH는 메시지로, BF.LOADCHUNK와 CF.LOADCHUNK는 청크로, AUTH와 HELLO는 자격 증명으로 `Buffer`를 받습니다. 그 밖의 인자는 문자열이고, `send()`는 어느 인자에나 `Buffer`를 받습니다.
+`send()`는 받은 커맨드 배열을 복사하므로 바로 바꾸거나 다시 써도 되지만, 그 안의 `Buffer`는 복사하지 않으니 커맨드가 끝날 때까지 바꾸지 마세요.
 읽을 때는 기본적으로 UTF-8로 디코딩하고, GET, GETDEL, GETEX, GETRANGE, MGET, HGET, HMGET, HGETALL, HVALS, LINDEX, LRANGE, LPOP, RPOP, LMOVE, BLMOVE, RPOPLPUSH, BRPOPLPUSH, BLPOP, BRPOP, LMPOP, BLMPOP에 `{ buffer: true }`를 넘기면 정확한 바이트를 `Buffer`로 받습니다.
 반환 타입도 옵션을 따라갑니다.
 
@@ -356,10 +358,10 @@ _100,000번 반복 × 10,000 동시 실행 · 1 KB 페이로드 · 10회 측정_
 
 ### <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Electric%20Plug.png?raw=true" alt="Electric Plug" width="25" height="25" /> 프로토콜
 
-- RESP2 + RESP3 와이어 레벨 풀 구현
+- RESP2 + RESP3 와이어 레벨 구현 (Redis와 Valkey가 보내지 않는 스트리밍 응답 제외)
 - 15가지 RESP3 응답 타입 전부 지원 (Map, Set, Push, Attribute, BigNumber, ...)
 - RESP3 push가 커맨드 응답을 가로채지 않음
-- unsafe integer 자동 BigInt 변환
+- 2^53을 넘는 정수는 BigInt로: 원시 응답은 자동, 커맨드는 `{ bigint: true }`
 - 바이너리 세이프: 문자열·해시·리스트·스트림 쓰기에 `Buffer` 값, `{ buffer: true }`로 바이트 그대로 읽기
 
 </td>
@@ -556,18 +558,18 @@ try {
 ```
 
 > [!NOTE]
-> Solidis가 throw하는 모든 에러는 `SolidisError`를 상속하고, 원인은 표준 `cause`로 연결됩니다.
+> 선언된 타입의 인자를 넘겼을 때 Solidis가 throw하는 모든 에러는 `SolidisError`를 상속하고, 원인은 표준 `cause`로 연결됩니다.
 > 메시지에는 커맨드 이름(`[INCR] ERR ...`)이 붙고 인자는 붙지 않습니다. 서버가 인용해 돌려준 인자는 메시지와 `cause` 모두에서 `'***'`로 바뀌지만, GEOADD 에러의 좌표나 스크립트가 `redis.error_reply()`에 넘긴 텍스트처럼 서버가 따옴표 없이 되풀이한 값은 서버가 보낸 그대로 남습니다.
 > TS.MADD, BF.MADD, BF.INSERT는 항목을 하나씩 저장하므로, 거부된 항목은 호출 전체를 reject하는 대신 결과 배열 안의 `RespError`로 돌려줍니다.
 
-| 에러 클래스              | 발생 조건                                                                                                               |
-| :----------------------- | :---------------------------------------------------------------------------------------------------------------------- |
-| `SolidisCommandError`    | 서버 에러 응답 (`cause`는 `RespError`), 예상과 다른 응답, 커맨드가 거부한 옵션                                          |
-| `SolidisClientError`     | `commandTimeout` 안에 준비되지 않음, 핸드셰이크 거부(인증, HELLO, CLIENT SETNAME), quit 이후, 예외를 던진 이벤트 리스너 |
-| `SolidisConnectionError` | TCP/TLS 연결 실패, 잘못된 포트, 타임아웃, 연결 끊김, 재시도 소진                                                        |
-| `SolidisRequesterError`  | 커맨드 타임아웃, `send()`의 잘못된 커맨드, MONITOR처럼 거부되는 커맨드                                                  |
-| `SolidisParserError`     | 잘못된 RESP 포맷, bulk string 또는 줄 크기 초과                                                                         |
-| `SolidisPubSubError`     | 잘못된 pub/sub 이벤트, pub/sub 또는 push 리스너 예외                                                                    |
+| 에러 클래스              | 발생 조건                                                                                                                       |
+| :----------------------- | :------------------------------------------------------------------------------------------------------------------------------ |
+| `SolidisCommandError`    | 서버 에러 응답 (`cause`는 `RespError`), 예상과 다른 응답, 커맨드가 거부한 옵션                                                  |
+| `SolidisClientError`     | `commandTimeout` 안에 준비되지 않음, 핸드셰이크 거부(인증, HELLO, SELECT, CLIENT SETNAME), quit 이후, 예외를 던진 이벤트 리스너 |
+| `SolidisConnectionError` | TCP/TLS 연결 실패, 잘못된 포트, 타임아웃, 연결 끊김, 재시도 소진                                                                |
+| `SolidisRequesterError`  | 커맨드 타임아웃, `send()`의 잘못된 커맨드, MONITOR처럼 거부되는 커맨드                                                          |
+| `SolidisParserError`     | 잘못된 RESP 포맷, bulk string 또는 줄 크기 초과                                                                                 |
+| `SolidisPubSubError`     | 잘못된 pub/sub 이벤트, pub/sub 또는 push 리스너 예외                                                                            |
 
 ## 확장
 
@@ -585,6 +587,7 @@ npm install @vcms-io/solidis-extensions
 ```bash
 git clone https://github.com/vcms-io/solidis.git && cd solidis
 npm install && npm run build
+npm run lint:check # 린트, 포맷, 타입 테스트
 SOLIDIS_TEST_PORT=6380 npm test # 테스트가 데이터를 지우므로 버려도 되는 서버를 쓰세요
 ```
 

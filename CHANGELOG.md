@@ -172,6 +172,7 @@ const total = await client.incrby('counter', 10n, { bigint: true }); // bigint
 - `zintercard(keys, limit, options)` loses `options`. The server accepts neither `WEIGHTS` nor `AGGREGATE` for `ZINTERCARD`.
 - `migrate()` with `keys` requires `''` as its key, as the server does.
 - `scriptDebug()` accepts only `'NO'`; `send()` refuses `SCRIPT DEBUG YES` and `SCRIPT DEBUG SYNC`.
+- `hello()` takes a username, password or client name only after a protocol, and a username only with a password (`CommandHelloParameters`). `HELLO` ignored them otherwise, so such a call resolved without authenticating.
 - `xpending()` takes `start`, `end` and `count` together (`CommandXpendingRange`) and no longer sends a count of 10 when `count` is missing. The summary form and the range form have their own return types.
 - `zrange()`, `zrangebyscore()`, `zdiff()`, `zinter()`, `zunion()` and `zrandmember()` return `RespSortedSetMember[]` when scores are requested and `string[]` otherwise, instead of a union of both.
 
@@ -250,9 +251,9 @@ Other option changes:
   - `maxConnectionRetries` bounds each `connect()` and each lost connection. When the background reconnect gives up, the client emits an `error` saying `Connection failed after N retries.` and stops; the next command or `connect()` starts a new attempt. `Infinity` retries forever.
   - A connection that closes before it has stayed ready for `maxConnectionRetryDelay`, such as one whose handshake the server refuses, counts as a failed attempt. A server or proxy that accepts and drops connections, or a password changed on the server, is retried with growing delays until the retries are spent, instead of in an endless loop. Losing a connection that stayed ready longer starts a new count.
   - `reconnecting(attempt, delay)` is emitted before every attempt, including the first one after a drop. `attempt` counts the attempts since the connection was last stable, starting at 1.
-- **Handshake.** The first `connect()` retries a handshake that a closing connection interrupted, within `maxConnectionRetries`. With `protocol: 'RESP3'`, only a server that does not know `HELLO` or answers `NOPROTO` falls back to RESP2; other `HELLO` errors, such as an invalid client name, fail with `Protocol negotiation failed`. A ready check denied with `NOPERM` counts as ready. A user chosen at runtime with `auth()` or `hello()`, and a protocol chosen with `hello()`, are restored after a reconnect, until `RESET`. A `CLIENT SETNAME` error other than `NOPERM` or an unknown command fails the handshake with `CLIENT SETNAME failed` and the server's reply as the cause, so a server that refuses the connection, such as one in protected mode or at `maxclients`, is reported at once instead of after every retry. A `WRONGPASS` or `NOAUTH` reply to any handshake step fails it with `Authentication failed`.
+- **Handshake.** The first `connect()` retries a handshake that a closing connection interrupted, within `maxConnectionRetries`. With `protocol: 'RESP3'`, only a server that does not know `HELLO` or answers `NOPROTO` falls back to RESP2; other `HELLO` errors, such as an invalid client name, fail with `Protocol negotiation failed`. A ready check denied with `NOPERM` counts as ready. A user chosen at runtime with `auth()` or `hello()`, and a protocol chosen with `hello()`, are restored after a reconnect, until `RESET`. A `CLIENT SETNAME` error other than `NOPERM` or an unknown command fails the handshake with `CLIENT SETNAME failed` and the server's reply as the cause, so a server that refuses the connection, such as one in protected mode or at `maxclients`, is reported at once instead of after every retry. A `WRONGPASS` or `NOAUTH` reply to any handshake step, restoring the database and subscriptions included, and any other error from `AUTH`, fail it with `Authentication failed`; another `SELECT` error fails it with `SELECT failed`. The ready check stops waiting as soon as its connection closes.
 - **Listener errors.** A `connect`, `ready`, `reconnected`, `close`, `reconnecting`, `drain` or `end` listener that throws no longer breaks the session; the client emits an `error` (`A 'ready' listener threw`) and carries on. A throwing `debug` listener is reported with `process.emitWarning()`, and debug entries are delivered asynchronously.
-- **Unhandled errors.** An `error` event without a listener used to reach only the debug log. It is now also passed to `process.emitWarning()`. Add a listener to handle errors yourself:
+- **Unhandled errors.** An `error` event without a listener used to reach only the debug log. It is now also passed to `process.emitWarning()`, also after `removeAllListeners()`. Add a listener to handle errors yourself:
 
   ```typescript
   client.on('error', (error) => logger.warn(error));
@@ -292,7 +293,7 @@ Skip this step unless you construct the internal classes yourself or write custo
 - With RESP2 client tracking redirected to a subscribed client, invalidations on `__redis__:invalidate` are emitted as `push` events shaped like the RESP3 ones.
 - `auth()` and `hello()` accept `Buffer` usernames and passwords, and a password chosen at runtime is sent again byte for byte after a reconnect.
 - `tsIncrby()` and `tsDecrby()` take a `timestamp` option, `tsAdd()` and `tsMadd()` accept `'*'` for the server's clock, `tsDel()` accepts `'-'` and `'+'`, `bitop()` accepts `DIFF`, `DIFF1`, `ANDOR` and `ONE`, `scan()` takes module type names such as `ReJSON-RL` for `type`, and `latencyHistogram()` can be called without commands.
-- Types: `CommandExclusiveOptions`, `CommandExactOptions`, `CommandBufferOptions`, `CommandIntegerOptions`, `CommandScoreBound`, `CommandBitposOptions`, `CommandBitfieldOffset`, `CommandXpendingRange`, `CommandTimeSeriesTimestamp`, `CommandTimeSeriesSampleTimestamp`, `RespString`, `RespInteger`, `SolidisSendOptions`, `RespHashEntry`, `RespRoleSentinel`, `RespTimeSeriesInfo`, `RespTimeSeriesRule`, `RespStreamDeletedEntry` and `RespStreamGroupReadResult`. `XclaimOptions` is exported from the package root, and `select` from `@vcms-io/solidis/command`.
+- Types: `CommandExclusiveOptions`, `CommandExactOptions`, `CommandBufferOptions`, `CommandIntegerOptions`, `CommandScoreBound`, `CommandBitposOptions`, `CommandBitfieldOffset`, `CommandHelloParameters`, `CommandXpendingRange`, `CommandTimeSeriesTimestamp`, `CommandTimeSeriesSampleTimestamp`, `RespString`, `RespInteger`, `SolidisSendOptions`, `RespHashEntry`, `RespRoleSentinel`, `RespTimeSeriesInfo`, `RespTimeSeriesRule`, `RespStreamDeletedEntry` and `RespStreamGroupReadResult`. `XclaimOptions` is exported from the package root, and `select` from `@vcms-io/solidis/command`.
 - Utilities: `parseConnectionUri()`, `resolveClientOptions()`, `getCommandName()`, `toCommandError()`, `parseDouble()`, `formatDouble()` and `formatDebugLog()`, and for pub/sub event names `SolidisMessageEventNames`, `SolidisSubscribeEventNames`, `SolidisUnsubscribeEventNames`, `SolidisSubscriptionEventNames`, `getPubSubEventName()`, `isMessageEventName()`, `isSubscriptionEventName()` and `isUnsubscribeEventName()`. `SolidisTransactionBannedCommandNames` lists the command methods that a transaction leaves out; it also leaves out the scan iterators and the client's own methods, such as `send` and `quit`.
 - The CommonJS entry points have their own declarations (`.d.cts`), so `require()` consumers on `node16` resolution type-check, and the declarations no longer need `esModuleInterop`.
 
@@ -303,12 +304,12 @@ Skip this step unless you construct the internal classes yourself or write custo
 - After a reconnect, the client restores the database selected at runtime and each kind of subscription, and forgets a kind the server refuses.
 - Blocking commands (`blpop`, `brpop`, `blmove`, `blmpop`, `brpoplpush`, `bzpopmin`, `bzpopmax`, `bzmpop`, `xread` and `xreadgroup` with `block`, `wait` and `waitaof`) run in a pipeline of their own. Their deadline is `commandTimeout` plus their own timeout, and they have none when they block forever.
 - A pipeline that times out while later ones are still waiting keeps its place, and its late replies are discarded when they arrive. The connection is reset when a blocking pipeline times out, when every in-flight pipeline has timed out, or when a second pipeline in a row times out with nothing received since it was written, so a late reply can never reach a later command and a server that stops answering is dropped even under constant traffic.
-- `quit()` rejects pending commands and pending `connect()` calls at once with a `SolidisClientError` whose message is `The client was quit.`, also when a `ready` listener calls it or the ready check is waiting, and `connect()` after `quit()` rejects the same way.
+- `quit()` rejects pending commands and pending `connect()` calls at once with a `SolidisClientError` whose message is `The client was quit.`, also when a `ready` listener calls it or the ready check is waiting, and commands and `connect()` calls after `quit()` reject the same way.
 - Pipelines go to the socket as soon as they are sealed instead of waiting for `drain` after each write.
 - Bulk replies of 64 KB or more are returned as views of the received data instead of copies.
 - `zpopmin`, `zpopmax`, `bitfield`, `jsonNumincrby` and `jsonNummultby` never return `null`. `type()` returns the core types upper-cased and module type names, such as `ReJSON-RL`, as the server reports them.
-- `jsonNumincrby` and `jsonNummultby` return the same text on RESP2 and RESP3, with exact integers beyond `Number.MAX_SAFE_INTEGER`; `bzpopmin` and `bzpopmax` format scores the same way on both protocols.
-- Commands added with `extend()` keep their generic signatures, so options such as `{ buffer: true }` type their results. `extend()` types only the functions it adds.
+- `jsonNumincrby` and `jsonNummultby` return the same text on RESP2 and RESP3, with exact integers beyond `Number.MAX_SAFE_INTEGER`, and reject on both protocols when a legacy path matches no number; `bzpopmin` and `bzpopmax` format scores the same way on both protocols.
+- Commands added with `extend()` keep their generic signatures, so options such as `{ buffer: true }` type their results. `extend()` types only the functions it adds, and `this` inside them as the extended client, with the commands of earlier `extend()` calls.
 - Every overload of a command can be called on a transaction, such as `multi().lpop(key)` and `multi().mget(a, b)`.
 - `{ buffer: true }` and `{ bigint: true }` type a result regardless of the other options passed with them, and `getex` rejects misspelled options next to `buffer`.
 - An argument-less `UNSUBSCRIBE`, `PUNSUBSCRIBE` or `SUNSUBSCRIBE` also ends the subscriptions that are still being confirmed.
@@ -318,8 +319,10 @@ Skip this step unless you construct the internal classes yourself or write custo
 - The `error` emitted for a reply that arrives with no pending request carries the reply as its `cause`.
 - `maxBulkStringLength` also limits simple string and error lines.
 - A transaction from a client extended with `multi` also offers the client's own commands, such as `select` and `info`, and the commands of earlier `extend()` calls, and methods that a subclass of the client defines can be queued like commands.
+- `latencyHistory()`, `latencyGraph()` and `latencyReset()` accept event names that `RespLatencyEvent` does not list, such as `module-acquire-GIL` or an `event` returned by `latencyLatest()`.
 - `bitcount()` and `bitpos()` fill a missing `start` with `0`, and `bitcount()` a missing `end` with `-1`.
 - `functionFlush()` without an argument sends no mode, so the server's `lazyfree-lazy-user-flush` setting applies, as it does for `scriptFlush()`. Pass `false` for `SYNC`.
+- The published files keep the names of classes and functions, so errors print as `SolidisCommandError: ...` and stack traces name the methods.
 - `debugMaxEntries` and `maxEventListenersForClient` accept any number: a negative value or `NaN` keeps no debug entries and sets no listener limit, a fraction is rounded down, and `Infinity` keeps every entry.
 
 ### Removed
@@ -352,9 +355,10 @@ See [Upgrading from 0.4.x](#upgrading-from-04x) for replacements.
 - Replies parsed before a protocol error in the same chunk were rejected with the parser error, although the server had executed their commands.
 - An empty password was treated as none: `auth(user, '')` sent the username as the password, `hello()` skipped `AUTH`, and `authentication: { username, password: '' }` connected as `default`.
 - `jsonArrpop(key, undefined, index)` ignored the index and popped the last element.
+- Changing, clearing or reusing a command array after `send()` changed the commands that were sent, dropped them, or left the promise pending. `send()` copies the arrays now.
 - `send()` with an argument that is not an array threw a `TypeError`, and before the client was ready it broke the handshake for every waiting request.
 - A `HELLO` that names `SETNAME` before `AUTH` did not record the user for reconnects.
-- Commands built from more than about 125,000 items, such as `bfInsert`, `cfInsert`, `hexpire`, `migrate` with `keys`, `pubsubNumsub`, `xread`, `xreadgroup` and the weights of `zinter`, threw a `RangeError` instead of being sent.
+- Commands built from more than about 125,000 items, such as `bfInsert`, `cfInsert`, `hexpire`, `migrate` with `keys`, `pubsubNumsub`, `xread`, `xreadgroup`, the weights of `zinter` and the `filterByTs` timestamps of the time-series range commands, threw a `RangeError` instead of being sent.
 - `bitpos()` with `mode` but without `end` sent `0 -1`, so a search for bit 0 stopped treating the string as padded with zeros.
 - A subscription to a channel name that is not valid UTF-8 was unsubscribed and restored with different bytes.
 - `TYPE` rejected module type names such as `ReJSON-RL`, `INFO` dropped fields with empty values, `REPLICAOF` rejected the reply for an existing primary, and `ROLE` rejected Sentinel replies.
@@ -385,7 +389,7 @@ See [Upgrading from 0.4.x](#upgrading-from-04x) for replacements.
 - Serialization measures each argument once, and each reply allocates less.
 - In alternating benchmark runs against 0.4.0, throughput is on par or better across the suite.
 - Replies and timeouts for tens of thousands of pipelines in flight take linear time, and masking a long argument in an error message takes time linear in its length.
-- The minimal client with `get` and `set` shrinks from 29,457 to 28,999 bytes, and the featured client from 99,356 to 95,724 bytes.
+- The minimal client with `get` and `set` shrinks from 29,457 to 29,283 bytes, and the featured client from 99,356 to 96,080 bytes.
 
 ## [0.4.0] and earlier
 

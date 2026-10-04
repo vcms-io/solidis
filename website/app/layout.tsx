@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://solidis.vcms.io'),
   title: 'Solidis | Zero-dependency RESP client for Redis',
   description:
-    'The fastest Redis client for Node.js. Zero dependencies, full RESP2/RESP3 support, TypeScript-first. Up to 2x faster than ioredis.',
+    'The fastest Redis client for Node.js. Zero dependencies, RESP2 and RESP3, TypeScript-first. Up to 2x faster than ioredis.',
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },

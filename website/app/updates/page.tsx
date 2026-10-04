@@ -24,7 +24,7 @@ import { useI18n } from '@/lib/i18n-context';
 
 export default function UpdatesPage() {
   const { t } = useI18n();
-  const { releases, loading, error, fallback } = useGitHubReleases();
+  const { releases, loading, fallback } = useGitHubReleases();
 
   const upcomingFeatures = [
     {
@@ -83,7 +83,7 @@ export default function UpdatesPage() {
           <h1 className="text-3xl font-bold tracking-tight text-foreground">
             {t('updates.title')}
           </h1>
-          {fallback && (
+          {fallback && !loading && (
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <WifiOff className="h-3 w-3" />
               <span>{t('updates.cachedData')}</span>
@@ -211,7 +211,7 @@ export default function UpdatesPage() {
         </div>
       </div>
 
-      {error && fallback && (
+      {fallback && !loading && (
         <Card className="mb-8 border-amber-500/20">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 text-xs text-amber-500">

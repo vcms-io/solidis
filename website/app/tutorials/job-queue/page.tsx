@@ -5,7 +5,13 @@ import Link from 'next/link';
 
 import { CodeBlock } from '@/components/code-block';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { useI18n } from '@/lib/i18n-context';
 
 export default function JobQueueTutorial() {
@@ -396,31 +402,12 @@ process.on('SIGTERM', () => {
             <Layers className="h-5 w-5 text-amber-500" />
             {t('tutorialJobQueue.advancedFeatures')}
           </CardTitle>
+          <CardDescription>
+            {t('tutorialJobQueue.advancedFeaturesDesc')}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <ul className="space-y-3">
-            <li className="flex items-start gap-2">
-              <span className="text-emerald-600 mt-1">✓</span>
-              <div>
-                <div className="font-medium">
-                  {t('tutorialJobQueue.delayedJobs')}
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  {t('tutorialJobQueue.delayedJobsDesc')}
-                </div>
-              </div>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-emerald-600 mt-1">✓</span>
-              <div>
-                <div className="font-medium">
-                  {t('tutorialJobQueue.progressTracking')}
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  {t('tutorialJobQueue.progressTrackingDesc')}
-                </div>
-              </div>
-            </li>
             <li className="flex items-start gap-2">
               <span className="text-emerald-600 mt-1">✓</span>
               <div>
@@ -433,7 +420,29 @@ process.on('SIGTERM', () => {
               </div>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-emerald-600 mt-1">✓</span>
+              <span className="text-muted-foreground mt-1">+</span>
+              <div>
+                <div className="font-medium">
+                  {t('tutorialJobQueue.delayedJobs')}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {t('tutorialJobQueue.delayedJobsDesc')}
+                </div>
+              </div>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-muted-foreground mt-1">+</span>
+              <div>
+                <div className="font-medium">
+                  {t('tutorialJobQueue.progressTracking')}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {t('tutorialJobQueue.progressTrackingDesc')}
+                </div>
+              </div>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-muted-foreground mt-1">+</span>
               <div>
                 <div className="font-medium">
                   {t('tutorialJobQueue.deduplication')}
