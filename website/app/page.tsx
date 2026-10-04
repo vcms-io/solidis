@@ -9,52 +9,26 @@ import { Button } from '@/components/ui/button';
 import { useCountUp } from '@/hooks/use-count-up';
 import { useGitHubStats } from '@/hooks/use-github-stats';
 import { useIntersectionObserver } from '@/hooks/use-intersection-observer';
+import { benchmarkCases } from '@/lib/benchmarks';
 import { useI18n } from '@/lib/i18n-context';
+import { formatOperations, getBenchmarkClaims } from '@/lib/utils';
 
-const BENCHMARK_DATA = [
-  {
-    name: 'Set Mutation',
-    commands: 'SADD + SISMEMBER + SREM',
-    solidis: 1729,
-    ioredis: 3648,
-    multiplier: '2.1x',
-  },
-  {
-    name: 'List Mutation',
-    commands: 'LPUSH + RPUSH + LPOP + RPOP + LLEN',
-    solidis: 2455,
-    ioredis: 4920,
-    multiplier: '2.0x',
-  },
-  {
-    name: 'Set Read',
-    commands: 'SADD + SISMEMBER + SMEMBERS',
-    solidis: 1717,
-    ioredis: 3214,
-    multiplier: '1.9x',
-  },
-  {
-    name: 'List Range',
-    commands: 'LPUSH + RPUSH + LRANGE',
-    solidis: 1661,
-    ioredis: 3095,
-    multiplier: '1.9x',
-  },
-  {
-    name: 'Hash Mutation',
-    commands: 'HMSET + HMGET + HDEL',
-    solidis: 2046,
-    ioredis: 3776,
-    multiplier: '1.8x',
-  },
-  {
-    name: 'Multi-Key',
-    commands: 'MSET + MGET',
-    solidis: 1767,
-    ioredis: 3242,
-    multiplier: '1.8x',
-  },
-];
+const BENCHMARK_DATA = benchmarkCases.slice(0, 6).map((benchmark) => {
+  const [solidis, ...competitors] = [...benchmark.clients].sort(
+    (left, right) =>
+      Number(right.name === 'solidis') - Number(left.name === 'solidis'),
+  );
+  const competitor = competitors.reduce((fastest, client) =>
+    client.operationsPerSecond > fastest.operationsPerSecond ? client : fastest,
+  );
+
+  return {
+    name: benchmark.name,
+    commands: benchmark.commands,
+    multiplier: `${benchmark.lead.toFixed(1)}x`,
+    bars: [solidis, competitor],
+  };
+});
 
 function BenchmarkBar({
   data,
@@ -65,10 +39,7 @@ function BenchmarkBar({
   index: number;
   animated: boolean;
 }) {
-  const solidisWidth = 100;
-  const ioredisWidth = (data.solidis / data.ioredis) * 100;
-  const solidisAnimDuration = data.solidis;
-  const ioredisAnimDuration = data.ioredis;
+  const fastest = Math.max(...data.bars.map((bar) => bar.operationsPerSecond));
 
   return (
     <div className="group">
@@ -92,42 +63,33 @@ function BenchmarkBar({
         </span>
       </div>
       <div className="space-y-1.5">
-        <div className="flex items-center gap-3">
-          <span className="text-[11px] font-mono text-foreground w-14 shrink-0">
-            solidis
-          </span>
-          <div className="flex-1 relative h-2 rounded-full bg-secondary/50 overflow-hidden">
-            <div
-              className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-amber-500 to-amber-400"
-              style={{
-                width: animated ? `${solidisWidth}%` : '0%',
-                transition: `width ${solidisAnimDuration}ms linear`,
-                transitionDelay: `${index * 150}ms`,
-              }}
-            />
-          </div>
-          <span className="text-[11px] font-mono text-muted-foreground w-16 text-right shrink-0">
-            {data.solidis}ms
-          </span>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-[11px] font-mono text-muted-foreground w-14 shrink-0">
-            ioredis
-          </span>
-          <div className="flex-1 relative h-2 rounded-full bg-secondary/50 overflow-hidden">
-            <div
-              className="absolute inset-y-0 left-0 rounded-full bg-foreground/15"
-              style={{
-                width: animated ? `${ioredisWidth}%` : '0%',
-                transition: `width ${ioredisAnimDuration}ms linear`,
-                transitionDelay: `${index * 150}ms`,
-              }}
-            />
-          </div>
-          <span className="text-[11px] font-mono text-muted-foreground w-16 text-right shrink-0">
-            {data.ioredis}ms
-          </span>
-        </div>
+        {data.bars.map((bar) => {
+          const width = (bar.operationsPerSecond / fastest) * 100;
+          const isSolidis = bar.name === 'solidis';
+
+          return (
+            <div key={bar.name} className="flex items-center gap-3">
+              <span
+                className={`text-[11px] font-mono w-20 shrink-0 ${isSolidis ? 'text-foreground' : 'text-muted-foreground'}`}
+              >
+                {bar.name}
+              </span>
+              <div className="flex-1 relative h-2 rounded-full bg-secondary/50 overflow-hidden">
+                <div
+                  className={`absolute inset-y-0 left-0 rounded-full ${isSolidis ? 'bg-gradient-to-r from-amber-500 to-amber-400' : 'bg-foreground/15'}`}
+                  style={{
+                    width: animated ? `${width}%` : '0%',
+                    transition: `width ${Math.round(width * 15)}ms linear`,
+                    transitionDelay: `${index * 150}ms`,
+                  }}
+                />
+              </div>
+              <span className="text-[11px] font-mono text-muted-foreground w-20 text-right shrink-0">
+                {formatOperations(bar.operationsPerSecond)} ops/s
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -160,7 +122,8 @@ function RevealSection({
 
 export default function HomePage() {
   const { stats, loading } = useGitHubStats();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const claims = getBenchmarkClaims(locale);
 
   const { reference: benchmarkReference, isIntersecting: benchmarkVisible } =
     useIntersectionObserver({
@@ -179,7 +142,10 @@ export default function HomePage() {
       title: t('home.serverlessReady'),
       description: t('home.serverlessReadyDesc'),
     },
-    { title: t('home.twiceAsFast'), description: t('home.twiceAsFastDesc') },
+    {
+      title: t('home.twiceAsFast'),
+      description: t('home.twiceAsFastDesc', claims),
+    },
     { title: t('home.battleTested'), description: t('home.battleTestedDesc') },
     {
       title: t('home.modernProtocol'),
@@ -215,7 +181,7 @@ export default function HomePage() {
             className="hero-reveal text-lg text-muted-foreground mx-auto leading-relaxed mb-4"
             style={{ '--hero-delay': '300ms' } as React.CSSProperties}
           >
-            {t('home.subtitle')}
+            {t('home.subtitle', claims)}
           </p>
 
           <div
@@ -398,7 +364,7 @@ await client.set('key', 'value');`}
                 {t('home.blazingFast')}
               </h2>
               <p className="text-muted-foreground mx-auto text-[15px]">
-                {t('home.benchmarkDesc')}
+                {t('home.benchmarkDesc', claims)}
               </p>
             </div>
           </RevealSection>

@@ -18,7 +18,7 @@ interface I18nContextType {
   locale: Locale;
   messages: Messages;
   setLocale: (locale: Locale) => void;
-  t: (key: string) => string;
+  t: (key: string, values?: Record<string, string | number>) => string;
 }
 
 const I18nContext = createContext<I18nContextType | undefined>(undefined);
@@ -44,7 +44,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('locale', newLocale);
   };
 
-  const t = (key: string): string => {
+  const t = (key: string, values?: Record<string, string | number>): string => {
     const keys = key.split('.');
     let value: unknown = translations[locale];
 
@@ -56,7 +56,11 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    return typeof value === 'string' ? value : key;
+    return typeof value === 'string'
+      ? value.replace(/\{(\w+)\}/g, (placeholder, name: string) =>
+          String(values?.[name] ?? placeholder),
+        )
+      : key;
   };
 
   return (

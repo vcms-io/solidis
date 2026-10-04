@@ -341,6 +341,7 @@ export class ChatServer {
     // Leave current room if any
     if (client.roomId) {
       await this.chat.leaveRoom(client.roomId, client.userId);
+      await this.chat.removeUser(client.roomId, client.userId);
     }
 
     // Update client data

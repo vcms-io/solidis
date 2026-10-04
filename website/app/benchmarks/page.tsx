@@ -11,148 +11,18 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import {
+  benchmarkCases,
+  benchmarkNotes,
+  benchmarkSummary,
+} from '@/lib/benchmarks';
 import { useI18n } from '@/lib/i18n-context';
+import { formatOperations, getBenchmarkClaims } from '@/lib/utils';
 
 export default function BenchmarksPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
-  const benchmarkData = [
-    {
-      name: 'Set Mutation',
-      description: 'SADD + SISMEMBER + SREM',
-      solidis: '1729ms',
-      ioredis: '3648ms',
-      improvement: '2.1x',
-      solidisNumber: 1729,
-      ioredisNumber: 3648,
-    },
-    {
-      name: 'List Mutation',
-      description: 'LPUSH + RPUSH + LPOP + RPOP + LLEN',
-      solidis: '2455ms',
-      ioredis: '4920ms',
-      improvement: '2.0x',
-      solidisNumber: 2455,
-      ioredisNumber: 4920,
-    },
-    {
-      name: 'Set Read',
-      description: 'SADD + SISMEMBER + SMEMBERS',
-      solidis: '1717ms',
-      ioredis: '3214ms',
-      improvement: '1.9x',
-      solidisNumber: 1717,
-      ioredisNumber: 3214,
-    },
-    {
-      name: 'List Range',
-      description: 'LPUSH + RPUSH + LRANGE',
-      solidis: '1661ms',
-      ioredis: '3095ms',
-      improvement: '1.9x',
-      solidisNumber: 1661,
-      ioredisNumber: 3095,
-    },
-    {
-      name: 'Hash Mutation',
-      description: 'HMSET + HMGET + HDEL',
-      solidis: '2046ms',
-      ioredis: '3776ms',
-      improvement: '1.8x',
-      solidisNumber: 2046,
-      ioredisNumber: 3776,
-    },
-    {
-      name: 'Multi-Key',
-      description: 'MSET + MGET',
-      solidis: '1767ms',
-      ioredis: '3242ms',
-      improvement: '1.8x',
-      solidisNumber: 1767,
-      ioredisNumber: 3242,
-    },
-    {
-      name: 'Sorted Set',
-      description: 'ZADD + ZRANGE + ZREM',
-      solidis: '1639ms',
-      ioredis: '3007ms',
-      improvement: '1.8x',
-      solidisNumber: 1639,
-      ioredisNumber: 3007,
-    },
-    {
-      name: 'Expire',
-      description: 'SET + EXPIRE + TTL',
-      solidis: '1023ms',
-      ioredis: '1840ms',
-      improvement: '1.8x',
-      solidisNumber: 1023,
-      ioredisNumber: 1840,
-    },
-    {
-      name: 'Stream',
-      description: 'XADD + XRANGE + XLEN',
-      solidis: '1830ms',
-      ioredis: '3263ms',
-      improvement: '1.8x',
-      solidisNumber: 1830,
-      ioredisNumber: 3263,
-    },
-    {
-      name: 'Set',
-      description: 'SET (1 KB payload)',
-      solidis: '740ms',
-      ioredis: '1306ms',
-      improvement: '1.8x',
-      solidisNumber: 740,
-      ioredisNumber: 1306,
-    },
-    {
-      name: 'Hash Round-Trip',
-      description: 'HSET + HGET + HGETALL',
-      solidis: '1632ms',
-      ioredis: '2703ms',
-      improvement: '1.7x',
-      solidisNumber: 1632,
-      ioredisNumber: 2703,
-    },
-    {
-      name: 'Non-Transaction',
-      description: 'SETPX + GET',
-      solidis: '1077ms',
-      ioredis: '1739ms',
-      improvement: '1.6x',
-      solidisNumber: 1077,
-      ioredisNumber: 1739,
-    },
-    {
-      name: 'Counter',
-      description: 'INCR + DECR',
-      solidis: '921ms',
-      ioredis: '1474ms',
-      improvement: '1.6x',
-      solidisNumber: 921,
-      ioredisNumber: 1474,
-    },
-    {
-      name: 'Pipeline Mixed',
-      description: 'SET + INCR + GET',
-      solidis: '1690ms',
-      ioredis: '2600ms',
-      improvement: '1.5x',
-      solidisNumber: 1690,
-      ioredisNumber: 2600,
-    },
-    {
-      name: 'Get Buffer',
-      description: 'GETBUFFER (1 KB payload)',
-      solidis: '473ms',
-      ioredis: '716ms',
-      improvement: '1.5x',
-      solidisNumber: 473,
-      ioredisNumber: 716,
-    },
-  ];
+  const claims = getBenchmarkClaims(locale);
 
   return (
     <div className="content-container pt-20 sm:pt-24 pb-10 sm:pb-16">
@@ -167,7 +37,9 @@ export default function BenchmarksPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         <div className="card-base p-5 text-center">
-          <div className="text-2xl font-bold text-amber-600 mb-1">2.1x</div>
+          <div className="text-2xl font-bold text-amber-600 mb-1">
+            {benchmarkSummary.peakLead.toFixed(1)}x
+          </div>
           <div className="text-xs text-muted-foreground">
             {t('benchmarks.maxSpeedBoost')}
           </div>
@@ -193,23 +65,33 @@ export default function BenchmarksPage() {
           <CardTitle className="text-base">
             {t('benchmarks.methodology')}
           </CardTitle>
-          <CardDescription>{t('benchmarks.methodologyDesc')}</CardDescription>
+          <CardDescription>
+            {t('benchmarks.methodologyDesc', claims)}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
             <div>
               <span className="text-muted-foreground">Node.js</span>
-              <span className="ml-2 font-mono text-foreground">v22.23.2</span>
+              <span className="ml-2 font-mono text-foreground">
+                {benchmarkSummary.nodeVersion}
+              </span>
             </div>
             <div>
-              <span className="text-muted-foreground">Redis</span>
-              <span className="ml-2 font-mono text-foreground">7.0+</span>
+              <span className="text-muted-foreground">
+                {t('benchmarks.server')}
+              </span>
+              <span className="ml-2 font-mono text-foreground">
+                {benchmarkSummary.server}
+              </span>
             </div>
             <div>
               <span className="text-muted-foreground">
                 {t('benchmarks.platform')}
               </span>
-              <span className="ml-2 font-mono text-foreground">Linux x64</span>
+              <span className="ml-2 font-mono text-foreground">
+                {benchmarkSummary.platform}
+              </span>
             </div>
           </div>
         </CardContent>
@@ -221,15 +103,18 @@ export default function BenchmarksPage() {
             {t('benchmarks.benchmarkResults')}
           </CardTitle>
           <CardDescription>
-            {t('benchmarks.benchmarkResultsDesc')}
+            {t('benchmarks.benchmarkResultsDesc', claims)}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
-            {benchmarkData.map((benchmark) => {
-              const solidisWidth = 100;
-              const ioredisWidth =
-                (benchmark.solidisNumber / benchmark.ioredisNumber) * 100;
+            {benchmarkCases.map((benchmark) => {
+              const fastest = Math.max(
+                ...benchmark.clients.map(
+                  (client) => client.operationsPerSecond,
+                ),
+              );
+
               return (
                 <div key={benchmark.name}>
                   <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between mb-2">
@@ -238,49 +123,52 @@ export default function BenchmarksPage() {
                         {benchmark.name}
                       </span>
                       <span className="block sm:inline sm:ml-2 text-xs text-muted-foreground font-mono">
-                        {benchmark.description}
+                        {benchmark.commands}
                       </span>
                     </div>
                     <Badge
                       variant="outline"
                       className="text-amber-600 border-amber-500/30 text-xs w-fit"
                     >
-                      {benchmark.improvement}
+                      {benchmark.lead.toFixed(1)}x
                     </Badge>
                   </div>
                   <div className="space-y-1.5">
-                    <div className="flex items-center gap-3">
-                      <span className="text-[11px] font-mono text-foreground w-14 shrink-0">
-                        solidis
-                      </span>
-                      <div className="flex-1 relative h-2 rounded-full bg-secondary/50 overflow-hidden">
-                        <div
-                          className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-amber-500 to-amber-400"
-                          style={{ width: `${solidisWidth}%` }}
-                        />
+                    {benchmark.clients.map((client) => (
+                      <div
+                        key={client.name}
+                        className="flex items-center gap-3"
+                      >
+                        <span
+                          className={`text-[11px] font-mono w-20 shrink-0 ${client.name === 'solidis' ? 'text-foreground' : 'text-muted-foreground'}`}
+                        >
+                          {client.name}
+                          {client.note > 0 && <sup>{client.note}</sup>}
+                        </span>
+                        <div className="flex-1 relative h-2 rounded-full bg-secondary/50 overflow-hidden">
+                          <div
+                            className={`absolute inset-y-0 left-0 rounded-full ${client.name === 'solidis' ? 'bg-gradient-to-r from-amber-500 to-amber-400' : 'bg-foreground/15'}`}
+                            style={{
+                              width: `${(client.operationsPerSecond / fastest) * 100}%`,
+                            }}
+                          />
+                        </div>
+                        <span className="text-[11px] font-mono text-muted-foreground w-20 text-right shrink-0">
+                          {formatOperations(client.operationsPerSecond)} ops/s
+                        </span>
                       </div>
-                      <span className="text-[11px] font-mono text-muted-foreground w-16 text-right shrink-0">
-                        {benchmark.solidis}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-[11px] font-mono text-muted-foreground w-14 shrink-0">
-                        ioredis
-                      </span>
-                      <div className="flex-1 relative h-2 rounded-full bg-secondary/50 overflow-hidden">
-                        <div
-                          className="absolute inset-y-0 left-0 rounded-full bg-foreground/15"
-                          style={{ width: `${ioredisWidth}%` }}
-                        />
-                      </div>
-                      <span className="text-[11px] font-mono text-muted-foreground w-16 text-right shrink-0">
-                        {benchmark.ioredis}
-                      </span>
-                    </div>
+                    ))}
                   </div>
                 </div>
               );
             })}
+          </div>
+          <div className="mt-6 space-y-1 text-[11px] text-muted-foreground">
+            {benchmarkNotes.map((note, index) => (
+              <p key={note.en}>
+                <sup>{index + 1}</sup> {note[locale]}
+              </p>
+            ))}
           </div>
         </CardContent>
       </Card>

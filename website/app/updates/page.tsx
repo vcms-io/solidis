@@ -39,18 +39,10 @@ export default function UpdatesPage() {
     },
   ];
 
-  const getStatusColor = (statusKey: string) => {
-    switch (statusKey) {
-      case 'statusInDev':
-        return 'bg-blue-500/10 text-blue-600 border-blue-500/20';
-      case 'statusPlanned':
-        return 'bg-purple-500/10 text-purple-600 border-purple-500/20';
-      case 'statusResearch':
-        return 'bg-muted text-muted-foreground';
-      default:
-        return 'bg-muted text-muted-foreground';
-    }
-  };
+  const getStatusColor = (statusKey: string) =>
+    statusKey === 'statusPlanned'
+      ? 'bg-purple-500/10 text-purple-600 border-purple-500/20'
+      : 'bg-muted text-muted-foreground';
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {

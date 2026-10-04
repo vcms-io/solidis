@@ -5,13 +5,13 @@ import './globals.css';
 import { AmbientBackground } from '@/components/ambient-background';
 import { Footer } from '@/components/footer';
 import { Navbar } from '@/components/navbar';
+import { benchmarkSummary } from '@/lib/benchmarks';
 import { I18nProvider } from '@/lib/i18n-context';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://solidis.vcms.io'),
   title: 'Solidis | Zero-dependency RESP client for Redis',
-  description:
-    'The fastest Redis client for Node.js. Zero dependencies, RESP2 and RESP3, TypeScript-first. Up to 2x faster than ioredis.',
+  description: `The fastest Redis client for Node.js. Zero dependencies, RESP2 and RESP3, TypeScript-first. Up to ${benchmarkSummary.peakLead.toFixed(1)}x faster than the next-fastest client.`,
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },
