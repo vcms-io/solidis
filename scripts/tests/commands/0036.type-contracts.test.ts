@@ -326,6 +326,7 @@ describe('type-contracts', () => {
       // @ts-expect-error JSON.DEBUG HELP takes no key
       await client.jsonDebug('HELP', 'k');
       await client.bfReserve('b', 0.01, 100, 2);
+      await client.bfReserve('b', 0.01, 100, 2, false);
       await client.bfReserve('b', 0.01, 100, undefined, true);
       // @ts-expect-error BF.RESERVE cannot expand a non-scaling filter
       await client.bfReserve('b', 0.01, 100, 2, true);

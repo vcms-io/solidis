@@ -10,5 +10,5 @@ export async function pipeline<T>(
 
   const replies = await this.send(commands);
 
-  return replies.map((reply) => reply[0]);
+  return replies.map((reply) => (reply.length > 1 ? reply : reply[0]));
 }

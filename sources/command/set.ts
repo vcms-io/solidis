@@ -7,13 +7,7 @@ import {
 
 import type { CommandSetOptions, RespOK, StringOrBuffer } from '../index.ts';
 
-export function createCommand(
-  key: string,
-  value: StringOrBuffer,
-  options?: CommandSetOptions,
-) {
-  return buildSetCommand(key, value, options);
-}
+export const createCommand = buildSetCommand;
 
 export async function set<T>(
   this: T,

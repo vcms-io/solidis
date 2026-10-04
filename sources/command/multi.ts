@@ -1,7 +1,7 @@
 import { SolidisClient } from '../client.ts';
 import { SolidisTransactionBannedCommandNames } from '../common/constants.ts';
 import { SolidisRequesterError } from '../common/utils/error.ts';
-import { inspectCommand } from '../modules/internal.ts';
+import { copyCommands, inspectCommand } from '../modules/internal.ts';
 import {
   assertSender,
   newCommandError,
@@ -68,7 +68,7 @@ export function multi<T extends object>(this: T): SolidisTransactionClient<T> {
   assertSender(client, ['MULTI']);
 
   const queue = (commands: StringOrBuffer[][]) => {
-    for (const command of commands) {
+    for (const command of copyCommands(commands)) {
       transactionQueue.push(command);
     }
 
@@ -96,8 +96,7 @@ export function multi<T extends object>(this: T): SolidisTransactionClient<T> {
           if (
             typeof method !== 'function' ||
             property in SolidisClient.prototype ||
-            bannedCommandNames.has(property) ||
-            Reflect.get(method, Symbol.toStringTag) === 'AsyncGeneratorFunction'
+            bannedCommandNames.has(property)
           ) {
             return undefined;
           }

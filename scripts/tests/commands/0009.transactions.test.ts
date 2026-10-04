@@ -439,6 +439,43 @@ describe('transactions', () => {
     }
   });
 
+  it('queues copies of the commands a method sends, so the method can reuse one array', async () => {
+    class PairClient extends SolidisFeaturedClient {
+      setPairs(pairs: [string, string][]) {
+        const command = ['SET', '', ''];
+
+        for (const [key, value] of pairs) {
+          command[1] = key;
+          command[2] = value;
+
+          this.send([command]);
+        }
+      }
+    }
+
+    const paired = new PairClient(buildClientOptions({ lazyConnect: true }));
+    const first = keyspace.key('pairs', 'first');
+    const second = keyspace.key('pairs', 'second');
+
+    paired.on('error', () => {});
+
+    try {
+      await paired.connect();
+
+      const transaction = paired.multi();
+
+      transaction.setPairs([
+        [first, '1'],
+        [second, '2'],
+      ]);
+
+      assert.deepStrictEqual(await transaction.exec(), ['OK', 'OK']);
+      assert.deepStrictEqual(await client.mget(first, second), ['1', '2']);
+    } finally {
+      paired.quit();
+    }
+  });
+
   it('keeps the place of exec() among the commands sent after it', async () => {
     const counter = keyspace.key('order', 'counter');
     const value = keyspace.key('order', 'value');

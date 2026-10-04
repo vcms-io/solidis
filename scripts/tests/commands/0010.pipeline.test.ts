@@ -205,6 +205,40 @@ describe('pipeline', () => {
     assert.deepStrictEqual(value, Buffer.from('text'));
   });
 
+  it('returns every reply of a command the server answers more than once', async () => {
+    const subscriber = await createClient();
+    const channel = keyspace.key('featured', 'channel');
+    const confirmations = (reply: SolidisData) => {
+      assert.ok(Array.isArray(reply));
+
+      return reply.map((entry) => {
+        assert.ok(Array.isArray(entry));
+
+        return Array.from(entry, String);
+      });
+    };
+
+    try {
+      const [subscribed, unsubscribed] = (
+        await subscriber.pipeline([
+          ['SUBSCRIBE', `${channel}:1`, `${channel}:2`],
+          ['UNSUBSCRIBE'],
+        ])
+      ).map(confirmations);
+
+      assert.deepStrictEqual(subscribed, [
+        ['subscribe', `${channel}:1`, '1'],
+        ['subscribe', `${channel}:2`, '2'],
+      ]);
+      assert.deepStrictEqual(
+        unsubscribed.map((entry) => entry[2]),
+        ['1', '0'],
+      );
+    } finally {
+      await closeClient(subscriber);
+    }
+  });
+
   it('resolves an empty batch without a round trip', async () => {
     assert.deepStrictEqual(await client.send([]), []);
     assert.deepStrictEqual(await client.pipeline([]), []);

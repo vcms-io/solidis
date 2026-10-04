@@ -148,4 +148,8 @@ export const SolidisTransactionBannedCommandNames = [
   'auth',
   'hello',
   'reset',
+  'scan',
+  'hscan',
+  'sscan',
+  'zscan',
 ] as const;

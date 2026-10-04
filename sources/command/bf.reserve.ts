@@ -23,7 +23,13 @@ export function createCommand(
 export async function bfReserve<T>(
   this: T,
   ...parameters:
-    | [key: string, errorRate: number, capacity: number, expansion?: number]
+    | [
+        key: string,
+        errorRate: number,
+        capacity: number,
+        expansion?: number,
+        nonScaling?: false,
+      ]
     | [
         key: string,
         errorRate: number,
