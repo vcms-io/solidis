@@ -180,7 +180,7 @@ export default function BenchmarksPage() {
         </div>
         <div className="card-base p-5 text-center">
           <div className="text-2xl font-bold text-foreground mb-1">
-            &lt;29KB
+            &lt;30KB
           </div>
           <div className="text-xs text-muted-foreground">
             {t('benchmarks.bundleSize')}

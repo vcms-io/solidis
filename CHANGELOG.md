@@ -17,7 +17,7 @@ This release rebuilds the client core around one guarantee: every reply reaches 
 - A reconnect restores the session (authentication, protocol, selected database and subscriptions) before any queued command runs, with exponential, jittered backoff, and refuses to commit a transaction whose `WATCH` or `MULTI` it lost.
 - Server errors reject with a `SolidisCommandError` whose `cause` is the server's `RespError`. Messages no longer list the command's arguments, and arguments the server quotes back are masked.
 - New `{ buffer: true }` and `{ bigint: true }` command options, per-request timeouts, and option types that reject combinations the server refuses.
-- The CommonJS build loads again, with its own type declarations, and the minimal bundle is smaller than in 0.4.0.
+- The CommonJS build loads again, with its own type declarations.
 
 ### Upgrading from 0.4.x
 
@@ -68,7 +68,7 @@ try {
 - **Messages.** 0.4.x put every argument into the message, for example `[AUTH default <password>] Invalid reply: ...`. Messages are now `[COMMAND] <server message>`. A reply of an unexpected type is described by its shape, such as `[INCR] Unexpected reply: Buffer(12)`, never by its content. Match on `error.cause.code` instead of parsing messages.
 - **`getOriginalError()`** is removed. Read the standard `error.cause` instead.
 - **`RespError`** now extends `SolidisError`, so `instanceof SolidisError` also matches it.
-- **Scripts.** `eval`, `evalRo`, `evalsha`, `evalshaRo`, `fcall`, `fcallRo` and `debug` used to resolve an error reply, such as `NOSCRIPT`, as a `RespError` value. They now reject, so the usual fallback works:
+- **Error replies.** `eval`, `evalRo`, `evalsha`, `evalshaRo`, `fcall`, `fcallRo`, `debug` and `jsonResp` used to resolve an error reply, such as `NOSCRIPT`, as a `RespError` value. They now reject, so the usual fallback works:
 
   ```typescript
   try {
@@ -86,28 +86,28 @@ try {
 
 #### 4. Update code that reads changed results
 
-| API                                  | 0.4.x                                                                          | Now                                                                             |
-| :----------------------------------- | :----------------------------------------------------------------------------- | :------------------------------------------------------------------------------ |
-| `pipeline(commands)`                 | Returned only the reply of the last command                                    | Returns one reply per command, in order                                         |
-| `multi()` … `exec()`                 | Resolved `[null]` when `WATCH` aborted the transaction, and resolved EXECABORT | Resolves `null` when aborted; EXECABORT rejects with a `SolidisCommandError`    |
-| `hrandfield(key, count, true)`       | `Record<string, string>`                                                       | `{ field, value }[]`, keeping the duplicates of a negative count                |
-| `tsInfo(key)`                        | Raw fields as `Record<string, unknown>`                                        | `RespTimeSeriesInfo`, with `labels` as a record and `rules` as entries          |
-| `tsMadd()`, `bfMadd()`, `bfInsert()` | Rejected the whole call when one item failed, after storing the others         | Resolve with one entry per item; a failed or skipped item is a `RespError`      |
-| `cfInsert()`, `cfInsertnx()`         | Rejected the whole call with `Invalid reply` when the filter was full          | `null` for each item the full filter could not take                             |
-| `xreadgroup()`                       | Rejected the batch when it contained a deleted entry                           | Returns deleted entries as `{ id, fields: null }` (`RespStreamGroupReadResult`) |
-| `xinfoGroups()`, `xinfoStream()`     | Turned an unknown `entriesRead`, and the unknown `lag` of a group, into `0`    | `number \| null`                                                                |
-| `xinfoStream()`, `xinfoConsumers()`  | Fields that older servers omit became `"undefined"` or `NaN`                   | `null`                                                                          |
-| `xautoclaim()`, `xclaim()`           | Rejected after claiming when Redis 6.2 reported a deleted entry                | Skip the deleted entries                                                        |
-| `tsMget()`                           | Rejected the call when a matching series had no samples                        | `timestamp` and `value` are `null` for a series without samples                 |
-| `jsonObjkeys()`                      | Never `null`                                                                   | `null` for a missing key                                                        |
-| `memoryStats()`                      | `db` was always empty, and fields the server does not report were `NaN`        | `db` is keyed by database index, and fields the server does not report are `0`  |
-| `aclLog()`                           | `entryId` and the timestamps were `0` when the server did not send them        | `number \| null`                                                                |
-| `aclGetuser()`                       | On Redis 6.2, `keys` and `channels` were patterns joined with commas           | Patterns with their `~` or `&` prefix, separated by spaces, as on Redis 7       |
-| `info()`                             | Kept only the last of repeated fields, such as the `module` lines              | Repeated fields joined with `\n`                                                |
-| `shutdown()`                         | Rejected with `Connection closed.` after the server shut down                  | Resolves `'OK'` when the server closes the connection                           |
-| `bgsave()`, `bgrewriteaof()`         | Typed as `'OK'` and always rejected the actual reply                           | Resolve with the server's status, such as `'Background saving started'`         |
-| `reset()`                            | Typed as `'OK'` and always rejected the actual reply                           | Resolves with `'RESET'`                                                         |
-| `commandDocs()`                      | `subcommands` was a nested string record                                       | `subcommands` is a record of `RespCommandDoc`                                   |
+| API                                  | 0.4.x                                                                               | Now                                                                                 |
+| :----------------------------------- | :---------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------- |
+| `pipeline(commands)`                 | Returned only the reply of the last command                                         | Returns one reply per command, in order                                             |
+| `multi()` … `exec()`                 | Resolved `[null]` when `WATCH` aborted the transaction, and resolved EXECABORT      | Resolves `null` when aborted; EXECABORT rejects with a `SolidisCommandError`        |
+| `hrandfield(key, count, true)`       | `Record<string, string>`                                                            | `{ field, value }[]`, keeping the duplicates of a negative count                    |
+| `tsInfo(key)`                        | Raw fields as `Record<string, unknown>`                                             | `RespTimeSeriesInfo`, with `labels` as a record and `rules` as entries              |
+| `tsMadd()`, `bfMadd()`, `bfInsert()` | Rejected the whole call when one item failed, after storing the others              | Resolve with one entry per item; a failed or skipped item is a `RespError`          |
+| `cfInsert()`, `cfInsertnx()`         | Rejected the whole call with `Invalid reply` when the filter was full               | `null` for each item the full filter could not take                                 |
+| `xreadgroup()`                       | Rejected the batch when it contained a deleted entry                                | Returns deleted entries as `{ id, fields: null }` (`RespStreamGroupReadResult`)     |
+| `xinfoGroups()`, `xinfoStream()`     | Turned an unknown `entriesRead` into `0`, and `xinfoGroups()` also an unknown `lag` | `number \| null`                                                                    |
+| `xinfoStream()`, `xinfoConsumers()`  | Fields that older servers omit became `"undefined"` or `NaN`                        | `null`                                                                              |
+| `xautoclaim()`, `xclaim()`           | Rejected after claiming when Redis 6.2 reported a deleted entry                     | Skip the deleted entries                                                            |
+| `tsMget()`                           | Rejected the call when a matching series had no samples                             | `timestamp` and `value` are `null` for a series without samples                     |
+| `jsonObjkeys()`                      | Rejected a missing key with `Unexpected reply: null`                                | `null` for a missing key with a legacy path, and the server's error with a JSONPath |
+| `memoryStats()`                      | `db` was always empty, and fields the server does not report were `NaN`             | `db` is keyed by database index, and fields the server does not report are `0`      |
+| `aclLog()`                           | `entryId` and the timestamps were `0` when the server did not send them             | `number \| null`                                                                    |
+| `aclGetuser()`                       | On Redis 6.2, `keys` and `channels` were patterns joined with commas                | Patterns with their `~` or `&` prefix, separated by spaces, as on Redis 7           |
+| `info()`                             | Kept only the last of repeated fields, such as the `module` lines                   | Repeated fields joined with `\n`                                                    |
+| `shutdown()`                         | Rejected with `Connection closed.` after the server shut down                       | Resolves `'OK'` when the server closes the connection                               |
+| `bgsave()`, `bgrewriteaof()`         | Typed as `'OK'` and always rejected the actual reply                                | Resolve with the server's status, such as `'Background saving started'`             |
+| `reset()`                            | Typed as `'OK'` and always rejected the actual reply                                | Resolves with `'RESET'`                                                             |
+| `commandDocs()`                      | `subcommands` was a nested string record                                            | `subcommands` is a record of `RespCommandDoc`                                       |
 
 ```typescript
 // pipeline() returns one raw reply per command, in order
@@ -249,7 +249,7 @@ Other option changes:
 - **URI parsing.** The database in the path is applied, percent-encoded credentials are decoded, and bracketed IPv6 hosts work. A scheme other than `redis:` or `rediss:`, or an invalid database, makes the constructor throw a `SolidisClientError`.
 - **Reconnect delay.** `connectionRetryDelay` was a fixed delay between attempts. It is now the first delay of an exponential backoff that doubles after each failed attempt, is capped by `maxConnectionRetryDelay` (default `2000` ms) and is jittered to 50–100%. With the defaults, the waits between the 20 retries add up to 17–33 seconds instead of 2 seconds. Lower `maxConnectionRetries` or `maxConnectionRetryDelay` if you need to fail faster.
   - `maxConnectionRetries` bounds each `connect()` and each lost connection. When the background reconnect gives up, the client emits an `error` saying `Connection failed after N retries.` and stops; the next command or `connect()` starts a new attempt. `Infinity` retries forever.
-  - A connection that closes before it has stayed ready for `maxConnectionRetryDelay`, such as one whose handshake the server refuses, counts as a failed attempt. A server or proxy that accepts and drops connections, or a password changed on the server, is retried with growing delays until the retries are spent, instead of in an endless loop. Losing a connection that stayed ready longer starts a new count.
+  - A connection that closes before it has stayed ready for `maxConnectionRetryDelay`, such as one whose handshake the server refuses, counts as a failed attempt. A server or proxy that accepts and drops connections is retried with growing delays until the retries are spent, instead of in an endless loop, and so is a server that refuses a changed password. Losing a connection that stayed ready longer starts a new count.
   - `reconnecting(attempt, delay)` is emitted before every attempt, including the first one after a drop. `attempt` counts the attempts since the connection was last stable, starting at 1.
 - **Handshake.** The first `connect()` retries a handshake that a closing connection interrupted, within `maxConnectionRetries`. With `protocol: 'RESP3'`, only a server that does not know `HELLO` or answers `NOPROTO` falls back to RESP2; other `HELLO` errors, such as an invalid client name, fail with `Protocol negotiation failed`. A ready check denied with `NOPERM` counts as ready. A user chosen at runtime with `auth()` or `hello()`, and a protocol chosen with `hello()`, are restored after a reconnect, until `RESET`. A `CLIENT SETNAME` error other than `NOPERM` or an unknown command fails the handshake with `CLIENT SETNAME failed` and the server's reply as the cause, so a server that refuses the connection, such as one in protected mode or at `maxclients`, is reported at once instead of after every retry. A `WRONGPASS` or `NOAUTH` reply to any handshake step, restoring the database and subscriptions included, and any other error from `AUTH`, fail it with `Authentication failed`; another `SELECT` error fails it with `SELECT failed`. The ready check stops waiting as soon as its connection closes.
 - **Listener errors.** A `connect`, `ready`, `reconnected`, `close`, `reconnecting`, `drain` or `end` listener that throws no longer breaks the session; the client emits an `error` (`A 'ready' listener threw`) and carries on. A throwing `debug` listener is reported with `process.emitWarning()`, and debug entries are delivered asynchronously.
@@ -303,26 +303,28 @@ Skip this step unless you construct the internal classes yourself or write custo
 - RESP3 connections authenticate with a single `HELLO 3 AUTH`, and `WRONGPASS` or `NOAUTH` fails the connection instead of continuing unauthenticated.
 - After a reconnect, the client restores the database selected at runtime and each kind of subscription, and forgets a kind the server refuses.
 - Blocking commands (`blpop`, `brpop`, `blmove`, `blmpop`, `brpoplpush`, `bzpopmin`, `bzpopmax`, `bzmpop`, `xread` and `xreadgroup` with `block`, `wait` and `waitaof`) run in a pipeline of their own. Their deadline is `commandTimeout` plus their own timeout, and they have none when they block forever.
-- A pipeline that times out while later ones are still waiting keeps its place, and its late replies are discarded when they arrive. The connection is reset when a blocking pipeline times out, when every in-flight pipeline has timed out, or when a second pipeline in a row times out with nothing received since it was written, so a late reply can never reach a later command and a server that stops answering is dropped even under constant traffic.
+- A pipeline that times out while later ones are still waiting keeps its place, and its late replies are discarded when they arrive. The connection is reset when a blocking pipeline times out, when every in-flight pipeline has timed out, or when a second pipeline in a row times out with nothing received since it was written once the oldest pipeline has waited at least `commandTimeout`, so a late reply can never reach a later command and a server that stops answering is dropped even under constant traffic with shorter per-request timeouts.
 - `quit()` rejects pending commands and pending `connect()` calls at once with a `SolidisClientError` whose message is `The client was quit.`, also when a `ready` listener calls it or the ready check is waiting, and commands and `connect()` calls after `quit()` reject the same way.
 - Pipelines go to the socket as soon as they are sealed instead of waiting for `drain` after each write.
 - Bulk replies of 64 KB or more are returned as views of the received data instead of copies.
 - `zpopmin`, `zpopmax`, `bitfield`, `jsonNumincrby` and `jsonNummultby` never return `null`. `type()` returns the core types upper-cased and module type names, such as `ReJSON-RL`, as the server reports them.
-- `jsonNumincrby` and `jsonNummultby` return the same text on RESP2 and RESP3, with exact integers beyond `Number.MAX_SAFE_INTEGER`, and reject on both protocols when a legacy path matches no number; `bzpopmin` and `bzpopmax` format scores the same way on both protocols.
+- `jsonNumincrby` and `jsonNummultby` return the same text on RESP2 and RESP3, with exact integers beyond `Number.MAX_SAFE_INTEGER`: for a legacy path, the last number it updated. Both protocols reject when a legacy path matches no number; `bzpopmin` and `bzpopmax` format scores the same way on both protocols.
 - Commands added with `extend()` keep their generic signatures, so options such as `{ buffer: true }` type their results. `extend()` types only the functions it adds, and `this` inside them as the extended client, with the commands of earlier `extend()` calls.
 - Every overload of a command can be called on a transaction, such as `multi().lpop(key)` and `multi().mget(a, b)`.
 - `{ buffer: true }` and `{ bigint: true }` type a result regardless of the other options passed with them, and `getex` rejects misspelled options next to `buffer`.
 - An argument-less `UNSUBSCRIBE`, `PUNSUBSCRIBE` or `SUNSUBSCRIBE` also ends the subscriptions that are still being confirmed.
-- `SELECT`, `HELLO` and `AUTH` queued in a transaction take effect for session recovery only when `EXEC` runs them.
+- `SELECT`, `HELLO` and `AUTH` queued in a transaction take effect for session recovery only when `EXEC` runs them, and a `MULTI` or `WATCH` that the server refuses, such as for an ACL user without permission, does not count as lost after a reconnect.
 - A request timeout or `connectionTimeout` longer than 24.8 days, the limit of Node's timers, disables that deadline instead of expiring after 1 ms, longer reconnect delays and `readyCheckInterval` values are capped at that limit, and a negative blocking timeout no longer shortens a deadline.
 - TLS connections send the host name for SNI unless it is an IP address. A `servername` in `tls` still takes precedence.
 - The `error` emitted for a reply that arrives with no pending request carries the reply as its `cause`.
 - `maxBulkStringLength` also limits simple string and error lines.
 - A transaction from a client extended with `multi` also offers the client's own commands, such as `select` and `info`, and the commands of earlier `extend()` calls, and methods that a subclass of the client defines can be queued like commands.
-- `latencyHistory()`, `latencyGraph()` and `latencyReset()` accept event names that `RespLatencyEvent` does not list, such as `module-acquire-GIL` or an `event` returned by `latencyLatest()`.
+- `latencyHistory()`, `latencyGraph()` and `latencyReset()` accept any event name, including `module-acquire-GIL` and every `event` that `latencyLatest()` returns.
 - `bitcount()` and `bitpos()` fill a missing `start` with `0`, and `bitcount()` a missing `end` with `-1`.
 - `functionFlush()` without an argument sends no mode, so the server's `lazyfree-lazy-user-flush` setting applies, as it does for `scriptFlush()`. Pass `false` for `SYNC`.
 - The published files keep the names of classes and functions, so errors print as `SolidisCommandError: ...` and stack traces name the methods.
+- An `error` listener that throws no longer interrupts the client, which still resets the connection and routes the remaining replies; the exception is thrown again asynchronously, so it reaches `uncaughtException` as before.
+- `clientList({ identifiers: [] })`, `migrate()` with `keys: []` and the time-series range commands with `filterByTs: []` send the empty list, which the server refuses or migrates nothing for, instead of acting on every client, key or sample, and `latencyReset([])` rejects instead of resetting every event.
 - `debugMaxEntries` and `maxEventListenersForClient` accept any number: a negative value or `NaN` keeps no debug entries and sets no listener limit, a fraction is rounded down, and `Infinity` keeps every entry.
 
 ### Removed
@@ -343,28 +345,27 @@ See [Upgrading from 0.4.x](#upgrading-from-04x) for replacements.
 - Blocking commands timed out after `commandTimeout` while the server kept them blocked, so an element popped afterwards was lost.
 - Reconnects used a fixed interval and gave up after about two seconds without an event, so subscriber-only clients stopped receiving messages after short outages.
 - `quit()` left pending commands to time out, or pending forever with `commandTimeout: 0`.
-- `close` was declared but never emitted, so a lost connection showed only as a socket `error`.
-- A handshake interrupted by a lost connection could continue on the next connection or report `ready` while disconnected or after `quit()`, and a `quit()` or `connect()` inside a `reconnecting` or `error` listener could leave a second socket open.
+- `close` was declared but never emitted, so a lost connection showed only as a later `reconnected`.
+- A handshake interrupted by a lost connection could continue on the next connection or report `ready` while disconnected or after `quit()`.
 - A transaction lost its `WATCH` in a reconnect and committed anyway, also when `WATCH` was sent again after the reconnect, and a database selected inside a transaction was lost after a reconnect.
 - A `MULTI` sent with `send()` was lost in a reconnect, so the commands after it ran one by one and `EXEC` failed. Those commands are refused now, and the `EXEC` returns `null`.
-- `multi()` left `WATCH` armed after an empty `exec()`, a `discard()` or an `exec()` that rejected a failed call, so the next transaction was aborted. It also reported a refused `MULTI` as `EXECABORT` although the queued commands had run, and let `send`, `pipeline`, `quit` and the event methods run on the client.
+- `multi()` left `WATCH` armed after an empty `exec()`, a `discard()` or an `exec()` that rejected a failed call, so the next transaction was aborted. It also reported a refused `MULTI` as `EXECABORT` although the queued commands had run, ran `pipeline()` outside the transaction and threw a `TypeError` for `send`, `quit` and the event methods.
 - Commands sent before the client was ready could run after commands sent later, such as from a `ready` listener or after `await connect()`.
 - A protocol chosen with `hello()` was lost in a reconnect, so a RESP3 client came back on RESP2, and refused every command if it was subscribed.
 - A server that refused the connection, such as one in protected mode or at `maxclients`, was retried as if the connection had dropped, and its reason was not reported.
-- A command that is not an array, such as `send([undefined])`, threw an uncaught `TypeError` and left the other commands of the same tick pending.
+- A command that is not an array, such as `send([undefined])`, rejected every request sent in the same tick.
 - Replies parsed before a protocol error in the same chunk were rejected with the parser error, although the server had executed their commands.
-- An empty password was treated as none: `auth(user, '')` sent the username as the password, `hello()` skipped `AUTH`, and `authentication: { username, password: '' }` connected as `default`.
+- An empty password was treated as none: `auth(user, '')` sent the username as the password, `hello()` skipped `AUTH`, and `authentication: { username, password: '' }` sent `AUTH <username>` and failed with `Authentication failed`.
 - `jsonArrpop(key, undefined, index)` ignored the index and popped the last element.
 - Changing, clearing or reusing a command array after `send()` changed the commands that were sent, dropped them, or left the promise pending. `send()` copies the arrays now.
-- `send()` with an argument that is not an array threw a `TypeError`, and before the client was ready it broke the handshake for every waiting request.
-- A `HELLO` that names `SETNAME` before `AUTH` did not record the user for reconnects.
-- Commands built from more than about 125,000 items, such as `bfInsert`, `cfInsert`, `hexpire`, `migrate` with `keys`, `pubsubNumsub`, `xread`, `xreadgroup`, the weights of `zinter` and the `filterByTs` timestamps of the time-series range commands, threw a `RangeError` instead of being sent.
-- `bitpos()` with `mode` but without `end` sent `0 -1`, so a search for bit 0 stopped treating the string as padded with zeros.
+- `send()` with an argument that is not an array split a string into one command per character, so `send('GET')` sent `G`, `E` and `T`, and never settled for a number.
+- A user chosen at runtime with `auth()` or `hello()` was lost in a reconnect.
+- Commands built from more than about 125,000 items, such as `bfInsert`, `cfInsert`, `hexpire`, `migrate` with `keys`, `pubsubNumsub`, `xread`, `xreadgroup` and the weights of `zinter`, threw a `RangeError` instead of being sent.
 - A subscription to a channel name that is not valid UTF-8 was unsubscribed and restored with different bytes.
 - `TYPE` rejected module type names such as `ReJSON-RL`, `INFO` dropped fields with empty values, `REPLICAOF` rejected the reply for an existing primary, and `ROLE` rejected Sentinel replies.
-- `geosearch`, `georadius`, `sort`, `commandList`, `aclCat`, `pubsubChannels`, `pubsubShardchannels`, `functionList` and the scan iterators dropped empty-string options, so `scan({ match: '' })` returned every key, and `aclGenpass(0)` and a scan `count` of `0` were dropped as well. `sort()` rejected `{ store: undefined }`.
+- `geosearch`, `georadius`, `commandList`, `aclCat`, `pubsubChannels`, `pubsubShardchannels`, `functionList` and the scan iterators dropped empty-string options, so `scan({ match: '' })` returned every key, and `aclGenpass(0)` and a scan `count` of `0` were dropped as well. `sort()` rejected `{ store: undefined }`.
 - A non-string argument, such as `undefined` from an optional property passed to `mset` or `hmset`, failed every request sent in the same tick. Only that request is rejected now.
-- An invalid `port` rejected `connect()` with a plain `RangeError`. It rejects with a `SolidisConnectionError` now, without retrying.
+- An invalid `port` was retried for about two seconds before `connect()` rejected with `Connection failed after 20 retries.` It now rejects at once with a `SolidisConnectionError`.
 - RESP3 doubles spelled `-nan`, as Redis 6.2 sends them, failed to parse, and long simple string replies split across many chunks took quadratic time.
 - `bitop()` threw a plain `Error`, and an unparsable URI a `TypeError`; both are `SolidisError`s now. The `uri` getter brackets IPv6 hosts and encodes the username.
 - The parser re-read partially received arrays from the start on every chunk, so large replies took quadratic time.
@@ -381,15 +382,15 @@ See [Upgrading from 0.4.x](#upgrading-from-04x) for replacements.
 
 - Error messages and stack traces no longer list command arguments. A failed `AUTH` used to put the password into the message, and a failed `SET` the value. Arguments the server quotes back in its own message, such as an ACL rule or the arguments of an unknown command, are replaced with `***`, also when the server joins several of them into one quoted span, as it does for an ACL selector.
 - User data shaped like a pub/sub message can no longer be dispatched as a `message` event on RESP2.
-- An integer reply longer than 20 characters or a big number longer than 4,096 digits is returned as an error reply instead of being converted, and a length line longer than 20 characters is a protocol error, so one reply can no longer stall the event loop for seconds.
+- An integer reply longer than 20 characters or a big number longer than 4,096 characters is returned as an error reply instead of being converted, and a length line longer than 20 characters is a protocol error, so one reply can no longer stall the event loop for seconds. Errors about a malformed line quote at most its first 32 characters.
 
 ### Performance
 
 - The parser handles replies split across socket chunks in linear time.
 - Serialization measures each argument once, and each reply allocates less.
 - In alternating benchmark runs against 0.4.0, throughput is on par or better across the suite.
-- Replies and timeouts for tens of thousands of pipelines in flight take linear time, and masking a long argument in an error message takes time linear in its length.
-- The minimal client with `get` and `set` shrinks from 29,457 to 29,283 bytes, and the featured client from 99,356 to 96,080 bytes.
+- Replies and timeouts for tens of thousands of pipelines in flight take linear time, and masking arguments in an error message takes time linear in the length of the message, however many arguments it quotes.
+- The featured client shrinks from 99,356 to 97,092 bytes. The minimal client with `get` and `set` is 30,211 bytes, against 29,457 in 0.4.0.
 
 ## [0.4.0] and earlier
 

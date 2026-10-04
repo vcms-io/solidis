@@ -18,7 +18,7 @@
     "whyChoose": "Why Choose Solidis?",
     "whyDescription": "The reasons why teams in production choose Solidis over alternatives.",
     "serverlessReady": "Serverless-Ready Bundle",
-    "serverlessReadyDesc": "Under 29 KB min bundle with zero dependencies. Critical for cold start performance in serverless environments like AWS Lambda and Vercel Edge.",
+    "serverlessReadyDesc": "Under 30 KB min bundle with zero dependencies. Critical for cold start performance in serverless environments like AWS Lambda and Vercel Edge.",
     "twiceAsFast": "Up to 2x Faster Than ioredis",
     "twiceAsFastDesc": "Up to 2.1x faster across 15 benchmark categories with binary-safe RESP parsing, automatic pipeline batching, and setImmediate coalescing.",
     "battleTested": "Battle-Tested Stability",
@@ -65,7 +65,7 @@
     "autoReconnect": "Auto Reconnect",
     "autoReconnectDesc": "Configurable exponential backoff with jitter and auto-recovery for subscriptions.",
     "treeShakable": "Tree-Shakable",
-    "treeShakableDesc": "Import only the commands you need. Under 29 KB min bundle.",
+    "treeShakableDesc": "Import only the commands you need. Under 30 KB min bundle.",
     "terminal": "terminal"
   },
   "footer": {
@@ -624,7 +624,7 @@
     "learn3": "Lock renewal and automatic release",
     "learn4": "Preventing race conditions",
     "simpleLock": "Simple Distributed Lock",
-    "simpleLockRequirement": "This lock uses DELEX and SET with IFEQ, which need Redis 8.4 or later. Valkey and earlier Redis versions reject them.",
+    "simpleLockRequirement": "This lock uses DELEX, which needs Redis 8.4 or later, and SET with IFEQ, which needs Redis 8.4 or Valkey 8.1. Valkey has no DELEX.",
     "usageExamples": "Usage Examples",
     "redlock": "RedLock Algorithm (Using Extensions)",
     "redlockDesc": "For production-grade distributed locking",

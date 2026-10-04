@@ -226,7 +226,7 @@ export default function HomePage() {
             <span className="text-foreground/15">·</span>
             <span>383 commands</span>
             <span className="text-foreground/15">·</span>
-            <span>&lt; 29 KB</span>
+            <span>&lt; 30 KB</span>
             <span className="text-foreground/15">·</span>
             <span>100% coverage</span>
           </div>
