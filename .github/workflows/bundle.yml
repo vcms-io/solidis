@@ -5,12 +5,18 @@ on:
     branches: [main]
     paths:
       - 'sources/**'
+      - 'scripts/build/**'
       - 'scripts/bundle/**'
+      - 'package.json'
+      - 'package-lock.json'
       - '.github/workflows/bundle.yml'
   pull_request:
     branches: [main]
     paths:
+      - 'scripts/build/**'
       - 'scripts/bundle/**'
+      - 'package.json'
+      - 'package-lock.json'
       - '.github/workflows/bundle.yml'
 
 concurrency:
