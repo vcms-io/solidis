@@ -144,7 +144,7 @@ export class SolidisConnection extends EventEmitter {
   }
 
   #startAttempts() {
-    if (this.#isQuitted || this.#socket || this.#retryTimer) {
+    if (this.#socket || this.#retryTimer) {
       return;
     }
 

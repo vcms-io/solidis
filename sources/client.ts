@@ -83,17 +83,15 @@ export class SolidisClient extends EventEmitter {
           queueMicrotask(() => this.#notify('debug', entry));
         }
       : undefined;
+    const connectionOptions = { ...this.#options, debugHandle: this.#debug };
+
     this.#pubSub = new SolidisPubSub(emit);
-    this.#connection = new SolidisConnection({
-      ...this.#options,
-      debugHandle: this.#debug,
-    });
+    this.#connection = new SolidisConnection(connectionOptions);
     this.#requester = new SolidisRequester({
-      ...this.#options,
+      ...connectionOptions,
       connection: this.#connection,
       pubSub: this.#pubSub,
       emit,
-      debugHandle: this.#debug,
     });
 
     this.#setupListeners();
@@ -129,6 +127,7 @@ export class SolidisClient extends EventEmitter {
     }
 
     const batch = copyCommands(commands);
+    const requestOptions = options && { ...options };
 
     return new Promise((resolve, reject) => {
       const timeout = resolveTimerDelay(
@@ -140,7 +139,7 @@ export class SolidisClient extends EventEmitter {
         this.#waitingRequests.delete(settle);
 
         if (cause === undefined) {
-          resolve(this.#requester.send(batch, options));
+          resolve(this.#requester.send(batch, requestOptions));
         } else {
           reject(
             this.#connection.isQuitted

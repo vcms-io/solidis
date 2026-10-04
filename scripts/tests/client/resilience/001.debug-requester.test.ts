@@ -924,6 +924,222 @@ describe('debug-requester', () => {
       assert.deepStrictEqual(connection.resets, [errors[1]]);
     });
 
+    it('forgets a refused MULTI or WATCH while another session command is in flight', async () => {
+      const { connection, requester } = createRequester();
+      const multi = requester.send([['MULTI']]);
+      const select = settle(requester.send([['SELECT', '1']]));
+
+      await flushed();
+
+      connection.reply(
+        "-NOPERM User has no permissions to run the 'multi' command\r\n",
+      );
+
+      assert.ok((await multi)[0][0] instanceof RespError);
+
+      const subscription = settle(requester.send([['SUBSCRIBE', 'news']]));
+
+      await flushed();
+
+      assert.deepStrictEqual(
+        connection.writes.at(-1),
+        commandsToBuffer([['SUBSCRIBE', 'news']]),
+      );
+
+      connection.emit('close', new SolidisConnectionError('lost'));
+
+      assert.ok((await select) instanceof SolidisConnectionError);
+      assert.ok((await subscription) instanceof SolidisConnectionError);
+
+      const read = requester.send([['GET', 'k']]);
+
+      await flushed();
+
+      connection.reply('$-1\r\n');
+
+      assert.deepStrictEqual(await read, [[null]]);
+
+      const watch = requester.send([['WATCH', 'other']]);
+      const selected = settle(requester.send([['SELECT', '2']]));
+
+      await flushed();
+
+      connection.reply('-NOPERM No permissions to access a key\r\n');
+
+      assert.ok((await watch)[0][0] instanceof RespError);
+
+      connection.emit('close', new SolidisConnectionError('lost'));
+
+      assert.ok((await selected) instanceof SolidisConnectionError);
+
+      const transaction = requester.send([
+        ['MULTI'],
+        ['INCR', 'counter'],
+        ['EXEC'],
+      ]);
+
+      await flushed();
+
+      connection.reply('+OK\r\n+QUEUED\r\n*1\r\n:1\r\n');
+
+      assert.deepStrictEqual(await transaction, [['OK'], ['QUEUED'], [[1]]]);
+      assert.deepStrictEqual(
+        connection.writes.at(-1),
+        commandsToBuffer([['MULTI'], ['INCR', 'counter'], ['EXEC']]),
+      );
+    });
+
+    it('counts an unanswered UNWATCH when a connection with a WATCH is lost', async () => {
+      const { connection, requester } = createRequester();
+      const watch = requester.send([['WATCH', 'k']]);
+
+      await flushed();
+
+      connection.reply('+OK\r\n');
+
+      assert.deepStrictEqual(await watch, [['OK']]);
+
+      const unwatch = settle(requester.send([['UNWATCH']]));
+
+      await flushed();
+
+      connection.emit('close', new SolidisConnectionError('lost'));
+
+      assert.ok((await unwatch) instanceof SolidisConnectionError);
+
+      const transaction = requester.send([
+        ['MULTI'],
+        ['INCR', 'counter'],
+        ['EXEC'],
+      ]);
+
+      await flushed();
+
+      connection.reply('+OK\r\n+QUEUED\r\n*1\r\n:1\r\n');
+
+      assert.deepStrictEqual(await transaction, [['OK'], ['QUEUED'], [[1]]]);
+      assert.deepStrictEqual(
+        connection.writes.at(-1),
+        commandsToBuffer([['MULTI'], ['INCR', 'counter'], ['EXEC']]),
+      );
+    });
+
+    it('counts an unanswered MULTI as lost and an unanswered EXEC as the end of its transaction', async () => {
+      const { connection, requester } = createRequester();
+      const multi = settle(requester.send([['MULTI']]));
+
+      await flushed();
+
+      connection.emit('close', new SolidisConnectionError('lost'));
+
+      assert.ok((await multi) instanceof SolidisConnectionError);
+      await assert.rejects(requester.send([['GET', 'k']]), {
+        name: 'SolidisRequesterError',
+        message: 'GET is refused after a lost MULTI.',
+      });
+
+      const discard = requester.send([['DISCARD']]);
+
+      await flushed();
+
+      connection.reply('-ERR DISCARD without MULTI\r\n');
+
+      assert.ok((await discard)[0][0] instanceof RespError);
+
+      const transaction = settle(
+        requester.send([['MULTI'], ['INCR', 'counter'], ['EXEC']]),
+      );
+
+      await flushed();
+
+      connection.reply('+OK\r\n+QUEUED\r\n');
+      connection.emit('close', new SolidisConnectionError('lost'));
+
+      assert.ok((await transaction) instanceof SolidisConnectionError);
+
+      const read = requester.send([['GET', 'k']]);
+
+      await flushed();
+
+      connection.reply('$-1\r\n');
+
+      assert.deepStrictEqual(await read, [[null]]);
+    });
+
+    it('writes one command per pipeline when maxCommandsPerPipeline is below 1', async () => {
+      for (const maxCommandsPerPipeline of [0, -1]) {
+        const { connection, requester } = createRequester({
+          maxCommandsPerPipeline,
+        });
+        const replies = requester.send([['PING'], ['ECHO', 'a']]);
+
+        await flushed();
+
+        assert.deepStrictEqual(connection.writes, [
+          commandsToBuffer([['PING']]),
+          commandsToBuffer([['ECHO', 'a']]),
+        ]);
+
+        connection.reply('+PONG\r\n$1\r\na\r\n');
+
+        assert.deepStrictEqual(await replies, [['PONG'], [Buffer.from('a')]]);
+      }
+    });
+
+    it('writes each blocking request in a pipeline of its own when the timeouts match', async () => {
+      const { connection, requester } = createRequester({ commandTimeout: 0 });
+      const first = requester.send([['BLPOP', 'a', '0']], {
+        blockingTimeout: 0,
+      });
+      const second = requester.send([['BLPOP', 'b', '0']], {
+        blockingTimeout: 0,
+      });
+      const echo = requester.send([['ECHO', 'x']]);
+
+      await flushed();
+
+      assert.deepStrictEqual(connection.writes, [
+        commandsToBuffer([['BLPOP', 'a', '0']]),
+        commandsToBuffer([['BLPOP', 'b', '0']]),
+        commandsToBuffer([['ECHO', 'x']]),
+      ]);
+
+      connection.reply('*-1\r\n*-1\r\n$1\r\nx\r\n');
+
+      assert.deepStrictEqual(await Promise.all([first, second, echo]), [
+        [[null]],
+        [[null]],
+        [[Buffer.from('x')]],
+      ]);
+    });
+
+    it('reports an error after the replies it could answer as a stray reply', async () => {
+      const { connection, events, requester } = createRequester();
+      const ping = requester.send([['PING']]);
+
+      await flushed();
+
+      const write = requester.send([['SET', 'k', 'v']]);
+
+      connection.reply('+PONG\r\n-ERR proxy notice\r\n');
+
+      assert.deepStrictEqual(await ping, [['PONG']]);
+
+      await flushed();
+
+      connection.reply('+OK\r\n');
+
+      assert.deepStrictEqual(await write, [['OK']]);
+      assert.ok(
+        events.some(
+          ([event, error]) =>
+            event === 'error' &&
+            error instanceof SolidisRequesterError &&
+            error.message === 'Received reply with no pending request',
+        ),
+      );
+    });
+
     it('forgets a MULTI or WATCH that the server refuses', async () => {
       function exchange(
         requester: SolidisRequester,

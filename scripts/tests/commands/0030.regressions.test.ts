@@ -403,6 +403,15 @@ describe('regressions', () => {
         'default',
         'secret',
       ]);
+      assert.deepStrictEqual(createAuthCommand(Buffer.alloc(0), 'secret'), [
+        'AUTH',
+        'default',
+        'secret',
+      ]);
+      assert.deepStrictEqual(
+        createHelloCommand('RESP2', Buffer.alloc(0), 'secret'),
+        ['HELLO', '2', 'AUTH', 'default', 'secret'],
+      );
       assert.deepStrictEqual(createAuthCommand('secret'), ['AUTH', 'secret']);
       assert.deepStrictEqual(createAuthCommand(''), ['AUTH', '']);
       assert.deepStrictEqual(createHelloCommand('RESP3', 'user', ''), [
@@ -493,7 +502,7 @@ describe('regressions', () => {
         [
           ['JSON.SET', 'user:1', '$', '{"password":"hunter2"}'],
           `${unknown} \`JSON.SET\`, with args beginning with: \`user:1\`, \`$\`, \`{"password":"hunter2"}\`, `,
-          `${unknown} \`JSON.SET\`, with args beginning with: \`***\`, \`***\`, \`***\`, `,
+          `${unknown} \`JSON.SET\`, with args beginning with: \`***\`, `,
         ],
         [
           ['NOSUCH', 'line1\r\nline2'],
@@ -691,10 +700,42 @@ describe('regressions', () => {
         ['NOSUCH', 'value', 'other'],
       );
 
-      assert.strictEqual(
-        unquoted.message,
-        "[NOSUCH] ERR missing '***' and 'kept'",
-      );
+      assert.strictEqual(unquoted.message, "[NOSUCH] ERR missing '***'");
+
+      const leaks: [string[], string, string][] = [
+        [
+          ['NOSUCHCMD', 'hunter2', ','],
+          "ERR unknown command 'NOSUCHCMD', with args beginning with: 'hunter2' ',' ",
+          "ERR unknown command 'NOSUCHCMD'***' ",
+        ],
+        [
+          ['NOSUCHCMD', 'hunter2', ','],
+          'ERR unknown command `NOSUCHCMD`, with args beginning with: `hunter2`, `,`, ',
+          'ERR unknown command `NOSUCHCMD`***`, ',
+        ],
+        [
+          ['NOSUCHCMD', "'hunter2"],
+          "ERR unknown command 'NOSUCHCMD', with args beginning with: ''hunter2' ",
+          "ERR unknown command 'NOSUCHCMD', with args beginning with: '***' ",
+        ],
+        [
+          ['FOO', '', ' x', 'hunter2'],
+          "ERR unknown command 'FOO', with args beginning with: '' ' x' 'hunter2' ",
+          "ERR unknown command 'FOO', with args beginning with: ''***' ",
+        ],
+        [
+          ['FOO BAR', 'hunter2'],
+          "ERR unknown command 'FOO BAR', with args beginning with: 'hunter2' ",
+          "ERR unknown command 'FOO BAR', with args beginning with: '***' ",
+        ],
+      ];
+
+      for (const [command, message, redacted] of leaks) {
+        assert.strictEqual(
+          toCommandError(new RespError(message), command).message,
+          `[${command[0]}] ${redacted}`,
+        );
+      }
 
       const unterminated = toCommandError(
         new RespError("ERR invalid 'reader and more"),
@@ -727,15 +768,16 @@ describe('regressions', () => {
       const quoted = (texts: string[]) =>
         texts.map((text) => `'${text}'`).join(' ');
       const startedAt = performance.now();
+      const echoed = quoted(values.map((value) => `${value}x`));
       const error = toCommandError(
-        new RespError(`ERR missing ${quoted(values)} and 'kept'`),
-        ['EVALSHA', 'sha', '0', ...values],
+        new RespError(`ERR missing ${echoed} and 'secret' 'kept'`),
+        ['EVALSHA', 'sha', '0', ...values, 'secret'],
       );
 
       assert.ok(performance.now() - startedAt < 1000);
       assert.strictEqual(
         error.message,
-        `[EVALSHA] ERR missing ${quoted(values.map(() => '***'))} and 'kept'`,
+        `[EVALSHA] ERR missing ${echoed} and '***'`,
       );
     });
 

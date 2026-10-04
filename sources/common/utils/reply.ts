@@ -53,7 +53,9 @@ export function checkReplyIsPubSubEvent(reply: SolidisData[]): boolean {
   return readPubSubEventName(reply) !== undefined;
 }
 
-export function getPubSubEventName(reply: SolidisData[]): string | undefined {
+export function getPubSubEventName(
+  reply: SolidisData[],
+): SolidisMessageEventName | SolidisSubscriptionEventName | undefined {
   return reply.length >= 3 ? readPubSubEventName(reply) : undefined;
 }
 

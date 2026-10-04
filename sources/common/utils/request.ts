@@ -126,34 +126,28 @@ function redactArguments(
     return source;
   }
 
-  const texts = command
-    .slice(visibleLength)
-    .map((argument) =>
-      toTextPrefix(argument, source.length).replace(/[\r\n]/g, ' '),
-    );
-  const joined = texts.join('');
-  const innerQuotes = ["'", '`'].filter((quote) => joined.includes(quote));
-  const candidates = new Set(texts.filter((text) => starts.has(text[0])));
+  const candidates = new Set(
+    command
+      .slice(visibleLength)
+      .map((argument) =>
+        toTextPrefix(argument, source.length).replace(/[\r\n]/g, ' '),
+      )
+      .filter((text) => starts.has(text[0])),
+  );
   const sorted = [...candidates].sort();
   const lengths = new Set(sorted.map((text) => text.length));
 
-  let result = '';
-  let copied = 0;
-  let cursor = 0;
-
   for (const { index } of source.matchAll(/['`]/g)) {
     const quote = source[index];
-    const start = index + 1;
-    const closing = source.indexOf(quote, start);
+    const closing = source.indexOf(quote, index + 1);
 
-    if (index < cursor || closing === -1) {
+    if (closing === -1) {
       continue;
     }
 
-    const span = source.slice(start, closing);
+    const span = source.slice(index + 1, closing) || quote;
 
-    let isArgument =
-      span !== '' && sorted[findLowerBound(sorted, span)]?.startsWith(span);
+    let isArgument = sorted[findLowerBound(sorted, span)]?.startsWith(span);
 
     for (
       let space = span.indexOf(' ');
@@ -164,17 +158,11 @@ function redactArguments(
     }
 
     if (isArgument) {
-      const end = innerQuotes.includes(quote)
-        ? source.lastIndexOf(quote)
-        : closing;
-
-      result += `${source.slice(copied, start)}***`;
-      copied = end;
-      cursor = end + 1;
+      return `${source.slice(0, index + 1)}***${source.slice(Math.max(source.lastIndexOf("'"), source.lastIndexOf('`')))}`;
     }
   }
 
-  return result + source.slice(copied);
+  return source;
 }
 
 export function toCommandError(
@@ -185,7 +173,7 @@ export function toCommandError(
   const message = redactArguments(
     reply.message,
     command,
-    name.split(' ').length,
+    name === toText(command[0]).toUpperCase() ? 1 : 2,
   );
 
   return new SolidisCommandError(

@@ -1038,6 +1038,42 @@ describe('session-guards', () => {
       }
     });
 
+    it('takes the options of a send() made before the connection is ready when it is called', async () => {
+      const client = new SolidisFeaturedClient(
+        buildClientOptions({ lazyConnect: true, commandTimeout: 0 }),
+      );
+      const options = { timeout: 100 };
+
+      client.on('error', () => {});
+
+      try {
+        const blocked = client.send(
+          [['BLPOP', `solidis:test:late-options:${Date.now()}`, '0']],
+          options,
+        );
+
+        options.timeout = 0;
+
+        await client.connect();
+
+        const outcome = await Promise.race([
+          blocked.then(
+            () => 'resolved',
+            (error: unknown) => error,
+          ),
+          delay(2000).then(() => 'still pending'),
+        ]);
+
+        assert.ok(outcome instanceof SolidisRequesterError, String(outcome));
+        assert.strictEqual(
+          outcome.message,
+          'Command(s) timed out after 100 ms.',
+        );
+      } finally {
+        client.quit();
+      }
+    });
+
     it('fails at once when the server refuses the connection before any request', async () => {
       let accepted = 0;
 
