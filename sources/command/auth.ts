@@ -10,7 +10,7 @@ export function createCommand(
 
   if (password !== undefined) {
     commands.push(username || 'default', password);
-  } else if (username) {
+  } else if (username !== undefined) {
     commands.push(username);
   }
 
@@ -19,12 +19,11 @@ export function createCommand(
 
 export async function auth<T>(
   this: T,
-  username?: StringOrBuffer,
-  password?: StringOrBuffer,
+  ...parameters:
+    | [password: StringOrBuffer]
+    | [username: StringOrBuffer | undefined, password: StringOrBuffer]
 ) {
-  return await executeCommand(
-    this,
-    createCommand(username, password),
-    tryReplyOK,
-  );
+  const [first, second] = parameters;
+
+  return await executeCommand(this, createCommand(first, second), tryReplyOK);
 }

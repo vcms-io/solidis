@@ -19,6 +19,7 @@ export async function getrange<
   return await executeCommand(
     this,
     createCommand(key, start, end),
-    (reply, command) => tryReplyToStringOrBuffer(reply, command, options),
+    tryReplyToStringOrBuffer,
+    options,
   );
 }

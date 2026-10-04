@@ -40,6 +40,7 @@ export async function xread<T>(
     this,
     createCommand(keys, ids, count, block),
     tryReplyToStreamReadResultsOrNull,
+    undefined,
     { blockingTimeout: block },
   );
 }

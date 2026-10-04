@@ -83,25 +83,43 @@ export async function executeCommand<T, R>(
   client: T,
   command: StringOrBuffer[],
   replyTo: (reply: SolidisData, command: StringOrBuffer[]) => R,
-  options?: SolidisSendOptions,
+  options?: undefined,
+  sendOptions?: SolidisSendOptions,
 ): Promise<R>;
-export async function executeCommand<T, R>(
+export async function executeCommand<T, R, Options extends object | undefined>(
   client: T,
   command: StringOrBuffer[],
-  replyTo?: (reply: SolidisData, command: StringOrBuffer[]) => R,
-  options?: SolidisSendOptions,
+  replyTo: (
+    reply: SolidisData,
+    command: StringOrBuffer[],
+    options: Options,
+  ) => R,
+  options: Options,
+  sendOptions?: SolidisSendOptions,
+): Promise<R>;
+export async function executeCommand<T, R, Options extends object | undefined>(
+  client: T,
+  command: StringOrBuffer[],
+  replyTo?: (
+    reply: SolidisData,
+    command: StringOrBuffer[],
+    options?: Options,
+  ) => R,
+  options?: Options,
+  sendOptions?: SolidisSendOptions,
 ): Promise<R | SolidisData> {
   if (!guard(client, command)) {
     return undefined as never;
   }
 
-  const reply = escapeReply(await client.send([command], options));
+  const replyOptions = options && { ...options };
+  const reply = escapeReply(await client.send([command], sendOptions));
 
   if (reply instanceof RespError) {
     throw toCommandError(reply, command);
   }
 
-  return replyTo ? replyTo(reply, command) : reply;
+  return replyTo ? replyTo(reply, command, replyOptions) : reply;
 }
 
 export function buildCuckooFilterInsertCommand(
@@ -366,7 +384,7 @@ export function buildSortedSetInterCommand(
 ) {
   const command = [...baseCommand, `${keys.length}`, ...keys];
 
-  if (options.weights?.length) {
+  if (options.weights !== undefined) {
     command.push('WEIGHTS');
 
     for (const weight of options.weights) {
@@ -439,9 +457,7 @@ export async function executeIntegerCommand<
   command: StringOrBuffer[],
   options: Options | undefined,
 ): Promise<RespInteger<Options>> {
-  return await executeCommand(client, command, (reply, commandName) =>
-    tryReplyToInteger(reply, commandName, options),
-  );
+  return await executeCommand(client, command, tryReplyToInteger, options);
 }
 
 export function buildKeyIntegerExecutor(commandName: string) {
@@ -484,8 +500,11 @@ export function buildKeyStringOrBufferExecutor(commandName: string) {
     key: string,
     options?: Options,
   ): Promise<RespString<Options> | null> {
-    return await executeCommand(this, [commandName, key], (reply, command) =>
-      tryReplyToStringOrBufferOrNull(reply, command, options),
+    return await executeCommand(
+      this,
+      [commandName, key],
+      tryReplyToStringOrBufferOrNull,
+      options,
     );
   };
 }
@@ -527,13 +546,22 @@ export function buildKeyPopExecutor(commandName: string) {
       command.push(`${count}`);
     }
 
-    return await executeCommand(this, command, (reply, commandName) => {
-      if (count === undefined || reply === null) {
-        return tryReplyToStringOrBufferOrNull(reply, commandName, options);
-      }
+    return await executeCommand(
+      this,
+      command,
+      (reply, commandName, replyOptions) => {
+        if (count === undefined || reply === null) {
+          return tryReplyToStringOrBufferOrNull(
+            reply,
+            commandName,
+            replyOptions,
+          );
+        }
 
-      return tryReplyToStringOrBufferArray(reply, commandName, options);
-    });
+        return tryReplyToStringOrBufferArray(reply, commandName, replyOptions);
+      },
+      options,
+    );
   }
 
   return pop;
@@ -713,12 +741,17 @@ export function appendValueConditionOptions(
     command.push('IFNE', valueNotEquals);
   }
 
-  if (digestEquals !== undefined) {
-    command.push('IFDEQ', digestEquals);
-  }
+  for (const [keyword, digest] of [
+    ['IFDEQ', digestEquals],
+    ['IFDNE', digestNotEquals],
+  ] as const) {
+    if (digest !== undefined) {
+      if (!/^[\da-f]{16}$/i.test(digest)) {
+        throw newCommandError('Digests must be 16 hexadecimal digits', command);
+      }
 
-  if (digestNotEquals !== undefined) {
-    command.push('IFDNE', digestNotEquals);
+      command.push(keyword, digest);
+    }
   }
 }
 

@@ -50,9 +50,10 @@ export async function bitfield<
   return await executeCommand(
     this,
     createCommand(key, operations, overflow),
-    (reply, command) =>
+    (reply, command, replyOptions) =>
       tryReplyArray(reply, command).map((value) =>
-        value === null ? null : tryReplyToInteger(value, command, options),
+        value === null ? null : tryReplyToInteger(value, command, replyOptions),
       ),
+    options,
   );
 }

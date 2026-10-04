@@ -46,7 +46,12 @@ export async function zrange<T>(
   return await executeCommand(
     this,
     createCommand(key, min, max, options),
-    (reply, command) =>
-      tryReplyToStringsOrSortedSetMembers(reply, command, options.withScores),
+    (reply, command, replyOptions) =>
+      tryReplyToStringsOrSortedSetMembers(
+        reply,
+        command,
+        replyOptions.withScores,
+      ),
+    options,
   );
 }

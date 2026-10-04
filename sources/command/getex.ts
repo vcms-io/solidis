@@ -35,7 +35,7 @@ export async function getex<
   return await executeCommand(
     this,
     createCommand(key, options),
-    (reply, command) =>
-      tryReplyToStringOrBufferOrNull<Options>(reply, command, options),
+    tryReplyToStringOrBufferOrNull<Options>,
+    options,
   );
 }

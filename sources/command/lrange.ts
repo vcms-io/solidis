@@ -22,6 +22,7 @@ export async function lrange<
   return await executeCommand(
     this,
     createCommand(key, start, stop),
-    (reply, command) => tryReplyToStringOrBufferArray(reply, command, options),
+    tryReplyToStringOrBufferArray,
+    options,
   );
 }

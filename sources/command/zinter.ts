@@ -45,7 +45,12 @@ export async function zinter<T>(
   return await executeCommand(
     this,
     createCommand(keys, options),
-    (reply, command) =>
-      tryReplyToStringsOrSortedSetMembers(reply, command, options.withScores),
+    (reply, command, replyOptions) =>
+      tryReplyToStringsOrSortedSetMembers(
+        reply,
+        command,
+        replyOptions.withScores,
+      ),
+    options,
   );
 }

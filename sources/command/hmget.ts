@@ -51,7 +51,7 @@ export async function hmget<T>(
   return await executeCommand(
     this,
     createCommand(key, ...fields),
-    (reply, command) =>
-      tryReplyToNullableStringOrBufferArray(reply, command, options),
+    tryReplyToNullableStringOrBufferArray,
+    options,
   );
 }

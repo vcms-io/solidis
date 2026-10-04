@@ -4,21 +4,27 @@ import type { StringOrBuffer } from '../index.ts';
 
 export function createCommand(
   key: string,
-  field: string,
-  value: StringOrBuffer,
-) {
-  return ['HSET', key, field, value];
+  ...parameters:
+    | [field: string, value: StringOrBuffer]
+    | [fields: Record<string, StringOrBuffer>]
+): StringOrBuffer[] {
+  if (parameters.length === 2) {
+    return ['HSET', key, ...parameters];
+  }
+
+  return ['HSET', key, ...Object.entries(parameters[0]).flat()];
 }
 
 export async function hset<T>(
   this: T,
   key: string,
-  field: string,
-  value: StringOrBuffer,
+  ...parameters:
+    | [field: string, value: StringOrBuffer]
+    | [fields: Record<string, StringOrBuffer>]
 ): Promise<number> {
   return await executeCommand(
     this,
-    createCommand(key, field, value),
+    createCommand(key, ...parameters),
     tryReplyNumber,
   );
 }

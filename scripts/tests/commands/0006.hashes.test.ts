@@ -101,6 +101,10 @@ describe('hashes', () => {
     const floatValue = await client.hincrbyfloat(key, 'ratio', 1.5);
 
     assert.strictEqual(floatValue, '1.5');
+    assert.strictEqual(
+      await client.hincrbyfloat(key, 'large', 1e22),
+      '10000000000000000000000',
+    );
   });
 
   it('sets a field only if absent with HSETNX', async () => {
@@ -187,6 +191,22 @@ describe('hashes', () => {
     }
 
     assert.deepStrictEqual(collected, mapping);
+  });
+
+  it('decodes field names as UTF-8', async () => {
+    const key = keyspace.key('field-names');
+    const fields = { café: '1', naïve: '2', 日本: '3' };
+
+    await client.hset(key, fields);
+
+    const scanned: Record<string, string> = {};
+
+    for await (const batch of client.hscan(key)) {
+      Object.assign(scanned, batch);
+    }
+
+    assert.deepStrictEqual(await client.hgetall(key), fields);
+    assert.deepStrictEqual(scanned, fields);
   });
 
   it('preserves binary values in hash fields', async () => {

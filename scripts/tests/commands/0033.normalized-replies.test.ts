@@ -24,7 +24,11 @@ import { xautoclaim } from '../../../sources/command/xautoclaim.ts';
 import { xclaim } from '../../../sources/command/xclaim.ts';
 import { xinfoConsumers } from '../../../sources/command/xinfo.consumers.ts';
 import { xinfoStream } from '../../../sources/command/xinfo.stream.ts';
-import { RespError, SolidisProtocols } from '../../../sources/index.ts';
+import {
+  RespError,
+  SolidisCommandError,
+  SolidisProtocols,
+} from '../../../sources/index.ts';
 import {
   closeClient,
   createClient,
@@ -530,9 +534,16 @@ describe('normalized-replies', () => {
       for (const reply of [[], [null], bulk('[]'), bulk('null')]) {
         await assert.rejects(
           jsonNumincrby.call(createSender(reply), 'key', '.missing', 1),
-          {
-            name: 'SolidisCommandError',
-            message: `[JSON.NUMINCRBY] Unexpected reply: ${Buffer.isBuffer(reply) ? 'Buffer' : 'Array'}(${reply.length})`,
+          (error: unknown) => {
+            assert.ok(error instanceof SolidisCommandError);
+            assert.strictEqual(
+              error.message,
+              '[JSON.NUMINCRBY] ERR Path does not exist or does not contains a number',
+            );
+            assert.ok(error.cause instanceof RespError);
+            assert.strictEqual(error.cause.code, 'ERR');
+
+            return true;
           },
         );
         await assert.rejects(

@@ -66,9 +66,13 @@ export async function functionList<T>(
   this: T,
   options?: CommandFunctionListOptions,
 ): Promise<RespFunctionListItem[]> {
-  return await executeCommand(this, createCommand(options), (reply, command) =>
-    tryReplyArray(reply, command).map((library) =>
-      parseLibrary(library, options?.withCode === true, command),
-    ),
+  return await executeCommand(
+    this,
+    createCommand(options),
+    (reply, command, replyOptions) =>
+      tryReplyArray(reply, command).map((library) =>
+        parseLibrary(library, replyOptions?.withCode === true, command),
+      ),
+    options,
   );
 }

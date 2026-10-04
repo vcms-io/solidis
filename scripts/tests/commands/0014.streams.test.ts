@@ -66,6 +66,18 @@ describe('streams', () => {
     assert.deepStrictEqual(reverse[2].fields, { value: 'a' });
   });
 
+  it('decodes field names as UTF-8 and keeps the last value of a repeated field', async () => {
+    const key = keyspace.key('field-names');
+
+    await client.xadd(key, '1-1', { café: 'a', naïve: 'b' });
+    await client.send([['XADD', key, '2-1', 'f', 'first', 'f', 'last']]);
+
+    const [first, second] = await client.xrange(key, '-', '+');
+
+    assert.deepStrictEqual(first.fields, { café: 'a', naïve: 'b' });
+    assert.deepStrictEqual(second.fields, { f: 'last' });
+  });
+
   it('reads new entries with XREAD', async () => {
     const key = keyspace.key('xread');
 

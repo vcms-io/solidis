@@ -53,6 +53,7 @@ export async function xreadgroup<T>(
     this,
     createCommand(group, consumer, keys, ids, count, block, noack),
     tryReplyToStreamGroupReadResultsOrNull,
+    undefined,
     { blockingTimeout: block },
   );
 }

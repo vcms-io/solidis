@@ -53,12 +53,13 @@ export async function xclaim<T>(
   return await executeCommand(
     this,
     createCommand(key, group, consumer, minIdleTime, ids, options),
-    (reply, command) => {
-      if (options?.justid) {
+    (reply, command, replyOptions) => {
+      if (replyOptions?.justid) {
         return tryReplyToStringArray(reply, command);
       }
 
       return tryReplyToStreamEntries(reply, command);
     },
+    options,
   );
 }

@@ -543,7 +543,9 @@ export function tryReplyToJsonNumberText(
   const text = texts.filter((value) => value !== 'null').at(-1);
 
   if (text === undefined) {
-    throw newUnexpectedReplyError(reply, commandName);
+    const message = 'ERR Path does not exist or does not contains a number';
+
+    throw newCommandError(message, commandName, new RespError(message));
   }
 
   return text;

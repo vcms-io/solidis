@@ -5,7 +5,10 @@ import { describe, it } from 'node:test';
 
 import { aclGetuser } from '../../../sources/command/acl.getuser.ts';
 import { aclLog } from '../../../sources/command/acl.log.ts';
-import { createCommand as createBloomInsertCommand } from '../../../sources/command/bf.insert.ts';
+import {
+  bfInsert,
+  createCommand as createBloomInsertCommand,
+} from '../../../sources/command/bf.insert.ts';
 import { createCommand as createBitcountCommand } from '../../../sources/command/bitcount.ts';
 import { cfInfo } from '../../../sources/command/cf.info.ts';
 import { createCommand as createCuckooInsertCommand } from '../../../sources/command/cf.insert.ts';
@@ -14,14 +17,17 @@ import {
   commandDocs,
   createCommand as createCommandDocsCommand,
 } from '../../../sources/command/command.docs.ts';
+import { delex } from '../../../sources/command/delex.ts';
 import { dump } from '../../../sources/command/dump.ts';
 import { failover } from '../../../sources/command/failover.ts';
 import { createCommand as createFunctionFlushCommand } from '../../../sources/command/function.flush.ts';
 import { functionStats } from '../../../sources/command/function.stats.ts';
+import { get } from '../../../sources/command/get.ts';
 import { createCommand as createGetsetCommand } from '../../../sources/command/getset.ts';
 import { createCommand as createHashExpireCommand } from '../../../sources/command/hexpire.ts';
 import { hmget } from '../../../sources/command/hmget.ts';
 import { createCommand as createHmsetCommand } from '../../../sources/command/hmset.ts';
+import { hset } from '../../../sources/command/hset.ts';
 import { createCommand as createHsetnxCommand } from '../../../sources/command/hsetnx.ts';
 import { createCommand as createJsonArrpopCommand } from '../../../sources/command/json.arrpop.ts';
 import { createCommand as createJsonGetCommand } from '../../../sources/command/json.get.ts';
@@ -51,6 +57,7 @@ import { createCommand as createPubsubShardnumsubCommand } from '../../../source
 import { replconf } from '../../../sources/command/replconf.ts';
 import { replicaof } from '../../../sources/command/replicaof.ts';
 import { createCommand as createRpushxCommand } from '../../../sources/command/rpushx.ts';
+import { set } from '../../../sources/command/set.ts';
 import { createCommand as createSetexCommand } from '../../../sources/command/setex.ts';
 import { createCommand as createSetnxCommand } from '../../../sources/command/setnx.ts';
 import { createCommand as createSetrangeCommand } from '../../../sources/command/setrange.ts';
@@ -69,6 +76,7 @@ import { createCommand as createXpendingCommand } from '../../../sources/command
 import { createCommand as createXreadCommand } from '../../../sources/command/xread.ts';
 import { createCommand as createXreadgroupCommand } from '../../../sources/command/xreadgroup.ts';
 import { createCommand as createZinterCommand } from '../../../sources/command/zinter.ts';
+import { zrange } from '../../../sources/command/zrange.ts';
 import { RespError, SolidisConnectionError } from '../../../sources/index.ts';
 
 import type { SolidisData, StringOrBuffer } from '../../../sources/index.ts';
@@ -220,6 +228,82 @@ describe('reply-guards', () => {
     ]);
   });
 
+  it('refuses a digest that is not 16 hexadecimal digits before sending it', async () => {
+    const recorder = createRecorder(null);
+
+    for (const digest of ['abc', 'zzzzzzzzzzzzzzzz', '0123456789abcdef0']) {
+      await assert.rejects(
+        set.call(recorder, 'k', 'v', {
+          setIfDigestEquals: digest,
+          returnOldValue: true,
+        }),
+        { message: '[SET] Digests must be 16 hexadecimal digits' },
+      );
+      await assert.rejects(
+        delex.call(recorder, 'k', { ifDigestNotEquals: digest }),
+        { message: '[DELEX] Digests must be 16 hexadecimal digits' },
+      );
+    }
+
+    assert.deepStrictEqual(recorder.commands, []);
+
+    await set.call(recorder, 'k', 'v', {
+      setIfDigestEquals: '0123456789ABCDEF',
+    });
+
+    assert.deepStrictEqual(recorder.commands, [
+      ['SET', 'k', 'v', 'IFDEQ', '0123456789ABCDEF'],
+    ]);
+  });
+
+  it('shapes a reply by the options and arrays the call was made with', async () => {
+    const scored = { withScores: true };
+    const ranged = zrange.call(
+      createRecorder([bulk('a'), bulk('1')]),
+      'z',
+      '0',
+      '-1',
+      scored,
+    );
+
+    scored.withScores = false;
+
+    const binary = { buffer: true };
+    const read = get.call(createRecorder(bulk('v')), 'k', binary);
+
+    binary.buffer = false;
+
+    const previous: { returnOldValue?: boolean } = { returnOldValue: true };
+    const replaced = set.call(createRecorder(bulk('old')), 'k', 'v', previous);
+
+    delete previous.returnOldValue;
+
+    const items = ['a', 'b', 'c'];
+    const full = new RespError('ERR non scaling filter is full');
+    const inserted = bfInsert.call(createRecorder([1, full]), 'bf', items);
+
+    items.length = 0;
+
+    assert.deepStrictEqual(await ranged, [{ member: 'a', score: 1 }]);
+    assert.deepStrictEqual(await read, bulk('v'));
+    assert.strictEqual(await replaced, 'old');
+    assert.deepStrictEqual(await inserted, [1, full, full]);
+  });
+
+  it('sets several hash fields in one HSET', async () => {
+    const recorder = createRecorder(2);
+
+    assert.strictEqual(
+      await hset.call(recorder, 'h', { a: '1', b: bulk('2') }),
+      2,
+    );
+    assert.strictEqual(await hset.call(recorder, 'h', 'c', '3'), 2);
+    assert.deepStrictEqual(recorder.commands, [
+      ['HSET', 'h', 'a', '1', 'b', bulk('2')],
+      ['HSET', 'h', 'c', '3'],
+    ]);
+  });
+
   it('refuses a key or field that is not a string instead of dropping it', async () => {
     const recorder = createRecorder([bulk('a'), null]);
     const missing = undefined as unknown as string;
@@ -294,6 +378,10 @@ describe('reply-guards', () => {
     assert.deepStrictEqual(
       createMigrateCommand('host', 6379, '', 0, 1000, { keys: [] }),
       ['MIGRATE', 'host', '6379', '', '0', '1000', 'KEYS'],
+    );
+    assert.deepStrictEqual(
+      createZinterCommand(['a', 'b'], { weights: [], withScores: true }),
+      ['ZINTER', '2', 'a', 'b', 'WEIGHTS', 'WITHSCORES'],
     );
     assert.deepStrictEqual(createLatencyResetCommand(), ['LATENCY', 'RESET']);
     assert.throws(() => createLatencyResetCommand([]), {

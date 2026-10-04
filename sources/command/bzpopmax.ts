@@ -16,6 +16,7 @@ export async function bzpopmax<T>(
     this,
     createCommand(keys, timeout),
     tryReplyToKeyMemberScoreOrNull,
+    undefined,
     { blockingTimeout: timeout * 1000 },
   );
 }

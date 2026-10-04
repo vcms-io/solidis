@@ -21,6 +21,7 @@ export async function lindex<
   return await executeCommand(
     this,
     createCommand(key, index),
-    (reply, command) => tryReplyToStringOrBufferOrNull(reply, command, options),
+    tryReplyToStringOrBufferOrNull,
+    options,
   );
 }

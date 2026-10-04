@@ -264,12 +264,12 @@ describe('acl', () => {
     });
 
     try {
-      await restricted.set('forbidden:key', 'val');
-      assert.fail('expected NOPERM rejection for restricted user');
-    } catch (error) {
-      assert.ok(
-        error instanceof Error && error.message.includes('NOPERM'),
-        `expected NOPERM error but got: ${error instanceof Error ? error.message : String(error)}`,
+      await assert.rejects(
+        restricted.set('forbidden:key', 'val'),
+        (error: unknown) =>
+          error instanceof SolidisCommandError &&
+          error.cause instanceof RespError &&
+          error.cause.code === 'NOPERM',
       );
     } finally {
       await closeClient(restricted);

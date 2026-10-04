@@ -35,9 +35,10 @@ export async function bitfieldRo<
   return await executeCommand(
     this,
     createCommand(key, operations),
-    (reply, command) =>
+    (reply, command, replyOptions) =>
       tryReplyArray(reply, command).map((value) =>
-        tryReplyToInteger(value, command, options),
+        tryReplyToInteger(value, command, replyOptions),
       ),
+    options,
   );
 }

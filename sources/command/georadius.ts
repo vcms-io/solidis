@@ -43,7 +43,7 @@ export async function georadius<T>(
   return await executeCommand(
     this,
     createCommand(key, longitude, latitude, radius, unit, options),
-    (reply, command) =>
-      tryReplyToGeoRadiusOrStoreCount(reply, command, options),
+    tryReplyToGeoRadiusOrStoreCount,
+    options,
   );
 }

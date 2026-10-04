@@ -43,12 +43,13 @@ export async function sort<T>(
   return await executeCommand(
     this,
     createCommand(key, options),
-    (reply, command) => {
-      if (options?.store !== undefined) {
+    (reply, command, replyOptions) => {
+      if (replyOptions?.store !== undefined) {
         return tryReplyToNumber(reply, command);
       }
 
       return tryReplyToNullableStringArray(reply, command);
     },
+    options,
   );
 }

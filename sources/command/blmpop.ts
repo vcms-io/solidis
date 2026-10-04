@@ -39,8 +39,8 @@ export async function blmpop<
   return await executeCommand(
     this,
     createCommand(timeout, keys, where, count),
-    (reply, command) =>
-      tryReplyToKeyStringElementsOrNull(reply, command, options),
+    tryReplyToKeyStringElementsOrNull,
+    options,
     { blockingTimeout: timeout * 1000 },
   );
 }

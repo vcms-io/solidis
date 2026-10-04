@@ -34,7 +34,8 @@ export async function blmove<
   return await executeCommand(
     this,
     createCommand(source, destination, whereFrom, whereTo, timeout),
-    (reply, command) => tryReplyToStringOrBufferOrNull(reply, command, options),
+    tryReplyToStringOrBufferOrNull,
+    options,
     { blockingTimeout: timeout * 1000 },
   );
 }

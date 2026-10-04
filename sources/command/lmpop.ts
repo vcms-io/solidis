@@ -37,7 +37,7 @@ export async function lmpop<
   return await executeCommand(
     this,
     createCommand(keys, direction, count),
-    (reply, command) =>
-      tryReplyToKeyStringElementsOrNull(reply, command, options),
+    tryReplyToKeyStringElementsOrNull,
+    options,
   );
 }

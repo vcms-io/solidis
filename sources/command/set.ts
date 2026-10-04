@@ -24,18 +24,19 @@ export async function set<T>(
   return await executeCommand(
     this,
     createCommand(key, value, options),
-    (reply, command) => {
+    (reply, command, replyOptions) => {
       if (reply === null) {
         return null;
       }
 
-      if (options?.returnOldValue === true) {
+      if (replyOptions?.returnOldValue === true) {
         return tryReplyToStringOrBuffer(reply, command, {
-          buffer: options.returnOldValueAsBuffer,
+          buffer: replyOptions.returnOldValueAsBuffer,
         });
       }
 
       return tryReplyOK(reply, command);
     },
+    options,
   );
 }

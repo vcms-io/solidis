@@ -34,7 +34,7 @@ export async function georadiusbymember<T>(
   return await executeCommand(
     this,
     createCommand(key, member, radius, unit, options),
-    (reply, command) =>
-      tryReplyToGeoRadiusOrStoreCount(reply, command, options),
+    tryReplyToGeoRadiusOrStoreCount,
+    options,
   );
 }

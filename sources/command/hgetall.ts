@@ -17,7 +17,10 @@ export async function hgetall<
   key: string,
   options?: Options,
 ): Promise<Record<string, RespString<Options>>> {
-  return await executeCommand(this, createCommand(key), (reply, command) =>
-    tryReplyToStringOrBufferRecord(reply, command, options),
+  return await executeCommand(
+    this,
+    createCommand(key),
+    tryReplyToStringOrBufferRecord,
+    options,
   );
 }

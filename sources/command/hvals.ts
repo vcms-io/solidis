@@ -13,7 +13,10 @@ export async function hvals<
   T,
   Options extends CommandBufferOptions | undefined = undefined,
 >(this: T, key: string, options?: Options): Promise<RespString<Options>[]> {
-  return await executeCommand(this, createCommand(key), (reply, command) =>
-    tryReplyToStringOrBufferArray(reply, command, options),
+  return await executeCommand(
+    this,
+    createCommand(key),
+    tryReplyToStringOrBufferArray,
+    options,
   );
 }

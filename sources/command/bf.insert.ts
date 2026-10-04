@@ -40,10 +40,11 @@ export async function bfInsert<T>(
   items: string[],
   options?: CommandBloomFilterInsertOptions,
 ): Promise<(number | RespError)[]> {
+  const count = items.length;
+
   return await executeCommand(
     this,
     createCommand(key, items, options),
-    (reply, command) =>
-      tryReplyToNumberOrErrorArray(reply, command, items.length),
+    (reply, command) => tryReplyToNumberOrErrorArray(reply, command, count),
   );
 }

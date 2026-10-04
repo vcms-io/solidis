@@ -770,9 +770,13 @@ describe('resp3-shapes', () => {
 
     await client.xadd(key, '1-1', { f: 'v' });
     await client.xgroupCreate(key, 'grp', '0');
+
+    const deliveredAt = Date.now();
+
     await client.xreadgroup('grp', 'consumer-a', [key], ['>']);
 
     const entries = await client.xpending(key, 'grp', '-', '+', 10);
+    const elapsed = Date.now() - deliveredAt;
 
     if (!Array.isArray(entries)) {
       assert.fail('expected XPENDING range entries');
@@ -782,8 +786,8 @@ describe('resp3-shapes', () => {
     assert.strictEqual(entries[0].consumer, 'consumer-a');
     assert.strictEqual(entries[0].deliveryCount, 1);
     assert.ok(
-      entries[0].deliveryTime >= 0,
-      `expected non-negative deliveryTime, got ${entries[0].deliveryTime}`,
+      entries[0].deliveryTime >= 0 && entries[0].deliveryTime <= elapsed + 1000,
+      `expected an idle time of at most ${elapsed} ms, got ${entries[0].deliveryTime}`,
     );
   });
 

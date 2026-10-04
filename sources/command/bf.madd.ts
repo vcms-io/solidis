@@ -11,10 +11,11 @@ export async function bfMadd<T>(
   key: string,
   items: string[],
 ): Promise<(number | RespError)[]> {
+  const count = items.length;
+
   return await executeCommand(
     this,
     createCommand(key, items),
-    (reply, command) =>
-      tryReplyToNumberOrErrorArray(reply, command, items.length),
+    (reply, command) => tryReplyToNumberOrErrorArray(reply, command, count),
   );
 }

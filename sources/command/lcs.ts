@@ -45,12 +45,12 @@ export async function lcs<T>(
   return await executeCommand(
     this,
     createCommand(key1, key2, options),
-    (reply, command) => {
-      if (options?.len) {
+    (reply, command, replyOptions) => {
+      if (replyOptions?.len) {
         return tryReplyNumber(reply, command);
       }
 
-      if (options?.idx) {
+      if (replyOptions?.idx) {
         /**
          * RESP2 returns a flat `['matches', [...], 'len', N]` array; RESP3
          * returns a map keyed by `matches`/`len`. tryReplyToMap reconciles both.
@@ -69,7 +69,10 @@ export async function lcs<T>(
                   a: [Number(position1[0]), Number(position1[1])],
                   b: [Number(position2[0]), Number(position2[1])],
                 };
-                if (options.withmatchlen && typeof matchLength === 'number') {
+                if (
+                  replyOptions.withmatchlen &&
+                  typeof matchLength === 'number'
+                ) {
                   match.length = matchLength;
                 }
                 matches.push(match);
@@ -86,5 +89,6 @@ export async function lcs<T>(
 
       return tryReplyToString(reply, command);
     },
+    options,
   );
 }

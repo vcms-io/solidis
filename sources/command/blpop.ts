@@ -18,7 +18,8 @@ export async function blpop<
   return await executeCommand(
     this,
     createCommand(keys, timeout),
-    (reply, command) => tryReplyToKeyValuePairOrNull(reply, command, options),
+    tryReplyToKeyValuePairOrNull,
+    options,
     { blockingTimeout: timeout * 1000 },
   );
 }

@@ -21,6 +21,7 @@ export async function rpoplpush<
   return await executeCommand(
     this,
     createCommand(source, destination),
-    (reply, command) => tryReplyToStringOrBufferOrNull(reply, command, options),
+    tryReplyToStringOrBufferOrNull,
+    options,
   );
 }

@@ -21,6 +21,7 @@ export async function hget<
   return await executeCommand(
     this,
     createCommand(key, field),
-    (reply, command) => tryReplyToStringOrBufferOrNull(reply, command, options),
+    tryReplyToStringOrBufferOrNull,
+    options,
   );
 }

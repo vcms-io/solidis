@@ -26,10 +26,11 @@ export async function tsMadd<T>(
     value: number;
   }>,
 ): Promise<(number | RespError)[]> {
+  const count = samples.length;
+
   return await executeCommand(
     this,
     createCommand(key, samples),
-    (reply, command) =>
-      tryReplyToNumberOrErrorArray(reply, command, samples.length),
+    (reply, command) => tryReplyToNumberOrErrorArray(reply, command, count),
   );
 }

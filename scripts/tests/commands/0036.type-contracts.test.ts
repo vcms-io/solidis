@@ -351,6 +351,17 @@ describe('type-contracts', () => {
       await client.latencyHistogram();
       await client.bitop('DIFF', 'target', ['a', 'b']);
       await client.auth(Buffer.from('user'), Buffer.from([0xff]));
+      await client.auth('password');
+      // @ts-expect-error AUTH needs a password
+      await client.auth();
+      // @ts-expect-error AUTH needs a password after a username
+      await client.auth('user', undefined);
+
+      const symbol = Symbol('extension');
+      const extended = client.extend({ [symbol]: async () => 1 });
+
+      // @ts-expect-error extend() installs no symbol-keyed member
+      void extended[symbol];
       await client.hello('RESP3', Buffer.from('user'), Buffer.from([0xff]));
       client.scan({ type: 'ReJSON-RL' });
       client.scan({ type: 'hash' });

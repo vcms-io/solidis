@@ -26,7 +26,8 @@ export async function brpoplpush<
   return await executeCommand(
     this,
     createCommand(source, destination, timeout),
-    (reply, command) => tryReplyToStringOrBufferOrNull(reply, command, options),
+    tryReplyToStringOrBufferOrNull,
+    options,
     { blockingTimeout: timeout * 1000 },
   );
 }

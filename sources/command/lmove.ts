@@ -32,6 +32,7 @@ export async function lmove<
   return await executeCommand(
     this,
     createCommand(source, destination, wherefrom, whereto),
-    (reply, command) => tryReplyToStringOrBufferOrNull(reply, command, options),
+    tryReplyToStringOrBufferOrNull,
+    options,
   );
 }

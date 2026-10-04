@@ -44,7 +44,10 @@ export async function mget<T>(
     throw newCommandError('Keys must be strings', 'MGET');
   }
 
-  return await executeCommand(this, createCommand(...keys), (reply, command) =>
-    tryReplyToNullableStringOrBufferArray(reply, command, options),
+  return await executeCommand(
+    this,
+    createCommand(...keys),
+    tryReplyToNullableStringOrBufferArray,
+    options,
   );
 }
