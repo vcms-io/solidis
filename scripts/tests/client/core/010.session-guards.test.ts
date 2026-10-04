@@ -1284,6 +1284,57 @@ describe('session-guards', () => {
       }
     });
 
+    it('settles connect() and send() at once when a ready listener quits a few microtasks later', async () => {
+      const server = await startServer(answerPong);
+
+      try {
+        for (let hops = 0; hops < 5; hops += 1) {
+          const client = new SolidisFeaturedClient(
+            mockClientOptions(server.port, { commandTimeout: 0 }),
+          );
+          const outcomes = new Promise<PromiseSettledResult<unknown>[]>(
+            (resolve) => {
+              client.once('ready', async () => {
+                for (let hop = 0; hop < hops; hop += 1) {
+                  await null;
+                }
+
+                client.quit();
+                resolve(
+                  Promise.allSettled([
+                    client.connect(),
+                    client.send([['PING']]),
+                  ]),
+                );
+              });
+            },
+          );
+
+          client.on('error', () => {});
+          await client.connect().catch(() => {});
+
+          const settled = await Promise.race([
+            outcomes,
+            new Promise<undefined>((resolve) =>
+              setTimeout(() => resolve(undefined), 1000),
+            ),
+          ]);
+
+          assert.ok(settled, `still pending after ${hops} microtasks`);
+
+          for (const outcome of settled) {
+            assert.strictEqual(outcome.status, 'rejected');
+            assert.strictEqual(
+              outcome.status === 'rejected' && outcome.reason.message,
+              'The client was quit.',
+            );
+          }
+        }
+      } finally {
+        await server.close();
+      }
+    });
+
     it('settles waiting requests at once when quit() interrupts a ready-check wait', async () => {
       const server = await startServer((socket) => {
         socket.write('$11\r\nloading:1\r\n\r\n');

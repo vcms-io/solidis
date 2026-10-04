@@ -462,6 +462,10 @@ describe('session-recovery', () => {
           assert.ok(error instanceof SolidisClientError);
           assert.ok(error.cause instanceof RespError);
           assert.strictEqual(error.cause.code, 'NOPERM');
+          assert.strictEqual(
+            error.cause.message,
+            "NOPERM this user has no permissions to access the '***' channel",
+          );
           assert.deepStrictEqual(
             await client.send([['LRANGE', 'x', '0', '-1']]),
             [[[Buffer.from('message'), Buffer.from('x'), Buffer.from('data')]]],

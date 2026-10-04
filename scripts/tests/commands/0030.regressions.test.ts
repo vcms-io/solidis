@@ -618,6 +618,29 @@ describe('regressions', () => {
       );
     });
 
+    it('strips replacement characters in linear time', () => {
+      const run = '\uFFFD'.repeat(200_000);
+      const startedAt = performance.now();
+      const error = toCommandError(new RespError(`ERR ${run}x`), ['GET', 'k']);
+
+      assert.ok(performance.now() - startedAt < 1000);
+      assert.strictEqual(error.message, `[GET] ERR ${run}x`);
+    });
+
+    it('redacts a string argument with a lone surrogate, which the server echoes as U+FFFD', () => {
+      const error = toCommandError(
+        new RespError(
+          "ERR Error in ACL SETUSER modifier 'hunter2-\uFFFD-topsecret': Syntax error",
+        ),
+        ['ACL', 'SETUSER', 'reader', 'hunter2-\uD83D-topsecret'],
+      );
+
+      assert.strictEqual(
+        error.message,
+        "[ACL SETUSER] ERR Error in ACL SETUSER modifier '***': Syntax error",
+      );
+    });
+
     it('redacts arguments the server joins into one quoted span', () => {
       const error = toCommandError(
         new RespError(

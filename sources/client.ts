@@ -24,6 +24,7 @@ import {
 } from './common/utils/internal.ts';
 import { resolveClientOptions } from './common/utils/options.ts';
 import { findErrorInReplies } from './common/utils/reply.ts';
+import { toCommandError } from './common/utils/request.ts';
 import { SolidisConnection } from './modules/connection.ts';
 import {
   copyCommands,
@@ -182,6 +183,7 @@ export class SolidisClient extends EventEmitter {
 
   public quit() {
     this.#isReady = false;
+    this.#readyLock = null;
     this.#session += 1;
 
     this.#connection.quit();
@@ -518,8 +520,9 @@ export class SolidisClient extends EventEmitter {
         continue;
       }
 
+      const command = [eventName.toUpperCase(), ...subscriptions];
       const error = await handshake
-        .send([[eventName.toUpperCase(), ...subscriptions]])
+        .send([command])
         .then(findErrorInReplies, (sendError: unknown) =>
           sendError instanceof SolidisCommandError
             ? sendError.cause
@@ -542,7 +545,10 @@ export class SolidisClient extends EventEmitter {
 
       this.emit(
         'error',
-        new SolidisClientError('Failed to restore subscriptions', error),
+        new SolidisClientError(
+          'Failed to restore subscriptions',
+          toCommandError(error, command).cause,
+        ),
       );
     }
   }

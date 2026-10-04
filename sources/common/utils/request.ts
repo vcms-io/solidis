@@ -119,7 +119,7 @@ function redactArguments(
   command: readonly StringOrBuffer[],
   visibleLength: number,
 ) {
-  const source = message.replace(/\uFFFD+(?=['`])/g, '');
+  const source = message.replace(/\uFFFD+(?=['`])|(\uFFFD+)/g, '$1');
   const starts = new Set(source.match(/(?<=['`])./gs));
 
   if (starts.size === 0) {
@@ -130,7 +130,10 @@ function redactArguments(
     command
       .slice(visibleLength)
       .map((argument) =>
-        toTextPrefix(argument, source.length).replace(/[\r\n]/g, ' '),
+        toTextPrefix(argument, source.length).replace(
+          /[\r\n]|\p{Cs}/gu,
+          (character) => (character < ' ' ? ' ' : '\uFFFD'),
+        ),
       )
       .filter((text) => starts.has(text[0])),
   );
