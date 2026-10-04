@@ -35,7 +35,8 @@ export async function buildDistributions(outputDirectory: string) {
       outdir: outputDirectory,
       bundle: true,
       format,
-      minify: true,
+      minifySyntax: true,
+      minifyWhitespace: true,
       platform: 'node',
       outExtension: {
         '.js': extension,

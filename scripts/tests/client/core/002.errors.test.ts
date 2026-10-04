@@ -4,6 +4,7 @@
  */
 
 import assert from 'node:assert/strict';
+import { errorMonitor } from 'node:events';
 import { after, before, describe, it } from 'node:test';
 
 import { SolidisFeaturedClient } from '../../../../sources/client/featured.ts';
@@ -243,6 +244,43 @@ describe('errors', () => {
 
     unattended.quit();
     attended.quit();
+  });
+
+  it('keeps warning about errors after every listener was removed', (context) => {
+    const warnings: unknown[] = [];
+    const monitored: unknown[] = [];
+    const handled: unknown[] = [];
+
+    context.mock.method(process, 'emitWarning', (warning: unknown) => {
+      warnings.push(warning);
+    });
+
+    const client = new SolidisFeaturedClient(
+      buildClientOptions({ lazyConnect: true }),
+    );
+    const [first, second, third] = ['first', 'second', 'third'].map(
+      (message) => new Error(message),
+    );
+
+    client.addListener(errorMonitor, (error) => monitored.push(error));
+    client.on('error', () => {});
+    client.removeAllListeners('error');
+
+    assert.strictEqual(client.emit('error', first), false);
+
+    client.removeAllListeners();
+
+    assert.strictEqual(client.emit('error', second), false);
+
+    client.addListener(errorMonitor, (error) => monitored.push(error));
+    client.on('error', (error) => handled.push(error));
+
+    assert.strictEqual(client.emit('error', third), true);
+    assert.deepStrictEqual(warnings, [first, second]);
+    assert.deepStrictEqual(monitored, [first, third]);
+    assert.deepStrictEqual(handled, [third]);
+
+    client.quit();
   });
 
   it('unwraps nested Solidis errors to their root causes', () => {

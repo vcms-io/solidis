@@ -743,9 +743,8 @@ describe('session-recovery', () => {
 
       await assert.rejects(client.get(key), (error: unknown) => {
         assert.ok(error instanceof SolidisClientError);
-        assert.strictEqual(error.message, 'Not connected with redis server.');
-        assert.ok(error.cause instanceof SolidisClientError);
-        assert.strictEqual(error.cause.message, 'The client was quit.');
+        assert.strictEqual(error.message, 'The client was quit.');
+        assert.strictEqual(error.cause, undefined);
 
         return true;
       });

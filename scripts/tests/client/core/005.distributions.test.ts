@@ -2,6 +2,7 @@
 
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import {
   mkdir,
   mkdtemp,
@@ -203,17 +204,70 @@ describe('distributions', () => {
     const packageJson = JSON.parse(
       await readFile(join(process.cwd(), 'package.json'), 'utf8'),
     ) as { exports: Record<string, PackageExportTarget> };
-    const targets = Object.values(packageJson.exports).flatMap((target) => [
-      target.import.default.replace('*', 'get'),
-      target.require.default.replace('*', 'get'),
-    ]);
-    const output = runNode(
-      'commonjs',
-      `const { existsSync } = require('node:fs');
-      const targets = ${JSON.stringify(targets)};
-      process.stdout.write(JSON.stringify(targets.filter((target) => !existsSync(target.replace('./distributions/', './')))));`,
+    const targets = Object.values(packageJson.exports).flatMap((target) =>
+      [
+        target.import.default,
+        target.require.default,
+        target.import.types,
+        target.require.types,
+      ].flatMap((path) =>
+        path.includes('*')
+          ? commandNames.map((name) => path.replace('*', name))
+          : [path],
+      ),
+    );
+    const missing = targets.filter(
+      (target) =>
+        !existsSync(
+          /\.d\.c?ts$/.test(target)
+            ? target
+                .replace('./distributions/', './sources/')
+                .replace(/\.d\.c?ts$/, '.ts')
+            : join(outputDirectory, target.replace('./distributions/', '')),
+        ),
     );
 
-    assert.deepStrictEqual(JSON.parse(output), []);
+    assert.ok(targets.length > 1000);
+    assert.deepStrictEqual(missing, []);
+  });
+
+  it('keeps the names of classes and functions', () => {
+    const script = (load: string) =>
+      `${load}
+      process.stdout.write(JSON.stringify([SolidisClient.name, SolidisFeaturedClient.name, SolidisCommandError.name, RespPush.name, set.name]));`;
+    const names = [
+      'SolidisClient',
+      'SolidisFeaturedClient',
+      'SolidisCommandError',
+      'RespPush',
+      'set',
+    ];
+
+    assert.deepStrictEqual(
+      JSON.parse(
+        runNode(
+          'commonjs',
+          script(
+            `const { SolidisClient, SolidisCommandError, RespPush } = require('./index.cjs');
+            const { SolidisFeaturedClient } = require('./client/featured.cjs');
+            const { set } = require('./command/set.cjs');`,
+          ),
+        ),
+      ),
+      names,
+    );
+    assert.deepStrictEqual(
+      JSON.parse(
+        runNode(
+          'module',
+          script(
+            `const { SolidisClient, SolidisCommandError, RespPush } = await import('./index.mjs');
+            const { SolidisFeaturedClient } = await import('./client/featured.mjs');
+            const { set } = await import('./command/set.mjs');`,
+          ),
+        ),
+      ),
+      names,
+    );
   });
 });

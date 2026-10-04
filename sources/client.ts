@@ -6,6 +6,7 @@ import { select } from './command/select.ts';
 import { SolidisSubscribeEventNames } from './common/constants.ts';
 import {
   resolveTimerDelay,
+  SolidisAuthenticationErrorPattern,
   SolidisAuthenticationFailedMessage,
   SolidisClientQuitMessage,
   SolidisMaximumTimerDelay,
@@ -24,7 +25,12 @@ import { resolveClientOptions } from './common/utils/options.ts';
 import { findErrorInReplies } from './common/utils/reply.ts';
 import { SolidisConnection } from './modules/connection.ts';
 import { SolidisDebugMemory } from './modules/debug.ts';
-import { EventEmitter, SolidisSessionSendOptions } from './modules/internal.ts';
+import {
+  copyCommands,
+  EventEmitter,
+  errorMonitor,
+  SolidisSessionSendOptions,
+} from './modules/internal.ts';
 import { SolidisPubSub } from './modules/pubsub.ts';
 import { SolidisRequester } from './modules/requester.ts';
 import { SolidisProtocols } from './types/solidis.ts';
@@ -64,7 +70,6 @@ export class SolidisClient extends EventEmitter {
   #interruptReadyCheck: (() => void) | undefined;
   #waitingRequests = new Set<(cause?: unknown) => void>();
 
-  declare public emit: SolidisClientEventHandlers<this>['emit'];
   declare public on: SolidisClientEventHandlers<this>['on'];
   declare public once: SolidisClientEventHandlers<this>['once'];
 
@@ -125,6 +130,8 @@ export class SolidisClient extends EventEmitter {
       return this.#requester.send(commands, options);
     }
 
+    const batch = copyCommands(commands);
+
     return new Promise((resolve, reject) => {
       const timeout = resolveTimerDelay(
         options?.timeout ?? this.#options.commandTimeout,
@@ -135,10 +142,15 @@ export class SolidisClient extends EventEmitter {
         this.#waitingRequests.delete(settle);
 
         if (cause === undefined) {
-          resolve(this.#requester.send(commands, options));
+          resolve(this.#requester.send(batch, options));
         } else {
           reject(
-            new SolidisClientError('Not connected with redis server.', cause),
+            this.#connection.isQuitted
+              ? new SolidisClientError(SolidisClientQuitMessage)
+              : new SolidisClientError(
+                  'Not connected with redis server.',
+                  cause,
+                ),
           );
         }
       };
@@ -198,20 +210,30 @@ export class SolidisClient extends EventEmitter {
     return this as this & SolidisClientExtensions<T, this>;
   }
 
+  public override emit<E extends keyof SolidisClientEvents>(
+    event: E,
+    ...parameters: Parameters<SolidisClientEvents[E]>
+  ) {
+    if (event === 'error') {
+      this.#debug?.('error', 'Encountered an error', parameters[0]);
+
+      if (this.listenerCount('error') === 0) {
+        super.emit(errorMonitor, ...parameters);
+        process.emitWarning(wrapWithError(parameters[0]));
+
+        return false;
+      }
+    }
+
+    return super.emit(event, ...parameters);
+  }
+
   #setupListeners() {
     const connection = this.#connection;
 
     this.#debugMemory?.on('pushed', (entry) =>
       queueMicrotask(() => this.#notify('debug', entry)),
     );
-
-    this.on('error', (error: Error) => {
-      this.#debug?.('error', 'Encountered an error', error);
-
-      if (this.listenerCount('error') === 1) {
-        process.emitWarning(error);
-      }
-    });
 
     connection.on('connect', () => this.#onConnect());
     connection.on('close', (error) => this.#onClose(error));
@@ -259,6 +281,7 @@ export class SolidisClient extends EventEmitter {
   #onClose(error: Error) {
     this.#isReady = false;
     this.#session += 1;
+    this.#interruptReadyCheck?.();
 
     this.#notify('close', error);
 
@@ -413,7 +436,7 @@ export class SolidisClient extends EventEmitter {
 
       if (!tolerated?.test(message)) {
         throw new SolidisClientError(
-          /^(WRONGPASS|NOAUTH)/.test(message)
+          SolidisAuthenticationErrorPattern.test(message)
             ? SolidisAuthenticationFailedMessage
             : failure,
           error,
@@ -473,7 +496,10 @@ export class SolidisClient extends EventEmitter {
     const targetDatabase = autoRecovery.database ? selectedDatabase : database;
 
     if (targetDatabase !== 0 || selectedDatabase !== 0) {
-      await select.call(handshake, targetDatabase);
+      await this.#runStep(
+        select.call(handshake, targetDatabase),
+        'SELECT failed',
+      );
     }
 
     for (const eventName of SolidisSubscribeEventNames) {
@@ -501,6 +527,10 @@ export class SolidisClient extends EventEmitter {
 
       if (!(error instanceof RespError)) {
         throw error;
+      }
+
+      if (SolidisAuthenticationErrorPattern.test(error.message)) {
+        throw new SolidisClientError(SolidisAuthenticationFailedMessage, error);
       }
 
       pubSub.clearSubscriptions(eventName);

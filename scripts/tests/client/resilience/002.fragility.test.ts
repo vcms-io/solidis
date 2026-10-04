@@ -595,10 +595,14 @@ describe('fragility', () => {
         .catch((error: unknown) => ({ rejected: true as const, error }));
 
       await waitFor(
-        async () => {
-          const list = await killer.clientList();
-          return list.includes('cmd=blpop');
-        },
+        async () =>
+          (await killer.clientList())
+            .split('\n')
+            .some(
+              (line) =>
+                line.startsWith(`id=${clientId} `) &&
+                line.includes('cmd=blpop'),
+            ),
         {
           timeout: 2000,
           interval: 10,
@@ -804,14 +808,14 @@ describe('fragility', () => {
         () => client.get(keyspace.key('quit')),
         (error: Error) =>
           error instanceof SolidisClientError &&
-          error.message === 'Not connected with redis server.',
+          error.message === 'The client was quit.',
       );
 
       await assert.rejects(
         () => client.ping(),
         (error: Error) =>
           error instanceof SolidisClientError &&
-          error.message === 'Not connected with redis server.',
+          error.message === 'The client was quit.',
       );
     });
 
@@ -1433,10 +1437,12 @@ describe('fragility', () => {
       await assert.rejects(
         () => client.connect(),
         (error: Error) =>
-          error instanceof SolidisCommandError &&
-          error.message === '[SELECT] ERR invalid DB index' &&
-          error.cause instanceof RespError &&
-          error.cause.code === 'ERR',
+          error instanceof SolidisClientError &&
+          error.message === 'SELECT failed' &&
+          error.cause instanceof SolidisCommandError &&
+          error.cause.message === '[SELECT] ERR invalid DB index' &&
+          error.cause.cause instanceof RespError &&
+          error.cause.cause.code === 'ERR',
       );
 
       assert.strictEqual(
@@ -1455,8 +1461,10 @@ describe('fragility', () => {
         (error: Error) =>
           error instanceof SolidisClientError &&
           error.message === 'Not connected with redis server.' &&
-          error.cause instanceof SolidisCommandError &&
-          error.cause.message === '[SELECT] ERR invalid DB index',
+          error.cause instanceof SolidisClientError &&
+          error.cause.message === 'SELECT failed' &&
+          error.cause.cause instanceof SolidisCommandError &&
+          error.cause.cause.message === '[SELECT] ERR invalid DB index',
       );
     });
   });

@@ -477,7 +477,7 @@ describe('debug-requester', () => {
         () => faultyClient.get(key),
         (error: Error) =>
           error instanceof SolidisClientError &&
-          error.message === 'Not connected with redis server.',
+          error.message === 'The client was quit.',
       );
     });
 
@@ -640,7 +640,14 @@ describe('debug-requester', () => {
       );
 
       await waitFor(
-        async () => (await killerClient.clientList()).includes('cmd=blpop'),
+        async () =>
+          (await killerClient.clientList())
+            .split('\n')
+            .some(
+              (line) =>
+                line.startsWith(`id=${clientId} `) &&
+                line.includes('cmd=blpop'),
+            ),
         {
           timeout: 2000,
           interval: 10,
@@ -1268,37 +1275,39 @@ describe('debug-requester', () => {
       ]);
     });
 
-    it('checks commands when they are flushed, so changes after send() are seen whole', async () => {
+    it('copies the commands at send(), so later changes to the arrays are not sent', async () => {
       const { connection, requester } = createRequester();
 
-      const broken: unknown[] = ['SET', 'a', '1'];
-      const renamed = ['SET', 'b', '2'];
-      const rejected = settle(requester.send([broken as string[]]));
-      const subscribed = requester.send([renamed]);
-      const read = requester.send([['GET', 'b']]);
+      const reused: unknown[] = ['SET', 'a', '1'];
+      const batch = [
+        ['SELECT', '2'],
+        ['GET', 'a'],
+      ];
+      const first = requester.send([reused as string[]]);
 
-      broken[2] = undefined;
-      renamed.splice(0, 3, 'SUBSCRIBE', 'news', 'sport');
+      reused[2] = undefined;
 
-      const error = await rejected;
+      const second = requester.send(batch);
 
-      assert.ok(error instanceof SolidisRequesterError);
-      assert.strictEqual(error.message, 'SET takes only strings and Buffers.');
+      batch[0][1] = '7';
+      batch.length = 0;
+      reused.splice(0, 3, 'SUBSCRIBE', 'news');
+
+      await flushed();
+
       assert.deepStrictEqual(connection.writes, [
         commandsToBuffer([
-          ['SUBSCRIBE', 'news', 'sport'],
-          ['GET', 'b'],
+          ['SET', 'a', '1'],
+          ['SELECT', '2'],
+          ['GET', 'a'],
         ]),
       ]);
 
-      connection.reply(
-        `${subscribeConfirmation('subscribe', 'news', 1)}${subscribeConfirmation('subscribe', 'sport', 2)}$1\r\n2\r\n`,
-      );
+      connection.reply('+OK\r\n+OK\r\n$1\r\n1\r\n');
 
-      const [confirmations] = await subscribed;
-
-      assert.strictEqual(confirmations.length, 2);
-      assert.deepStrictEqual(await read, [[Buffer.from('2')]]);
+      assert.deepStrictEqual(await first, [['OK']]);
+      assert.deepStrictEqual(await second, [['OK'], [Buffer.from('1')]]);
+      assert.strictEqual(requester.database, 2);
     });
 
     it('expands an argument-less UNSUBSCRIBE over more channels than a call takes arguments', async () => {

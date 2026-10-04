@@ -27,6 +27,7 @@ import {
 import { RespPush } from '../types/resp.ts';
 import { SolidisProtocols } from '../types/solidis.ts';
 import {
+  copyCommands,
   SolidisCommandKinds,
   SolidisSessionSendOptions,
   SolidisUnsupportedCommandNameSet,
@@ -188,7 +189,7 @@ export class SolidisRequester {
     commands: StringOrBuffer[][],
     options?: SolidisSendOptions,
   ): Promise<SolidisData[][]> {
-    const batch = Array.isArray(commands) ? commands : [commands];
+    const batch = copyCommands(commands);
 
     if (batch.length === 0) {
       return Promise.resolve([]);

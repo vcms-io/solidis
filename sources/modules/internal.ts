@@ -1,11 +1,19 @@
 import { SolidisSubscriptionEventNames } from '../common/constants.ts';
 
 import type { SolidisCommandKind } from '../types/internal.ts';
-import type { SolidisSendOptions } from '../types/solidis.ts';
+import type { SolidisSendOptions, StringOrBuffer } from '../types/solidis.ts';
 
-export { EventEmitter } from 'node:events';
+export { EventEmitter, errorMonitor } from 'node:events';
 
 export const SolidisSessionSendOptions: SolidisSendOptions = {};
+
+export function copyCommands(commands: StringOrBuffer[][]) {
+  return Array.isArray(commands)
+    ? commands.map((command) =>
+        Array.isArray(command) ? command.slice() : command,
+      )
+    : [commands];
+}
 
 export const SolidisSessionCommandKinds = [
   'select',

@@ -63,4 +63,5 @@ export function resolveTimerDelay(delay: number) {
 
 export const SolidisSocketNotConnectedMessage = 'Socket is not connected.';
 export const SolidisAuthenticationFailedMessage = 'Authentication failed';
+export const SolidisAuthenticationErrorPattern = /^(WRONGPASS|NOAUTH)/;
 export const SolidisClientQuitMessage = 'The client was quit.';

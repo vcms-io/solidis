@@ -769,6 +769,151 @@ describe('session-guards', () => {
       }
     });
 
+    it('ends a ready-check wait as soon as its connection closes', async () => {
+      let readyChecks = 0;
+
+      const server = await startServer((socket, data) => {
+        if (data.includes('INFO')) {
+          readyChecks += 1;
+
+          if (readyChecks === 1) {
+            socket.write('$9\r\nloading:1\r\n');
+            setTimeout(() => socket.destroy(), 10);
+          } else {
+            socket.write('$9\r\nloading:0\r\n');
+          }
+        }
+      });
+      const client = new SolidisFeaturedClient(
+        mockClientOptions(server.port, {
+          enableReadyCheck: true,
+          readyCheckInterval: 60_000,
+          maxConnectionRetries: 1,
+          connectionRetryDelay: 10,
+        }),
+      );
+
+      client.on('error', () => {});
+
+      try {
+        const outcome = await Promise.race([
+          client.connect().then(
+            () => 'ready',
+            (error: Error) => error.message,
+          ),
+          delay(2000).then(() => 'still waiting'),
+        ]);
+
+        assert.strictEqual(outcome, 'ready');
+        assert.strictEqual(readyChecks, 2);
+      } finally {
+        client.quit();
+        await server.close();
+      }
+    });
+
+    it('copies the commands sent before the client is ready', async () => {
+      const server = await startServer((socket, data) => {
+        socket.write('+OK\r\n'.repeat(data.toString().split('SET').length - 1));
+      });
+      const client = new SolidisFeaturedClient(
+        mockClientOptions(server.port, { lazyConnect: true }),
+      );
+      const command = ['SET', 'a', '1'];
+      const batch = [command];
+
+      client.on('error', () => {});
+
+      try {
+        const sent = client.send(batch);
+
+        command[2] = '2';
+        batch.length = 0;
+
+        assert.deepStrictEqual(await sent, [['OK']]);
+        assert.ok(server.received.join('').includes('$1\r\n1\r\n'));
+        assert.ok(!server.received.join('').includes('$1\r\n2\r\n'));
+      } finally {
+        client.quit();
+        await server.close();
+      }
+    });
+
+    it('reports NOAUTH from SELECT and from restored subscriptions as an authentication failure', async () => {
+      const selecting = await startServer((socket, data) => {
+        if (data.includes('SELECT')) {
+          socket.write('-NOAUTH Authentication required.\r\n');
+        }
+      });
+      const selector = new SolidisFeaturedClient(
+        mockClientOptions(selecting.port, { database: 2 }),
+      );
+
+      selector.on('error', () => {});
+
+      try {
+        await assert.rejects(selector.connect(), (error: unknown) => {
+          assert.ok(error instanceof SolidisClientError);
+          assert.strictEqual(error.message, 'Authentication failed');
+          assert.ok(error.cause instanceof SolidisCommandError);
+          assert.match(error.cause.message, /^\[SELECT\] NOAUTH /);
+
+          return true;
+        });
+      } finally {
+        selector.quit();
+        await selecting.close();
+      }
+
+      const subscribing = await startServer((socket, data, server) => {
+        if (!data.includes('SUBSCRIBE')) {
+          return;
+        }
+
+        if (server.acceptedCount === 1) {
+          socket.write('*3\r\n$9\r\nsubscribe\r\n$4\r\nnews\r\n:1\r\n');
+        } else {
+          socket.write('-NOAUTH Authentication required.\r\n');
+        }
+      });
+      const subscriber = new SolidisFeaturedClient(
+        mockClientOptions(subscribing.port, {
+          autoReconnect: true,
+          maxConnectionRetries: 1,
+          connectionRetryDelay: 10,
+        }),
+      );
+      const errors: Error[] = [];
+
+      subscriber.on('error', (error) => errors.push(error));
+
+      try {
+        await subscriber.subscribe('news');
+
+        subscribing.destroySockets();
+
+        await waitFor(() =>
+          errors.some((error) => error.message === 'Authentication failed'),
+        );
+
+        const failure = errors.find(
+          (error) => error.message === 'Authentication failed',
+        );
+
+        assert.ok(failure instanceof SolidisClientError);
+        assert.ok(failure.cause instanceof RespError);
+        assert.strictEqual(failure.cause.code, 'NOAUTH');
+        assert.ok(
+          !errors.some(
+            (error) => error.message === 'Failed to restore subscriptions',
+          ),
+        );
+      } finally {
+        subscriber.quit();
+        await subscribing.close();
+      }
+    });
+
     it("fails at once with the server's reason when it denies the connection", async () => {
       const server = await startServer((socket) => {
         socket.end('-DENIED Redis is running in protected mode\r\n');
@@ -925,7 +1070,7 @@ describe('session-guards', () => {
         });
         await assert.rejects(client.send([['PING']]), {
           name: 'SolidisClientError',
-          message: 'Not connected with redis server.',
+          message: 'The client was quit.',
         });
 
         assert.ok(Date.now() - startedAt < 1000);
@@ -969,8 +1114,8 @@ describe('session-guards', () => {
         assert.ok(connectError instanceof SolidisClientError);
         assert.strictEqual(connectError.message, 'The client was quit.');
         assert.ok(sendError instanceof SolidisClientError);
-        assert.ok(sendError.cause instanceof SolidisClientError);
-        assert.strictEqual(sendError.cause.message, 'The client was quit.');
+        assert.strictEqual(sendError.message, 'The client was quit.');
+        assert.strictEqual(sendError.cause, undefined);
       } finally {
         await server.close();
       }
