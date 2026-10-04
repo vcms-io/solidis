@@ -229,8 +229,6 @@ describe('type-contracts', () => {
       );
     }
 
-    transaction.discard();
-    chainedTransaction.discard();
     extended.quit();
     chained.quit();
   });

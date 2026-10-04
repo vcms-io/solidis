@@ -88,6 +88,7 @@
   "files": [
     "distributions/**/*.{d.ts,d.cts,mjs,cjs}"
   ],
+  "sideEffects": false,
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
     "@napi-rs/canvas": "^1.0.10",

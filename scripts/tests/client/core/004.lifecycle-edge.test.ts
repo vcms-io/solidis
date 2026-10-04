@@ -532,6 +532,31 @@ describe('lifecycle-edge', () => {
       const { get: detachedGet } = extended;
 
       assert.strictEqual(await detachedGet(key), 'value');
+
+      class StaticExtensions {
+        static ping() {
+          return 'PONG';
+        }
+      }
+
+      const hidden = Object.defineProperty({}, 'whoAmI', {
+        value(this: unknown) {
+          return this;
+        },
+      });
+
+      Reflect.apply(bare.extend, bare, [StaticExtensions]);
+      Reflect.apply(bare.extend, bare, [hidden]);
+
+      for (const [name, result] of [
+        ['ping', 'PONG'],
+        ['whoAmI', bare],
+      ] as const) {
+        const method: unknown = Reflect.get(bare, name);
+
+        assert.ok(typeof method === 'function', name);
+        assert.strictEqual(Reflect.apply(method, undefined, []), result, name);
+      }
     } finally {
       bare.quit();
     }

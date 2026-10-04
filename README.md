@@ -558,7 +558,9 @@ try {
 
 > [!NOTE]
 > Every error Solidis throws for arguments of the declared types is an instance of `SolidisError` and links its origin through the standard `cause`.
-> Messages name the command (`[INCR] ERR ...`) and add none of its arguments. An argument the server quotes back becomes `'***'`, in the message and in its `cause`; a value the server repeats without quotes, such as the coordinates in a GEOADD error or text a script passes to `redis.error_reply()`, stays as the server sent it.
+> Messages name the command (`[INCR] ERR ...`) and add none of its arguments. An argument the server quotes back becomes `'***'`, in the message and in its `cause`; a value the server repeats without quotes, such as the coordinates in a GEOADD error or text a script passes to `redis.error_reply()`, and text it takes from inside an argument, such as the library name in a FUNCTION LOAD error, stay as the server sent them.
+> Arguments are checked by their declared types only. From JavaScript, a string where a command takes an array, an array where it takes an object, or ioredis-style options such as `set(key, value, 'EX', 10)` make a different command; records of fields reject anything but an object.
+> An application that loads both the ES module and the CommonJS build can mix their clients and commands, but each build has its own error classes, so `instanceof` matches only errors from the same build.
 > TS.MADD, BF.MADD and BF.INSERT store items one by one, so they return a rejected item as a `RespError` in their result instead of rejecting the call.
 
 | Error Class              | When                                                                                                                                    |

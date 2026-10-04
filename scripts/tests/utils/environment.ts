@@ -1,7 +1,7 @@
 /**
  * Resolves connection settings from the environment so the same suite can run
- * against a locally launched server, the docker-compose topology, or the
- * continuous-integration matrix (Redis and Valkey) without code changes.
+ * against a locally launched server or the continuous-integration matrix
+ * (Redis and Valkey) without code changes.
  */
 
 import { SolidisProtocols } from '../../../sources/index.ts';
