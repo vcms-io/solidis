@@ -338,6 +338,7 @@ describe('errors', () => {
   it('creates RespError without stack', () => {
     const error = new RespError('test message');
 
+    assert.ok(error instanceof SolidisError);
     assert.strictEqual(error.name, 'RespError');
     assert.strictEqual(error.message, 'test message');
     assert.strictEqual(error.stack, undefined);

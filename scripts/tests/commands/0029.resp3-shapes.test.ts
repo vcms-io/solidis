@@ -1100,6 +1100,14 @@ describe('resp3-shapes', () => {
     assert.strictEqual(name, 'resp3-test-client');
   });
 
+  it('keeps RESP3 when HELLO names no protocol', async () => {
+    const info = await client.hello();
+    const [[fields]] = await client.send([['HGETALL', keyspace.key('none')]]);
+
+    assert.strictEqual(info.proto, 3);
+    assert.ok(fields instanceof Map);
+  });
+
   it('reads RESP3 TimeSeries TS.GET / TS.REVRANGE when the module is present', async (context) => {
     if (!hasTimeSeries) {
       context.skip('RedisTimeSeries not loaded');

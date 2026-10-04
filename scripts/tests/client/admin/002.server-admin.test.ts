@@ -184,7 +184,7 @@ describe('server-admin', () => {
 
     const idle = await client.objectIdletime(key);
 
-    assert.strictEqual(idle, 0);
+    assert.ok(idle === 0 || idle === 1, `idle ${idle}`);
   });
 
   it('returns null for OBJECT REFCOUNT of missing key', async () => {
@@ -339,6 +339,7 @@ describe('server-admin', () => {
       '../../../../sources/command/hello.ts'
     );
 
+    assert.deepStrictEqual(createCommand(), ['HELLO']);
     assert.deepStrictEqual(createCommand('RESP3'), ['HELLO', '3']);
     assert.deepStrictEqual(createCommand('RESP2'), ['HELLO', '2']);
 

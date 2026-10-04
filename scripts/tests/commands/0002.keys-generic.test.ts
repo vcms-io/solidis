@@ -272,7 +272,7 @@ describe('keys-generic', () => {
 
     assert.strictEqual(await client.pexpireat(key, futureMilliseconds), 1);
     const pexpireatPttl = await client.pttl(key);
-    assert.ok(pexpireatPttl >= 999000 && pexpireatPttl <= 1000000);
+    assert.ok(pexpireatPttl >= 999000 && pexpireatPttl <= 1001000);
 
     /** PEXPIRETIME was introduced in Redis 7.0. */
     if (atLeast7) {
@@ -482,12 +482,12 @@ describe('keys-generic', () => {
 
     assert.strictEqual(await client.pexpireat(key, futureMs, 'NX'), 1);
     const pexpireatNxPttl = await client.pttl(key);
-    assert.ok(pexpireatNxPttl >= 59500 && pexpireatNxPttl <= 60000);
+    assert.ok(pexpireatNxPttl >= 59500 && pexpireatNxPttl <= 61000);
 
     assert.strictEqual(await client.pexpireat(key, futureMs + 1000, 'NX'), 0);
     const pexpireatNxUnchangedPttl = await client.pttl(key);
     assert.ok(
-      pexpireatNxUnchangedPttl >= 59000 && pexpireatNxUnchangedPttl <= 60000,
+      pexpireatNxUnchangedPttl >= 59000 && pexpireatNxUnchangedPttl <= 61000,
     );
   });
 

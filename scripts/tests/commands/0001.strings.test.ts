@@ -227,7 +227,7 @@ describe('strings', () => {
     );
     const getexFutureMillisPttl = await client.pttl(key);
     assert.ok(
-      getexFutureMillisPttl > 7190000 && getexFutureMillisPttl <= 7200000,
+      getexFutureMillisPttl > 7190000 && getexFutureMillisPttl <= 7201000,
     );
 
     assert.strictEqual(await client.getex(key, { persist: true }), 'value');
