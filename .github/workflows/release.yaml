@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'package.json'
+  workflow_dispatch:
 
 jobs:
   test:
@@ -78,7 +79,7 @@ jobs:
     name: Release Package
     needs: check-version
 
-    if: needs.check-version.outputs.release == 'true'
+    if: needs.check-version.outputs.release == 'true' && github.ref == 'refs/heads/main'
 
     runs-on: ubuntu-latest
     timeout-minutes: 30

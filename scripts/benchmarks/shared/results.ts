@@ -113,6 +113,18 @@ export function makeErrorResult(
   };
 }
 
+export function describeFailedResults(results: BenchResult[]): string[] {
+  return results.flatMap((result) => {
+    const failure = result.error ?? result.verificationError;
+
+    return failure === undefined
+      ? []
+      : [
+          `${result.operation} [${result.library}] ${formatPayloadSize(result.payloadBytes)}: ${failure}`,
+        ];
+  });
+}
+
 export function compare(
   results: BenchResult[],
   baselineLibrary: LibraryName,

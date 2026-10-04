@@ -20,6 +20,7 @@ import { exportSnapshot, shouldExportSnapshot } from './markdown/snapshot.ts';
 import { makePayloadPool, makePayloadSeed } from './payload.ts';
 import {
   compare,
+  describeFailedResults,
   getFairnessWarning,
   getSkipReason,
   makeErrorResult,
@@ -30,6 +31,7 @@ import {
 import {
   logCaseDone,
   logCaseTitle,
+  logError,
   logPhase,
   logProgress,
   logSampleDone,
@@ -445,6 +447,16 @@ export function createBenchmarkRunner(
       'Suite complete',
       `total ${((performance.now() - runStartedAt) / 1000).toFixed(1)}s`,
     );
+
+    const failures = describeFailedResults(results);
+
+    if (failures.length > 0) {
+      for (const failure of failures) {
+        logError(failure);
+      }
+
+      process.exitCode = 1;
+    }
   }
 
   async function runWorker(): Promise<void> {

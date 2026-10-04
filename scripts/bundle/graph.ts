@@ -39,7 +39,7 @@ const BAR_COLORS: Record<string, ColorPair> = {
 };
 
 function formatKilobytes(bytes: number): string {
-  return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024).toFixed(1)} KB`;
 }
 
 function drawRoundedTop(

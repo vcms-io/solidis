@@ -32,6 +32,24 @@ jobs:
       - run: npm install
       - run: npm run lint:check
 
+  package:
+    name: Package
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: lint
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - run: npm run build
+      - name: Pack and verify the tarball
+        run: |
+          TARBALL=$(npm pack --ignore-scripts)
+          npm run --silent node:ts ./scripts/workflows/release/verify.ts "$TARBALL"
+
   integration:
     name: Integration (${{ matrix.server.label }}, ${{ matrix.protocol }})
     runs-on: ubuntu-latest

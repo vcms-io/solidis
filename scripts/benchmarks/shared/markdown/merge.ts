@@ -2,6 +2,7 @@ import { writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import { deserializeConfig } from '../configuration.ts';
+import { describeFailedResults } from '../results.ts';
 import { generateMarkdownReport } from './index.ts';
 import { loadSnapshot, mergeSnapshots } from './snapshot.ts';
 
@@ -50,6 +51,15 @@ const snapshots = await Promise.all(
 );
 
 const merged = mergeSnapshots(snapshots);
+const failures = describeFailedResults(merged.results);
+
+if (failures.length > 0) {
+  console.error(
+    `Refusing to report failed benchmark results:\n${failures.join('\n')}`,
+  );
+  process.exit(1);
+}
+
 const configuration = deserializeConfig(merged.configuration);
 const markdown = generateMarkdownReport(
   merged.results,
