@@ -12,6 +12,7 @@ interface WebsiteBenchmarkEntry {
   solidisMs: number;
   baselineMs: number;
   ratio: string;
+  ratioValue: number;
   isWin: boolean;
 }
 
@@ -80,15 +81,12 @@ function buildWebsiteEntries(
       solidisMs: Math.round(solidis.elapsedMs),
       baselineMs: Math.round(baseline.elapsedMs),
       ratio: `${solidis.ratioVsBaseline.toFixed(1)}x`,
+      ratioValue: solidis.ratioVsBaseline,
       isWin: solidis.ratioVsBaseline > 1,
     });
   }
 
-  entries.sort((a, b) => {
-    const ratioA = Number.parseFloat(a.ratio);
-    const ratioB = Number.parseFloat(b.ratio);
-    return ratioB - ratioA;
-  });
+  entries.sort((a, b) => b.ratioValue - a.ratioValue);
 
   return entries;
 }

@@ -3,12 +3,14 @@ import { resolve } from 'node:path';
 
 import { build } from 'esbuild';
 
+import { buildDistributions } from '../build/distributions.ts';
+
 const OUTPUT_DIRECTORY = resolve('.bundle');
 
 const ENTRY_SOLIDIS = `\
-import { SolidisClient } from '../sources/client.ts';
-import { get } from '../sources/command/get.ts';
-import { set } from '../sources/command/set.ts';
+import { SolidisClient } from './distributions/client.mjs';
+import { get } from './distributions/command/get.mjs';
+import { set } from './distributions/command/set.mjs';
 const client = new SolidisClient();
 client.extend({ get, set });
 export { client };
@@ -101,6 +103,7 @@ async function bundleTarget(target: BundleTarget): Promise<BundleResult> {
 
 await rm(OUTPUT_DIRECTORY, { recursive: true, force: true });
 await mkdir(OUTPUT_DIRECTORY, { recursive: true });
+await buildDistributions(resolve(OUTPUT_DIRECTORY, 'distributions'));
 
 const results: BundleResult[] = [];
 
