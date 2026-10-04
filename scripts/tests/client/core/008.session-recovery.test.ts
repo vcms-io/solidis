@@ -368,6 +368,44 @@ describe('session-recovery', () => {
       }
     });
 
+    it('restores each channel with its own command, as a cluster needs for channels in different slots', async () => {
+      const subscriber = await createClient({
+        connectionRetryDelay: 10,
+        debug: true,
+      });
+      const first = keyspace.key('slots', 'first');
+      const second = keyspace.key('slots', 'second');
+      const serialized: string[] = [];
+
+      subscriber.on('debug', (entry) => {
+        if (entry.message.startsWith('Requester serialized')) {
+          serialized.push(entry.message);
+        }
+      });
+
+      try {
+        const id = await subscriber.clientId();
+
+        await subscriber.subscribe(first);
+        await subscriber.subscribe(second);
+
+        serialized.length = 0;
+
+        await forceReconnect(subscriber, id);
+
+        assert.ok(
+          serialized.some((message) =>
+            message.endsWith(': SUBSCRIBE, SUBSCRIBE'),
+          ),
+          serialized.join('\n'),
+        );
+        assert.strictEqual(await killer.publish(first, 'a'), 1);
+        assert.strictEqual(await killer.publish(second, 'b'), 1);
+      } finally {
+        await closeClient(subscriber);
+      }
+    });
+
     it('restores only the subscription kinds enabled in autoRecovery', async () => {
       const subscriber = await createClient({
         connectionRetryDelay: 10,
@@ -400,7 +438,15 @@ describe('session-recovery', () => {
       let subscribeCount = 0;
 
       server.onData((socket, data) => {
-        if (data.includes('SUBSCRIBE')) {
+        const text = data.toString().toUpperCase();
+
+        if (text.includes('UNSUBSCRIBE')) {
+          socket.write('*3\r\n$11\r\nunsubscribe\r\n$1\r\nx\r\n:0\r\n');
+
+          return;
+        }
+
+        if (text.includes('SUBSCRIBE')) {
           subscribeCount += 1;
           respond(subscribeCount, socket);
 
@@ -658,6 +704,141 @@ describe('session-recovery', () => {
         });
       } finally {
         client.quit();
+      }
+    });
+
+    it('unsubscribes a kind on the server when the server refuses to restore part of it', async () => {
+      const server = new MockRedisServer();
+      const received: string[] = [];
+
+      server.onData((socket, data) => {
+        const text = data.toString();
+
+        received.push(text);
+
+        if (text.toUpperCase().includes('UNSUBSCRIBE')) {
+          socket.write(
+            '*3\r\n$11\r\nunsubscribe\r\n$1\r\na\r\n:1\r\n*3\r\n$11\r\nunsubscribe\r\n$1\r\nb\r\n:0\r\n',
+          );
+
+          return;
+        }
+
+        if (text.includes('$1\r\na\r\n') && text.includes('$1\r\nb\r\n')) {
+          socket.write(
+            "*3\r\n$9\r\nsubscribe\r\n$1\r\na\r\n:1\r\n-NOPERM this user has no permissions to access the 'b' channel\r\n",
+          );
+
+          return;
+        }
+
+        if (text.toUpperCase().includes('SUBSCRIBE')) {
+          const channel = text.includes('$1\r\na\r\n') ? 'a' : 'b';
+
+          socket.write(
+            `*3\r\n$9\r\nsubscribe\r\n$1\r\n${channel}\r\n:${channel === 'a' ? 1 : 2}\r\n`,
+          );
+
+          return;
+        }
+
+        socket.write('*3\r\n$7\r\nmessage\r\n$1\r\na\r\n$4\r\ndata\r\n');
+      });
+
+      await server.listen();
+
+      const client = new SolidisFeaturedClient(
+        mockClientOptions(server.port, {
+          autoReconnect: true,
+          connectionRetryDelay: 10,
+          maxConnectionRetries: 5,
+        }),
+      );
+      const errors: Error[] = [];
+      const messages: unknown[] = [];
+
+      client.on('error', (error) => errors.push(error));
+      client.on('message', (...parameters) => messages.push(parameters));
+
+      try {
+        await client.connect();
+        await client.subscribe('a');
+        await client.subscribe('b');
+
+        const reconnected = nextEvent(client, 'reconnected');
+
+        server.destroySockets();
+
+        await reconnected;
+
+        assert.ok(
+          errors.some(
+            (error) => error.message === 'Failed to restore subscriptions',
+          ),
+        );
+        assert.ok(
+          received.some((text) =>
+            text.includes('*3\r\n$11\r\nunsubscribe\r\n$1\r\na\r\n$1\r\nb\r\n'),
+          ),
+        );
+        assert.deepStrictEqual(
+          await client.send([['LRANGE', 'a', '0', '-1']]),
+          [[[Buffer.from('message'), Buffer.from('a'), Buffer.from('data')]]],
+        );
+        assert.deepStrictEqual(messages, []);
+      } finally {
+        client.quit();
+        await server.close();
+      }
+    });
+
+    it('emits no error after a close listener quits once the reconnect budget runs out', async () => {
+      const server = new MockRedisServer();
+
+      await server.listen();
+
+      const client = new SolidisFeaturedClient(
+        mockClientOptions(server.port, {
+          autoReconnect: true,
+          connectionRetryDelay: 10,
+          maxConnectionRetries: 0,
+        }),
+      );
+      const events: string[] = [];
+
+      client.on('error', (error) => {
+        if (error.message === 'Connection failed after 0 retries.') {
+          events.push('exhausted');
+        }
+      });
+      client.on('ready', () => {
+        events.push('ready');
+        server.destroySockets();
+      });
+      client.on('close', () => {
+        events.push('close');
+
+        if (events.filter((event) => event === 'close').length === 2) {
+          client.quit();
+        }
+      });
+      client.on('end', () => events.push('end'));
+
+      try {
+        await client.connect();
+        await waitFor(() => events.includes('end'));
+        await delay(50);
+
+        assert.deepStrictEqual(events, [
+          'ready',
+          'close',
+          'ready',
+          'close',
+          'end',
+        ]);
+      } finally {
+        client.quit();
+        await server.close();
       }
     });
 

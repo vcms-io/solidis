@@ -990,7 +990,7 @@ describe('session-guards', () => {
       }
 
       const subscribing = await startServer((socket, data, server) => {
-        if (!data.includes('SUBSCRIBE')) {
+        if (!data.toString().toUpperCase().includes('SUBSCRIBE')) {
           return;
         }
 

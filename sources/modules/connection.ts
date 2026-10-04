@@ -364,7 +364,7 @@ export class SolidisConnection extends EventEmitter {
 
     this.emit('close', error);
 
-    if (exhaustion) {
+    if (exhaustion && !this.#isQuitted) {
       this.emit('error', exhaustion);
     }
   }

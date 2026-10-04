@@ -55,7 +55,9 @@ function wrapWithSolidisError<T extends SolidisError>(
   }
 
   return new ErrorClass(
-    error instanceof Error ? error.message : String(error),
+    error instanceof Error
+      ? error.message || ('errors' in error ? `${error.errors}` : '')
+      : String(error),
     error,
   );
 }

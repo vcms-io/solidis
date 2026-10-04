@@ -415,6 +415,51 @@ describe('errors', () => {
     assert.strictEqual(wrappedRequesterError.name, 'SolidisRequesterError');
   });
 
+  it('names the attempts of an AggregateError without a message, as connecting to every address of a host gives', async () => {
+    const attempts = [
+      new Error('connect ECONNREFUSED ::1:1'),
+      new Error('connect ECONNREFUSED 127.0.0.1:1'),
+    ];
+    const aggregate = new AggregateError(attempts);
+    const wrapped = wrapWithSolidisConnectionError(aggregate);
+
+    assert.strictEqual(
+      wrapped.message,
+      'Error: connect ECONNREFUSED ::1:1,Error: connect ECONNREFUSED 127.0.0.1:1',
+    );
+    assert.strictEqual(wrapped.cause, aggregate);
+    assert.strictEqual(
+      wrapWithSolidisConnectionError(new AggregateError(attempts, 'all failed'))
+        .message,
+      'all failed',
+    );
+    assert.strictEqual(
+      wrapWithSolidisConnectionError(new Error('')).message,
+      '',
+    );
+
+    const failing = new SolidisFeaturedClient(
+      buildClientOptions({
+        host: 'localhost',
+        port: 1,
+        lazyConnect: true,
+        maxConnectionRetries: 0,
+        connectionTimeout: 200,
+      }),
+    );
+
+    failing.on('error', () => {});
+
+    await assert.rejects(failing.connect(), (error: Error) => {
+      assert.ok(error.cause instanceof SolidisConnectionError);
+      assert.match(error.cause.message, /ECONNREFUSED/);
+
+      return true;
+    });
+
+    failing.quit();
+  });
+
   it('unwraps non-Error value gracefully', () => {
     const result = unwrapSolidisError('not an error');
 

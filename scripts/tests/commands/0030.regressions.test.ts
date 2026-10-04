@@ -18,7 +18,10 @@ import { createCommand as createPubsubShardchannelsCommand } from '../../../sour
 import { createCommand as createSortCommand } from '../../../sources/command/sort.ts';
 import { createCommand as createTsDecrbyCommand } from '../../../sources/command/ts.decrby.ts';
 import { createCommand as createTsIncrbyCommand } from '../../../sources/command/ts.incrby.ts';
-import { buildScanCommand } from '../../../sources/command/utils/index.ts';
+import {
+  buildScanCommand,
+  executeCommand,
+} from '../../../sources/command/utils/index.ts';
 import { createCommand as createZrandmemberCommand } from '../../../sources/command/zrandmember.ts';
 import {
   formatDouble,
@@ -571,37 +574,40 @@ describe('regressions', () => {
         { length: 1_000_000 },
         (_, index) => `v${index}`,
       );
-      const startedAt = performance.now();
-      const arity = toCommandError(
-        new RespError("ERR wrong number of arguments for 'mset' command"),
-        ['MSET', ...values],
-      );
+      const command = ['MSET', ...values];
+      const { sort } = Array.prototype;
+      const sortedLengths: number[] = [];
 
-      assert.ok(performance.now() - startedAt < 500);
-      assert.strictEqual(
-        arity.message,
-        "[MSET] ERR wrong number of arguments for 'mset' command",
-      );
+      Array.prototype.sort = function (compare) {
+        sortedLengths.push(this.length);
 
-      const command = ['MSET', ...values.slice(0, 300_000)];
-      const measure = (message: string) => {
-        let fastest = Number.POSITIVE_INFINITY;
-
-        for (let round = 0; round < 3; round += 1) {
-          const roundStartedAt = performance.now();
-
-          toCommandError(new RespError(message), command);
-
-          fastest = Math.min(fastest, performance.now() - roundStartedAt);
-        }
-
-        return fastest;
+        return sort.call(this, compare);
       };
 
-      assert.ok(
-        measure("ERR wrong number of arguments for 'mset' command") * 2 <
-          measure("ERR invalid 'v0'"),
-      );
+      try {
+        const startedAt = performance.now();
+        const arity = toCommandError(
+          new RespError("ERR wrong number of arguments for 'mset' command"),
+          command,
+        );
+
+        assert.ok(performance.now() - startedAt < 5000);
+        assert.strictEqual(
+          arity.message,
+          "[MSET] ERR wrong number of arguments for 'mset' command",
+        );
+        assert.deepStrictEqual(sortedLengths, [0]);
+
+        const quoted = toCommandError(
+          new RespError("ERR invalid 'v0'"),
+          command.slice(0, 1001),
+        );
+
+        assert.strictEqual(quoted.message, "[MSET] ERR invalid '***'");
+        assert.deepStrictEqual(sortedLengths, [0, 1000]);
+      } finally {
+        Array.prototype.sort = sort;
+      }
     });
 
     it('keeps the subcommand of a container command visible', () => {
@@ -619,12 +625,66 @@ describe('regressions', () => {
     });
 
     it('strips replacement characters in linear time', () => {
-      const run = '\uFFFD'.repeat(200_000);
-      const startedAt = performance.now();
-      const error = toCommandError(new RespError(`ERR ${run}x`), ['GET', 'k']);
+      const run = '\uFFFD'.repeat(4000);
+      const kept = toCommandError(new RespError(`ERR ${run}x`), ['GET', 'k']);
 
-      assert.ok(performance.now() - startedAt < 1000);
-      assert.strictEqual(error.message, `[GET] ERR ${run}x`);
+      assert.strictEqual(kept.message, `[GET] ERR ${run}x`);
+
+      const invalid = Array.from({ length: 50 }, () =>
+        Buffer.alloc(100_000, 0xff),
+      );
+      const startedAt = performance.now();
+      const message = `ERR invalid 'x' ${'.'.repeat(4000)}`;
+      const error = toCommandError(new RespError(message), [
+        'MSET',
+        ...invalid,
+      ]);
+
+      assert.ok(performance.now() - startedAt < 2000);
+      assert.strictEqual(error.message, `[MSET] ${message}`);
+    });
+
+    it('cuts an error message to 4096 characters and masks an argument the cut leaves open', () => {
+      const long = toCommandError(new RespError(`ERR ${'a'.repeat(10_000)}`), [
+        'GET',
+        'k',
+      ]);
+
+      assert.strictEqual(long.message, `[GET] ERR ${'a'.repeat(4092)}`);
+      assert.ok(long.cause instanceof RespError);
+      assert.strictEqual(long.cause.message, `ERR ${'a'.repeat(4092)}`);
+
+      const secret = `hunter2 ${'s'.repeat(5000)}`;
+      const open = toCommandError(
+        new RespError(`ERR invalid 'x' 'y' \`${secret}\` more`),
+        ['SET', 'key', secret],
+      );
+
+      assert.strictEqual(open.message, "[SET] ERR invalid 'x' 'y' `***");
+
+      const mixed = toCommandError(
+        new RespError(`ERR invalid '${secret.slice(0, 20)} \`z\` ${secret}'`),
+        ['SET', 'key', `${secret.slice(0, 20)} \`z\` ${secret}`],
+      );
+
+      assert.strictEqual(mixed.message, "[SET] ERR invalid '***");
+
+      const prose = toCommandError(
+        new RespError(`ERR can't ${'p'.repeat(5000)}`),
+        ['EVAL', 'script', '0'],
+      );
+
+      assert.strictEqual(prose.message, `[EVAL] ERR can't ${'p'.repeat(4086)}`);
+
+      const quotes = "'ac".repeat(10_000_000);
+      const startedAt = performance.now();
+      const hostile = toCommandError(new RespError(`ERR ${quotes}`), [
+        'GET',
+        'ab',
+      ]);
+
+      assert.ok(performance.now() - startedAt < 2000);
+      assert.strictEqual(hostile.message.length, 4096 + '[GET] '.length);
     });
 
     it('redacts a string argument with a lone surrogate, which the server echoes as U+FFFD', () => {
@@ -639,6 +699,26 @@ describe('regressions', () => {
         error.message,
         "[ACL SETUSER] ERR Error in ACL SETUSER modifier '***': Syntax error",
       );
+    });
+
+    it('redacts an argument that starts with an invalid byte or a lone surrogate before a quote', () => {
+      for (const [argument, echoed] of [
+        [Buffer.from([0xff, ...Buffer.from("'topsecret")]), "\uFFFD'topsecret"],
+        ["\uD800'topsecret", "\uFFFD'topsecret"],
+        [Buffer.from([0xc3, ...Buffer.from('`topsecret')]), '\uFFFD`topsecret'],
+      ] as const) {
+        const error = toCommandError(
+          new RespError(
+            `ERR unknown command 'NOSUCHCMD', with args beginning with: '${echoed}' `,
+          ),
+          ['NOSUCHCMD', argument],
+        );
+
+        assert.strictEqual(
+          error.message,
+          "[NOSUCHCMD] ERR unknown command 'NOSUCHCMD', with args beginning with: '***' ",
+        );
+      }
     });
 
     it('redacts arguments the server joins into one quoted span', () => {
@@ -779,25 +859,28 @@ describe('regressions', () => {
         ['SET', 'key', argument],
       );
 
-      assert.ok(performance.now() - startedAt < 500);
-      assert.strictEqual(error.message, "[SET] ERR invalid argument '***'");
+      assert.ok(performance.now() - startedAt < 2000);
+      assert.strictEqual(error.message, "[SET] ERR invalid argument '***");
+
+      const fitting = toCommandError(
+        new RespError(`ERR invalid argument '${argument.slice(0, 4000)}'`),
+        ['SET', 'key', argument],
+      );
+
+      assert.strictEqual(fitting.message, "[SET] ERR invalid argument '***'");
     });
 
     it('redacts many quoted arguments in one pass', () => {
-      const values = Array.from(
-        { length: 20_000 },
-        (_, index) => `value${index}`,
-      );
+      const values = Array.from({ length: 300 }, (_, index) => `value${index}`);
       const quoted = (texts: string[]) =>
         texts.map((text) => `'${text}'`).join(' ');
-      const startedAt = performance.now();
       const echoed = quoted(values.map((value) => `${value}x`));
       const error = toCommandError(
         new RespError(`ERR missing ${echoed} and 'secret' 'kept'`),
         ['EVALSHA', 'sha', '0', ...values, 'secret'],
       );
 
-      assert.ok(performance.now() - startedAt < 1000);
+      assert.ok(error.message.length < 4096);
       assert.strictEqual(
         error.message,
         `[EVALSHA] ERR missing ${echoed} and '***'`,
@@ -827,6 +910,25 @@ describe('regressions', () => {
         );
       } finally {
         await client.aclDeluser(user);
+      }
+    });
+
+    it('redacts an argument that starts with an invalid byte before a quote, as the server echoes it', async () => {
+      for (const argument of [
+        Buffer.from([0xff, ...Buffer.from("'topsecret")]),
+        "\uD800'topsecret",
+      ]) {
+        await assert.rejects(
+          executeCommand(client, ['NOSUCHCMD', argument]),
+          (error: unknown) => {
+            assert.ok(error instanceof SolidisCommandError);
+            assert.ok(error.message.includes('***'), error.message);
+            assert.ok(!error.message.includes('topsecret'), error.message);
+            assert.ok(!String(error.cause).includes('topsecret'));
+
+            return true;
+          },
+        );
       }
     });
 

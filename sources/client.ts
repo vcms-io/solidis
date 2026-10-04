@@ -520,9 +520,8 @@ export class SolidisClient extends EventEmitter {
         continue;
       }
 
-      const command = [eventName.toUpperCase(), ...subscriptions];
       const error = await handshake
-        .send([command])
+        .send(subscriptions.map((subscription) => [eventName, subscription]))
         .then(findErrorInReplies, (sendError: unknown) =>
           sendError instanceof SolidisCommandError
             ? sendError.cause
@@ -541,13 +540,13 @@ export class SolidisClient extends EventEmitter {
         throw new SolidisClientError(SolidisAuthenticationFailedMessage, error);
       }
 
-      pubSub.clearSubscriptions(eventName);
+      await handshake.send([[eventName.replace('sub', 'unsub')]]);
 
       this.emit(
         'error',
         new SolidisClientError(
           'Failed to restore subscriptions',
-          toCommandError(error, command).cause,
+          toCommandError(error, [eventName, ...subscriptions]).cause,
         ),
       );
     }
