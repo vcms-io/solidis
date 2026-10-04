@@ -816,6 +816,48 @@ describe('session-guards', () => {
       }
     });
 
+    it('lets a request with a timeout of 0 wait for the handshake as long as it takes', async () => {
+      let readyChecks = 0;
+
+      const server = await startServer((socket, data) => {
+        if (data.includes('INFO')) {
+          readyChecks += 1;
+          socket.write(`$9\r\nloading:${readyChecks < 4 ? 1 : 0}\r\n`);
+        } else {
+          answerPong(socket, data);
+        }
+      });
+      const client = new SolidisFeaturedClient(
+        mockClientOptions(server.port, {
+          enableReadyCheck: true,
+          readyCheckInterval: 50,
+          commandTimeout: 60,
+        }),
+      );
+
+      client.on('error', () => {});
+
+      try {
+        const patient = client.send([['PING']], { timeout: 0 });
+
+        await assert.rejects(client.send([['PING']]), (error: unknown) => {
+          assert.ok(error instanceof SolidisClientError);
+          assert.ok(error.cause instanceof SolidisRequesterError);
+          assert.strictEqual(
+            error.cause.message,
+            'Connection was not ready within 60 ms.',
+          );
+
+          return true;
+        });
+        assert.deepStrictEqual(await patient, [['PONG']]);
+        assert.strictEqual(readyChecks, 4);
+      } finally {
+        client.quit();
+        await server.close();
+      }
+    });
+
     it('ends a ready-check wait as soon as its connection closes', async () => {
       let readyChecks = 0;
 
@@ -958,6 +1000,51 @@ describe('session-guards', () => {
       } finally {
         subscriber.quit();
         await subscribing.close();
+      }
+    });
+
+    it('fails at once when the server refuses the connection before any request', async () => {
+      let accepted = 0;
+
+      const server = net.createServer((socket) => {
+        accepted += 1;
+        socket.end('-ERR max number of clients reached\r\n');
+      });
+
+      await new Promise<void>((resolve) => {
+        server.listen(0, '127.0.0.1', resolve);
+      });
+
+      const { port } = server.address() as net.AddressInfo;
+      const client = new SolidisFeaturedClient(
+        mockClientOptions(port, {
+          clientName: 'probe',
+          maxConnectionRetries: 20,
+        }),
+      );
+
+      client.on('error', () => {});
+
+      try {
+        await assert.rejects(client.connect(), (error: unknown) => {
+          assert.ok(error instanceof SolidisClientError);
+          assert.strictEqual(error.message, 'CLIENT SETNAME failed');
+          assert.ok(error.cause instanceof Error);
+          assert.ok(error.cause.cause instanceof RespError);
+          assert.strictEqual(
+            error.cause.cause.message,
+            'ERR max number of clients reached',
+          );
+
+          return true;
+        });
+        assert.strictEqual(accepted, 1);
+      } finally {
+        client.quit();
+
+        await new Promise((resolve) => {
+          server.close(resolve);
+        });
       }
     });
 

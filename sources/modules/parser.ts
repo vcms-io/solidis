@@ -18,6 +18,7 @@ import {
   SolidisLowercaseFByte,
   SolidisLowercaseTByte,
   SolidisMapReplyByte,
+  SolidisMaximumNestingDepth,
   SolidisMinusByte,
   SolidisNewLine,
   SolidisNullReplyByte,
@@ -361,6 +362,12 @@ export class SolidisParser {
 
     if (count === 0) {
       return createAggregate(type, createItems(type));
+    }
+
+    if (this.#frames.length >= SolidisMaximumNestingDepth) {
+      throw new SolidisParserError(
+        `Nesting exceeds maximum depth ${SolidisMaximumNestingDepth}`,
+      );
     }
 
     this.#frames.push({

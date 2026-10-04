@@ -5,15 +5,7 @@ import {
 } from '../internal.ts';
 
 export function parseDouble(text: string): number | undefined {
-  if (text === SolidisInfinityText) {
-    return Number.POSITIVE_INFINITY;
-  }
-
-  if (text === SolidisNegativeInfinityText) {
-    return Number.NEGATIVE_INFINITY;
-  }
-
-  const value = Number(text);
+  const value = Number(text.replace(SolidisInfinityText, 'Infinity'));
 
   if (
     !text ||

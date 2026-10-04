@@ -730,6 +730,24 @@ describe('debug-requester', () => {
       );
     });
 
+    it('masks the SENTINEL subcommands that carry passwords', async () => {
+      const { commandsToBuffer, sanitizeCommandsBufferForDebug } = await import(
+        '../../../../sources/index.ts'
+      );
+
+      const commands = [
+        ['SENTINEL', 'SET', 'mymaster', 'auth-pass', 'secret'],
+        ['sentinel', 'config', 'set', 'sentinel-pass', 'secret'],
+      ];
+      const result = sanitizeCommandsBufferForDebug(
+        commandsToBuffer(commands),
+        commands,
+      );
+
+      assert.ok(!result.includes('secret'), result);
+      assert.ok(result.includes('$8\r\nSENTINEL\r\n$3\r\nSET\r\n'));
+    });
+
     it('only masks credential commands in a mixed pipeline', async () => {
       const { commandsToBuffer, sanitizeCommandsBufferForDebug } = await import(
         '../../../../sources/index.ts'
@@ -961,9 +979,9 @@ describe('debug-requester', () => {
     it('reports a reply that arrives while nothing is pending', () => {
       const { connection, events } = createRequester();
 
-      connection.reply('+UNSOLICITED\r\n');
+      connection.reply('+UNSOLICITED\r\n-ERR unsolicited\r\n');
 
-      const [[error]] = getEvents(events, 'error');
+      const [[error], [refusal]] = getEvents(events, 'error');
 
       assert.ok(error instanceof SolidisRequesterError);
       assert.strictEqual(
@@ -971,6 +989,8 @@ describe('debug-requester', () => {
         'Received reply with no pending request',
       );
       assert.strictEqual(error.cause, 'UNSOLICITED');
+      assert.ok(refusal instanceof SolidisRequesterError);
+      assert.ok(refusal.cause instanceof RespError);
     });
 
     it('delivers the replies a chunk held before a protocol error', async () => {
@@ -1273,6 +1293,17 @@ describe('debug-requester', () => {
       assert.deepStrictEqual(await exchange([['INCR', 'counter']], ':3\r\n'), [
         [3],
       ]);
+
+      await exchange([['MULTI']], '+OK\r\n');
+
+      connection.emit('close', new SolidisConnectionError('lost'));
+
+      assert.deepStrictEqual(await exchange([['RESET']], '+RESET\r\n'), [
+        ['RESET'],
+      ]);
+      assert.deepStrictEqual(await exchange([['INCR', 'counter']], ':4\r\n'), [
+        [4],
+      ]);
     });
 
     it('forgets a MULTI or WATCH that the server refuses', async () => {
@@ -1460,6 +1491,75 @@ describe('debug-requester', () => {
       connection.reply('+PONG\r\n');
 
       assert.deepStrictEqual(await valid, [['PONG']]);
+    });
+
+    it('reads only the first bytes of each word to classify a command', async () => {
+      const { connection, requester } = createRequester();
+      const guarded = Buffer.from('payload');
+
+      Object.defineProperty(guarded, 'toString', {
+        value: (encoding?: BufferEncoding, start?: number, end?: number) => {
+          assert.notStrictEqual(end, undefined, 'a whole Buffer was decoded');
+
+          return Buffer.prototype.toString.call(guarded, encoding, start, end);
+        },
+      });
+
+      const loaded = requester.send([
+        ['SCRIPT', 'LOAD', guarded],
+        [guarded, 'x'],
+      ]);
+
+      await flushed();
+
+      assert.strictEqual(connection.writes.length, 1);
+
+      connection.reply('$3\r\nsha\r\n-ERR unknown command\r\n');
+
+      const [script, unknown] = await loaded;
+
+      assert.deepStrictEqual(script, [Buffer.from('sha')]);
+      assert.ok(unknown[0] instanceof RespError);
+    });
+
+    it('rejects pending requests with an error the server sends before any request reaches it', async () => {
+      const { connection, requester } = createRequester();
+
+      const named = settle(requester.send([['CLIENT', 'SETNAME', 'app']]));
+      const read = settle(requester.send([['GET', 'k']]));
+
+      connection.reply('-ERR max number of clients reached\r\n');
+
+      for (const error of await Promise.all([named, read])) {
+        assert.ok(error instanceof SolidisConnectionError);
+        assert.strictEqual(error.message, 'ERR max number of clients reached');
+        assert.ok(error.cause instanceof RespError);
+        assert.strictEqual(error.cause.message, error.message);
+      }
+
+      await flushed();
+
+      assert.deepStrictEqual(connection.writes, []);
+    });
+
+    it('never resets a connection for stalls when commandTimeout is 0', async () => {
+      const { connection, requester } = createRequester({ commandTimeout: 0 });
+
+      const quick = [
+        settle(requester.send([['ECHO', 'a']], { timeout: 20 })),
+        settle(requester.send([['ECHO', 'b']], { timeout: 40 })),
+      ];
+      const patient = requester.send([['GET', 'slow']]);
+
+      for (const error of await Promise.all(quick)) {
+        assert.ok(error instanceof SolidisRequesterError);
+      }
+
+      assert.deepStrictEqual(connection.resets, []);
+
+      connection.reply('+a\r\n+b\r\n$4\r\nslow\r\n');
+
+      assert.deepStrictEqual(await patient, [[Buffer.from('slow')]]);
     });
 
     it('remembers a lost WATCH and a lost MULTI across several drops', async () => {
@@ -1957,12 +2057,17 @@ describe('debug-requester', () => {
       const { connection, requester } = createRequester({ commandTimeout: 0 });
 
       const pending = requester.send([['PING']]);
+      const blocking = requester.send([['BLPOP', 'k', '0.01']], {
+        blockingTimeout: 10,
+      });
 
       await delay(40);
 
-      connection.reply('+PONG\r\n');
+      connection.reply('+PONG\r\n*-1\r\n');
 
       assert.deepStrictEqual(await pending, [['PONG']]);
+      assert.deepStrictEqual(await blocking, [[null]]);
+      assert.strictEqual(connection.resets.length, 0);
     });
 
     it('times a request out after its own timeout in a pipeline of its own', async () => {

@@ -47,7 +47,7 @@ export class SolidisConnection extends EventEmitter {
   #isConnected = false;
   #isQuitted = false;
   #isReconnecting = false;
-  #readyAt = Number.POSITIVE_INFINITY;
+  #readyAt = Number.NaN;
   #failedAttempts = 0;
   #remainingReconnects = 0;
   #retryTimer: NodeJS.Timeout | undefined;
@@ -261,7 +261,7 @@ export class SolidisConnection extends EventEmitter {
     socket.setKeepAlive(true);
 
     this.#isConnected = true;
-    this.#readyAt = Number.POSITIVE_INFINITY;
+    this.#readyAt = Number.NaN;
     this.#waiters = [];
 
     this.#debug?.('info', 'Connection established');

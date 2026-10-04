@@ -517,6 +517,80 @@ describe('regressions', () => {
       }
     });
 
+    it('reads no argument when the message quotes nothing', () => {
+      const guarded = Buffer.from('payload');
+
+      let reads = 0;
+
+      Object.defineProperty(guarded, 'toString', {
+        value: (encoding?: BufferEncoding, start?: number, end?: number) => {
+          assert.notStrictEqual(end, undefined, 'a whole Buffer was decoded');
+
+          reads += 1;
+
+          return Buffer.prototype.toString.call(guarded, encoding, start, end);
+        },
+      });
+
+      const wrongType = toCommandError(
+        new RespError(
+          'WRONGTYPE Operation against a key holding the wrong kind of value',
+        ),
+        ['APPEND', 'k', guarded],
+      );
+
+      assert.strictEqual(reads, 0);
+
+      const quoted = toCommandError(new RespError("ERR invalid 'payload'"), [
+        'APPEND',
+        'k',
+        guarded,
+      ]);
+
+      assert.strictEqual(reads, 1);
+      assert.strictEqual(
+        wrongType.message,
+        '[APPEND] WRONGTYPE Operation against a key holding the wrong kind of value',
+      );
+      assert.strictEqual(quoted.message, "[APPEND] ERR invalid '***'");
+
+      const values = Array.from(
+        { length: 1_000_000 },
+        (_, index) => `v${index}`,
+      );
+      const startedAt = performance.now();
+      const arity = toCommandError(
+        new RespError("ERR wrong number of arguments for 'mset' command"),
+        ['MSET', ...values],
+      );
+
+      assert.ok(performance.now() - startedAt < 500);
+      assert.strictEqual(
+        arity.message,
+        "[MSET] ERR wrong number of arguments for 'mset' command",
+      );
+
+      const command = ['MSET', ...values.slice(0, 300_000)];
+      const measure = (message: string) => {
+        let fastest = Number.POSITIVE_INFINITY;
+
+        for (let round = 0; round < 3; round += 1) {
+          const roundStartedAt = performance.now();
+
+          toCommandError(new RespError(message), command);
+
+          fastest = Math.min(fastest, performance.now() - roundStartedAt);
+        }
+
+        return fastest;
+      };
+
+      assert.ok(
+        measure("ERR wrong number of arguments for 'mset' command") * 2 <
+          measure("ERR invalid 'v0'"),
+      );
+    });
+
     it('keeps the subcommand of a container command visible', () => {
       const error = toCommandError(
         new RespError(
@@ -552,6 +626,30 @@ describe('regressions', () => {
       );
 
       assert.strictEqual(named.message, "[NOSUCH] ERR invalid '***': unknown");
+
+      const selector = toCommandError(
+        new RespError(
+          "ERR Error in ACL SETUSER modifier '(bogus 'first secret' >second-secret)': Syntax error",
+        ),
+        ['ACL', 'SETUSER', 'u', '(bogus', "'first secret'", '>second-secret)'],
+      );
+
+      assert.strictEqual(
+        selector.message,
+        "[ACL SETUSER] ERR Error in ACL SETUSER modifier '***': Syntax error",
+      );
+
+      const diverging = toCommandError(
+        new RespError(
+          "ERR Error in ACL SETUSER modifier '(bogus 'first' >x)': Syntax error",
+        ),
+        ['ACL', 'SETUSER', 'u', '(bogus', "'first'", '>other)'],
+      );
+
+      assert.strictEqual(
+        diverging.message,
+        "[ACL SETUSER] ERR Error in ACL SETUSER modifier '***': Syntax error",
+      );
 
       const similar = toCommandError(new RespError("ERR unknown 'O'Neil'"), [
         'NOSUCH',

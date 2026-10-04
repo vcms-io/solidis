@@ -157,4 +157,6 @@ export const SolidisCredentialCommandNameSet: ReadonlySet<string> = new Set([
   'MIGRATE',
   'ACL SETUSER',
   'CONFIG SET',
+  'SENTINEL CONFIG',
+  'SENTINEL SET',
 ]);

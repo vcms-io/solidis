@@ -4,6 +4,7 @@ import {
   SolidisContainerCommandNameSet,
   SolidisDollarByte,
   SolidisLineFeedByte,
+  toTextPrefix,
 } from '../internal.ts';
 import { RespError, SolidisCommandError } from './error.ts';
 
@@ -117,19 +118,37 @@ function findMaskEnd(
   source: string,
   start: number,
   quote: string,
-  text: string,
+  texts: readonly string[],
+  index: number,
 ) {
-  let end = start;
+  let position = start;
 
-  while (end - start < text.length && source[end] === text[end - start]) {
-    end += 1;
+  for (let next = index; next < texts.length; next += 1) {
+    const text = texts[next];
+
+    let matched = 0;
+
+    while (
+      matched < text.length &&
+      source[position + matched] === text[matched]
+    ) {
+      matched += 1;
+    }
+
+    position += matched;
+
+    if (source[position] === quote) {
+      return position;
+    }
+
+    if (matched < text.length || source[position] !== ' ') {
+      return next === index ? -1 : source.indexOf(quote, position);
+    }
+
+    position += 1;
   }
 
-  if (end - start === text.length && source[end] === ' ') {
-    end = source.indexOf(quote, end);
-  }
-
-  return source[end] === quote ? end : -1;
+  return source.indexOf(quote, position);
 }
 
 function redactArguments(
@@ -138,15 +157,26 @@ function redactArguments(
   visibleLength: number,
 ) {
   const source = message.replace(/\uFFFD+(?=['`])/g, '');
-  const texts = [
-    ...new Set(
-      command
-        .slice(visibleLength)
-        .map((argument) => String(argument).replace(/[\r\n]/g, ' ')),
-    ),
-  ]
-    .filter(Boolean)
-    .sort();
+  const starts = new Set(source.match(/(?<=['`])./gs));
+
+  if (starts.size === 0) {
+    return source;
+  }
+
+  const ordered = command
+    .slice(visibleLength)
+    .map((argument) =>
+      toTextPrefix(argument, source.length).replace(/[\r\n]/g, ' '),
+    );
+  const firstIndexes = new Map<string, number>();
+
+  ordered.forEach((text, index) => {
+    if (starts.has(text[0]) && !firstIndexes.has(text)) {
+      firstIndexes.set(text, index);
+    }
+  });
+
+  const texts = [...firstIndexes.keys()].sort();
   const lengths = new Set(texts.map((text) => text.length));
 
   let result = '';
@@ -174,12 +204,16 @@ function redactArguments(
       space > 0;
       space = span.indexOf(' ', space + 1)
     ) {
-      if (
-        lengths.has(space) &&
-        texts[findLowerBound(texts, span.slice(0, space))] ===
-          span.slice(0, space)
-      ) {
-        end = closing;
+      const index = lengths.has(space)
+        ? firstIndexes.get(span.slice(0, space))
+        : undefined;
+
+      if (index !== undefined) {
+        end = Math.max(
+          end,
+          closing,
+          findMaskEnd(source, start, quote, ordered, index),
+        );
       }
     }
 
@@ -188,7 +222,10 @@ function redactArguments(
       texts[candidate]?.startsWith(prefix);
       candidate += 1
     ) {
-      end = Math.max(end, findMaskEnd(source, start, quote, texts[candidate]));
+      end = Math.max(
+        end,
+        findMaskEnd(source, start, quote, [texts[candidate]], 0),
+      );
     }
 
     if (end !== -1) {

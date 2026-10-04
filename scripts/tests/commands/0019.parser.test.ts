@@ -299,24 +299,16 @@ describe('parser', () => {
     assert.strictEqual(collected[1], 'after');
   });
 
-  it('parses a deeply nested array without overflowing the stack', () => {
-    const depth = 100000;
+  it('refuses a deeply nested array without overflowing the stack', () => {
     const frame = Buffer.concat([
-      Buffer.from('*1\r\n'.repeat(depth), 'latin1'),
+      Buffer.from('*1\r\n'.repeat(100000), 'latin1'),
       bytes(':1\r\n'),
     ]);
 
-    const [reply] = parseOnce(frame);
-
-    let cursor: unknown = reply;
-
-    for (let level = 0; level < depth; level += 1) {
-      assert.ok(Array.isArray(cursor));
-
-      cursor = cursor[0];
-    }
-
-    assert.strictEqual(cursor, 1);
+    assert.throws(() => parseOnce(frame), {
+      name: 'SolidisParserError',
+      message: 'Nesting exceeds maximum depth 512',
+    });
   });
 
   it('produces identical replies however the stream is split', () => {

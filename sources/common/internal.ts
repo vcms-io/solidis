@@ -38,6 +38,8 @@ export const SolidisBulkZeroCopyThreshold = 65536;
 export const SolidisMaximumTimerDelay = 2147483647;
 export const SolidisIntegerMaximumLength = 20;
 export const SolidisBigNumberMaximumLength = 4096;
+export const SolidisMaximumNestingDepth = 512;
+export const SolidisCommandKindCacheLimit = 1024;
 
 export const SolidisContainerCommandNameSet: ReadonlySet<string> = new Set([
   'ACL',
@@ -53,10 +55,17 @@ export const SolidisContainerCommandNameSet: ReadonlySet<string> = new Set([
   'OBJECT',
   'PUBSUB',
   'SCRIPT',
+  'SENTINEL',
   'SLOWLOG',
   'XGROUP',
   'XINFO',
 ]);
+
+export function toTextPrefix(argument: string | Buffer, length: number) {
+  return typeof argument === 'string'
+    ? argument.slice(0, length)
+    : argument.toString('utf8', 0, length * 4);
+}
 
 export function resolveTimerDelay(delay: number) {
   return delay > 0 && delay <= SolidisMaximumTimerDelay ? delay : 0;

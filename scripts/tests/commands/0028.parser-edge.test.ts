@@ -46,6 +46,23 @@ describe('parser-edge', () => {
       assert.deepStrictEqual(parseOnce(bytes('>-1\r\n')), [null]);
     });
 
+    it('refuses replies nested deeper than 512 levels', () => {
+      const [deepest] = parseOnce(bytes(`${'*1\r\n'.repeat(512)}:1\r\n`));
+
+      let level: unknown = deepest;
+
+      for (let depth = 0; depth < 512; depth += 1) {
+        assert.ok(Array.isArray(level));
+        [level] = level;
+      }
+
+      assert.strictEqual(level, 1);
+      assert.throws(
+        () => parseOnce(bytes(`${'*1\r\n'.repeat(513)}:1\r\n`)),
+        isParserError('Nesting exceeds maximum depth 512'),
+      );
+    });
+
     it('parses an empty map and an empty set', () => {
       assert.deepStrictEqual(parseOnce(bytes('%0\r\n~0\r\n')), [
         new Map(),
