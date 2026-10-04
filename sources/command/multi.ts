@@ -1,12 +1,14 @@
 import { SolidisClient } from '../client.ts';
 import { SolidisTransactionBannedCommandNames } from '../common/constants.ts';
 import { RespError, SolidisRequesterError } from '../common/utils/error.ts';
-import { inspectCommand } from '../modules/internal.ts';
+import {
+  inspectCommand,
+  SolidisTransactionQueues,
+} from '../modules/internal.ts';
 import {
   assertSender,
   newCommandError,
   newUnexpectedReplyError,
-  SolidisTransactionQueues,
 } from './utils/index.ts';
 
 import type {

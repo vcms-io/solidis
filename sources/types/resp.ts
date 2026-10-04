@@ -423,10 +423,10 @@ export interface RespStreamInfoBase {
   lastGeneratedId: string;
   maxDeletedEntryId: string | null;
   entriesAdded: number | null;
-  firstEntry: RespStreamEntry | null;
-  lastEntry: RespStreamEntry | null;
 }
 export interface RespStreamInfo extends RespStreamInfoBase {
+  firstEntry: RespStreamEntry | null;
+  lastEntry: RespStreamEntry | null;
   groups: number;
 }
 export interface RespStreamInfoFull extends RespStreamInfoBase {

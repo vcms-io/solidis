@@ -32,19 +32,19 @@ export async function mget<T>(
   this: T,
   ...parameters: (string | CommandBufferOptions | undefined)[]
 ): Promise<(StringOrBuffer | null)[]> {
-  const options = parameters.at(-1);
+  const last = parameters.at(-1);
+  const options =
+    typeof last === 'object' && last !== null && !Buffer.isBuffer(last)
+      ? last
+      : undefined;
   const keys =
-    typeof options === 'string' ? parameters : parameters.slice(0, -1);
+    last === undefined || options ? parameters.slice(0, -1) : parameters;
 
   if (!keys.every((key) => typeof key === 'string')) {
     throw newCommandError('Keys must be strings', 'MGET');
   }
 
   return await executeCommand(this, createCommand(...keys), (reply, command) =>
-    tryReplyToNullableStringOrBufferArray(
-      reply,
-      command,
-      typeof options === 'string' ? undefined : options,
-    ),
+    tryReplyToNullableStringOrBufferArray(reply, command, options),
   );
 }

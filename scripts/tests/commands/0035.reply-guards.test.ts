@@ -232,6 +232,17 @@ describe('reply-guards', () => {
       name: 'SolidisCommandError',
       message: '[HMGET] Fields must be strings',
     });
+    for (const last of [5, null, Buffer.from('b'), true]) {
+      await assert.rejects(
+        mget.call(recorder, 'a', last as unknown as string),
+        { message: '[MGET] Keys must be strings' },
+      );
+      await assert.rejects(
+        hmget.call(recorder, 'h', 'a', last as unknown as string),
+        { message: '[HMGET] Fields must be strings' },
+      );
+    }
+
     assert.deepStrictEqual(recorder.commands, []);
     assert.deepStrictEqual(await mget.call(recorder, 'a', 'b', undefined), [
       'a',
@@ -677,6 +688,10 @@ describe('reply-guards', () => {
       'stream',
     );
 
+    if (!('firstEntry' in summary)) {
+      assert.fail('expected the summary form');
+    }
+
     assert.strictEqual(summary.firstEntry, null);
     assert.strictEqual(summary.lastEntry, null);
 
@@ -709,6 +724,8 @@ describe('reply-guards', () => {
     if (!('entries' in full)) {
       assert.fail('expected the FULL form');
     }
+
+    assert.ok(!('firstEntry' in full) && !('lastEntry' in full));
 
     assert.deepStrictEqual(full.groups, [
       {

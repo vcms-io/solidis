@@ -465,11 +465,11 @@ export function tryReplyToStringsOrSortedSetMembers(
 }
 
 export function tryReplyToKeyValuePairOrNull<
-  Options extends CommandBufferOptions | undefined,
+  Options extends CommandBufferOptions | undefined = undefined,
 >(
   reply: unknown,
-  commandName: CommandName | undefined,
-  options: Options | undefined,
+  commandName?: CommandName,
+  options?: Options,
 ): [key: string, value: RespString<Options>] | null {
   if (reply === null) {
     return null;
@@ -899,11 +899,11 @@ export function tryReplyToScanDump(
 }
 
 export function tryReplyToKeyStringElementsOrNull<
-  Options extends CommandBufferOptions | undefined,
+  Options extends CommandBufferOptions | undefined = undefined,
 >(
   reply: unknown,
   commandName: CommandName,
-  options: Options | undefined,
+  options?: Options,
 ): RespLmpop<RespString<Options>> | null {
   return tryReplyToKeyElementsOrNull(reply, commandName, (elements) =>
     tryReplyToStringOrBufferArray(elements, commandName, options),

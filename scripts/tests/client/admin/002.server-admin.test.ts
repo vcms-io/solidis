@@ -340,6 +340,22 @@ describe('server-admin', () => {
     );
 
     assert.deepStrictEqual(createCommand(), ['HELLO']);
+    assert.deepStrictEqual(createCommand('RESP3', undefined, ''), [
+      'HELLO',
+      '3',
+      'AUTH',
+      'default',
+      '',
+    ]);
+    assert.deepStrictEqual(createCommand('RESP2', '', '', ''), [
+      'HELLO',
+      '2',
+      'AUTH',
+      'default',
+      '',
+      'SETNAME',
+      '',
+    ]);
     assert.deepStrictEqual(createCommand('RESP3'), ['HELLO', '3']);
     assert.deepStrictEqual(createCommand('RESP2'), ['HELLO', '2']);
 

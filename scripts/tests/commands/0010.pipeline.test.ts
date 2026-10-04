@@ -151,9 +151,10 @@ describe('pipeline', () => {
   });
 
   it('queues a command only while the client has an active transaction queue', async () => {
-    const { guard, SolidisTransactionQueues } = await import(
-      '../../../sources/command/utils/command.ts'
+    const { SolidisTransactionQueues } = await import(
+      '../../../sources/modules/internal.ts'
     );
+    const { guard } = await import('../../../sources/command/utils/command.ts');
 
     const fakeClient = { send: () => Promise.resolve([]) };
     const queue: StringOrBuffer[][] = [];

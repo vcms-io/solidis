@@ -1098,6 +1098,10 @@ describe('resp3-shapes', () => {
     const name = await client.clientGetname();
 
     assert.strictEqual(name, 'resp3-test-client');
+
+    await client.hello('RESP3', undefined, undefined, '');
+
+    assert.strictEqual(await client.clientGetname(), null);
   });
 
   it('keeps RESP3 when HELLO names no protocol', async () => {

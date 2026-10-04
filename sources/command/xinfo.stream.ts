@@ -105,6 +105,22 @@ function parseGroup(
 export async function xinfoStream<T>(
   this: T,
   key: string,
+  full?: false,
+): Promise<RespStreamInfo>;
+export async function xinfoStream<T>(
+  this: T,
+  key: string,
+  full: true,
+  count?: number,
+): Promise<RespStreamInfoFull>;
+export async function xinfoStream<T>(
+  this: T,
+  key: string,
+  ...parameters: [full?: boolean] | [full: true, count?: number]
+): Promise<RespStreamInfo | RespStreamInfoFull>;
+export async function xinfoStream<T>(
+  this: T,
+  key: string,
   full?: boolean,
   count?: number,
 ): Promise<RespStreamInfo | RespStreamInfoFull> {
@@ -114,7 +130,7 @@ export async function xinfoStream<T>(
     (reply, command) => {
       const result = tryReplyToMap(reply, command);
 
-      const baseInformation = {
+      const information = {
         length: Number(result.get('length')),
         radixTreeKeys: Number(result.get('radix-tree-keys')),
         radixTreeNodes: Number(result.get('radix-tree-nodes')),
@@ -127,9 +143,6 @@ export async function xinfoStream<T>(
           result.get('entries-added') ?? null,
           command,
         ),
-        firstEntry: null,
-        lastEntry: null,
-        groups: Number(result.get('groups')),
       };
 
       if (!full) {
@@ -137,18 +150,19 @@ export async function xinfoStream<T>(
         const lastEntry = result.get('last-entry');
 
         return {
-          ...baseInformation,
+          ...information,
           firstEntry: firstEntry
             ? tryReplyToStreamEntry(firstEntry, command)
             : null,
           lastEntry: lastEntry
             ? tryReplyToStreamEntry(lastEntry, command)
             : null,
+          groups: Number(result.get('groups')),
         };
       }
 
       return {
-        ...baseInformation,
+        ...information,
         recordedFirstEntryId: tryReplyToStringOrNull(
           result.get('recorded-first-entry-id') ?? null,
           command,

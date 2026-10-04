@@ -34,9 +34,7 @@ export async function jsonDebug<T>(
 ): Promise<number | (number | null)[] | null>;
 export async function jsonDebug<T>(
   this: T,
-  subcommand: 'MEMORY' | 'HELP',
-  key?: string,
-  path?: string,
+  ...parameters: ['HELP'] | ['MEMORY', key: string, path?: string]
 ): Promise<string[] | number | (number | null)[] | null>;
 export async function jsonDebug<T>(
   this: T,

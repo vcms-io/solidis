@@ -22,12 +22,18 @@ export function createCommand(
 
 export async function bfReserve<T>(
   this: T,
-  key: string,
-  errorRate: number,
-  capacity: number,
-  expansion?: number,
-  nonScaling?: boolean,
+  ...parameters:
+    | [key: string, errorRate: number, capacity: number, expansion?: number]
+    | [
+        key: string,
+        errorRate: number,
+        capacity: number,
+        expansion: undefined,
+        nonScaling: boolean,
+      ]
 ) {
+  const [key, errorRate, capacity, expansion, nonScaling] = parameters;
+
   return await executeCommand(
     this,
     createCommand(key, errorRate, capacity, expansion, nonScaling),

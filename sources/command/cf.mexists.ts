@@ -8,7 +8,7 @@ export async function cfMexists<T>(
   this: T,
   key: string,
   items: string[],
-): Promise<(number | boolean)[]> {
+): Promise<boolean[]> {
   return await executeCommand(
     this,
     createCommand(key, items),

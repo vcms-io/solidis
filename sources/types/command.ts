@@ -13,6 +13,7 @@ export type CommandAggregateOption = 'SUM' | CommandMinOrMaxOption;
 export type CommandGeoUnitOption = 'M' | 'KM' | 'FT' | 'MI';
 export type CommandBeforeOrAfterOption = 'BEFORE' | 'AFTER';
 export type CommandExpireMode = 'NX' | 'XX' | 'GT' | 'LT';
+export type CommandKeyExpireMode = CommandExpireMode | 'XX GT' | 'XX LT';
 
 type CommandOptionKeys<Options> = Options extends unknown
   ? keyof Options
@@ -426,18 +427,37 @@ interface CommandTimeSeriesRangeAggregation {
   bucketDuration: number;
 }
 
-export type CommandTimeSeriesRangeOptions = {
+export type CommandTimeSeriesRangeOptions<
+  Align = CommandTimeSeriesTimestamp | 'start' | 'end',
+> = {
   filterByTs?: number[];
   filterByValue?: [number, number];
   count?: number;
   latest?: boolean;
 } & (
   | { aggregation?: CommandTimeSeriesRangeAggregation; align?: undefined }
-  | {
-      aggregation: CommandTimeSeriesRangeAggregation;
-      align?: CommandTimeSeriesTimestamp | 'start' | 'end';
-    }
+  | { aggregation: CommandTimeSeriesRangeAggregation; align?: Align }
 );
+
+export type CommandTimeSeriesRangeParameters<Filter extends unknown[] = []> =
+  | [
+      fromTimestamp: CommandTimeSeriesTimestamp,
+      toTimestamp: CommandTimeSeriesTimestamp,
+      ...filter: Filter,
+      options?: CommandTimeSeriesRangeOptions<number>,
+    ]
+  | [
+      fromTimestamp: number,
+      toTimestamp: CommandTimeSeriesTimestamp,
+      ...filter: Filter,
+      options?: CommandTimeSeriesRangeOptions<number | 'start' | '-'>,
+    ]
+  | [
+      fromTimestamp: CommandTimeSeriesTimestamp,
+      toTimestamp: number,
+      ...filter: Filter,
+      options?: CommandTimeSeriesRangeOptions<number | 'end' | '+'>,
+    ];
 
 export interface CommandTimeSeriesMGetOptions {
   latest?: boolean;

@@ -19,11 +19,11 @@ export function createCommand(...parameters: CommandHelloParameters) {
   if (protocol !== undefined) {
     command.push(protocol === SolidisProtocols.RESP3 ? '3' : '2');
 
-    if (password !== undefined && (username || password)) {
+    if (password !== undefined) {
       command.push('AUTH', username || 'default', password);
     }
 
-    if (clientName) {
+    if (clientName !== undefined) {
       command.push('SETNAME', clientName);
     }
   }

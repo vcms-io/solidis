@@ -1,5 +1,6 @@
 import { RespError } from '../../common/utils/error.ts';
 import { toCommandError } from '../../common/utils/request.ts';
+import { SolidisTransactionQueues } from '../../modules/internal.ts';
 import {
   escapeReply,
   newCommandError,
@@ -39,11 +40,6 @@ import type {
   SolidisSendOptions,
   StringOrBuffer,
 } from '../../types/solidis.ts';
-
-export const SolidisTransactionQueues = new WeakMap<
-  object,
-  StringOrBuffer[][]
->();
 
 export function assertSender(
   client: unknown,

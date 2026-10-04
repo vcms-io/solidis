@@ -6,6 +6,7 @@ import {
 
 import type {
   CommandTimeSeriesRangeOptions,
+  CommandTimeSeriesRangeParameters,
   CommandTimeSeriesTimestamp,
 } from '../index.ts';
 
@@ -27,6 +28,17 @@ export function createCommand(
   return command;
 }
 
+export async function tsMrevrange<T>(
+  this: T,
+  ...parameters: CommandTimeSeriesRangeParameters<
+    [filter: Record<string, string>]
+  >
+): Promise<
+  Array<{
+    key: string;
+    samples: Array<{ timestamp: number; value: number }>;
+  }>
+>;
 export async function tsMrevrange<T>(
   this: T,
   fromTimestamp: CommandTimeSeriesTimestamp,

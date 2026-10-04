@@ -1,16 +1,16 @@
 import { executeCommand, tryReplyNumber } from './utils/index.ts';
 
-import type { CommandExpireMode } from '../index.ts';
+import type { CommandKeyExpireMode } from '../index.ts';
 
 export function createCommand(
   key: string,
   timestamp: number,
-  mode?: CommandExpireMode,
+  mode?: CommandKeyExpireMode,
 ) {
   const command = ['EXPIREAT', key, `${timestamp}`];
 
   if (mode) {
-    command.push(mode);
+    command.push(...mode.split(' '));
   }
 
   return command;
@@ -20,7 +20,7 @@ export async function expireat<T>(
   this: T,
   key: string,
   timestamp: number,
-  mode?: CommandExpireMode,
+  mode?: CommandKeyExpireMode,
 ): Promise<number> {
   return await executeCommand(
     this,

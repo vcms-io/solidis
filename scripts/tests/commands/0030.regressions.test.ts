@@ -414,6 +414,9 @@ describe('regressions', () => {
       assert.deepStrictEqual(createHelloCommand('RESP2', '', ''), [
         'HELLO',
         '2',
+        'AUTH',
+        'default',
+        '',
       ]);
     });
 
@@ -926,6 +929,25 @@ describe('regressions', () => {
       assert.strictEqual(await client.expire(key, 200, 'GT'), 1);
       assert.strictEqual(await client.expire(key, 300, 'LT'), 0);
       assert.strictEqual(await client.expire(key, 10, 'LT'), 1);
+      assert.strictEqual(await client.expire(key, 400, 'XX GT'), 1);
+      assert.strictEqual(await client.pexpire(key, 100_000, 'XX LT'), 1);
+      assert.strictEqual(
+        await client.expireat(
+          key,
+          Math.floor(Date.now() / 1000) + 500,
+          'XX GT',
+        ),
+        1,
+      );
+      assert.strictEqual(
+        await client.pexpireat(key, Date.now() + 10_000, 'XX LT'),
+        1,
+      );
+      assert.ok((await client.ttl(key)) <= 10);
+
+      await client.persist(key);
+
+      assert.strictEqual(await client.expire(key, 100, 'XX GT'), 0);
     });
 
     it('pops several elements with LPOP and RPOP counts', async () => {

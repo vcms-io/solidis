@@ -5,6 +5,10 @@ import { describe, it } from 'node:test';
 
 import { SolidisFeaturedClient } from '../../../sources/client/featured.ts';
 import { get, multi, select, set } from '../../../sources/command/index.ts';
+import {
+  tryReplyToKeyStringElementsOrNull,
+  tryReplyToKeyValuePairOrNull,
+} from '../../../sources/command/utils/index.ts';
 import { SolidisClient } from '../../../sources/index.ts';
 
 import type {
@@ -13,7 +17,10 @@ import type {
   CommandSortOptions,
   CommandSortStoreOptions,
   RespInteger,
+  RespLmpop,
   RespSortedSetMember,
+  RespStreamInfo,
+  RespStreamInfoFull,
   RespStreamPendingEntry,
   RespStreamPendingInfo,
   RespString,
@@ -40,6 +47,9 @@ type Transaction = SolidisTransactionClient<SolidisFeaturedClient>;
 // @ts-expect-error the pipeline bookkeeping of the requester stays private
 type Pipeline = import('../../../sources/index.ts').SolidisPipeline;
 
+type CommandUtilities =
+  typeof import('../../../sources/command/utils/index.ts');
+
 describe('type-contracts', () => {
   it('types reads by the buffer and bigint flags alone', () => {
     const checks: [
@@ -57,6 +67,20 @@ describe('type-contracts', () => {
     ] = [true, true, true, true, true, true, true, true, true, true, true];
 
     assert.ok(checks.every(Boolean));
+  });
+
+  it('keeps the 0.4.x calls of the reply helpers and the transaction queues internal', () => {
+    const pair = tryReplyToKeyValuePairOrNull(null, 'BLPOP');
+    const elements = tryReplyToKeyStringElementsOrNull(null, 'LMPOP');
+    const checks: [
+      Is<typeof pair, [key: string, value: string] | null>,
+      Is<typeof elements, RespLmpop<string> | null>,
+      Is<Has<CommandUtilities, 'SolidisTransactionQueues'>, false>,
+    ] = [true, true, true];
+
+    assert.ok(checks.every(Boolean));
+    assert.strictEqual(pair, null);
+    assert.strictEqual(elements, null);
   });
 
   it('lets a transaction call every overload of a command', () => {
@@ -283,10 +307,42 @@ describe('type-contracts', () => {
       // @ts-expect-error MIGRATE moves KEYS only with an empty key
       await client.migrate('host', 6379, 'key', 0, 1000, { keys: ['other'] });
       await client.migrate('host', 6379, '', 0, 1000, { keys: ['other'] });
-      await client.tsRange('series', '-', '+', {
-        aggregation: { type: 'avg', bucketDuration: 1 },
-        align: 'start',
-      });
+      const aggregation = { type: 'avg', bucketDuration: 1 };
+
+      await client.tsRange('series', 0, '+', { aggregation, align: 'start' });
+      await client.tsRange('series', '-', 10, { aggregation, align: '+' });
+      await client.tsRange('series', '-', '+', { aggregation, align: 5 });
+      // @ts-expect-error start alignment needs an explicit start
+      await client.tsRange('series', '-', '+', { aggregation, align: 'start' });
+      // @ts-expect-error end alignment needs an explicit end
+      await client.tsRevrange('series', 0, '+', { aggregation, align: 'end' });
+      const filter = { a: 'b' };
+
+      await client.tsMrange(0, '+', filter, { aggregation, align: '-' });
+      // @ts-expect-error start alignment needs an explicit start
+      await client.tsMrevrange('-', '+', filter, { aggregation, align: '-' });
+      await client.jsonDebug('MEMORY', 'k');
+      // @ts-expect-error JSON.DEBUG MEMORY needs a key
+      await client.jsonDebug('MEMORY');
+      // @ts-expect-error JSON.DEBUG HELP takes no key
+      await client.jsonDebug('HELP', 'k');
+      await client.bfReserve('b', 0.01, 100, 2);
+      await client.bfReserve('b', 0.01, 100, undefined, true);
+      // @ts-expect-error BF.RESERVE cannot expand a non-scaling filter
+      await client.bfReserve('b', 0.01, 100, 2, true);
+      await client.expire('k', 10, 'XX GT');
+      await client.pexpireat('k', 10, 'XX LT');
+      // @ts-expect-error hash fields take one condition
+      await client.hexpire('h', 10, ['f'], 'XX GT');
+
+      const found: boolean[] = await client.cfMexists('cf', ['a']);
+      const summary: RespStreamInfo = await client.xinfoStream('s');
+      const detail: RespStreamInfoFull = await client.xinfoStream('s', true, 5);
+
+      // @ts-expect-error XINFO STREAM takes COUNT only with FULL
+      await client.xinfoStream('s', false, 5);
+      // @ts-expect-error XINFO STREAM FULL has no first entry
+      void detail.firstEntry;
       await client.tsAdd('series', '*', 1);
       await client.tsMadd('series', [{ timestamp: '*', value: 1 }]);
       await client.tsDel('series', '-', '+');
@@ -385,6 +441,9 @@ describe('type-contracts', () => {
         pipeline,
         pendingSummary,
         pendingEntries,
+        found,
+        summary,
+        detail,
       ];
     }
 

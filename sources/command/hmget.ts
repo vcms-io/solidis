@@ -36,9 +36,13 @@ export async function hmget<T>(
   key: string,
   ...parameters: (string | CommandBufferOptions | undefined)[]
 ): Promise<(StringOrBuffer | null)[]> {
-  const options = parameters.at(-1);
+  const last = parameters.at(-1);
+  const options =
+    typeof last === 'object' && last !== null && !Buffer.isBuffer(last)
+      ? last
+      : undefined;
   const fields =
-    typeof options === 'string' ? parameters : parameters.slice(0, -1);
+    last === undefined || options ? parameters.slice(0, -1) : parameters;
 
   if (!fields.every((field) => typeof field === 'string')) {
     throw newCommandError('Fields must be strings', 'HMGET');
@@ -48,10 +52,6 @@ export async function hmget<T>(
     this,
     createCommand(key, ...fields),
     (reply, command) =>
-      tryReplyToNullableStringOrBufferArray(
-        reply,
-        command,
-        typeof options === 'string' ? undefined : options,
-      ),
+      tryReplyToNullableStringOrBufferArray(reply, command, options),
   );
 }
