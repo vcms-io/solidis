@@ -6,6 +6,7 @@ on:
     paths:
       - 'sources/**'
       - 'scripts/benchmarks/**'
+      - 'package-lock.json'
       - '.github/workflows/benchmark.yml'
   pull_request:
     branches: [main]
@@ -21,13 +22,13 @@ jobs:
   benchmark:
     name: ${{ matrix.case }}
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
         case:
           - set
-          - getBuffer
+          - get
           - 'hash:HSET+HGET+HGETALL'
           - 'hash:HMSET+HMGET+HDEL'
           - 'set:SADD+SISMEMBER+SMEMBERS'
@@ -65,9 +66,10 @@ jobs:
       - run: npm ci
 
       - name: Run benchmark
-        run: npm run benchmark:ioredis:snapshot -- "${{ matrix.case }}"
+        run: npm run benchmark:snapshot -- "${{ matrix.case }}"
         env:
           SOLIDIS_TEST_PORT: 6379
+          SOLIDIS_BENCH_LIBRARIES: solidis,ioredis,iovalkey,node-redis,valkey-glide,speedkey
 
       - name: Upload snapshot
         uses: actions/upload-artifact@v7
@@ -101,7 +103,10 @@ jobs:
           path: snapshots
 
       - name: Merge snapshots
-        run: npm run benchmark:merge -- snapshots/**/*.benchmark -o benchmark-report.md -s merged.benchmark
+        run: npm run benchmark:merge -- snapshots/**/*.benchmark -o benchmark-report.md -s merged.benchmark --summary benchmark-summary.md
+
+      - name: Attach the report to the job summary
+        run: cat benchmark-report.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Check if PR should be created
         id: check
@@ -124,6 +129,15 @@ jobs:
         if: steps.check.outputs.pr == 'true'
         run: npm run lint
 
+      - name: Write the pull request body
+        if: steps.check.outputs.pr == 'true'
+        run: |
+          {
+            echo 'Automated benchmark update triggered by source or dependency changes on `main`. Every benchmark case ran in its own job; the merged results replace the benchmark section of every `README*.md` and the website data in `website/lib/benchmarks.ts`.'
+            echo
+            cat benchmark-summary.md
+          } > benchmark-pull-request.md
+
       - name: Create pull request
         if: steps.check.outputs.pr == 'true'
         uses: peter-evans/create-pull-request@v8
@@ -133,11 +147,5 @@ jobs:
           branch: benchmark/update-results
           delete-branch: true
           title: 'docs: update benchmark results'
-          body: |
-            Automated benchmark update triggered by source changes on `main`.
-
-            - Ran **19** benchmark cases independently
-            - Merged all results into a single report
-            - Updated the benchmark section in all `README*.md` files (localized)
-            - Updated website benchmark data (`benchmarks`, `home`, i18n)
+          body-path: benchmark-pull-request.md
           labels: benchmark,automated

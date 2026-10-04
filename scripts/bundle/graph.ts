@@ -21,12 +21,14 @@ const COLORS = {
   gridLine: '#e2e8f0',
   solidis: { bundle: '#f59e0b', map: '#fbbf24' },
   ioredis: { bundle: '#ef4444', map: '#f87171' },
+  iovalkey: { bundle: '#0ea5e9', map: '#38bdf8' },
   nodeRedis: { bundle: '#8b5cf6', map: '#a78bfa' },
 } as const;
 
 const DISPLAY_NAMES: Record<string, string> = {
   solidis: 'solidis',
   ioredis: 'ioredis',
+  iovalkey: 'iovalkey',
   'node-redis': 'redis',
 };
 
@@ -35,6 +37,7 @@ type ColorPair = { bundle: string; map: string };
 const BAR_COLORS: Record<string, ColorPair> = {
   solidis: COLORS.solidis,
   ioredis: COLORS.ioredis,
+  iovalkey: COLORS.iovalkey,
   'node-redis': COLORS.nodeRedis,
 };
 

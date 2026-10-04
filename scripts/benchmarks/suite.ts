@@ -1,4 +1,7 @@
-import { SolidisClientAdapter } from '../shared/adapters/solidis.ts';
+import { speedkeyAdapter, valkeyGlideAdapter } from './adapters/glide.ts';
+import { ioredisAdapter, iovalkeyAdapter } from './adapters/ioredis.ts';
+import { nodeRedisAdapter } from './adapters/node-redis.ts';
+import { solidisAdapter } from './adapters/solidis.ts';
 import {
   buildCounter,
   buildExpire,
@@ -32,36 +35,24 @@ import {
   verifyStream,
   verifyTransaction,
   verifyTransactionMixed,
-} from '../shared/commands.ts';
-import { createPubSubCase } from '../shared/pubsub.ts';
-import { BenchmarkSuite } from '../shared/suite.ts';
-import { ansi } from '../shared/utils.ts';
-import { assertBufferEquals, assertOk } from '../shared/verification.ts';
-import { NodeRedisClientAdapter } from './adapters/redis.ts';
-import { getComparableModes, getNonComparableReason } from './comparable.ts';
+} from './shared/commands.ts';
+import { createPubSubCase } from './shared/pubsub.ts';
+import { BenchmarkSuite } from './shared/suite.ts';
+import { assertBufferEquals, assertOk } from './shared/verification.ts';
 
-import type {
-  BenchConfig,
-  BenchmarkCase,
-  BenchmarkMode,
-  Command,
-} from '../shared/types.ts';
+import type { BenchmarkCase } from './shared/types.ts';
 
-export class NodeRedisComparisonSuite extends BenchmarkSuite {
+class ComparisonSuite extends BenchmarkSuite {
   readonly name = 'solidis';
-  readonly baselineLibrary = 'node-redis';
+  readonly subjectLibrary = 'solidis';
   readonly adapters = [
-    new NodeRedisClientAdapter(),
-    new SolidisClientAdapter(),
-  ] as const;
-
-  getComparableModes(commands: Command[]): ReadonlySet<BenchmarkMode> {
-    return getComparableModes(commands);
-  }
-
-  getNonComparableReason(commands: Command[]): string | undefined {
-    return getNonComparableReason(commands);
-  }
+    solidisAdapter,
+    ioredisAdapter,
+    iovalkeyAdapter,
+    nodeRedisAdapter,
+    valkeyGlideAdapter,
+    speedkeyAdapter,
+  ];
 
   buildBenchmarkCases(): BenchmarkCase[] {
     return [
@@ -75,7 +66,7 @@ export class NodeRedisComparisonSuite extends BenchmarkSuite {
         },
       }),
       this.commandCase({
-        name: 'getBuffer',
+        name: 'get',
         setup: (prefix, payloadAt, units) =>
           Array.from({ length: units }, (_, unitIndex) => [
             'SET',
@@ -183,22 +174,14 @@ export class NodeRedisComparisonSuite extends BenchmarkSuite {
     ];
   }
 
-  printFairnessPolicy(_config: BenchConfig): void {
-    console.log(`  ${ansi.dim}Fairness policy:${ansi.reset}`);
-    console.log(
-      `  ${ansi.dim}  • Raw string/Buffer commands (RESP2 mode, Buffer bulk replies)${ansi.reset}`,
-    );
-    console.log(
-      `  ${ansi.dim}  • Deterministic preallocated payload pool shared by both libraries${ansi.reset}`,
-    );
-    console.log(
-      `  ${ansi.dim}  • Same explicit pipeline shape in batch mode${ansi.reset}`,
-    );
-    console.log(
-      `  ${ansi.dim}  • Native node-redis queued writes compared in autopipeline mode${ansi.reset}`,
-    );
-    console.log('');
+  describeFairness(): string[] {
+    return [
+      'Raw commands with Buffer payloads, and Buffer replies from every client',
+      'One deterministic payload pool shared by every library',
+      'The same explicit pipeline in batch mode',
+      'Command timeouts, ready checks and reconnects off, no pipelining or in-flight limits',
+    ];
   }
 }
 
-export const redisSuite = new NodeRedisComparisonSuite();
+export const comparisonSuite = new ComparisonSuite();

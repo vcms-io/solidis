@@ -1,3 +1,4 @@
+import { measurePhase } from './measurement.ts';
 import { logError, logPhase, logProgress, logSuccess } from './utils.ts';
 import { VerificationError } from './verification.ts';
 
@@ -165,9 +166,6 @@ export function createCommandCase(
   const samplePrefix = 'solidis:bench:command-count';
   const sampleSetup = options.setup?.(samplePrefix, samplePayloadAt, 1) ?? [];
   const sampleUnit = options.unit(samplePrefix, 0, samplePayloadAt);
-  const sampledCommands = [...sampleSetup, ...sampleUnit];
-  const comparableModes = suite.getComparableModes(sampledCommands);
-  const nonComparableReason = suite.getNonComparableReason(sampledCommands);
   const commandsPerUnit = sampleUnit.length;
 
   return {
@@ -175,8 +173,7 @@ export function createCommandCase(
     commandsPerUnit,
     payloadSlotsPerUnit: options.payloadSlotsPerUnit ?? 1,
     executionMode: options.executionMode,
-    comparableModes,
-    nonComparableReason,
+    sampleCommands: [...sampleSetup, ...sampleUnit],
     async run(context) {
       const executionMode = options.executionMode ?? context.config.mode;
       const clients =
@@ -235,22 +232,20 @@ export function createCommandCase(
           context.config.iterations,
         );
 
-        const startedAt = performance.now();
-
-        await runCommandUnits(
-          clients,
-          context.keyPrefix,
-          context.config.warmup,
-          context.config.iterations,
-          context.config.concurrency,
-          commandsPerUnit,
-          options.unit,
-          context.payloadPool.at,
-          collected,
-          latenciesMilliseconds,
+        const measurement = await measurePhase(() =>
+          runCommandUnits(
+            clients,
+            context.keyPrefix,
+            context.config.warmup,
+            context.config.iterations,
+            context.config.concurrency,
+            commandsPerUnit,
+            options.unit,
+            context.payloadPool.at,
+            collected,
+            latenciesMilliseconds,
+          ),
         );
-
-        const elapsedMs = performance.now() - startedAt;
         let verificationError: string | undefined;
 
         if (options.verify && collected) {
@@ -263,7 +258,11 @@ export function createCommandCase(
           );
         }
 
-        return { elapsedMs, latenciesMilliseconds, verificationError };
+        return {
+          ...measurement,
+          latenciesMilliseconds,
+          verificationError,
+        };
       } finally {
         await clients[0]?.cleanup(context.keyPrefix).catch((error) => {
           logProgress(

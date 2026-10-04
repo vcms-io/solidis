@@ -22,10 +22,8 @@
     "check": "concurrently --raw \"tsc --noEmit\" \"tsc --noEmit --project scripts/tsconfig.json\"",
     "lint:check": "concurrently --raw \"biome check\" \"prettier --check \\\"**/*.md\\\" --prose-wrap preserve --single-quote --embedded-language-formatting off\" \"npm run check\"",
     "node:ts": "node --import=./scripts/esm/register.js",
-    "benchmark:ioredis": "npm run --silent node:ts ./scripts/benchmarks/ioredis/benchmark.ts --",
-    "benchmark:ioredis:snapshot": "cross-env SOLIDIS_BENCH_EXPORT_SNAPSHOT=./ioredis.benchmark npm run --silent node:ts ./scripts/benchmarks/ioredis/benchmark.ts --",
-    "benchmark:redis": "npm run --silent node:ts ./scripts/benchmarks/redis/benchmark.ts --",
-    "benchmark:redis:snapshot": "cross-env SOLIDIS_BENCH_EXPORT_SNAPSHOT=./redis.benchmark npm run --silent node:ts ./scripts/benchmarks/redis/benchmark.ts --",
+    "benchmark": "npm run --silent node:ts ./scripts/benchmarks/benchmark.ts --",
+    "benchmark:snapshot": "cross-env SOLIDIS_BENCH_EXPORT_SNAPSHOT=./solidis.benchmark npm run --silent node:ts ./scripts/benchmarks/benchmark.ts --",
     "benchmark:merge": "npm run --silent node:ts ./scripts/benchmarks/shared/markdown/merge.ts --",
     "benchmark:replace:readme": "npm run --silent node:ts ./scripts/benchmarks/shared/markdown/replace.readme.ts --",
     "benchmark:replace:website": "npm run --silent node:ts ./scripts/benchmarks/shared/markdown/replace.website.ts --",
@@ -91,19 +89,23 @@
   "sideEffects": false,
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
+    "@glidemq/speedkey": "^0.4.2",
     "@napi-rs/canvas": "^1.0.10",
     "@types/node": "^26.6.4",
+    "@valkey/valkey-glide": "^2.5.3",
     "c8": "^12.0.0",
     "chalk": "^6.0.1",
     "concurrently": "^10.0.5",
     "cross-env": "^10.1.0",
     "esbuild": "^0.28.2",
     "ioredis": "^6.0.0",
+    "iovalkey": "^0.4.0",
     "prettier": "^3.9.9",
     "redis": "^6.3.0",
     "typescript": "^7.0.2"
   },
   "allowScripts": {
-    "esbuild": true
+    "esbuild": true,
+    "protobufjs": false
   }
 }

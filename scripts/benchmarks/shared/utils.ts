@@ -81,6 +81,10 @@ export function formatPayloadSize(bytes: number): string {
   return `${bytes} B`;
 }
 
+export function formatMemory(bytes: number): string {
+  return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+}
+
 export function formatLargeNumber(value: number): string {
   if (value >= 1_000_000) {
     return `${(value / 1_000_000).toFixed(2)}M`;

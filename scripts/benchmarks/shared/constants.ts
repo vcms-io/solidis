@@ -4,6 +4,7 @@ export const settleJitterPercent = 35;
 export const settleAbsoluteRangeMs = 2;
 export const payloadSeedBase = 0x1d16;
 export const pubSubDeliveryTimeoutBytesPerMs = 8 * 1024;
+export const memorySampleIntervalMs = 20;
 
 /**
  * Fairness policy: other libraries do not expose per-pipeline command caps,

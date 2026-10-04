@@ -56,6 +56,14 @@ function readOperations(): Set<string> | undefined {
   return values.length > 0 ? new Set(values) : undefined;
 }
 
+function readLibraries(): Set<string> | undefined {
+  const names = (process.env.SOLIDIS_BENCH_LIBRARIES ?? '')
+    .split(/[,\s]+/)
+    .filter((name) => name.length > 0);
+
+  return names.length > 0 ? new Set(names) : undefined;
+}
+
 function readMode(): BenchmarkMode {
   const rawValue = process.env.SOLIDIS_BENCH_MODE?.trim().toLowerCase();
 
@@ -93,6 +101,7 @@ export function readConfig(): BenchConfig {
     repeats: Math.max(1, readNumber('SOLIDIS_BENCH_REPEATS', 10)),
     cooldownMs: Math.max(0, readNumber('SOLIDIS_BENCH_COOLDOWN_MS', 2500)),
     operations: readOperations(),
+    libraries: readLibraries(),
   };
 }
 
@@ -100,6 +109,7 @@ export function serializeConfig(config: BenchConfig): SerializedBenchConfig {
   return {
     ...config,
     operations: config.operations ? Array.from(config.operations) : undefined,
+    libraries: config.libraries ? Array.from(config.libraries) : undefined,
   };
 }
 
@@ -107,5 +117,6 @@ export function deserializeConfig(config: SerializedBenchConfig): BenchConfig {
   return {
     ...config,
     operations: config.operations ? new Set(config.operations) : undefined,
+    libraries: config.libraries ? new Set(config.libraries) : undefined,
   };
 }

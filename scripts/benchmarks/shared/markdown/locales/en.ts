@@ -6,89 +6,114 @@ function plural(count: number, singular: string): string {
   return count === 1 ? singular : `${singular}s`;
 }
 
+function list(names: string[]): string {
+  return names.length > 1
+    ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`
+    : names.join('');
+}
+
 export const en: BenchmarkLocale = {
   sectionTitle: `## ${fluentEmoji('Objects', 'Bar Chart')} Benchmarks`,
 
-  reportTitle: (baseline) =>
-    `${fluentEmoji('Travel and places', 'High Voltage')} Solidis vs ${baseline} ${fluentEmoji('Travel and places', 'High Voltage')}`,
+  reportTitle: (competitors) =>
+    `${fluentEmoji('Travel and places', 'High Voltage')} Solidis vs ${list(competitors)}`,
   generatedOnPrefix: 'Generated on',
-  upToFaster: (ratio, baseline) =>
-    `Up to **${ratio} faster** than ${baseline}! ${fluentEmoji('Travel and places', 'Rocket')}`,
-
-  benchmarksWon: (wins, total) => `**${wins}** / **${total}** benchmarks won`,
-  averageSpeedImprovement: (percent) =>
-    `**${percent}%** average speed improvement`,
-  peakSpeedImprovement: (percent) => `**${percent}%** peak speed improvement`,
+  headline: (wins, total, averageLead) =>
+    `Fastest in **${wins}** of **${total}** benchmarks · **${averageLead}** the throughput of the next-fastest client on average ${fluentEmoji('Travel and places', 'Rocket')}`,
   subtitle: (iterations, concurrency, payloadLabel, payloadCount, repeats) =>
-    `*${iterations.toLocaleString()} iterations × ${concurrency.toLocaleString()} concurrency · ${payloadLabel} ${plural(payloadCount, 'payload')} · ${repeats.toLocaleString()} ${plural(repeats, 'repeat')}*`,
+    `*${iterations.toLocaleString('en-US')} operations × ${concurrency.toLocaleString('en-US')} concurrency · ${payloadLabel} ${plural(payloadCount, 'payload')} · ${repeats.toLocaleString('en-US')} ${plural(repeats, 'repeat')} per client*`,
 
+  leaderboardTitle: '### Leaderboard',
+  leaderboardHeaders: {
+    client: 'Client',
+    version: 'Version',
+    fastestIn: 'Fastest in',
+    throughput: 'Throughput',
+    cpu: 'CPU per operation',
+    memory: 'Peak memory',
+  },
+  leaderboardFootnote: (subject) =>
+    `Throughput, CPU per operation and peak memory are geometric means over all benchmarks, relative to \`${subject}\` (1.00x). Higher throughput and lower CPU and memory are better.`,
+  nativeMemoryFootnote:
+    'Memory the client keeps in native code is not counted.',
+
+  resultsTitle: '### Operations per Second',
   mainTableHeaders: {
     benchmark: 'Benchmark',
-    commands: 'Commands',
-    difference: 'Difference',
-    performance: 'Performance',
+    lead: 'Lead',
   },
-
-  noComparableResults: '*No comparable results.*',
-
-  nonComparableTitle: '### Non Strictly Comparable Benchmarks',
-  nonComparableDescription:
-    'These benchmarks have library-specific behavior that prevents a strictly fair comparison.',
-
-  rankingFootnote: (solidis, baseline) =>
-    `Ranked by performance gain of \`${solidis}\` over \`${baseline}\` (baseline). Elapsed = median time across repeats.`,
+  rankingFootnote: (subject) =>
+    `Median operations per second over the repeats; the fastest client of each benchmark is in bold. Lead = \`${subject}\` ÷ the fastest other client.`,
+  note: (note) =>
+    note.kind === 'noAutoPipeline'
+      ? `Does not auto-pipeline ${list(note.commands)}`
+      : {
+          resp3PubSub: 'Subscribes over RESP3, which it requires for Pub/Sub',
+          atomicTransactions:
+            'Does not take MULTI and EXEC in a batch, so it sends the commands between them as an atomic batch',
+          batchedOperations:
+            'Does not keep the order of concurrent commands, so it sends each operation as one batch',
+        }[note.kind],
+  noResults: '*No results.*',
 
   detailedMetricsTitle: `## ${fluentEmoji('Objects', 'Bar Chart')} Detailed Metrics`,
   detailedMetricsDescription:
-    'All metrics per library: operations/s, commands/s, median elapsed time, spread (coefficient of variation), and per-operation latency (p50 / p99).',
-  expandDetailedMetrics: 'Click to expand detailed metrics table',
-
+    'Per library: operations and commands per second, latency (p50 / p95 / p99 / p99.9), CPU and GC time per operation, peak memory and spread.',
+  expandDetailedMetrics: 'Click to expand the detailed metrics',
   detailedMetricsHeaders: {
     benchmark: 'Benchmark',
     library: 'Library',
     opsPerSec: 'ops/s',
     cmdsPerSec: 'cmds/s',
-    elapsed: 'Elapsed',
+    latencyPercentile50: 'p50',
+    latencyPercentile95: 'p95',
+    latencyPercentile99: 'p99',
+    latencyPercentile999: 'p99.9',
+    cpu: 'CPU/op',
+    gc: 'GC/op',
+    memory: 'Memory',
     spread: 'Spread',
-    latencyPercentile50: 'p50 Latency',
-    latencyPercentile99: 'p99 Latency',
   },
 
-  configurationTitle: `## ${fluentEmoji('Objects', 'Gear')} Configuration`,
-  expandConfiguration: 'Click to expand benchmark configuration',
-
-  configLabels: {
+  environmentTitle: `## ${fluentEmoji('Objects', 'Gear')} Environment and Configuration`,
+  expandEnvironment: 'Click to expand the environment and configuration',
+  environmentLabels: {
     parameter: 'Parameter',
     value: 'Value',
+    cpu: 'CPU',
+    memory: 'Memory',
+    operatingSystem: 'Operating system',
+    nodeJs: 'Node.js',
+    server: 'Server',
+    clientVersions: 'Clients',
     mode: 'Mode',
-    payloadSizes: 'Payload Sizes',
-    iterations: 'Iterations',
-    warmup: 'Warmup',
-    clients: 'Clients',
-    concurrencyPerClient: 'Concurrency / Client',
-    totalConcurrency: 'Total Concurrency',
+    payloadSizes: 'Payload sizes',
+    iterations: 'Operations per sample',
+    warmup: 'Warmup operations',
+    connections: 'Connections per client',
+    concurrencyPerConnection: 'Concurrency per connection',
     repeats: 'Repeats',
     cooldown: 'Cooldown',
-    platform: 'Platform',
-    nodeJs: 'Node.js',
     date: 'Date',
   },
 
   methodologyTitle: `## ${fluentEmoji('Objects', 'Open Book')} Methodology`,
   methodologyItems: [
-    'Each benchmark is run in an **isolated worker thread** to prevent GC and JIT cross-contamination',
-    'Libraries are **alternated** between repeats to reduce ordering bias',
-    'The Redis server is **flushed and settled** between each benchmark case',
-    'Payloads use a **deterministic pseudo-random pool** shared by both libraries',
-    'Elapsed time is the **median** across all repeat samples',
-    'Spread is the **coefficient of variation** (σ / median × 100%)',
-    'Latency is timed **per operation** from issue to resolution at the configured concurrency (warmup excluded), and **p50 / p99** are taken over all repeat samples combined',
-    'Both clients run with **command timeouts, ready checks and reconnects disabled** and unbounded auto-pipelining',
+    'Every sample runs in its own **worker thread**, so garbage collection and JIT state never carry over.',
+    'The library order **rotates** per sample, and the server is **flushed and settled** before each one.',
+    'All libraries get the same **deterministic binary payloads**, and every reply is checked after the measured phase.',
+    'Throughput is the **median** of the repeats; spread is σ / median.',
+    'Latency is timed **per operation** at the configured concurrency, over all repeats.',
+    'CPU/op is the **process CPU time** (user + system) of the measured phase per operation, so it includes garbage collection and native threads. GC/op is the garbage-collection pause time, divided the same way.',
+    "Memory is the largest growth of the worker's heap plus `ArrayBuffer` memory (all `Buffer`s) during the measured phase, sampled every 20 ms; memory held by native code is not counted. Replies are kept until checked, as an application would.",
+    'Clients run with **timeouts, ready checks and reconnects off** and no pipelining limit. ioredis and iovalkey auto-pipeline; Valkey GLIDE and speedkey decode replies as bytes over RESP2.',
+    'A result whose client could not run a benchmark the same way is **numbered** and explained below the table.',
+    'Compared: every Node.js TCP client with 1,000+ weekly npm downloads that installs without compiling and keeps binary values. Left out: redis-fast-driver (native build), tedis (string values), HTTP clients such as @upstash/redis, and forks or wrappers. Valkey GLIDE has no Windows build.',
   ],
 
   operationDisplayNames: {
     set: 'Set',
-    getBuffer: 'Get Buffer',
+    get: 'Get',
     'hash:HSET+HGET+HGETALL': 'Hash Round-Trip',
     'hash:HMSET+HMGET+HDEL': 'Hash Mutation',
     'set:SADD+SISMEMBER+SMEMBERS': 'Set Read',

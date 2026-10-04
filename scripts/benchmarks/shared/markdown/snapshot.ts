@@ -5,9 +5,10 @@ import { serializeConfig } from '../configuration.ts';
 
 import type {
   BenchConfig,
+  BenchEnvironment,
   BenchmarkSnapshot,
-  ComparedResult,
-  LibraryName,
+  BenchResult,
+  LibraryInfo,
 } from '../types.ts';
 
 function readSnapshotPath(): string | undefined {
@@ -20,13 +21,15 @@ export function shouldExportSnapshot(): boolean {
 
 export function createSnapshot(
   suiteName: string,
-  baselineLibrary: LibraryName,
+  libraries: LibraryInfo[],
+  environments: BenchEnvironment[],
   configuration: BenchConfig,
-  results: ComparedResult[],
+  results: BenchResult[],
 ): BenchmarkSnapshot {
   return {
     suiteName,
-    baselineLibrary,
+    libraries,
+    environments,
     configuration: serializeConfig(configuration),
     results,
     createdAt: new Date().toISOString(),
@@ -34,24 +37,9 @@ export function createSnapshot(
 }
 
 export async function exportSnapshot(
-  suiteName: string,
-  baselineLibrary: LibraryName,
-  configuration: BenchConfig,
-  results: ComparedResult[],
-): Promise<string | undefined> {
-  const rawPath = readSnapshotPath();
-
-  if (!rawPath) {
-    return undefined;
-  }
-
-  const outputPath = resolve(rawPath);
-  const snapshot = createSnapshot(
-    suiteName,
-    baselineLibrary,
-    configuration,
-    results,
-  );
+  snapshot: BenchmarkSnapshot,
+): Promise<string> {
+  const outputPath = resolve(readSnapshotPath() ?? 'solidis.benchmark');
 
   await writeFile(outputPath, JSON.stringify(snapshot, null, 2), 'utf-8');
 
@@ -61,60 +49,75 @@ export async function exportSnapshot(
 export async function loadSnapshot(
   filePath: string,
 ): Promise<BenchmarkSnapshot> {
-  const content = await readFile(resolve(filePath), 'utf-8');
+  const snapshot: BenchmarkSnapshot = JSON.parse(
+    await readFile(resolve(filePath), 'utf-8'),
+  );
 
-  return JSON.parse(content) as BenchmarkSnapshot;
+  if (
+    !Array.isArray(snapshot.libraries) ||
+    !Array.isArray(snapshot.environments) ||
+    !Array.isArray(snapshot.results)
+  ) {
+    throw new Error(`${filePath} is not a snapshot of this benchmark suite`);
+  }
+
+  return snapshot;
 }
 
 export function mergeSnapshots(
   snapshots: BenchmarkSnapshot[],
 ): BenchmarkSnapshot {
-  if (snapshots.length === 0) {
+  const [first] = snapshots;
+
+  if (!first) {
     throw new Error('No snapshots to merge');
   }
 
-  const firstSuiteName = snapshots[0].suiteName;
-  const firstBaselineLibrary = snapshots[0].baselineLibrary;
+  const libraries = new Map<string, LibraryInfo>();
+  const environments = new Map<string, BenchEnvironment>();
+  const results = new Map<string, BenchResult>();
 
   for (const snapshot of snapshots) {
-    if (snapshot.suiteName !== firstSuiteName) {
+    if (snapshot.suiteName !== first.suiteName) {
       throw new Error(
-        'Cannot merge snapshots from different suites: ' +
-          `"${firstSuiteName}" and "${snapshot.suiteName}"`,
+        `Cannot merge snapshots of "${first.suiteName}" and "${snapshot.suiteName}"`,
       );
     }
 
-    if (snapshot.baselineLibrary !== firstBaselineLibrary) {
-      throw new Error(
-        'Cannot merge snapshots with different baselines: ' +
-          `"${firstBaselineLibrary}" and "${snapshot.baselineLibrary}"`,
-      );
-    }
-  }
+    for (const library of snapshot.libraries) {
+      const known = libraries.get(library.name);
 
-  const mergedResults: ComparedResult[] = [];
-  const seen = new Set<string>();
-
-  for (const snapshot of snapshots) {
-    for (const result of snapshot.results) {
-      const key = `${result.operation}\x00${result.payloadBytes}\x00${result.library}`;
-
-      if (!seen.has(key)) {
-        seen.add(key);
-        mergedResults.push(result);
+      if (known && known.version !== library.version) {
+        throw new Error(
+          `Cannot merge ${library.name} ${known.version} and ${library.version}`,
+        );
       }
+
+      libraries.set(library.name, library);
+    }
+
+    for (const environment of snapshot.environments) {
+      environments.set(JSON.stringify(environment), environment);
+    }
+
+    for (const result of snapshot.results) {
+      results.set(
+        `${result.operation}\0${result.payloadBytes}\0${result.library}`,
+        result,
+      );
     }
   }
 
-  const latestSnapshot = snapshots.reduce((latest, current) =>
-    current.createdAt > latest.createdAt ? current : latest,
+  const latest = snapshots.reduce((left, right) =>
+    right.createdAt > left.createdAt ? right : left,
   );
 
   return {
-    suiteName: firstSuiteName,
-    baselineLibrary: firstBaselineLibrary,
-    configuration: latestSnapshot.configuration,
-    results: mergedResults,
-    createdAt: latestSnapshot.createdAt,
+    suiteName: first.suiteName,
+    libraries: [...libraries.values()],
+    environments: [...environments.values()],
+    configuration: latest.configuration,
+    results: [...results.values()],
+    createdAt: latest.createdAt,
   };
 }

@@ -22,5 +22,6 @@ export function resolveLocale(filename: string): BenchmarkLocale {
 }
 
 export { en } from './en.ts';
+export { ko } from './ko.ts';
 
 export type { BenchmarkLocale } from './types.ts';

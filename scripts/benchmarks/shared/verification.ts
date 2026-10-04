@@ -129,6 +129,25 @@ export function assertHashContains(
     );
   }
 
+  if (
+    Array.isArray(hgetallResult) &&
+    hgetallResult.every(
+      (entry) => typeof entry === 'object' && entry !== null && 'key' in entry,
+    )
+  ) {
+    assertHashContains(
+      hgetallResult.flatMap((entry) => [
+        Reflect.get(entry, 'key'),
+        Reflect.get(entry, 'value'),
+      ]),
+      field,
+      expectedValue,
+      label,
+    );
+
+    return;
+  }
+
   if (Array.isArray(hgetallResult)) {
     for (let index = 0; index < hgetallResult.length; index += 2) {
       const key = Buffer.isBuffer(hgetallResult[index])

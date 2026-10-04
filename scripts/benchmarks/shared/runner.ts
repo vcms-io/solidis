@@ -12,16 +12,21 @@ import {
   serializeConfig,
 } from './configuration.ts';
 import { createNamespace, settlePingSamples } from './constants.ts';
+import { captureEnvironment } from './environment.ts';
 import {
   exportMarkdownReport,
   shouldExportMarkdown,
 } from './markdown/index.ts';
-import { exportSnapshot, shouldExportSnapshot } from './markdown/snapshot.ts';
+import { en } from './markdown/locales/index.ts';
+import {
+  createSnapshot,
+  exportSnapshot,
+  shouldExportSnapshot,
+} from './markdown/snapshot.ts';
 import { makePayloadPool, makePayloadSeed } from './payload.ts';
 import {
-  compare,
+  createSampleRunOrder,
   describeFailedResults,
-  getFairnessWarning,
   getSkipReason,
   makeErrorResult,
   makeResult,
@@ -29,6 +34,7 @@ import {
   printResults,
 } from './results.ts';
 import {
+  ansi,
   logCaseDone,
   logCaseTitle,
   logError,
@@ -69,29 +75,36 @@ function isValidWorkerData(value: unknown): value is BenchWorkerData {
   );
 }
 
-function createSamplesRecord<T>(
-  libraries: readonly LibraryName[],
-): Map<LibraryName, T[]> {
-  const record = new Map<LibraryName, T[]>();
-
-  for (const library of libraries) {
-    record.set(library, []);
+function readWorkerResult(message: unknown): CaseRunResult {
+  if (
+    typeof message === 'object' &&
+    message !== null &&
+    'elapsedMs' in message &&
+    typeof message.elapsedMs === 'number' &&
+    'cpuMicroseconds' in message &&
+    typeof message.cpuMicroseconds === 'number' &&
+    'gcMilliseconds' in message &&
+    typeof message.gcMilliseconds === 'number' &&
+    'peakMemoryBytes' in message &&
+    typeof message.peakMemoryBytes === 'number' &&
+    'latenciesMilliseconds' in message &&
+    message.latenciesMilliseconds instanceof Float64Array
+  ) {
+    return {
+      elapsedMs: message.elapsedMs,
+      cpuMicroseconds: message.cpuMicroseconds,
+      gcMilliseconds: message.gcMilliseconds,
+      peakMemoryBytes: message.peakMemoryBytes,
+      latenciesMilliseconds: message.latenciesMilliseconds,
+      verificationError:
+        'verificationError' in message &&
+        typeof message.verificationError === 'string'
+          ? message.verificationError
+          : undefined,
+    };
   }
 
-  return record;
-}
-
-function getSamplesForLibrary<T>(
-  record: Map<LibraryName, T[]>,
-  library: LibraryName,
-): T[] {
-  const samples = record.get(library);
-
-  if (!samples) {
-    throw new Error(`No samples record initialized for library: ${library}`);
-  }
-
-  return samples;
+  throw new Error(`Unexpected benchmark worker message: ${message}`);
 }
 
 export function createBenchmarkRunner(
@@ -151,9 +164,11 @@ export function createBenchmarkRunner(
       config.repeats,
     );
 
-    const executionMode = benchmarkCase.executionMode ?? config.mode;
-    const clients = await warmBenchmarkLibrary(config, library, executionMode);
-
+    const clients = await warmBenchmarkLibrary(
+      config,
+      library,
+      benchmarkCase.executionMode ?? config.mode,
+    );
     const context: BenchContext = {
       config,
       library,
@@ -183,30 +198,6 @@ export function createBenchmarkRunner(
     return result;
   }
 
-  async function runCaseSampleSafe(
-    config: BenchConfig,
-    benchmarkCase: BenchmarkCase,
-    library: LibraryName,
-    payloadBytes: number,
-    payloadPool: PayloadPool,
-    sampleIndex: number,
-  ): Promise<CaseRunResult> {
-    try {
-      return await runCaseSample(
-        config,
-        benchmarkCase,
-        library,
-        payloadBytes,
-        payloadPool,
-        sampleIndex,
-      );
-    } catch (error) {
-      logWarn(`${benchmarkCase.name} [${library}] failed: ${error}`);
-
-      throw error;
-    }
-  }
-
   async function runIsolatedCaseSample(
     config: BenchConfig,
     benchmarkCase: BenchmarkCase,
@@ -230,34 +221,13 @@ export function createBenchmarkRunner(
       });
 
       worker.once('message', (message: unknown) => {
-        if (
-          typeof message === 'object' &&
-          message !== null &&
-          'elapsedMs' in message &&
-          typeof message.elapsedMs === 'number' &&
-          'latenciesMilliseconds' in message &&
-          message.latenciesMilliseconds instanceof Float64Array
-        ) {
-          const verificationError =
-            'verificationError' in message &&
-            typeof message.verificationError === 'string'
-              ? message.verificationError
-              : undefined;
-
-          resolve({
-            elapsedMs: message.elapsedMs,
-            latenciesMilliseconds: message.latenciesMilliseconds,
-            verificationError,
-          });
-
-          return;
+        try {
+          resolve(readWorkerResult(message));
+        } catch (error) {
+          reject(error);
         }
-
-        reject(new Error(`Unexpected benchmark worker message: ${message}`));
       });
-
       worker.once('error', reject);
-
       worker.once('exit', (code) => {
         if (code !== 0) {
           reject(new Error(`Benchmark worker exited with code ${code}`));
@@ -275,17 +245,20 @@ export function createBenchmarkRunner(
     benchmarkCase: BenchmarkCase,
     payloadBytes: number,
     caseIndex: number,
-    caseWallMilliseconds?: number,
+    libraries: readonly LibraryName[],
   ): Promise<BenchResult[]> {
-    const samplesMilliseconds = createSamplesRecord<number>(suite.libraries);
-    const latencySamplesMilliseconds = createSamplesRecord<Float64Array>(
-      suite.libraries,
+    const samples = new Map<LibraryName, CaseRunResult[]>(
+      libraries.map((library) => [library, []]),
     );
-    const verificationErrors = new Map<LibraryName, string>();
     const errors = new Map<LibraryName, unknown>();
+    const caseStartedAt = performance.now();
 
     for (let sampleIndex = 0; sampleIndex < config.repeats; sampleIndex += 1) {
-      for (const library of suite.sampleRunOrder(caseIndex, sampleIndex)) {
+      for (const library of createSampleRunOrder(
+        libraries,
+        caseIndex,
+        sampleIndex,
+      )) {
         if (errors.has(library)) {
           continue;
         }
@@ -299,148 +272,154 @@ export function createBenchmarkRunner(
           await suite.flushDb(config);
           await suite.waitForServerSettle(config);
 
-          const sampleResult = await runIsolatedCaseSample(
-            config,
-            benchmarkCase,
-            library,
-            payloadBytes,
-            caseIndex,
-            sampleIndex,
-          );
-
-          getSamplesForLibrary(samplesMilliseconds, library).push(
-            sampleResult.elapsedMs,
-          );
-          getSamplesForLibrary(latencySamplesMilliseconds, library).push(
-            sampleResult.latenciesMilliseconds,
-          );
-
-          if (
-            sampleResult.verificationError &&
-            !verificationErrors.has(library)
-          ) {
-            verificationErrors.set(library, sampleResult.verificationError);
-          }
+          samples
+            .get(library)
+            ?.push(
+              await runIsolatedCaseSample(
+                config,
+                benchmarkCase,
+                library,
+                payloadBytes,
+                caseIndex,
+                sampleIndex,
+              ),
+            );
         } catch (error) {
           errors.set(library, error);
         }
       }
     }
 
-    return suite.libraries.map((library) => {
-      const error = errors.get(library);
+    const caseWallMilliseconds = performance.now() - caseStartedAt;
+    const mode = benchmarkCase.executionMode ?? config.mode;
 
-      if (error) {
-        return makeErrorResult(
-          config,
-          benchmarkCase,
-          library,
-          payloadBytes,
-          error,
-          caseWallMilliseconds,
-        );
-      }
-
-      const result = makeResult(
+    return libraries.map((library) => {
+      const nonComparableReason = suite.getNonComparableReason(
         benchmarkCase,
-        config,
         library,
-        payloadBytes,
-        getSamplesForLibrary(samplesMilliseconds, library),
-        getSamplesForLibrary(latencySamplesMilliseconds, library),
-        caseWallMilliseconds,
+        mode,
       );
 
-      result.verificationError = verificationErrors.get(library);
-
-      return result;
+      return errors.has(library)
+        ? makeErrorResult(
+            benchmarkCase,
+            config,
+            library,
+            payloadBytes,
+            errors.get(library),
+            nonComparableReason,
+            caseWallMilliseconds,
+          )
+        : makeResult(
+            benchmarkCase,
+            config,
+            library,
+            payloadBytes,
+            samples.get(library) ?? [],
+            nonComparableReason,
+            caseWallMilliseconds,
+          );
     });
   }
 
   async function run(): Promise<void> {
     const config = readConfig();
+    const unknownOperations = [...(config.operations ?? [])].filter(
+      (operation) =>
+        !suite.benchmarkCases.some(
+          (benchmarkCase) => benchmarkCase.name === operation,
+        ),
+    );
+
+    if (unknownOperations.length > 0) {
+      throw new Error(
+        `Unknown benchmark case: ${unknownOperations.join(', ')}. Cases: ${suite.benchmarkCases.map((benchmarkCase) => benchmarkCase.name).join(', ')}`,
+      );
+    }
+
+    const libraries = suite.resolveLibraries(config);
     const results: BenchResult[] = [];
     const runStartedAt = performance.now();
 
-    printConfig(config);
-    suite.printFairnessPolicy(config);
-    await suite.smokeTest(config);
+    printConfig(config, libraries);
 
-    logStep('Suite started', 'flushing database');
+    console.log(`  ${ansi.dim}Fairness policy:${ansi.reset}`);
+
+    for (const line of suite.describeFairness()) {
+      console.log(`  ${ansi.dim}  • ${line}${ansi.reset}`);
+    }
+
+    console.log('');
+
+    await suite.smokeTest(config, libraries);
+
+    const environment = captureEnvironment(await suite.readServerInfo(config));
+
+    logStep('Suite started', `${environment.server}, flushing database`);
     await suite.flushDb(config);
 
     let caseIndex = 0;
 
     for (const payloadBytes of config.sizes) {
       for (const benchmarkCase of suite.benchmarkCases) {
-        const skipReason = getSkipReason(config, benchmarkCase);
-
-        if (skipReason) {
-          if (skipReason !== 'not requested') {
-            logProgress(
-              `skip ${benchmarkCase.name} payload=${payloadBytes}: ${skipReason}`,
-            );
-          }
-
+        if (getSkipReason(config, benchmarkCase)) {
           continue;
         }
 
-        const fairnessWarning = getFairnessWarning(config, benchmarkCase);
-
-        if (fairnessWarning) {
-          logWarn(`${benchmarkCase.name}: ${fairnessWarning}`);
-        }
-
         logCaseTitle(benchmarkCase.name, payloadBytes);
-        const caseStartedAt = performance.now();
 
         const caseResults = await runComparedCase(
           config,
           benchmarkCase,
           payloadBytes,
           caseIndex,
+          libraries,
         );
-        const caseWallMilliseconds = performance.now() - caseStartedAt;
+
+        logCaseDone(
+          benchmarkCase.name,
+          payloadBytes,
+          caseResults[0]?.caseWallMs ?? 0,
+        );
 
         for (const result of caseResults) {
-          result.caseWallMs = caseWallMilliseconds;
+          if (result.nonComparableReason) {
+            logProgress(
+              `${benchmarkCase.name} [${result.library}] not strictly comparable: ${en.note(result.nonComparableReason)}`,
+            );
+          }
         }
 
-        logCaseDone(benchmarkCase.name, payloadBytes, caseWallMilliseconds);
-
         results.push(...caseResults);
-
         caseIndex += 1;
       }
     }
 
-    const compared = compare(results, suite.baselineLibrary);
+    printResults(results, suite.subjectLibrary);
 
-    printResults(compared, suite.baselineLibrary);
+    const snapshot = createSnapshot(
+      suite.name,
+      libraries.map((library) => {
+        const { name, packageName, version, hasNativeCore } =
+          suite.getAdapter(library);
+
+        return { name, packageName, version, hasNativeCore };
+      }),
+      [environment],
+      config,
+      results,
+    );
 
     if (shouldExportSnapshot()) {
-      const snapshotPath = await exportSnapshot(
-        suite.name,
-        suite.baselineLibrary,
-        config,
-        compared,
+      logSuccess(
+        `Benchmark snapshot exported → ${await exportSnapshot(snapshot)}`,
       );
-
-      if (snapshotPath) {
-        logSuccess(`Benchmark snapshot exported → ${snapshotPath}`);
-      }
     }
 
     if (shouldExportMarkdown()) {
-      const exportedPath = await exportMarkdownReport(
-        compared,
-        suite.baselineLibrary,
-        config,
+      logSuccess(
+        `Markdown report exported → ${await exportMarkdownReport(snapshot)}`,
       );
-
-      if (exportedPath) {
-        logSuccess(`Markdown report exported → ${exportedPath}`);
-      }
     }
 
     logStep(
@@ -450,11 +429,11 @@ export function createBenchmarkRunner(
 
     const failures = describeFailedResults(results);
 
-    if (failures.length > 0) {
-      for (const failure of failures) {
-        logError(failure);
-      }
+    for (const failure of failures) {
+      logError(failure);
+    }
 
+    if (failures.length > 0) {
       process.exitCode = 1;
     }
   }
@@ -480,20 +459,23 @@ export function createBenchmarkRunner(
       benchmarkCase.payloadSlotsPerUnit,
       makePayloadSeed(data.payloadBytes, data.caseIndex),
     );
-    const result = await runCaseSampleSafe(
-      config,
-      benchmarkCase,
-      data.library,
-      data.payloadBytes,
-      payloadPool,
-      data.sampleIndex,
-    );
 
-    parentPort?.postMessage({
-      elapsedMs: result.elapsedMs,
-      latenciesMilliseconds: result.latenciesMilliseconds,
-      verificationError: result.verificationError,
-    });
+    try {
+      const result = await runCaseSample(
+        config,
+        benchmarkCase,
+        data.library,
+        data.payloadBytes,
+        payloadPool,
+        data.sampleIndex,
+      );
+
+      parentPort?.postMessage(result);
+    } catch (error) {
+      logWarn(`${benchmarkCase.name} [${data.library}] failed: ${error}`);
+
+      throw error;
+    }
   }
 
   const entrypoint = isMainThread ? run : runWorker;

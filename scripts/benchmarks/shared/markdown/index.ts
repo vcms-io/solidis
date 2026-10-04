@@ -1,610 +1,333 @@
 import { writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-import { formatLargeNumber, formatPayloadSize } from '../utils.ts';
+import {
+  formatLargeNumber,
+  formatMemory,
+  formatPayloadSize,
+} from '../utils.ts';
+import { analyze, findNoteNumber } from './analysis.ts';
 import { fluentEmoji } from './emoji.ts';
 import { en } from './locales/index.ts';
 
-import type { BenchConfig, ComparedResult, LibraryName } from '../types.ts';
+import type { BenchmarkSnapshot, BenchResult, LibraryInfo } from '../types.ts';
+import type { BenchmarkAnalysis, CaseComparison } from './analysis.ts';
 import type { BenchmarkLocale } from './locales/types.ts';
 
-interface ResultGroup {
-  operation: string;
-  payloadBytes: number;
-  comparable: boolean;
-  maximumRatio: number;
-  results: ComparedResult[];
+function formatRatio(ratio: number | null, digits: number): string {
+  return ratio === null ? '-' : `${ratio.toFixed(digits)}x`;
 }
 
-function getNonBaselineRatio(group: ComparedResult[]): number {
-  for (const result of group) {
-    if (
-      result.library !== result.baselineLibrary &&
-      result.ratioVsBaseline !== null
-    ) {
-      return result.ratioVsBaseline;
-    }
-  }
+function getLeadBadge(lead: number | null): string {
+  const fire = fluentEmoji('Travel and places', 'Fire', 16);
 
-  return 0;
-}
-
-function buildSortedResultGroups(results: ComparedResult[]): ResultGroup[] {
-  const GROUP_KEY_SEPARATOR = '\x00';
-  const grouped = new Map<string, ComparedResult[]>();
-
-  for (const result of results) {
-    const key = `${result.operation}${GROUP_KEY_SEPARATOR}${result.payloadBytes}`;
-    const existing = grouped.get(key) ?? [];
-    existing.push(result);
-    grouped.set(key, existing);
-  }
-
-  const groups: ResultGroup[] = [];
-
-  for (const [key, groupResults] of grouped) {
-    const [operation, payloadText] = key.split(GROUP_KEY_SEPARATOR);
-
-    groups.push({
-      operation,
-      payloadBytes: Number(payloadText),
-      comparable: groupResults.every((result) => result.comparable),
-      maximumRatio: getNonBaselineRatio(groupResults),
-      results: groupResults,
-    });
-  }
-
-  const comparableGroups = groups
-    .filter((group) => group.comparable)
-    .sort((left, right) => right.maximumRatio - left.maximumRatio);
-
-  const nonComparableGroups = groups
-    .filter((group) => !group.comparable)
-    .sort((left, right) => right.maximumRatio - left.maximumRatio);
-
-  return [...comparableGroups, ...nonComparableGroups];
-}
-
-function findSolidisLibrary(results: ComparedResult[]): LibraryName {
-  for (const result of results) {
-    if (result.library === 'solidis') {
-      return result.library;
-    }
-  }
-
-  return results[0]?.library ?? 'solidis';
-}
-
-function formatRatio(ratio: number | null): string {
-  if (ratio === null) {
-    return '-';
-  }
-
-  if (ratio >= 1) {
-    return `${ratio.toFixed(1)}x`;
-  }
-
-  return `${ratio.toFixed(1)}x`;
-}
-
-function getPerformanceBadge(ratio: number | null): string {
-  if (ratio === null) {
+  if (lead === null || lead <= 1.05) {
     return '';
   }
 
-  const fire = fluentEmoji('Travel and places', 'Fire', 16);
-  const voltage = fluentEmoji('Travel and places', 'High Voltage', 16);
-
-  if (ratio >= 1.6) {
+  if (lead >= 1.6) {
     return ` ${fire}${fire}`;
   }
 
-  if (ratio >= 1.3) {
-    return ` ${fire}`;
-  }
-
-  if (ratio > 1.05) {
-    return ` ${voltage}`;
-  }
-
-  return '';
+  return lead >= 1.3
+    ? ` ${fire}`
+    : ` ${fluentEmoji('Travel and places', 'High Voltage', 16)}`;
 }
 
 function getRankMedal(rank: number): string {
-  if (rank === 1) {
-    return fluentEmoji('Activities', '1st Place Medal', 20);
-  }
-  if (rank === 2) {
-    return fluentEmoji('Activities', '2nd Place Medal', 20);
-  }
-  if (rank === 3) {
-    return fluentEmoji('Activities', '3rd Place Medal', 20);
-  }
+  const medals = ['1st Place Medal', '2nd Place Medal', '3rd Place Medal'];
 
-  return `${rank}.`;
+  return rank <= medals.length
+    ? fluentEmoji('Activities', medals[rank - 1], 20)
+    : `${rank}.`;
 }
 
-function makeProgressBar(ratio: number | null, maximumRatio: number): string {
-  if (ratio === null || ratio <= 1) {
-    return '';
-  }
-
-  const normalized = Math.min(
-    (ratio - 1) / Math.max(maximumRatio - 1, 0.01),
-    1,
-  );
-  const filled = Math.round(normalized * 10);
-
-  return '█'.repeat(filled) + '░'.repeat(10 - filled);
-}
-
-function formatCommands(raw: string): string {
-  const inner = raw
+function formatOperation(operation: string, locale: BenchmarkLocale): string {
+  const separator = operation.indexOf(':');
+  const commands = (
+    separator === -1 ? operation.toUpperCase() : operation.slice(separator + 1)
+  )
     .split('+')
-    .map((cmd) => `<kbd>${cmd}</kbd>`)
+    .map((command) => `<kbd>${command}</kbd>`)
     .join(' ');
 
-  return `<sup><sub>${inner}</sub></sup>`;
+  return `**${locale.operationDisplayNames[operation] ?? operation}**<br/><sup>${commands}</sup>`;
 }
 
-function formatOperationName(
-  raw: string,
-  displayNames: Record<string, string>,
-): {
-  display: string;
-  commands: string;
-} {
-  const colonIndex = raw.indexOf(':');
-  const display = displayNames[raw] ?? raw;
-
-  if (colonIndex === -1) {
-    return { display, commands: formatCommands(raw.toUpperCase()) };
-  }
-
-  return {
-    display,
-    commands: formatCommands(raw.slice(colonIndex + 1)),
-  };
+function formatDate(isoDate: string): string {
+  return isoDate.slice(0, 19).replace('T', ' ');
 }
 
-function formatDateTime(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const hours = String(now.getHours()).padStart(2, '0');
-  const minutes = String(now.getMinutes()).padStart(2, '0');
-  const seconds = String(now.getSeconds()).padStart(2, '0');
+function formatNoteMarker(
+  result: BenchResult,
+  analysis: BenchmarkAnalysis,
+): string {
+  const number = findNoteNumber(analysis, result.nonComparableReason);
 
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  return number === 0 ? '' : `<sup>${number}</sup>`;
 }
 
-function buildConfigurationTable(
-  configuration: BenchConfig,
+function formatNativeMarker(library: LibraryInfo | undefined): string {
+  return library?.hasNativeCore ? '<sup>†</sup>' : '';
+}
+
+function buildTitle(
+  snapshot: BenchmarkSnapshot,
+  analysis: BenchmarkAnalysis,
   locale: BenchmarkLocale,
 ): string {
-  const labels = locale.configLabels;
+  return `# ${locale.reportTitle(
+    snapshot.libraries
+      .map((library) => library.name)
+      .filter((name) => name !== analysis.subjectLibrary),
+  )}`;
+}
 
-  const rows = [
+function buildLeaderboard(
+  analysis: BenchmarkAnalysis,
+  locale: BenchmarkLocale,
+): string {
+  const headers = locale.leaderboardHeaders;
+  const rows = analysis.standings.map((standing, index) => {
+    const isSubject = standing.library.name === analysis.subjectLibrary;
+    const emphasize = (text: string) => (isSubject ? `**${text}**` : text);
+
+    return `| ${getRankMedal(index + 1)} | ${emphasize(standing.library.name)} | ${standing.library.version} | ${emphasize(`${standing.wins}`)} / ${analysis.cases.length} | ${emphasize(formatRatio(standing.relativeThroughput, 2))} | ${emphasize(formatRatio(standing.relativeCpu, 2))} | ${emphasize(formatRatio(standing.relativeMemory, 2))}${formatNativeMarker(standing.library)} |`;
+  });
+
+  return [
+    `| | ${headers.client} | ${headers.version} | ${headers.fastestIn} | ${headers.throughput} | ${headers.cpu} | ${headers.memory} |`,
+    '|---:|:---|:---|---:|---:|---:|---:|',
+    ...rows,
+  ].join('\n');
+}
+
+function buildStandings(
+  analysis: BenchmarkAnalysis,
+  locale: BenchmarkLocale,
+): string[] {
+  return [
+    ...(analysis.averageLead === null
+      ? []
+      : [
+          `### ${locale.headline(
+            analysis.subjectWins,
+            analysis.cases.length,
+            formatRatio(analysis.averageLead, 1),
+          )}`,
+          '',
+        ]),
+    locale.leaderboardTitle,
+    '',
+    buildLeaderboard(analysis, locale),
+    '',
+    `<sub>${locale.leaderboardFootnote(analysis.subjectLibrary)}</sub>`,
+    '',
+    ...buildNativeFootnote(
+      analysis.standings.map(({ library }) => library),
+      locale,
+    ),
+  ];
+}
+
+function buildNativeFootnote(
+  libraries: LibraryInfo[],
+  locale: BenchmarkLocale,
+): string[] {
+  return libraries.some((library) => library.hasNativeCore)
+    ? [`<sub><sup>†</sup> ${locale.nativeMemoryFootnote}</sub>`, '']
+    : [];
+}
+
+function buildResultsTable(
+  analysis: BenchmarkAnalysis,
+  libraries: string[],
+  locale: BenchmarkLocale,
+): string {
+  const headers = locale.mainTableHeaders;
+  const formatCell = (comparison: CaseComparison, library: string) => {
+    const result = comparison.results.find(
+      (candidate) => candidate.library === library,
+    );
+
+    if (!result?.unitsPerSecond) {
+      return '-';
+    }
+
+    const text = formatLargeNumber(result.unitsPerSecond);
+
+    return `${result === comparison.fastest ? `**${text}**` : text}${formatNoteMarker(result, analysis)}`;
+  };
+  const rows = analysis.cases.map((comparison, index) => {
+    const lead = formatRatio(comparison.lead, 1);
+
+    return `| ${getRankMedal(index + 1)} | ${formatOperation(comparison.operation, locale)} | ${libraries.map((library) => formatCell(comparison, library)).join(' | ')} | ${comparison.lead !== null && comparison.lead > 1 ? `**${lead}**` : lead}${getLeadBadge(comparison.lead)} |`;
+  });
+
+  return [
+    `| | ${headers.benchmark} | ${libraries.map((library) => (library === analysis.subjectLibrary ? `**${library}**` : library)).join(' | ')} | ${headers.lead} |`,
+    `|---:|:---|${libraries.map(() => '---:').join('|')}|:---:|`,
+    ...rows,
+  ].join('\n');
+}
+
+function buildDetailedMetrics(
+  analysis: BenchmarkAnalysis,
+  libraries: LibraryInfo[],
+  locale: BenchmarkLocale,
+): string {
+  const headers = locale.detailedMetricsHeaders;
+  const latency = (milliseconds: number | undefined) =>
+    milliseconds === undefined ? '-' : `${milliseconds.toFixed(2)}ms`;
+  const rows = analysis.cases.flatMap((comparison) =>
+    comparison.results.map((result, index) => {
+      const label =
+        index === 0
+          ? `${formatOperation(comparison.operation, locale)}<br/><sub>${formatPayloadSize(comparison.payloadBytes)}</sub>`
+          : '';
+      const library = `${result.library === analysis.subjectLibrary ? `**${result.library}**` : result.library}${formatNoteMarker(result, analysis)}`;
+
+      return `| ${label} | ${library} | ${formatLargeNumber(result.unitsPerSecond ?? 0)} | ${formatLargeNumber(result.commandsPerSecond ?? 0)} | ${latency(result.latencyPercentile50Milliseconds)} | ${latency(result.latencyPercentile95Milliseconds)} | ${latency(result.latencyPercentile99Milliseconds)} | ${latency(result.latencyPercentile999Milliseconds)} | ${result.cpuMicrosecondsPerUnit === undefined ? '-' : `${result.cpuMicrosecondsPerUnit.toFixed(2)}µs`} | ${result.gcMicrosecondsPerUnit === undefined ? '-' : `${result.gcMicrosecondsPerUnit.toFixed(2)}µs`} | ${result.peakMemoryBytes === undefined ? '-' : `${formatMemory(result.peakMemoryBytes)}${formatNativeMarker(libraries.find(({ name }) => name === result.library))}`} | ±${(result.spreadPercent ?? 0).toFixed(1)}% |`;
+    }),
+  );
+
+  return [
+    `| ${headers.benchmark} | ${headers.library} | ${headers.opsPerSec} | ${headers.cmdsPerSec} | ${headers.latencyPercentile50} | ${headers.latencyPercentile95} | ${headers.latencyPercentile99} | ${headers.latencyPercentile999} | ${headers.cpu} | ${headers.gc} | ${headers.memory} | ${headers.spread} |`,
+    '|:---|:---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|',
+    ...rows,
+  ].join('\n');
+}
+
+function buildEnvironment(
+  snapshot: BenchmarkSnapshot,
+  locale: BenchmarkLocale,
+): string {
+  const labels = locale.environmentLabels;
+  const configuration = snapshot.configuration;
+  const describe = (
+    read: (environment: BenchmarkSnapshot['environments'][number]) => string,
+  ) => [...new Set(snapshot.environments.map(read))].join('<br/>');
+  const rows: [string, string][] = [
+    [
+      labels.cpu,
+      describe(
+        (environment) =>
+          `${environment.cpuModel} (${environment.cpuCount} threads)`,
+      ),
+    ],
+    [
+      labels.memory,
+      describe(
+        (environment) =>
+          `${(environment.totalMemoryBytes / 1024 ** 3).toFixed(1)} GB`,
+      ),
+    ],
+    [
+      labels.operatingSystem,
+      describe(
+        (environment) =>
+          `${environment.platform} ${environment.arch} (${environment.osRelease})`,
+      ),
+    ],
+    [labels.nodeJs, describe((environment) => environment.nodeVersion)],
+    [labels.server, describe((environment) => environment.server)],
+    [
+      labels.clientVersions,
+      snapshot.libraries
+        .map((library) => `${library.name} ${library.version}`)
+        .join(', '),
+    ],
     [labels.mode, `\`${configuration.mode}\``],
     [
       labels.payloadSizes,
       configuration.sizes.map(formatPayloadSize).join(', '),
     ],
-    [labels.iterations, configuration.iterations.toLocaleString()],
-    [labels.warmup, configuration.warmup.toLocaleString()],
-    [labels.clients, `${configuration.clients}`],
-    [labels.concurrencyPerClient, `${configuration.concurrency}`],
-    [
-      labels.totalConcurrency,
-      `${configuration.clients * configuration.concurrency}`,
-    ],
+    [labels.iterations, configuration.iterations.toLocaleString('en-US')],
+    [labels.warmup, configuration.warmup.toLocaleString('en-US')],
+    [labels.connections, `${configuration.clients}`],
+    [labels.concurrencyPerConnection, `${configuration.concurrency}`],
     [labels.repeats, `${configuration.repeats}`],
     [labels.cooldown, `${configuration.cooldownMs}ms`],
-    [labels.platform, `${process.platform} ${process.arch}`],
-    [labels.nodeJs, process.version],
-    [labels.date, formatDateTime()],
+    [labels.date, formatDate(snapshot.createdAt)],
   ];
 
-  const lines: string[] = [
+  return [
     `| ${labels.parameter} | ${labels.value} |`,
-    '|:----------|:------|',
-  ];
-
-  for (const [key, value] of rows) {
-    lines.push(`| ${key} | ${value} |`);
-  }
-
-  return lines.join('\n');
+    '|:---|:---|',
+    ...rows.map(([key, value]) => `| ${key} | ${value} |`),
+  ].join('\n');
 }
 
-function buildSummaryStats(
-  results: ComparedResult[],
-  solidisLibrary: LibraryName,
-): {
-  maximumSpeedBoost: number;
-  averageSpeedBoost: number;
-  winsCount: number;
-  totalComparable: number;
-} {
-  const solidisResults = results.filter(
-    (result) =>
-      result.library === solidisLibrary &&
-      result.comparable &&
-      result.ratioVsBaseline !== null,
-  );
-
-  let maximumSpeedBoost = 0;
-  let totalSpeedBoost = 0;
-  let winsCount = 0;
-
-  for (const result of solidisResults) {
-    if (result.ratioVsBaseline !== null) {
-      const boost = result.ratioVsBaseline - 1;
-      totalSpeedBoost += boost;
-
-      if (boost > maximumSpeedBoost) {
-        maximumSpeedBoost = boost;
-      }
-
-      if (result.ratioVsBaseline > 1) {
-        winsCount += 1;
-      }
-    }
-  }
-
-  return {
-    maximumSpeedBoost: maximumSpeedBoost * 100,
-    averageSpeedBoost:
-      solidisResults.length > 0
-        ? (totalSpeedBoost / solidisResults.length) * 100
-        : 0,
-    winsCount,
-    totalComparable: solidisResults.length,
-  };
-}
-
-function findResultByLibrary(
-  results: ComparedResult[],
-  library: LibraryName,
-): ComparedResult | undefined {
-  return results.find((result) => result.library === library);
-}
-
-function formatElapsedMilliseconds(
-  elapsedMilliseconds: number | null,
-  bold: boolean,
+export function generateSummary(
+  snapshot: BenchmarkSnapshot,
+  locale: BenchmarkLocale = en,
 ): string {
-  if (elapsedMilliseconds === null) {
-    return '-';
-  }
+  const analysis = analyze(snapshot);
 
-  const text = `${elapsedMilliseconds.toFixed(0)}ms`;
-
-  return bold ? `**${text}**` : text;
-}
-
-function formatLatency(milliseconds: number | undefined): string {
-  if (milliseconds === undefined) {
-    return '-';
-  }
-
-  return `${milliseconds.toFixed(2)}ms`;
-}
-
-interface TableBuildResult {
-  table: string;
-  lastRank: number;
-}
-
-function buildMainTable(
-  groups: ResultGroup[],
-  baselineLibrary: LibraryName,
-  solidisLibrary: LibraryName,
-  maximumRatio: number,
-  locale: BenchmarkLocale,
-): TableBuildResult {
-  const comparableGroups = groups.filter((group) => group.comparable);
-
-  if (comparableGroups.length === 0) {
-    return { table: locale.noComparableResults, lastRank: 0 };
-  }
-
-  const h = locale.mainTableHeaders;
-
-  const header = [
-    `| | ${h.benchmark} | ${h.commands} | ${solidisLibrary} | ${baselineLibrary} | ${h.difference} | ${h.performance} |`,
-    '|---:|:---|:---:|:---:|:---:|:---:|:---|',
-  ];
-
-  const rows: string[] = [];
-  let rank = 0;
-
-  for (const group of comparableGroups) {
-    rank += 1;
-
-    const solidisResult = findResultByLibrary(group.results, solidisLibrary);
-    const baselineResult = findResultByLibrary(group.results, baselineLibrary);
-
-    if (!solidisResult || !baselineResult) {
-      continue;
-    }
-
-    const { display, commands } = formatOperationName(
-      group.operation,
-      locale.operationDisplayNames,
-    );
-
-    const solidisElapsed = formatElapsedMilliseconds(
-      solidisResult.elapsedMs,
-      true,
-    );
-    const baselineElapsed = formatElapsedMilliseconds(
-      baselineResult.elapsedMs,
-      false,
-    );
-
-    const difference = formatRatio(solidisResult.ratioVsBaseline);
-    const badge = getPerformanceBadge(solidisResult.ratioVsBaseline);
-    const bar = makeProgressBar(solidisResult.ratioVsBaseline, maximumRatio);
-
-    const differenceDisplay =
-      solidisResult.ratioVsBaseline !== null &&
-      solidisResult.ratioVsBaseline > 1
-        ? `**${difference}**${badge}`
-        : `${difference}${badge}`;
-
-    rows.push(
-      `| ${getRankMedal(rank)} | **${display}** | ` +
-        `${commands} | ${solidisElapsed} | ${baselineElapsed} | ` +
-        `${differenceDisplay} | \`${bar}\` |`,
-    );
-  }
-
-  return { table: [...header, ...rows].join('\n'), lastRank: rank };
-}
-
-function buildNonComparableTable(
-  groups: ResultGroup[],
-  baselineLibrary: LibraryName,
-  solidisLibrary: LibraryName,
-  startRank: number,
-  maximumRatio: number,
-  locale: BenchmarkLocale,
-): string {
-  const nonComparableGroups = groups.filter((group) => !group.comparable);
-
-  if (nonComparableGroups.length === 0) {
-    return '';
-  }
-
-  const h = locale.mainTableHeaders;
-
-  const header = [
-    `| | ${h.benchmark} | ${h.commands} | ${solidisLibrary} | ${baselineLibrary} | ${h.difference} | ${h.performance} |`,
-    '|---:|:---|:---:|:---:|:---:|:---:|:---|',
-  ];
-
-  const rows: string[] = [];
-  let rank = startRank;
-
-  for (const group of nonComparableGroups) {
-    rank += 1;
-
-    const solidisResult = findResultByLibrary(group.results, solidisLibrary);
-    const baselineResult = findResultByLibrary(group.results, baselineLibrary);
-
-    if (!solidisResult || !baselineResult) {
-      continue;
-    }
-
-    const { display, commands } = formatOperationName(
-      group.operation,
-      locale.operationDisplayNames,
-    );
-
-    const solidisElapsed = formatElapsedMilliseconds(
-      solidisResult.elapsedMs,
-      false,
-    );
-    const baselineElapsed = formatElapsedMilliseconds(
-      baselineResult.elapsedMs,
-      false,
-    );
-
-    const difference = formatRatio(solidisResult.ratioVsBaseline);
-    const badge = getPerformanceBadge(solidisResult.ratioVsBaseline);
-    const bar = makeProgressBar(solidisResult.ratioVsBaseline, maximumRatio);
-
-    const differenceDisplay =
-      solidisResult.ratioVsBaseline !== null &&
-      solidisResult.ratioVsBaseline > 1
-        ? `**${difference}**${badge}`
-        : `${difference}${badge}`;
-
-    rows.push(
-      `| ${rank}. | **${display}** | ` +
-        `${commands} | ${solidisElapsed} | ${baselineElapsed} | ` +
-        `${differenceDisplay} | \`${bar}\` |`,
-    );
-  }
-
-  return [...header, ...rows].join('\n');
-}
-
-function buildDetailedMetricsTable(
-  groups: ResultGroup[],
-  solidisLibrary: LibraryName,
-  locale: BenchmarkLocale,
-): string {
-  const comparableGroups = groups.filter((group) => group.comparable);
-
-  if (comparableGroups.length === 0) {
-    return '';
-  }
-
-  const h = locale.detailedMetricsHeaders;
-
-  const header = [
-    `| ${h.benchmark} | ${h.library} | ${h.opsPerSec} | ${h.cmdsPerSec} | ${h.elapsed} | ${h.spread} | ${h.latencyPercentile50} | ${h.latencyPercentile99} |`,
-    '|:---|:---|---:|---:|---:|---:|---:|---:|',
-  ];
-
-  const rows: string[] = [];
-
-  for (const group of comparableGroups) {
-    const sortedResults = [...group.results].sort((left, right) => {
-      if (left.library === solidisLibrary) {
-        return -1;
-      }
-      if (right.library === solidisLibrary) {
-        return 1;
-      }
-      return 0;
-    });
-
-    const { display, commands } = formatOperationName(
-      group.operation,
-      locale.operationDisplayNames,
-    );
-    const label = commands ? `${display}: ${commands}` : display;
-    let isFirstInGroup = true;
-
-    for (const result of sortedResults) {
-      const rowLabel = isFirstInGroup
-        ? `**${label}**<br/><sub>${formatPayloadSize(group.payloadBytes)}</sub>`
-        : '';
-
-      const operationsText =
-        result.unitsPerSecond !== null
-          ? formatLargeNumber(result.unitsPerSecond)
-          : '-';
-      const commandsText =
-        result.commandsPerSecond !== null
-          ? formatLargeNumber(result.commandsPerSecond)
-          : '-';
-      const elapsedText =
-        result.elapsedMs !== null ? `${result.elapsedMs.toFixed(0)}ms` : '-';
-      const spreadText =
-        result.spreadPercent !== null
-          ? `±${result.spreadPercent.toFixed(1)}%`
-          : '-';
-      const latencyPercentile50Text = formatLatency(
-        result.latencyPercentile50Milliseconds,
-      );
-      const latencyPercentile99Text = formatLatency(
-        result.latencyPercentile99Milliseconds,
-      );
-      const libraryText =
-        result.library === solidisLibrary
-          ? `**${result.library}**`
-          : result.library;
-
-      rows.push(
-        `| ${rowLabel} | ${libraryText} | ${operationsText} | ${commandsText} | ${elapsedText} | ${spreadText} | ${latencyPercentile50Text} | ${latencyPercentile99Text} |`,
-      );
-
-      isFirstInGroup = false;
-    }
-  }
-
-  return [...header, ...rows].join('\n');
+  return [
+    buildTitle(snapshot, analysis, locale),
+    '',
+    ...buildStandings(analysis, locale),
+  ].join('\n');
 }
 
 export function generateMarkdownReport(
-  results: ComparedResult[],
-  baselineLibrary: LibraryName,
-  configuration: BenchConfig,
+  snapshot: BenchmarkSnapshot,
   locale: BenchmarkLocale = en,
 ): string {
-  const solidisLibrary = findSolidisLibrary(results);
-  const sortedGroups = buildSortedResultGroups(results);
-  const maximumRatio = Math.max(
-    ...sortedGroups
-      .filter((group) => group.comparable)
-      .map((group) => group.maximumRatio),
-    1,
-  );
+  const analysis = analyze(snapshot);
+  const configuration = snapshot.configuration;
+  const environment = snapshot.environments.at(-1);
 
-  const summary = buildSummaryStats(results, solidisLibrary);
-  const totalConcurrency = configuration.clients * configuration.concurrency;
-  const payloadLabel = configuration.sizes.map(formatPayloadSize).join(', ');
-
-  const summaryItems = [
-    locale.benchmarksWon(summary.winsCount, summary.totalComparable),
-    locale.averageSpeedImprovement(Math.round(summary.averageSpeedBoost)),
-    locale.peakSpeedImprovement(Math.round(summary.maximumSpeedBoost)),
-  ];
-
-  const mainTableResult = buildMainTable(
-    sortedGroups,
-    baselineLibrary,
-    solidisLibrary,
-    maximumRatio,
-    locale,
-  );
-
-  const nonComparableTable = buildNonComparableTable(
-    sortedGroups,
-    baselineLibrary,
-    solidisLibrary,
-    mainTableResult.lastRank,
-    maximumRatio,
-    locale,
-  );
-
-  const lines: string[] = [
+  return [
     '<div align="center">',
     '',
-    `# ${locale.reportTitle(baselineLibrary)}`,
+    buildTitle(snapshot, analysis, locale),
     '',
-    `<small>${locale.generatedOnPrefix} ${formatDateTime()} · ${process.platform} ${process.arch} · Node.js ${process.version}</small>`,
-  ];
-
-  if (summary.maximumSpeedBoost > 0) {
-    const peakRatio = (summary.maximumSpeedBoost / 100 + 1).toFixed(1);
-
-    lines.push(
-      `### ${locale.upToFaster(`${peakRatio}x`, baselineLibrary)}`,
-      '',
-    );
-  }
-
-  lines.push(
-    '---',
-    '<br/>',
+    `<small>${[
+      `${locale.generatedOnPrefix} ${formatDate(snapshot.createdAt)}`,
+      ...(environment
+        ? [
+            `${environment.platform} ${environment.arch}`,
+            `Node.js ${environment.nodeVersion}`,
+            environment.server,
+          ]
+        : []),
+    ].join(' · ')}</small>`,
     '',
-    `${summaryItems.join(' · ')}`,
+    ...buildStandings(analysis, locale),
+    locale.resultsTitle,
     '',
     locale.subtitle(
       configuration.iterations,
-      totalConcurrency,
-      payloadLabel,
+      configuration.clients * configuration.concurrency,
+      configuration.sizes.map(formatPayloadSize).join(', '),
       configuration.sizes.length,
       configuration.repeats,
     ),
     '',
-    mainTableResult.table,
+    analysis.cases.length > 0
+      ? buildResultsTable(
+          analysis,
+          snapshot.libraries.map((library) => library.name),
+          locale,
+        )
+      : locale.noResults,
     '',
-  );
-
-  if (nonComparableTable) {
-    lines.push(
-      locale.nonComparableTitle,
-      '',
-      `<sub>${locale.nonComparableDescription}</sub>`,
-      '',
-      nonComparableTable,
-      '',
-    );
-  }
-
-  lines.push(
-    `<sub>${locale.rankingFootnote(solidisLibrary, baselineLibrary)}</sub>`,
+    `<sub>${locale.rankingFootnote(analysis.subjectLibrary)}</sub>`,
     '',
+    ...(analysis.notes.length > 0
+      ? [
+          analysis.notes
+            .map(
+              (note, index) =>
+                `<sub><sup>${index + 1}</sup> ${locale.note(note)}</sub>`,
+            )
+            .join('<br/>\n'),
+          '',
+        ]
+      : []),
     '</div>',
-    '',
-    '<br/>',
     '',
     locale.detailedMetricsTitle,
     '',
@@ -613,30 +336,25 @@ export function generateMarkdownReport(
     '<details>',
     `<summary>${locale.expandDetailedMetrics}</summary>`,
     '',
-    buildDetailedMetricsTable(sortedGroups, solidisLibrary, locale),
+    buildDetailedMetrics(analysis, snapshot.libraries, locale),
     '',
+    ...buildNativeFootnote(snapshot.libraries, locale),
     '</details>',
     '',
-    '---',
-    '',
-    locale.configurationTitle,
+    locale.environmentTitle,
     '',
     '<details>',
-    `<summary>${locale.expandConfiguration}</summary>`,
+    `<summary>${locale.expandEnvironment}</summary>`,
     '',
-    buildConfigurationTable(configuration, locale),
+    buildEnvironment(snapshot, locale),
     '',
     '</details>',
-    '',
-    '---',
     '',
     locale.methodologyTitle,
     '',
     ...locale.methodologyItems.map((item) => `- ${item}`),
     '',
-  );
-
-  return lines.join('\n');
+  ].join('\n');
 }
 
 function readExportPath(): string | undefined {
@@ -648,24 +366,11 @@ export function shouldExportMarkdown(): boolean {
 }
 
 export async function exportMarkdownReport(
-  results: ComparedResult[],
-  baselineLibrary: LibraryName,
-  configuration: BenchConfig,
-): Promise<string | undefined> {
-  const rawPath = readExportPath();
+  snapshot: BenchmarkSnapshot,
+): Promise<string> {
+  const outputPath = resolve(readExportPath() ?? 'benchmark.md');
 
-  if (!rawPath) {
-    return undefined;
-  }
-
-  const outputPath = resolve(rawPath);
-  const markdown = generateMarkdownReport(
-    results,
-    baselineLibrary,
-    configuration,
-  );
-
-  await writeFile(outputPath, markdown, 'utf-8');
+  await writeFile(outputPath, generateMarkdownReport(snapshot), 'utf-8');
 
   return outputPath;
 }

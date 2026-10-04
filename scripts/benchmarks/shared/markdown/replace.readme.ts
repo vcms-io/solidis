@@ -1,7 +1,6 @@
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-import { deserializeConfig } from '../configuration.ts';
 import { generateMarkdownReport } from './index.ts';
 import { resolveLocale } from './locales/index.ts';
 import { loadSnapshot, mergeSnapshots } from './snapshot.ts';
@@ -56,7 +55,6 @@ const snapshots = await Promise.all(
   snapshotPaths.map((path) => loadSnapshot(path)),
 );
 const merged = mergeSnapshots(snapshots);
-const configuration = deserializeConfig(merged.configuration);
 
 const projectRoot = resolve('.');
 const entries = await readdir(projectRoot);
@@ -93,12 +91,7 @@ for (const readmeFile of readmeFiles) {
   }
 
   const locale = resolveLocale(readmeFile);
-  const report = generateMarkdownReport(
-    merged.results,
-    merged.baselineLibrary,
-    configuration,
-    locale,
-  );
+  const report = generateMarkdownReport(merged, locale);
 
   const section = `${MARKER}\n\n${locale.sectionTitle}\n\n${report.trimEnd()}\n\n</div>`;
 

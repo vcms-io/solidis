@@ -1,19 +1,10 @@
 import { performance } from 'node:perf_hooks';
 
 import { pubSubDeliveryTimeoutBytesPerMs } from './constants.ts';
+import { measurePhase } from './measurement.ts';
 
 import type { BenchmarkSuite } from './suite.ts';
-import type {
-  BenchContext,
-  BenchmarkCase,
-  BenchmarkMode,
-  CaseRunResult,
-} from './types.ts';
-
-interface PubSubCaseOptions {
-  comparableModes?: ReadonlySet<BenchmarkMode>;
-  nonComparableReason?: string;
-}
+import type { BenchContext, BenchmarkCase, CaseRunResult } from './types.ts';
 
 const pubSubMaxInFlightPayloadBytes = 4 * 1024 * 1024;
 
@@ -173,40 +164,31 @@ export async function runPubSubBenchmark(
     received = 0;
     isMeasuring = true;
 
-    const startedAt = performance.now();
-
-    await publishAndWaitForDelivery(
-      context,
-      context.config.iterations,
-      context.config.warmup,
-      () => received,
-      0,
-      issuedAt,
-      publish,
+    const measurement = await measurePhase(() =>
+      publishAndWaitForDelivery(
+        context,
+        context.config.iterations,
+        context.config.warmup,
+        () => received,
+        0,
+        issuedAt,
+        publish,
+      ),
     );
 
-    return {
-      elapsedMs: performance.now() - startedAt,
-      latenciesMilliseconds,
-    };
+    return { ...measurement, latenciesMilliseconds };
   } finally {
     await subscriber.close();
     await suite.closeBenchClientPool(publishers);
   }
 }
 
-export function createPubSubCase(
-  suite: BenchmarkSuite,
-  options: PubSubCaseOptions = {},
-): BenchmarkCase {
+export function createPubSubCase(suite: BenchmarkSuite): BenchmarkCase {
   return {
     name: 'pubsub:PUBLISH+MESSAGE',
     commandsPerUnit: 1,
     payloadSlotsPerUnit: 1,
-    comparableModes: options.comparableModes ?? new Set(),
-    nonComparableReason:
-      options.nonComparableReason ??
-      'pub/sub message delivery includes library-specific event emission and string conversion policy',
+    sampleCommands: [['PUBLISH', 'channel', '']],
     run(context) {
       return runPubSubBenchmark(suite, context);
     },
