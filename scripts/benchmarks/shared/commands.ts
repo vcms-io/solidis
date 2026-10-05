@@ -2,11 +2,14 @@ import {
   assertArrayLength,
   assertArrayMinLength,
   assertBufferEquals,
+  assertContains,
   assertHashContains,
   assertInteger,
   assertIntegerEquals,
   assertNonNull,
   assertOk,
+  assertSimpleString,
+  assertTextIncludes,
 } from './verification.ts';
 
 import type { Command, CommandVerifier, PayloadAccessor } from './types.ts';
@@ -292,6 +295,9 @@ export const verifyCounter: CommandVerifier = (responses) => {
 
 export const verifyTransaction: CommandVerifier = (responses, payloadAt) => {
   assertOk(responses[0], 'MULTI');
+  assertSimpleString(responses[1], 'QUEUED', 'SET');
+  assertSimpleString(responses[2], 'QUEUED', 'EXPIRE');
+  assertSimpleString(responses[3], 'QUEUED', 'GET');
   const execResult = assertArrayMinLength(responses[4], 3, 'EXEC');
   assertOk(execResult[0], 'EXEC:SET');
   assertIntegerEquals(execResult[1], 1, 'EXEC:EXPIRE');
@@ -305,6 +311,8 @@ export const verifyTransactionMixed: CommandVerifier = (
   assertOk(responses[0], 'SET');
   assertBufferEquals(responses[1], payloadAt(0), 'GET');
   assertOk(responses[2], 'MULTI');
+  assertSimpleString(responses[3], 'QUEUED', 'SET');
+  assertSimpleString(responses[4], 'QUEUED', 'GET');
   const execResult = assertArrayMinLength(responses[5], 2, 'EXEC');
   assertOk(execResult[0], 'EXEC:SET');
   assertBufferEquals(execResult[1], payloadAt(0, 1), 'EXEC:GET');
@@ -323,19 +331,25 @@ export const verifyPipelineMixed: CommandVerifier = (responses, payloadAt) => {
   assertBufferEquals(responses[2], payloadAt(0), 'GET');
 };
 
-export const verifyStream: CommandVerifier = (responses) => {
+export const verifyStream: CommandVerifier = (responses, payloadAt) => {
   assertNonNull(responses[0], 'XADD');
-  assertArrayMinLength(responses[1], 1, 'XRANGE');
+  assertContains(responses[1], 'field', 'XRANGE');
+  assertContains(responses[1], payloadAt(0), 'XRANGE');
   assertIntegerEquals(responses[2], 1, 'XLEN');
 };
 
-export const verifySortedSet: CommandVerifier = (responses) => {
+export const verifySortedSet: CommandVerifier = (
+  responses,
+  payloadAt,
+  context,
+) => {
   assertIntegerEquals(responses[0], 1, 'ZADD');
-  assertArrayMinLength(responses[1], 1, 'ZRANGE');
+  assertContains(responses[1], payloadAt(0), 'ZRANGE');
+  assertContains(responses[1], `${context.absoluteUnitIndex}`, 'ZRANGE');
   assertIntegerEquals(responses[2], 1, 'ZREM');
 };
 
 export const verifyInfoConfig: CommandVerifier = (responses) => {
-  assertNonNull(responses[0], 'INFO');
-  assertNonNull(responses[1], 'CONFIG GET');
+  assertTextIncludes(responses[0], 'redis_version:', 'INFO');
+  assertContains(responses[1], 'maxmemory', 'CONFIG GET');
 };

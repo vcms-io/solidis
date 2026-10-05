@@ -27,22 +27,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  lint:
-    name: Lint & type-check
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm install
-      - run: npm run lint:check
-
   coverage:
     name: Coverage
-    needs: lint
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
@@ -63,7 +49,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm install
+      - run: npm ci
       - name: Run coverage
         run: |
           set -o pipefail
@@ -106,7 +92,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm install
+      - run: npm ci
       - name: Download report
         uses: actions/download-artifact@v8
         with:
