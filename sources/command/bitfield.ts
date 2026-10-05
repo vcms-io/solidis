@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
   tryReplyArray,
@@ -28,9 +29,9 @@ export function createCommand(
     command.push(`${operation.offset}`);
 
     if (operation.operation === 'SET') {
-      command.push(`${operation.value}`);
+      command.push(formatInteger(operation.value));
     } else if (operation.operation === 'INCRBY') {
-      command.push(`${operation.increment}`);
+      command.push(formatInteger(operation.increment));
     }
   }
 

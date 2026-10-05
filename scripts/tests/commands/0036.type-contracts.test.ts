@@ -298,6 +298,11 @@ describe('type-contracts', () => {
         2,
         true,
       );
+      const single: RespSortedSetMember[] = await client.zrandmember(
+        'k',
+        undefined,
+        true,
+      );
       const exact: Buffer | null = await client.getex('k', {
         buffer: true,
         expireInSeconds: 60,
@@ -473,6 +478,7 @@ describe('type-contracts', () => {
         names,
         difference,
         sample,
+        single,
         exact,
         text,
         options,

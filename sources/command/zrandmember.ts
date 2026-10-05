@@ -38,7 +38,7 @@ export async function zrandmember<T>(
 export async function zrandmember<T>(
   this: T,
   key: string,
-  count: number,
+  count: number | undefined,
   withScores: true,
 ): Promise<RespSortedSetMember[]>;
 export async function zrandmember<T>(

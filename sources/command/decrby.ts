@@ -1,9 +1,10 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeIntegerCommand } from './utils/index.ts';
 
 import type { CommandIntegerOptions, RespInteger } from '../index.ts';
 
 export function createCommand(key: string, decrement: number | bigint) {
-  return ['DECRBY', key, `${decrement}`];
+  return ['DECRBY', key, formatInteger(decrement)];
 }
 
 export async function decrby<

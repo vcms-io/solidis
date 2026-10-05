@@ -14,6 +14,10 @@ export function readText(value: unknown) {
   return isStringOrBuffer(value) ? value.toString() : undefined;
 }
 
+export function formatInteger(value: number | bigint) {
+  return `${Number.isInteger(value) ? BigInt(value) : value}`;
+}
+
 export function toTextPrefix(argument: string | Buffer, length: number) {
   return typeof argument === 'string'
     ? argument.slice(0, length)

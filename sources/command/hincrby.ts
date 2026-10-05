@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeIntegerCommand } from './utils/index.ts';
 
 import type { CommandIntegerOptions, RespInteger } from '../index.ts';
@@ -7,7 +8,7 @@ export function createCommand(
   field: string,
   increment: number | bigint,
 ) {
-  return ['HINCRBY', key, field, `${increment}`];
+  return ['HINCRBY', key, field, formatInteger(increment)];
 }
 
 export async function hincrby<

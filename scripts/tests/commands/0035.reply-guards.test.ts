@@ -5,31 +5,44 @@ import { describe, it } from 'node:test';
 
 import { aclGetuser } from '../../../sources/command/acl.getuser.ts';
 import { aclLog } from '../../../sources/command/acl.log.ts';
+import { createCommand as createAppendCommand } from '../../../sources/command/append.ts';
+import { createCommand as createAuthCommand } from '../../../sources/command/auth.ts';
 import {
   bfInsert,
   createCommand as createBloomInsertCommand,
 } from '../../../sources/command/bf.insert.ts';
+import { createCommand as createBloomLoadchunkCommand } from '../../../sources/command/bf.loadchunk.ts';
 import { createCommand as createBitcountCommand } from '../../../sources/command/bitcount.ts';
 import { cfInfo } from '../../../sources/command/cf.info.ts';
 import { createCommand as createCuckooInsertCommand } from '../../../sources/command/cf.insert.ts';
+import { createCommand as createCuckooLoadchunkCommand } from '../../../sources/command/cf.loadchunk.ts';
 import { createCommand as createClientListCommand } from '../../../sources/command/client.list.ts';
 import { createCommand as createClientTrackingCommand } from '../../../sources/command/client.tracking.ts';
 import {
   commandDocs,
   createCommand as createCommandDocsCommand,
 } from '../../../sources/command/command.docs.ts';
-import { delex } from '../../../sources/command/delex.ts';
+import {
+  createCommand as createDelexCommand,
+  delex,
+} from '../../../sources/command/delex.ts';
 import { dump } from '../../../sources/command/dump.ts';
 import { failover } from '../../../sources/command/failover.ts';
 import { createCommand as createFunctionFlushCommand } from '../../../sources/command/function.flush.ts';
 import { functionStats } from '../../../sources/command/function.stats.ts';
 import { get } from '../../../sources/command/get.ts';
 import { createCommand as createGetsetCommand } from '../../../sources/command/getset.ts';
-import { hello } from '../../../sources/command/hello.ts';
+import {
+  createCommand as createHelloCommand,
+  hello,
+} from '../../../sources/command/hello.ts';
 import { createCommand as createHashExpireCommand } from '../../../sources/command/hexpire.ts';
 import { hmget } from '../../../sources/command/hmget.ts';
 import { createCommand as createHmsetCommand } from '../../../sources/command/hmset.ts';
-import { hset } from '../../../sources/command/hset.ts';
+import {
+  createCommand as createHsetCommand,
+  hset,
+} from '../../../sources/command/hset.ts';
 import { createCommand as createHsetnxCommand } from '../../../sources/command/hsetnx.ts';
 import { createCommand as createJsonArrpopCommand } from '../../../sources/command/json.arrpop.ts';
 import { createCommand as createJsonGetCommand } from '../../../sources/command/json.get.ts';
@@ -37,7 +50,13 @@ import { createCommand as createJsonMergeCommand } from '../../../sources/comman
 import { latencyLatest } from '../../../sources/command/latency.latest.ts';
 import { createCommand as createLatencyResetCommand } from '../../../sources/command/latency.reset.ts';
 import { lcs } from '../../../sources/command/lcs.ts';
+import { createCommand as createLinsertCommand } from '../../../sources/command/linsert.ts';
+import { createCommand as createLposCommand } from '../../../sources/command/lpos.ts';
+import { createCommand as createLpushCommand } from '../../../sources/command/lpush.ts';
+import { createCommand as createLpushxCommand } from '../../../sources/command/lpushx.ts';
 import { lrange } from '../../../sources/command/lrange.ts';
+import { createCommand as createLremCommand } from '../../../sources/command/lrem.ts';
+import { createCommand as createLsetCommand } from '../../../sources/command/lset.ts';
 import { memoryStats } from '../../../sources/command/memory.stats.ts';
 import { mget } from '../../../sources/command/mget.ts';
 import {
@@ -62,8 +81,13 @@ import { createCommand as createPubsubNumsubCommand } from '../../../sources/com
 import { createCommand as createPubsubShardnumsubCommand } from '../../../sources/command/pubsub.shardnumsub.ts';
 import { replconf } from '../../../sources/command/replconf.ts';
 import { replicaof } from '../../../sources/command/replicaof.ts';
+import { createCommand as createRestoreCommand } from '../../../sources/command/restore.ts';
+import { createCommand as createRpushCommand } from '../../../sources/command/rpush.ts';
 import { createCommand as createRpushxCommand } from '../../../sources/command/rpushx.ts';
-import { set } from '../../../sources/command/set.ts';
+import {
+  createCommand as createSetCommand,
+  set,
+} from '../../../sources/command/set.ts';
 import { createCommand as createSetexCommand } from '../../../sources/command/setex.ts';
 import { createCommand as createSetnxCommand } from '../../../sources/command/setnx.ts';
 import { createCommand as createSetrangeCommand } from '../../../sources/command/setrange.ts';
@@ -90,6 +114,7 @@ import { zrange } from '../../../sources/command/zrange.ts';
 import {
   RespError,
   SolidisConnectionError,
+  SolidisProtocols,
   SolidisRequesterError,
 } from '../../../sources/index.ts';
 
@@ -406,24 +431,48 @@ describe('reply-guards', () => {
   it('keeps a Buffer value byte for byte in every write that takes one', () => {
     const value = Buffer.from([0xff, 0x00, 0xfe]);
     const commands = [
+      createSetCommand('k', value),
+      createSetCommand('k', 'v', { setIfValueEquals: value }),
       createSetnxCommand('k', value),
       createSetexCommand('k', 1, value),
       createPsetexCommand('k', 1, value),
       createGetsetCommand('k', value),
       createSetrangeCommand('k', 0, value),
+      createAppendCommand('k', value),
       createMsetCommand({ k: value }),
+      createMsetnxCommand({ k: value }),
+      createHsetCommand('k', 'f', value),
+      createHsetCommand('k', { f: value }),
       createHmsetCommand('k', { f: value }),
       createHsetnxCommand('k', 'f', value),
+      createLpushCommand('k', value),
+      createRpushCommand('k', value),
+      createLpushxCommand('k', [value]),
       createRpushxCommand('k', [value]),
+      createLsetCommand('k', 0, value),
+      createLinsertCommand('k', 'BEFORE', 'pivot', value),
+      createLremCommand('k', 0, value),
+      createLposCommand('k', value),
       createSmismemberCommand('k', [value]),
+      createDelexCommand('k', { ifValueEquals: value }),
+      createRestoreCommand('k', 0, value),
+      createBloomLoadchunkCommand('k', 1, value),
+      createCuckooLoadchunkCommand('k', 1, value),
+      createAuthCommand('user', value),
+      createHelloCommand(SolidisProtocols.RESP3, 'user', value),
       createPublishCommand('c', value),
       createSpublishCommand('c', value),
       createXaddCommand('k', '*', { f: value }),
     ];
 
     for (const command of commands) {
-      assert.strictEqual(command.at(-1), value);
+      assert.strictEqual(command.at(-1), value, `${command[0]}`);
     }
+
+    assert.strictEqual(
+      createLinsertCommand('k', 'AFTER', value, 'element')[3],
+      value,
+    );
   });
 
   it('sends an empty selection as given, or refuses one that would select everything', () => {
@@ -829,7 +878,10 @@ describe('reply-guards', () => {
             'running_script',
             new Map<string, SolidisData>([
               ['name', bulk('slow')],
-              ['command', [bulk('FCALL'), bulk('slow'), bulk('0')]],
+              [
+                'command',
+                [bulk('FCALL'), bulk('slow'), bulk('0'), bulk('a b')],
+              ],
               ['duration_ms', 1500],
             ]),
           ],
@@ -841,7 +893,7 @@ describe('reply-guards', () => {
     assert.deepStrictEqual(stats, {
       runningScript: {
         name: 'slow',
-        command: 'FCALL slow 0',
+        command: ['FCALL', 'slow', '0', 'a b'],
         duration: 1500,
       },
       engines: [{ name: 'LUA', libraries: 2, functions: 3 }],

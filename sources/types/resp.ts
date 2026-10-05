@@ -179,7 +179,7 @@ export interface RespFunctionListItem {
 export interface RespFunctionStats {
   runningScript: {
     name: string;
-    command: string;
+    command: string[];
     duration: number;
   } | null;
   engines: Array<{

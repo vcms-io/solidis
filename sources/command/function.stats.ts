@@ -29,9 +29,7 @@ export async function functionStats<T>(this: T): Promise<RespFunctionStats> {
 
       result.runningScript = {
         name: tryReplyToString(scriptMap.get('name'), command),
-        command: tryReplyToStringArray(scriptMap.get('command'), command).join(
-          ' ',
-        ),
+        command: tryReplyToStringArray(scriptMap.get('command'), command),
         duration: tryReplyToNumber(scriptMap.get('duration_ms'), command),
       };
     }

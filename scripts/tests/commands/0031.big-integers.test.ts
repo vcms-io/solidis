@@ -5,7 +5,11 @@ import { after, before, describe, it } from 'node:test';
 
 import { SolidisFeaturedClient } from '../../../sources/client/featured.ts';
 import { bitfieldRo } from '../../../sources/command/bitfield.ro.ts';
+import { createCommand as createBitfieldCommand } from '../../../sources/command/bitfield.ts';
+import { createCommand as createDecrbyCommand } from '../../../sources/command/decrby.ts';
+import { createCommand as createHincrbyCommand } from '../../../sources/command/hincrby.ts';
 import { incr } from '../../../sources/command/incr.ts';
+import { createCommand as createIncrbyCommand } from '../../../sources/command/incrby.ts';
 import { tryReplyToInteger } from '../../../sources/command/utils/reply.ts';
 import {
   SolidisClient,
@@ -230,6 +234,43 @@ describe('big-integers', () => {
         );
       });
 
+      it('sends numbers past Number.MAX_SAFE_INTEGER as their exact value', async () => {
+        const key = keyspace.key(protocol, 'exact', 'counter');
+        const hash = keyspace.key(protocol, 'exact', 'hash');
+        const field = keyspace.key(protocol, 'exact', 'bitfield');
+        const options = { bigint: true } as const;
+
+        assert.strictEqual(
+          await client.incrby(key, 2 ** 60, options),
+          2n ** 60n,
+        );
+        assert.strictEqual(
+          await client.decrby(key, 2 ** 61, options),
+          -(2n ** 60n),
+        );
+        assert.strictEqual(
+          await client.hincrby(hash, 'field', -(2 ** 62), options),
+          -(2n ** 62n),
+        );
+        assert.deepStrictEqual(
+          await client.bitfield(
+            field,
+            [
+              { operation: 'SET', type: 'i64', offset: 0, value: 2 ** 62 },
+              {
+                operation: 'INCRBY',
+                type: 'i64',
+                offset: 0,
+                increment: -(2 ** 61),
+              },
+            ],
+            undefined,
+            options,
+          ),
+          [0n, 2n ** 61n],
+        );
+      });
+
       it('leaves raw replies untouched', async () => {
         const counter = keyspace.key(protocol, 'raw', 'counter');
         const small = keyspace.key(protocol, 'raw', 'small');
@@ -298,6 +339,51 @@ describe('big-integers', () => {
     ] = [true, true, true, true, true, true, true];
 
     assert.deepStrictEqual(checks, [true, true, true, true, true, true, true]);
+  });
+
+  it('writes integer arguments exactly and other numbers as JavaScript prints them', () => {
+    assert.deepStrictEqual(createIncrbyCommand('key', 2 ** 60), [
+      'INCRBY',
+      'key',
+      '1152921504606846976',
+    ]);
+    assert.deepStrictEqual(createDecrbyCommand('key', -0), [
+      'DECRBY',
+      'key',
+      '0',
+    ]);
+    assert.deepStrictEqual(createHincrbyCommand('key', 'field', 2n ** 64n), [
+      'HINCRBY',
+      'key',
+      'field',
+      '18446744073709551616',
+    ]);
+    assert.deepStrictEqual(
+      createBitfieldCommand('key', [
+        { operation: 'SET', type: 'u63', offset: 0, value: 2 ** 62 },
+        { operation: 'INCRBY', type: 'i64', offset: 64, increment: -(2 ** 61) },
+      ]),
+      [
+        'BITFIELD',
+        'key',
+        'SET',
+        'u63',
+        '0',
+        '4611686018427387904',
+        'INCRBY',
+        'i64',
+        '64',
+        '-2305843009213693952',
+      ],
+    );
+
+    for (const value of [1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      assert.deepStrictEqual(createIncrbyCommand('key', value), [
+        'INCRBY',
+        'key',
+        `${value}`,
+      ]);
+    }
   });
 
   it('converts integer replies according to the options', () => {
