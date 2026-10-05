@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
   newCommandError,
@@ -18,11 +19,11 @@ export function createCommand(
   const command = ['XREADGROUP', 'GROUP', group, consumer];
 
   if (count !== undefined) {
-    command.push('COUNT', `${count}`);
+    command.push('COUNT', formatInteger(count));
   }
 
   if (block !== undefined) {
-    command.push('BLOCK', `${block}`);
+    command.push('BLOCK', formatInteger(block));
   }
 
   if (noack) {

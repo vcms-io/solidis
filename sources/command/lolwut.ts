@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyToString } from './utils/index.ts';
 
 export function createCommand(
@@ -7,7 +8,7 @@ export function createCommand(
   const command = ['LOLWUT'];
 
   if (version !== undefined) {
-    command.push('VERSION', `${version}`);
+    command.push('VERSION', formatInteger(version));
   }
 
   return [...command, ...optionalArguments];

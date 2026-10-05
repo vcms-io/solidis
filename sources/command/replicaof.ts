@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { RespOK } from '../types/resp.ts';
 import {
   executeCommand,
@@ -8,7 +9,7 @@ import {
 import type { CommandReplicaofTarget } from '../index.ts';
 
 export function createCommand(...[host, port]: CommandReplicaofTarget) {
-  return ['REPLICAOF', host, `${port}`];
+  return ['REPLICAOF', host, formatInteger(port)];
 }
 
 export async function replicaof<T>(

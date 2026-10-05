@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyNumber } from './utils/index.ts';
 
 import type { CommandBitposOptions, RespBit } from '../index.ts';
@@ -7,14 +8,14 @@ export function createCommand(
   bit: RespBit,
   options?: CommandBitposOptions,
 ) {
-  const command = ['BITPOS', key, `${bit}`];
+  const command = ['BITPOS', key, formatInteger(bit)];
 
   if (options?.start !== undefined || options?.end !== undefined) {
-    command.push(`${options.start ?? 0}`);
+    command.push(formatInteger(options.start ?? 0));
   }
 
   if (options?.end !== undefined) {
-    command.push(`${options.end}`);
+    command.push(formatInteger(options.end));
 
     if (options.mode) {
       command.push(options.mode);

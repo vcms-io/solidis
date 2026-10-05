@@ -1,3 +1,4 @@
+import { formatInteger } from '../../common/utils/internal.ts';
 import { toCommandError } from '../../common/utils/request.ts';
 import {
   newCommandError,
@@ -132,7 +133,7 @@ export function buildCuckooFilterInsertCommand(
 
   if (options) {
     if (options.capacity !== undefined) {
-      result.push('CAPACITY', `${options.capacity}`);
+      result.push('CAPACITY', formatInteger(options.capacity));
     }
 
     if (options.nocreate === true) {
@@ -160,7 +161,7 @@ function appendGeoResultOptions(
   }
 
   if (options?.count !== undefined) {
-    command.push('COUNT', `${options.count}`);
+    command.push('COUNT', formatInteger(options.count));
     if (options.any) {
       command.push('ANY');
     }
@@ -276,7 +277,7 @@ export function buildScanCommand(
   const command = [...baseCommand, cursor];
 
   if (options.count !== undefined) {
-    command.push('COUNT', `${options.count}`);
+    command.push('COUNT', formatInteger(options.count));
   }
 
   if (options.match !== undefined) {
@@ -296,7 +297,7 @@ export function buildTimeSeriesCommand<
   const command = [...baseCommand];
 
   if (options.retention !== undefined) {
-    command.push('RETENTION', `${options.retention}`);
+    command.push('RETENTION', formatInteger(options.retention));
   }
 
   if (options.encoding) {
@@ -304,7 +305,7 @@ export function buildTimeSeriesCommand<
   }
 
   if (options.chunkSize !== undefined) {
-    command.push('CHUNK_SIZE', `${options.chunkSize}`);
+    command.push('CHUNK_SIZE', formatInteger(options.chunkSize));
   }
 
   if (options.duplicatePolicy) {
@@ -318,7 +319,7 @@ export function buildTimeSeriesCommand<
   if (options.ignore) {
     command.push(
       'IGNORE',
-      `${options.ignore.maxTimediff}`,
+      formatInteger(options.ignore.maxTimediff),
       `${options.ignore.maxValDiff}`,
     );
   }
@@ -341,7 +342,7 @@ export function buildTimeSeriesRangeCommand(
     command.push('FILTER_BY_TS');
 
     for (const timestamp of options.filterByTs) {
-      command.push(`${timestamp}`);
+      command.push(formatInteger(timestamp));
     }
   }
 
@@ -352,18 +353,18 @@ export function buildTimeSeriesRangeCommand(
   }
 
   if (options.count !== undefined) {
-    command.push('COUNT', `${options.count}`);
+    command.push('COUNT', formatInteger(options.count));
   }
 
   if (options.align !== undefined) {
-    command.push('ALIGN', `${options.align}`);
+    command.push('ALIGN', formatInteger(options.align));
   }
 
   if (options.aggregation) {
     command.push(
       'AGGREGATION',
       options.aggregation.type,
-      `${options.aggregation.bucketDuration}`,
+      formatInteger(options.aggregation.bucketDuration),
     );
   }
 
@@ -415,7 +416,11 @@ export function buildSortedSetRangeStoreCommand(
   }
 
   if (options.limit) {
-    command.push('LIMIT', `${options.limit.offset}`, `${options.limit.count}`);
+    command.push(
+      'LIMIT',
+      formatInteger(options.limit.offset),
+      formatInteger(options.limit.count),
+    );
   }
 
   return command;
@@ -540,7 +545,7 @@ export function buildKeyPopExecutor(commandName: string) {
     const command = [commandName, key];
 
     if (count !== undefined) {
-      command.push(`${count}`);
+      command.push(formatInteger(count));
     }
 
     return await executeCommand(
@@ -627,7 +632,7 @@ export function buildHashFieldExpireCommand(
   fields: string[],
   mode?: CommandExpireMode,
 ) {
-  const command = [commandName, key, `${value}`];
+  const command = [commandName, key, formatInteger(value)];
 
   if (mode) {
     command.push(mode);
@@ -638,7 +643,7 @@ export function buildHashFieldExpireCommand(
 
 export function buildKeyExpireCommand(commandName: string) {
   return (key: string, time: number, mode?: CommandKeyExpireMode) => {
-    const command = [commandName, key, `${time}`];
+    const command = [commandName, key, formatInteger(time)];
 
     if (mode) {
       command.push(...mode.split(' '));
@@ -672,8 +677,8 @@ export function buildSortCommand(
     if (options.limit) {
       command.push(
         'LIMIT',
-        `${options.limit.offset}`,
-        `${options.limit.count}`,
+        formatInteger(options.limit.offset),
+        formatInteger(options.limit.count),
       );
     }
 
@@ -719,19 +724,19 @@ export function appendExpireOptions(
   },
 ) {
   if (options.expireInSeconds !== undefined) {
-    command.push('EX', `${options.expireInSeconds}`);
+    command.push('EX', formatInteger(options.expireInSeconds));
   }
 
   if (options.expireInMilliseconds !== undefined) {
-    command.push('PX', `${options.expireInMilliseconds}`);
+    command.push('PX', formatInteger(options.expireInMilliseconds));
   }
 
   if (options.expireAtSeconds !== undefined) {
-    command.push('EXAT', `${options.expireAtSeconds}`);
+    command.push('EXAT', formatInteger(options.expireAtSeconds));
   }
 
   if (options.expireAtMilliseconds !== undefined) {
-    command.push('PXAT', `${options.expireAtMilliseconds}`);
+    command.push('PXAT', formatInteger(options.expireAtMilliseconds));
   }
 }
 

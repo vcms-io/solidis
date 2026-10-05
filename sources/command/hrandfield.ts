@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
   processPairedArray,
@@ -16,7 +17,7 @@ export function createCommand(
   const command = ['HRANDFIELD', key];
 
   if (count !== undefined || withvalues) {
-    command.push(`${count ?? 1}`);
+    command.push(formatInteger(count ?? 1));
   }
 
   if (withvalues) {

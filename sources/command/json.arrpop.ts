@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
   tryReplyToStringScalarOrArray,
@@ -11,7 +12,7 @@ export function createCommand(key: string, path?: string, index?: number) {
   }
 
   if (index !== undefined) {
-    command.push(`${index}`);
+    command.push(formatInteger(index));
   }
 
   return command;

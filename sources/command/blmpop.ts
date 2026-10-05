@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
   tryReplyToKeyStringElementsOrNull,
@@ -19,7 +20,7 @@ export function createCommand(
   const command = ['BLMPOP', `${timeout}`, `${keys.length}`, ...keys, where];
 
   if (count !== undefined) {
-    command.push('COUNT', `${count}`);
+    command.push('COUNT', formatInteger(count));
   }
 
   return command;

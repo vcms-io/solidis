@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
   tryReplyToStringOrBufferArray,
@@ -6,7 +7,7 @@ import {
 import type { CommandBufferOptions, RespString } from '../index.ts';
 
 export function createCommand(key: string, start: number, stop: number) {
-  return ['LRANGE', key, `${start}`, `${stop}`];
+  return ['LRANGE', key, formatInteger(start), formatInteger(stop)];
 }
 
 export async function lrange<

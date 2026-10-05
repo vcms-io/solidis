@@ -1,6 +1,7 @@
 import {
   executeCommand,
   tryReplyArray,
+  tryReplyNumber,
   tryReplyToMap,
   tryReplyToNumberOrNull,
 } from './utils/index.ts';
@@ -21,8 +22,8 @@ export async function xinfoGroups<T>(
 
       return {
         name: String(result.get('name')),
-        consumers: Number(result.get('consumers')),
-        pending: Number(result.get('pending')),
+        consumers: tryReplyNumber(result.get('consumers'), command),
+        pending: tryReplyNumber(result.get('pending'), command),
         lastDeliveredId: String(result.get('last-delivered-id')),
         entriesRead: tryReplyToNumberOrNull(
           result.get('entries-read') ?? null,

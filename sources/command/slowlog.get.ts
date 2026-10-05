@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
   tryReplyArray,
@@ -12,7 +13,7 @@ export function createCommand(count?: number) {
   const command = ['SLOWLOG', 'GET'];
 
   if (count !== undefined) {
-    command.push(`${count}`);
+    command.push(formatInteger(count));
   }
 
   return command;

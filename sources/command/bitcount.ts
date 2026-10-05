@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyNumber } from './utils/index.ts';
 
 import type { CommandStartToEndAndBitOrByteOptions } from '../index.ts';
@@ -13,7 +14,10 @@ export function createCommand(
     options?.end !== undefined ||
     options?.mode !== undefined
   ) {
-    command.push(`${options.start ?? 0}`, `${options.end ?? -1}`);
+    command.push(
+      formatInteger(options.start ?? 0),
+      formatInteger(options.end ?? -1),
+    );
   }
 
   if (options?.mode) {

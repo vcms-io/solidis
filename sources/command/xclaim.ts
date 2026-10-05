@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
   tryReplyToStreamEntries,
@@ -16,18 +17,25 @@ export function createCommand(
   ids: string[],
   options?: XclaimOptions,
 ) {
-  const command = ['XCLAIM', key, group, consumer, `${minIdleTime}`, ...ids];
+  const command = [
+    'XCLAIM',
+    key,
+    group,
+    consumer,
+    formatInteger(minIdleTime),
+    ...ids,
+  ];
 
   if (options?.idle !== undefined) {
-    command.push('IDLE', `${options.idle}`);
+    command.push('IDLE', formatInteger(options.idle));
   }
 
   if (options?.time !== undefined) {
-    command.push('TIME', `${options.time}`);
+    command.push('TIME', formatInteger(options.time));
   }
 
   if (options?.retrycount !== undefined) {
-    command.push('RETRYCOUNT', `${options.retrycount}`);
+    command.push('RETRYCOUNT', formatInteger(options.retrycount));
   }
 
   if (options?.force) {

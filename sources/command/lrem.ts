@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyNumber } from './utils/index.ts';
 
 import type { StringOrBuffer } from '../index.ts';
@@ -7,7 +8,7 @@ export function createCommand(
   count: number,
   element: StringOrBuffer,
 ) {
-  return ['LREM', key, `${count}`, element];
+  return ['LREM', key, formatInteger(count), element];
 }
 
 export async function lrem<T>(

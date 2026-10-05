@@ -1,10 +1,11 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyNumber } from './utils/index.ts';
 
 export function createCommand(keys: string[], limit?: number) {
   const command = ['SINTERCARD', `${keys.length}`, ...keys];
 
   if (limit !== undefined) {
-    command.push('LIMIT', `${limit}`);
+    command.push('LIMIT', formatInteger(limit));
   }
 
   return command;

@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, newCommandError, tryReplyOK } from './utils/index.ts';
 
 import type { CommandClientTrackingOptions, RespOnOrOff } from '../index.ts';
@@ -10,7 +11,7 @@ export function createCommand(
 
   if (options) {
     if (options.redirect !== undefined) {
-      command.push('REDIRECT', `${options.redirect}`);
+      command.push('REDIRECT', formatInteger(options.redirect));
     }
 
     if (options.prefixes?.length === 0) {

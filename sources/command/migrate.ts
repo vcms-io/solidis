@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { RespNoKey } from '../types/resp.ts';
 import { executeCommand, tryReplyOK } from './utils/index.ts';
 
@@ -14,10 +15,10 @@ export function createCommand(
   const command = [
     'MIGRATE',
     host,
-    `${port}`,
+    formatInteger(port),
     key,
-    `${destinationDb}`,
-    `${timeout}`,
+    formatInteger(destinationDb),
+    formatInteger(timeout),
   ];
 
   if (options) {

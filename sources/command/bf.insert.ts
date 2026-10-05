@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyToNumberOrErrorArray } from './utils/index.ts';
 
 import type { CommandBloomFilterInsertOptions, RespError } from '../index.ts';
@@ -11,7 +12,7 @@ export function createCommand(
 
   if (options) {
     if (options.capacity !== undefined) {
-      command.push('CAPACITY', `${options.capacity}`);
+      command.push('CAPACITY', formatInteger(options.capacity));
     }
 
     if (options.error !== undefined) {
@@ -19,7 +20,7 @@ export function createCommand(
     }
 
     if (options.expansion !== undefined) {
-      command.push('EXPANSION', `${options.expansion}`);
+      command.push('EXPANSION', formatInteger(options.expansion));
     }
 
     if (options.nonScaling) {

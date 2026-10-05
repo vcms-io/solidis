@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
   tryReplyArray,
@@ -26,7 +27,7 @@ export function createCommand(
     if (options.idx) {
       command.push('IDX');
       if (options.minmatchlen !== undefined) {
-        command.push('MINMATCHLEN', `${options.minmatchlen}`);
+        command.push('MINMATCHLEN', formatInteger(options.minmatchlen));
       }
       if (options.withmatchlen) {
         command.push('WITHMATCHLEN');
@@ -67,8 +68,14 @@ export async function lcs<T>(
             const [firstStart, firstEnd] = tryReplyArray(first, command);
             const [secondStart, secondEnd] = tryReplyArray(second, command);
             const match: RespLCSMatch = {
-              a: [Number(firstStart), Number(firstEnd)],
-              b: [Number(secondStart), Number(secondEnd)],
+              a: [
+                tryReplyNumber(firstStart, command),
+                tryReplyNumber(firstEnd, command),
+              ],
+              b: [
+                tryReplyNumber(secondStart, command),
+                tryReplyNumber(secondEnd, command),
+              ],
             };
 
             if (replyOptions.withmatchlen && typeof matchLength === 'number') {
@@ -81,7 +88,7 @@ export async function lcs<T>(
 
         return {
           matches,
-          length: Number(map.get('len')),
+          length: tryReplyNumber(map.get('len'), command),
         };
       }
 

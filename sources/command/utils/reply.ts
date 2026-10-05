@@ -57,14 +57,12 @@ export function newCommandError(
   commandName?: CommandName,
   cause?: unknown,
 ) {
-  if (commandName === undefined) {
-    return new SolidisCommandError(message, cause);
-  }
-
-  const name =
-    typeof commandName === 'string' ? commandName : getCommandName(commandName);
-
-  return new SolidisCommandError(`[${name}] ${message}`, cause);
+  return new SolidisCommandError(
+    commandName === undefined
+      ? message
+      : `[${typeof commandName === 'string' ? commandName : getCommandName(commandName)}] ${message}`,
+    cause,
+  );
 }
 
 export function newUnexpectedReplyError(
@@ -280,24 +278,23 @@ export function processPairedArray(
   processor: (key: string, value: unknown) => void,
   commandName?: CommandName,
 ) {
-  if (!Array.isArray(array) && !(array instanceof Map)) {
+  const items = array instanceof Map ? [...array].flat() : array;
+
+  if (!Array.isArray(items)) {
     throw newUnexpectedReplyError(array, commandName);
   }
 
-  const targetArray = Array.isArray(array) ? array : Array.from(array).flat();
-
-  if (targetArray.length % 2 !== 0) {
+  if (items.length % 2 !== 0) {
     throw newCommandError(
-      `${UnexpectedReplyPrefix}: expected even-length array, got ${targetArray.length}`,
+      `${UnexpectedReplyPrefix}: expected even-length array, got ${items.length}`,
       commandName,
     );
   }
 
-  for (let index = 0; index < targetArray.length; index += 2) {
-    const key = targetArray[index];
-    const value = targetArray[index + 1];
+  for (let index = 0; index < items.length; index += 2) {
+    const key = items[index];
 
-    processor(readText(key) ?? `${key}`, value);
+    processor(readText(key) ?? `${key}`, items[index + 1]);
   }
 }
 
@@ -318,7 +315,7 @@ export function tryReplyArray(
   }
 
   if (reply instanceof Set) {
-    return Array.from(reply);
+    return [...reply];
   }
 
   throw newUnexpectedReplyError(reply, commandName);
@@ -729,7 +726,7 @@ function tryReplyToStreams<T>(
   commandName: CommandName | undefined,
   parseEntry: (entry: unknown, commandName?: CommandName) => T,
 ) {
-  const streams = reply instanceof Map ? Array.from(reply.entries()) : reply;
+  const streams = reply instanceof Map ? [...reply] : reply;
 
   return tryReplyArray(streams, commandName).map((stream) => {
     const [name, entries] = tryReplyTuple(stream, 2, commandName);

@@ -231,8 +231,28 @@ describe('type-contracts', () => {
       );
     }
 
+    const renamed = new SolidisClient({ lazyConnect: true }).extend({
+      get,
+      transaction: multi,
+    });
+    const answering = new SolidisClient({ lazyConnect: true }).extend({
+      multi: () => 42,
+    });
+    const renamedTransaction = renamed.transaction();
+    const answer: number = answering.multi();
+
+    renamedTransaction.get('k');
+
+    assert.strictEqual(
+      typeof Reflect.get(renamedTransaction, 'get'),
+      'function',
+    );
+    assert.strictEqual(answer, 42);
+
     extended.quit();
     chained.quit();
+    renamed.quit();
+    answering.quit();
   });
 
   it('types this in an extension as the client it extends', () => {

@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
   tryReplyArray,
@@ -17,10 +18,17 @@ export function createCommand(
   count?: number,
   justid?: boolean,
 ) {
-  const command = ['XAUTOCLAIM', key, group, consumer, `${minIdleTime}`, start];
+  const command = [
+    'XAUTOCLAIM',
+    key,
+    group,
+    consumer,
+    formatInteger(minIdleTime),
+    start,
+  ];
 
   if (count !== undefined) {
-    command.push('COUNT', `${count}`);
+    command.push('COUNT', formatInteger(count));
   }
 
   if (justid) {

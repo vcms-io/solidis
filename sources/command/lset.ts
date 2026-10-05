@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyOK } from './utils/index.ts';
 
 import type { StringOrBuffer } from '../index.ts';
@@ -7,7 +8,7 @@ export function createCommand(
   index: number,
   element: StringOrBuffer,
 ) {
-  return ['LSET', key, `${index}`, element];
+  return ['LSET', key, formatInteger(index), element];
 }
 
 export async function lset<T>(

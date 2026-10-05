@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyToJsonNumbers } from './utils/index.ts';
 
 import type { CommandJsonArrIndexOptions } from '../index.ts';
@@ -11,11 +12,11 @@ export function createCommand(
   const command = ['JSON.ARRINDEX', key, path, value];
 
   if (options?.start !== undefined || options?.stop !== undefined) {
-    command.push(`${options.start ?? 0}`);
+    command.push(formatInteger(options.start ?? 0));
   }
 
   if (options?.stop !== undefined) {
-    command.push(`${options.stop}`);
+    command.push(formatInteger(options.stop));
   }
 
   return command;

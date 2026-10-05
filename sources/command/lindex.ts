@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
   tryReplyToStringOrBufferOrNull,
@@ -6,7 +7,7 @@ import {
 import type { CommandBufferOptions, RespString } from '../index.ts';
 
 export function createCommand(key: string, index: number) {
-  return ['LINDEX', key, `${index}`];
+  return ['LINDEX', key, formatInteger(index)];
 }
 
 export async function lindex<

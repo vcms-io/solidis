@@ -225,13 +225,11 @@ export type SolidisClientExtensions<
     ? never
     : T[K] extends SolidisFunction
       ? K
-      : never]: K extends 'multi'
-    ? T[K] extends (...parameters: infer Parameters) => unknown
-      ? (
-          ...parameters: Parameters
-        ) => SolidisTransactionClient<
-          C & SolidisClientExtensions<Omit<T, 'multi'>>
-        >
-      : T[K]
+      : never]: T[K] extends (
+    ...parameters: infer Parameters
+  ) => Pick<SolidisTransactionClient<unknown>, 'exec' | 'discard'>
+    ? (
+        ...parameters: Parameters
+      ) => SolidisTransactionClient<C & SolidisClientExtensions<Omit<T, K>>>
     : OmitThisParameter<T[K]>;
 };

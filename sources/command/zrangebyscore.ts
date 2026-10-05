@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
   tryReplyToStringsOrSortedSetMembers,
@@ -22,7 +23,11 @@ export function createCommand(
   }
 
   if (options?.limit) {
-    command.push('LIMIT', `${options.limit.offset}`, `${options.limit.count}`);
+    command.push(
+      'LIMIT',
+      formatInteger(options.limit.offset),
+      formatInteger(options.limit.count),
+    );
   }
 
   return command;

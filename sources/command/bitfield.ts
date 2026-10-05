@@ -26,7 +26,7 @@ export function createCommand(
   for (const operation of operations) {
     command.push(operation.operation);
     command.push(operation.type);
-    command.push(`${operation.offset}`);
+    command.push(formatInteger(operation.offset));
 
     if (operation.operation === 'SET') {
       command.push(formatInteger(operation.value));

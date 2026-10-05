@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyOK } from './utils/index.ts';
 
 import type { CommandFailoverOptions } from '../index.ts';
@@ -6,7 +7,7 @@ export function createCommand(options?: CommandFailoverOptions) {
   const command = ['FAILOVER'];
 
   if (options?.to) {
-    command.push('TO', options.to.host, `${options.to.port}`);
+    command.push('TO', options.to.host, formatInteger(options.to.port));
   }
 
   if (options?.force) {
@@ -18,7 +19,7 @@ export function createCommand(options?: CommandFailoverOptions) {
   }
 
   if (options?.timeout !== undefined) {
-    command.push('TIMEOUT', `${options.timeout}`);
+    command.push('TIMEOUT', formatInteger(options.timeout));
   }
 
   return command;

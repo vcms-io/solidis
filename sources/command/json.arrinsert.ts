@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyToJsonNumbers } from './utils/index.ts';
 
 export function createCommand(
@@ -6,7 +7,7 @@ export function createCommand(
   index: number,
   ...values: string[]
 ) {
-  return ['JSON.ARRINSERT', key, path, `${index}`, ...values];
+  return ['JSON.ARRINSERT', key, path, formatInteger(index), ...values];
 }
 
 export async function jsonArrinsert<T>(

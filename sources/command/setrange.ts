@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyNumber } from './utils/index.ts';
 
 import type { StringOrBuffer } from '../index.ts';
@@ -7,7 +8,7 @@ export function createCommand(
   offset: number,
   value: StringOrBuffer,
 ) {
-  return ['SETRANGE', key, `${offset}`, value];
+  return ['SETRANGE', key, formatInteger(offset), value];
 }
 
 export async function setrange<T>(

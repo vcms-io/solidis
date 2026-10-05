@@ -3,6 +3,7 @@ import {
   newUnexpectedReplyError,
   tryReplyArray,
   tryReplyNumber,
+  tryReplyToNumber,
   tryReplyToString,
   tryReplyToStringArray,
   tryReplyTuple,
@@ -29,8 +30,8 @@ export async function role<T>(this: T): Promise<RespRole> {
 
           return {
             ip: String(ip),
-            port: Number(port),
-            offset: Number(offset),
+            port: tryReplyToNumber(port, command),
+            offset: tryReplyToNumber(offset, command),
           };
         }),
       };
@@ -43,9 +44,9 @@ export async function role<T>(this: T): Promise<RespRole> {
       return {
         role: 'slave',
         masterHost: String(masterHost),
-        masterPort: Number(masterPort),
+        masterPort: tryReplyNumber(masterPort, command),
         replicationState: String(replicationState),
-        replicationOffset: Number(replicationOffset),
+        replicationOffset: tryReplyNumber(replicationOffset, command),
       };
     }
 

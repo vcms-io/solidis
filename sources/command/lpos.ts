@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyToNumberArray } from './utils/index.ts';
 
 import type { CommandLposOptions, StringOrBuffer } from '../index.ts';
@@ -11,13 +12,13 @@ export function createCommand(
 
   if (options) {
     if (options.rank !== undefined) {
-      command.push('RANK', `${options.rank}`);
+      command.push('RANK', formatInteger(options.rank));
     }
     if (options.count !== undefined) {
-      command.push('COUNT', `${options.count}`);
+      command.push('COUNT', formatInteger(options.count));
     }
     if (options.maxlen !== undefined) {
-      command.push('MAXLEN', `${options.maxlen}`);
+      command.push('MAXLEN', formatInteger(options.maxlen));
     }
   }
 

@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyOK } from './utils/index.ts';
 
 export function createCommand(
@@ -7,10 +8,10 @@ export function createCommand(
   expansion?: number,
   nonScaling?: boolean,
 ) {
-  const command = ['BF.RESERVE', key, `${errorRate}`, `${capacity}`];
+  const command = ['BF.RESERVE', key, `${errorRate}`, formatInteger(capacity)];
 
   if (expansion !== undefined) {
-    command.push('EXPANSION', `${expansion}`);
+    command.push('EXPANSION', formatInteger(expansion));
   }
 
   if (nonScaling) {

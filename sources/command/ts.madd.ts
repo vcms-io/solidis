@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyToNumberOrErrorArray } from './utils/index.ts';
 
 import type { CommandTimeSeriesSampleTimestamp, RespError } from '../index.ts';
@@ -12,7 +13,7 @@ export function createCommand(
   const command = ['TS.MADD'];
 
   for (const sample of samples) {
-    command.push(key, `${sample.timestamp}`, `${sample.value}`);
+    command.push(key, formatInteger(sample.timestamp), `${sample.value}`);
   }
 
   return command;

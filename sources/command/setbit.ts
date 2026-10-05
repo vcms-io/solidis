@@ -1,9 +1,10 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyNumber } from './utils/index.ts';
 
 import type { RespBit } from '../index.ts';
 
 export function createCommand(key: string, offset: number, value: RespBit) {
-  return ['SETBIT', key, `${offset}`, `${value}`];
+  return ['SETBIT', key, formatInteger(offset), formatInteger(value)];
 }
 
 export async function setbit<T>(

@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
   processPairedArray,
@@ -12,7 +13,7 @@ export function createCommand(count?: number | 'RESET') {
   const command = ['ACL', 'LOG'];
 
   if (count !== undefined) {
-    command.push(String(count));
+    command.push(formatInteger(count));
   }
 
   return command;

@@ -6,11 +6,30 @@ import { after, before, describe, it } from 'node:test';
 import { SolidisFeaturedClient } from '../../../sources/client/featured.ts';
 import { bitfieldRo } from '../../../sources/command/bitfield.ro.ts';
 import { createCommand as createBitfieldCommand } from '../../../sources/command/bitfield.ts';
+import { createCommand as createClientKillCommand } from '../../../sources/command/client.kill.ts';
+import { clientTrackinginfo } from '../../../sources/command/client.trackinginfo.ts';
 import { createCommand as createDecrbyCommand } from '../../../sources/command/decrby.ts';
+import { hello } from '../../../sources/command/hello.ts';
 import { createCommand as createHincrbyCommand } from '../../../sources/command/hincrby.ts';
 import { incr } from '../../../sources/command/incr.ts';
 import { createCommand as createIncrbyCommand } from '../../../sources/command/incrby.ts';
+import { createCommand as createIncrbyfloatCommand } from '../../../sources/command/incrbyfloat.ts';
+import { createCommand as createJsonNumincrbyCommand } from '../../../sources/command/json.numincrby.ts';
+import { lcs } from '../../../sources/command/lcs.ts';
+import { createCommand as createLrangeCommand } from '../../../sources/command/lrange.ts';
+import { memoryStats } from '../../../sources/command/memory.stats.ts';
+import { createCommand as createPexpireatCommand } from '../../../sources/command/pexpireat.ts';
+import { role } from '../../../sources/command/role.ts';
+import { createCommand as createSetCommand } from '../../../sources/command/set.ts';
+import { createCommand as createSetexCommand } from '../../../sources/command/setex.ts';
+import { createCommand as createTimeSeriesAddCommand } from '../../../sources/command/ts.add.ts';
 import { tryReplyToInteger } from '../../../sources/command/utils/reply.ts';
+import { createCommand as createXclaimCommand } from '../../../sources/command/xclaim.ts';
+import { xinfoConsumers } from '../../../sources/command/xinfo.consumers.ts';
+import { xinfoGroups } from '../../../sources/command/xinfo.groups.ts';
+import { xinfoStream } from '../../../sources/command/xinfo.stream.ts';
+import { xpending } from '../../../sources/command/xpending.ts';
+import { createCommand as createZaddCommand } from '../../../sources/command/zadd.ts';
 import {
   SolidisClient,
   SolidisCommandError,
@@ -22,7 +41,10 @@ import {
   createKeyspace,
 } from '../utils/index.ts';
 
-import type { CommandIntegerOptions } from '../../../sources/index.ts';
+import type {
+  CommandIntegerOptions,
+  SolidisData,
+} from '../../../sources/index.ts';
 
 type IsEqual<Left, Right> =
   (<Value>() => Value extends Left ? 1 : 2) extends <
@@ -271,6 +293,24 @@ describe('big-integers', () => {
         );
       });
 
+      it('stores a retry count past Number.MAX_SAFE_INTEGER exactly and rejects reading it back', async () => {
+        const stream = keyspace.key(protocol, 'exact', 'stream');
+
+        await client.xgroupCreate(stream, 'group', '$', true);
+
+        const id = await client.xadd(stream, '*', { field: 'value' });
+
+        await client.xreadgroup('group', 'alice', [stream], ['>']);
+        await client.xclaim(stream, 'group', 'bob', 0, [id], {
+          retrycount: 2 ** 60,
+          justid: true,
+        });
+        await assert.rejects(
+          client.xpending(stream, 'group', '-', '+', 10),
+          isUnsafeIntegerError('XPENDING', 2n ** 60n),
+        );
+      });
+
       it('leaves raw replies untouched', async () => {
         const counter = keyspace.key(protocol, 'raw', 'counter');
         const small = keyspace.key(protocol, 'raw', 'small');
@@ -384,6 +424,238 @@ describe('big-integers', () => {
         `${value}`,
       ]);
     }
+  });
+
+  it('rejects integer replies past Number.MAX_SAFE_INTEGER wherever a command reads them', async () => {
+    const answering = (reply: SolidisData) => ({
+      send: async () => [[reply]],
+    });
+    const map = (...entries: [string, SolidisData][]) =>
+      new Map<string, SolidisData>(entries);
+    const text = (value: string) => Buffer.from(value);
+    const streamWith = (pending: SolidisData, consumers: SolidisData) =>
+      map(
+        ['length', 1],
+        ['radix-tree-keys', 1],
+        ['radix-tree-nodes', 1],
+        ['last-generated-id', text('1-0')],
+        ['entries', []],
+        [
+          'groups',
+          [
+            map(
+              ['name', text('group')],
+              ['last-delivered-id', text('1-0')],
+              ['pel-count', 1],
+              ['pending', pending],
+              ['consumers', consumers],
+            ),
+          ],
+        ],
+      );
+    const calls: [string, () => Promise<unknown>][] = [
+      [
+        'XPENDING',
+        () =>
+          xpending.call(
+            answering([[text('1-0'), text('alice'), 1, beyond]]),
+            's',
+            'g',
+            '-',
+            '+',
+            10,
+          ),
+      ],
+      [
+        'XPENDING',
+        () => xpending.call(answering([beyond, null, null, null]), 's', 'g'),
+      ],
+      [
+        'XINFO STREAM',
+        () => xinfoStream.call(answering(map(['length', beyond])), 's'),
+      ],
+      [
+        'XINFO STREAM',
+        () =>
+          xinfoStream.call(
+            answering(
+              streamWith([[text('1-0'), text('alice'), 1, beyond]], []),
+            ),
+            's',
+            true,
+          ),
+      ],
+      [
+        'XINFO STREAM',
+        () =>
+          xinfoStream.call(
+            answering(
+              streamWith(
+                [],
+                [map(['name', text('alice')], ['seen-time', beyond])],
+              ),
+            ),
+            's',
+            true,
+          ),
+      ],
+      [
+        'XINFO GROUPS',
+        () =>
+          xinfoGroups.call(
+            answering([map(['name', text('g')], ['consumers', beyond])]),
+            's',
+          ),
+      ],
+      [
+        'XINFO CONSUMERS',
+        () =>
+          xinfoConsumers.call(
+            answering([
+              map(['name', text('c')], ['pending', 1], ['idle', beyond]),
+            ]),
+            's',
+            'g',
+          ),
+      ],
+      [
+        'ROLE',
+        () =>
+          role.call(
+            answering([
+              text('slave'),
+              text('host'),
+              6379,
+              text('connected'),
+              beyond,
+            ]),
+          ),
+      ],
+      ['HELLO', () => hello.call(answering(map(['proto', 3], ['id', beyond])))],
+      [
+        'CLIENT TRACKINGINFO',
+        () =>
+          clientTrackinginfo.call(
+            answering(
+              map(['flags', []], ['redirect', beyond], ['prefixes', []]),
+            ),
+          ),
+      ],
+      [
+        'LCS',
+        () =>
+          lcs.call(
+            answering(
+              map(
+                [
+                  'matches',
+                  [
+                    [
+                      [beyond, 1],
+                      [2, 3],
+                    ],
+                  ],
+                ],
+                ['len', 2],
+              ),
+            ),
+            'a',
+            'b',
+            { idx: true },
+          ),
+      ],
+      [
+        'LCS',
+        () =>
+          lcs.call(answering(map(['matches', []], ['len', beyond])), 'a', 'b', {
+            idx: true,
+          }),
+      ],
+      [
+        'MEMORY STATS',
+        () => memoryStats.call(answering([text('keys.count'), beyond])),
+      ],
+    ];
+
+    for (const [name, call] of calls) {
+      await assert.rejects(call(), isUnsafeIntegerError(name, beyond));
+    }
+
+    const partial = await hello.call(answering(map(['proto', 3])));
+
+    assert.strictEqual(partial.proto, 3);
+    assert.ok(Number.isNaN(partial.id));
+  });
+
+  it('writes integer arguments exactly and doubles as JavaScript prints them', () => {
+    const exact = '1152921504606846976';
+
+    assert.deepStrictEqual(createPexpireatCommand('k', 2 ** 60), [
+      'PEXPIREAT',
+      'k',
+      exact,
+    ]);
+    assert.deepStrictEqual(
+      createSetCommand('k', 'v', { expireAtMilliseconds: 2 ** 60 }),
+      ['SET', 'k', 'v', 'PXAT', exact],
+    );
+    assert.deepStrictEqual(createSetexCommand('k', 2 ** 60, 'v'), [
+      'SETEX',
+      'k',
+      exact,
+      'v',
+    ]);
+    assert.deepStrictEqual(
+      createXclaimCommand('s', 'g', 'c', 0, ['1-0'], { retrycount: 2 ** 60 }),
+      ['XCLAIM', 's', 'g', 'c', '0', '1-0', 'RETRYCOUNT', exact],
+    );
+    assert.deepStrictEqual(createTimeSeriesAddCommand('t', 2 ** 60, 0.5, {}), [
+      'TS.ADD',
+      't',
+      exact,
+      '0.5',
+    ]);
+    assert.deepStrictEqual(createTimeSeriesAddCommand('t', '*', 1, {}), [
+      'TS.ADD',
+      't',
+      '*',
+      '1',
+    ]);
+    assert.deepStrictEqual(createClientKillCommand(2 ** 60), [
+      'CLIENT',
+      'KILL',
+      'ID',
+      exact,
+    ]);
+    assert.deepStrictEqual(createLrangeCommand('k', 0, 2 ** 60), [
+      'LRANGE',
+      'k',
+      '0',
+      exact,
+    ]);
+    assert.deepStrictEqual(createJsonNumincrbyCommand('k', '$', 2 ** 60), [
+      'JSON.NUMINCRBY',
+      'k',
+      '$',
+      exact,
+    ]);
+    assert.deepStrictEqual(createJsonNumincrbyCommand('k', '$', 0.1), [
+      'JSON.NUMINCRBY',
+      'k',
+      '$',
+      '0.1',
+    ]);
+    assert.deepStrictEqual(createIncrbyfloatCommand('k', 2 ** 60), [
+      'INCRBYFLOAT',
+      'k',
+      exact,
+    ]);
+    assert.deepStrictEqual(createZaddCommand('z', 2 ** 60, 'm'), [
+      'ZADD',
+      'z',
+      `${2 ** 60}`,
+      'm',
+    ]);
   });
 
   it('converts integer replies according to the options', () => {

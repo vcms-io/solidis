@@ -1,7 +1,8 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyNumber } from './utils/index.ts';
 
 export function createCommand(numreplicas: number, timeout: number) {
-  return ['WAIT', `${numreplicas}`, `${timeout}`];
+  return ['WAIT', formatInteger(numreplicas), formatInteger(timeout)];
 }
 
 export async function wait<T>(

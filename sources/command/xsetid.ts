@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyOK } from './utils/index.ts';
 
 export function createCommand(
@@ -9,7 +10,7 @@ export function createCommand(
   const command = ['XSETID', key, lastId];
 
   if (entriesAdded !== undefined) {
-    command.push('ENTRIESADDED', `${entriesAdded}`);
+    command.push('ENTRIESADDED', formatInteger(entriesAdded));
   }
 
   if (maxDeletedId !== undefined) {

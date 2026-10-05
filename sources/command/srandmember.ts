@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
   tryReplyToStringArray,
@@ -8,7 +9,7 @@ export function createCommand(key: string, count?: number) {
   const command = ['SRANDMEMBER', key];
 
   if (count !== undefined) {
-    command.push(`${count}`);
+    command.push(formatInteger(count));
   }
 
   return command;

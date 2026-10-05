@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyNumber } from './utils/index.ts';
 
 import type { CommandCopyOptions } from '../index.ts';
@@ -10,7 +11,7 @@ export function createCommand(
   const command = ['COPY', source, destination];
 
   if (options?.destinationDatabase !== undefined) {
-    command.push('DB', `${options.destinationDatabase}`);
+    command.push('DB', formatInteger(options.destinationDatabase));
   }
 
   if (options?.replace) {

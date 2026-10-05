@@ -4,6 +4,7 @@ import {
   tryReplyArray,
   tryReplyToMap,
   tryReplyToModuleInfo,
+  tryReplyToNumber,
 } from './utils/index.ts';
 
 import type {
@@ -40,17 +41,18 @@ export async function hello<T>(
     createCommand(...parameters),
     (reply, command) => {
       const map = tryReplyToMap(reply, command);
-
-      const modules = map.get('modules') ?? [];
+      const toText = (key: string) => String(map.get(key));
+      const toNumber = (key: string) =>
+        tryReplyToNumber(map.get(key) ?? Number.NaN, command);
 
       return {
-        server: String(map.get('server')),
-        version: String(map.get('version')),
-        proto: Number(map.get('proto')),
-        id: Number(map.get('id')),
-        mode: String(map.get('mode')),
-        role: String(map.get('role')),
-        modules: tryReplyArray(modules, command).map((item) =>
+        server: toText('server'),
+        version: toText('version'),
+        proto: toNumber('proto'),
+        id: toNumber('id'),
+        mode: toText('mode'),
+        role: toText('role'),
+        modules: tryReplyArray(map.get('modules') ?? [], command).map((item) =>
           tryReplyToModuleInfo(item, command),
         ),
       };

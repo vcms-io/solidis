@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
   tryReplyToSortedSetMembers,
@@ -15,7 +16,7 @@ export function createCommand(
   const command = ['ZRANDMEMBER', key];
 
   if (count !== undefined || withScores) {
-    command.push(`${count ?? 1}`);
+    command.push(formatInteger(count ?? 1));
   }
 
   if (withScores) {

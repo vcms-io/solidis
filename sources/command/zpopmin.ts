@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyToSortedSetMembers } from './utils/index.ts';
 
 import type { RespSortedSetMember } from '../index.ts';
@@ -6,7 +7,7 @@ export function createCommand(key: string, count?: number) {
   const command = ['ZPOPMIN', key];
 
   if (count !== undefined) {
-    command.push(`${count}`);
+    command.push(formatInteger(count));
   }
 
   return command;

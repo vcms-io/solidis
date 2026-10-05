@@ -1,7 +1,8 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyNumber } from './utils/index.ts';
 
 export function createCommand(key: string, db: number) {
-  return ['MOVE', key, `${db}`];
+  return ['MOVE', key, formatInteger(db)];
 }
 
 export async function move<T>(

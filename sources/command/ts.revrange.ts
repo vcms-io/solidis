@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   buildTimeSeriesRangeCommand,
   executeCommand,
@@ -19,8 +20,8 @@ export function createCommand(
   const baseCommand = [
     'TS.REVRANGE',
     key,
-    `${fromTimestamp}`,
-    `${toTimestamp}`,
+    formatInteger(fromTimestamp),
+    formatInteger(toTimestamp),
   ];
 
   return buildTimeSeriesRangeCommand(baseCommand, options);

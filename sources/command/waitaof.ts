@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
   tryReplyNumber,
@@ -11,7 +12,12 @@ export function createCommand(
   numreplicas: number,
   timeout: number,
 ) {
-  return ['WAITAOF', `${numlocal}`, `${numreplicas}`, `${timeout}`];
+  return [
+    'WAITAOF',
+    formatInteger(numlocal),
+    formatInteger(numreplicas),
+    formatInteger(timeout),
+  ];
 }
 
 export async function waitaof<T>(

@@ -1,7 +1,8 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyToJsonNumberText } from './utils/index.ts';
 
 export function createCommand(key: string, path: string, value: number) {
-  return ['JSON.NUMMULTBY', key, path, `${value}`];
+  return ['JSON.NUMMULTBY', key, path, formatInteger(value)];
 }
 
 export async function jsonNummultby<T>(

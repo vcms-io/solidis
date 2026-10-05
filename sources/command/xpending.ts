@@ -1,4 +1,11 @@
-import { executeCommand, tryReplyArray, tryReplyTuple } from './utils/index.ts';
+import { formatInteger } from '../common/utils/internal.ts';
+import {
+  executeCommand,
+  tryReplyArray,
+  tryReplyNumber,
+  tryReplyToNumber,
+  tryReplyTuple,
+} from './utils/index.ts';
 
 import type {
   CommandXpendingRange,
@@ -17,10 +24,10 @@ export function createCommand(
     const [start, end, count, consumer, idleTime] = range;
 
     if (idleTime !== undefined) {
-      command.push('IDLE', `${idleTime}`);
+      command.push('IDLE', formatInteger(idleTime));
     }
 
-    command.push(start, end, `${count}`);
+    command.push(start, end, formatInteger(count));
 
     if (consumer !== undefined) {
       command.push(consumer);
@@ -69,8 +76,8 @@ export async function xpending<T>(
             return {
               id: String(id),
               consumer: String(owner),
-              deliveryTime: Number(deliveryTime),
-              deliveryCount: Number(deliveryCount),
+              deliveryTime: tryReplyNumber(deliveryTime, command),
+              deliveryCount: tryReplyNumber(deliveryCount, command),
             };
           },
         );
@@ -83,7 +90,7 @@ export async function xpending<T>(
       );
 
       return {
-        pending: Number(pending),
+        pending: tryReplyNumber(pending, command),
         minId: minId === null ? null : String(minId),
         maxId: maxId === null ? null : String(maxId),
         consumers:
@@ -92,7 +99,10 @@ export async function xpending<T>(
             : tryReplyArray(consumers, command).map((entry) => {
                 const [name, total] = tryReplyTuple(entry, 2, command);
 
-                return { name: String(name), count: Number(total) };
+                return {
+                  name: String(name),
+                  count: tryReplyToNumber(total, command),
+                };
               }),
       };
     },

@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   buildTimeSeriesCommand,
   executeCommand,
@@ -14,7 +15,7 @@ export function createCommand(
   const command = ['TS.INCRBY', key, `${increment}`];
 
   if (options.timestamp !== undefined) {
-    command.push('TIMESTAMP', `${options.timestamp}`);
+    command.push('TIMESTAMP', formatInteger(options.timestamp));
   }
 
   return buildTimeSeriesCommand(command, options);

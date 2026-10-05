@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
   tryReplyToKeyStringElementsOrNull,
@@ -18,7 +19,7 @@ export function createCommand(
   const command = ['LMPOP', `${keys.length}`, ...keys, direction];
 
   if (count !== undefined) {
-    command.push('COUNT', `${count}`);
+    command.push('COUNT', formatInteger(count));
   }
 
   return command;

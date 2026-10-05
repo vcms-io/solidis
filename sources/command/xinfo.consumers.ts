@@ -1,6 +1,7 @@
 import {
   executeCommand,
   tryReplyArray,
+  tryReplyNumber,
   tryReplyToMap,
   tryReplyToNumberOrNull,
 } from './utils/index.ts';
@@ -25,8 +26,8 @@ export async function xinfoConsumers<T>(
 
         return {
           name: String(result.get('name')),
-          pending: Number(result.get('pending')),
-          idle: Number(result.get('idle')),
+          pending: tryReplyNumber(result.get('pending'), command),
+          idle: tryReplyNumber(result.get('idle'), command),
           inactive: tryReplyToNumberOrNull(
             result.get('inactive') ?? null,
             command,

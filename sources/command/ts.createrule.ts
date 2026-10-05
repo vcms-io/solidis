@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyOK } from './utils/index.ts';
 
 import type { CommandTimeSeriesCreateRuleOptions } from '../index.ts';
@@ -13,11 +14,11 @@ export function createCommand(
     destinationKey,
     'AGGREGATION',
     options.aggregation.type,
-    `${options.aggregation.bucketDuration}`,
+    formatInteger(options.aggregation.bucketDuration),
   ];
 
   if (options.aggregation.alignTimestamp !== undefined) {
-    command.push(`${options.aggregation.alignTimestamp}`);
+    command.push(formatInteger(options.aggregation.alignTimestamp));
   }
 
   return command;

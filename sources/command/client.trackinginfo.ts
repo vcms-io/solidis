@@ -1,5 +1,6 @@
 import {
   executeCommand,
+  tryReplyNumber,
   tryReplyToMap,
   tryReplyToStringArray,
 } from './utils/index.ts';
@@ -18,7 +19,7 @@ export async function clientTrackinginfo<T>(
 
     return {
       flags: tryReplyToStringArray(map.get('flags'), command),
-      redirect: Number(map.get('redirect')),
+      redirect: tryReplyNumber(map.get('redirect'), command),
       prefixes: tryReplyToStringArray(map.get('prefixes'), command),
     };
   });

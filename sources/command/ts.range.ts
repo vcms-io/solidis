@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   buildTimeSeriesRangeCommand,
   executeCommand,
@@ -16,7 +17,12 @@ export function createCommand(
   toTimestamp: CommandTimeSeriesTimestamp,
   options: CommandTimeSeriesRangeOptions,
 ) {
-  const baseCommand = ['TS.RANGE', key, `${fromTimestamp}`, `${toTimestamp}`];
+  const baseCommand = [
+    'TS.RANGE',
+    key,
+    formatInteger(fromTimestamp),
+    formatInteger(toTimestamp),
+  ];
 
   return buildTimeSeriesRangeCommand(baseCommand, options);
 }

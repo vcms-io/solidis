@@ -1,6 +1,8 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
   tryReplyArray,
+  tryReplyNumber,
   tryReplyToMap,
   tryReplyToNumberOrNull,
   tryReplyToStreamEntries,
@@ -26,7 +28,7 @@ export function createCommand(key: string, full?: boolean, count?: number) {
     command.push('FULL');
 
     if (count !== undefined) {
-      command.push('COUNT', `${count}`);
+      command.push('COUNT', formatInteger(count));
     }
   }
 
@@ -41,12 +43,12 @@ function parseConsumer(
 
   return {
     name: String(result.get('name')),
-    seenTime: Number(result.get('seen-time')),
+    seenTime: tryReplyNumber(result.get('seen-time'), command),
     activeTime: tryReplyToNumberOrNull(
       result.get('active-time') ?? null,
       command,
     ),
-    pelCount: Number(result.get('pel-count')),
+    pelCount: tryReplyNumber(result.get('pel-count'), command),
     pending: tryReplyArray(result.get('pending'), command).map(
       (entry): RespStreamConsumerPending => {
         const [id, deliveryTime, deliveryCount] = tryReplyTuple(
@@ -57,8 +59,8 @@ function parseConsumer(
 
         return {
           id: String(id),
-          deliveryTime: Number(deliveryTime),
-          deliveryCount: Number(deliveryCount),
+          deliveryTime: tryReplyNumber(deliveryTime, command),
+          deliveryCount: tryReplyNumber(deliveryCount, command),
         };
       },
     ),
@@ -79,7 +81,7 @@ function parseGroup(
       command,
     ),
     lag: tryReplyToNumberOrNull(result.get('lag') ?? null, command),
-    pelCount: Number(result.get('pel-count')),
+    pelCount: tryReplyNumber(result.get('pel-count'), command),
     pending: tryReplyArray(result.get('pending'), command).map(
       (entry): RespStreamGroupPending => {
         const [id, consumer, deliveryTime, deliveryCount] = tryReplyTuple(
@@ -91,8 +93,8 @@ function parseGroup(
         return {
           id: String(id),
           consumer: String(consumer),
-          deliveryTime: Number(deliveryTime),
-          deliveryCount: Number(deliveryCount),
+          deliveryTime: tryReplyNumber(deliveryTime, command),
+          deliveryCount: tryReplyNumber(deliveryCount, command),
         };
       },
     ),
@@ -131,9 +133,9 @@ export async function xinfoStream<T>(
       const result = tryReplyToMap(reply, command);
 
       const information = {
-        length: Number(result.get('length')),
-        radixTreeKeys: Number(result.get('radix-tree-keys')),
-        radixTreeNodes: Number(result.get('radix-tree-nodes')),
+        length: tryReplyNumber(result.get('length'), command),
+        radixTreeKeys: tryReplyNumber(result.get('radix-tree-keys'), command),
+        radixTreeNodes: tryReplyNumber(result.get('radix-tree-nodes'), command),
         lastGeneratedId: String(result.get('last-generated-id')),
         maxDeletedEntryId: tryReplyToStringOrNull(
           result.get('max-deleted-entry-id') ?? null,
@@ -157,7 +159,7 @@ export async function xinfoStream<T>(
           lastEntry: lastEntry
             ? tryReplyToStreamEntry(lastEntry, command)
             : null,
-          groups: Number(result.get('groups')),
+          groups: tryReplyNumber(result.get('groups'), command),
         };
       }
 

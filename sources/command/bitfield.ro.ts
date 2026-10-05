@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
   tryReplyArray,
@@ -17,7 +18,7 @@ export function createCommand(
   const command = ['BITFIELD_RO', key];
 
   for (const operation of operations) {
-    command.push('GET', operation.type, `${operation.offset}`);
+    command.push('GET', operation.type, formatInteger(operation.offset));
   }
 
   return command;

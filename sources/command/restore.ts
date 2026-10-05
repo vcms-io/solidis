@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyOK } from './utils/index.ts';
 
 import type { CommandRestoreOptions, StringOrBuffer } from '../index.ts';
@@ -13,7 +14,12 @@ export function createCommand(
       ? Buffer.from(serializedValue, 'latin1')
       : serializedValue;
 
-  const command: StringOrBuffer[] = ['RESTORE', key, `${ttl}`, payload];
+  const command: StringOrBuffer[] = [
+    'RESTORE',
+    key,
+    formatInteger(ttl),
+    payload,
+  ];
 
   if (options) {
     if (options.replace === true) {
@@ -25,11 +31,11 @@ export function createCommand(
     }
 
     if (options.idletime !== undefined) {
-      command.push('IDLETIME', `${options.idletime}`);
+      command.push('IDLETIME', formatInteger(options.idletime));
     }
 
     if (options.freq !== undefined) {
-      command.push('FREQ', `${options.freq}`);
+      command.push('FREQ', formatInteger(options.freq));
     }
   }
 
