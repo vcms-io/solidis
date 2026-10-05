@@ -465,7 +465,7 @@ export class SolidisParser {
   #readLength(start: number, end: number, isNullable: boolean) {
     const length = this.#parseInteger(start, end);
 
-    if (typeof length !== 'number' || (length < 0 && !isNullable)) {
+    if (typeof length !== 'number' || length < (isNullable ? -1 : 0)) {
       throw new SolidisParserError(
         `Invalid length ${this.#describeLine(start, end)}`,
       );

@@ -12,7 +12,6 @@ import {
 import {
   RespError,
   SolidisClientError,
-  SolidisCommandError,
   SolidisConnectionError,
   SolidisRequesterError,
   wrapWithError,
@@ -29,6 +28,7 @@ import {
   copyCommands,
   EventEmitter,
   errorMonitor,
+  inspectCommand,
   SolidisSessionSendOptions,
 } from './modules/internal.ts';
 import { SolidisPubSub } from './modules/pubsub.ts';
@@ -130,6 +130,22 @@ export class SolidisClient extends EventEmitter {
     const requestOptions = options && { ...options };
 
     return new Promise((resolve, reject) => {
+      for (const command of batch) {
+        const kind = inspectCommand(command);
+
+        if (kind instanceof SolidisRequesterError) {
+          reject(kind);
+
+          return;
+        }
+      }
+
+      if (batch.length === 0) {
+        resolve([]);
+
+        return;
+      }
+
       const timeout = resolveTimerDelay(
         options?.timeout ?? this.#options.commandTimeout,
       );
@@ -514,43 +530,47 @@ export class SolidisClient extends EventEmitter {
       }
 
       const subscriptions = pubSub.getSubscriptions(eventName);
-
-      if (subscriptions.length === 0) {
-        continue;
-      }
-
-      const error = await handshake
-        .send(subscriptions.map((subscription) => [eventName, subscription]))
-        .then(
-          (replies) =>
-            replies.flat().find((reply) => reply instanceof RespError),
-          (sendError: unknown) =>
-            sendError instanceof SolidisCommandError
-              ? sendError.cause
-              : sendError,
-        );
+      const replies = (
+        await handshake.send(
+          subscriptions.map((subscription) => [eventName, subscription]),
+        )
+      ).flat();
+      const error = replies.find(
+        (reply): reply is RespError => reply instanceof RespError,
+      );
 
       if (!error) {
         continue;
-      }
-
-      if (!(error instanceof RespError)) {
-        throw error;
       }
 
       if (SolidisAuthenticationErrorPattern.test(error.message)) {
         throw new SolidisClientError(SolidisAuthenticationFailedMessage, error);
       }
 
-      await handshake.send([[eventName.replace('sub', 'unsub')]]);
-
-      this.emit(
-        'error',
-        new SolidisClientError(
-          'Failed to restore subscriptions',
-          toCommandError(error, [eventName, ...subscriptions]).cause,
-        ),
+      const failure = (
+        await handshake.send(
+          subscriptions
+            .filter((_, index) => !(replies[index] instanceof RespError))
+            .map((subscription) => [
+              eventName.replace('sub', 'unsub'),
+              subscription,
+            ]),
+        )
+      )
+        .flat()
+        .find((reply): reply is RespError => reply instanceof RespError);
+      const reason = new SolidisClientError(
+        'Failed to restore subscriptions',
+        toCommandError(failure ?? error, [eventName, ...subscriptions]).cause,
       );
+
+      if (failure) {
+        throw reason;
+      }
+
+      pubSub.clearSubscriptions(eventName);
+
+      this.emit('error', reason);
     }
   }
 }

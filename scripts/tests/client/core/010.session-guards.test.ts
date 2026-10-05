@@ -1868,6 +1868,76 @@ describe('session-guards', () => {
       }
     });
 
+    it('forgets channels whose restore the server refuses, keeping later replies in order', async () => {
+      const user = `solidis-session-guards-pubsub-${Date.now()}`;
+      const channel = keyspace.key('refused-restore', 'channel');
+      const key = keyspace.key('refused-restore', 'list');
+
+      await killer.send([
+        ['ACL', 'SETUSER', user, 'reset', 'on', '>secret', '~*', '&*', '+@all'],
+        ['RPUSH', key, 'message', channel, 'payload'],
+      ]);
+
+      const client = await createClient({
+        authentication: { username: user, password: 'secret' },
+        connectionRetryDelay: 10,
+      });
+      const errors: Error[] = [];
+      const messages: unknown[] = [];
+
+      client.on('error', (error) => errors.push(error));
+      client.on('message', (...parameters) => messages.push(parameters));
+
+      try {
+        const id = await client.clientId();
+        const reconnected = new Promise<void>((resolve) => {
+          client.once('reconnected', () => resolve());
+        });
+
+        await client.subscribe(channel);
+        await killer.send([['ACL', 'SETUSER', user, '-@pubsub']]);
+        await killer.clientKill(id);
+        await reconnected;
+
+        const failures = () =>
+          errors.filter(
+            (error) => error.message === 'Failed to restore subscriptions',
+          );
+        const [failure] = failures();
+
+        assert.ok(failure instanceof SolidisClientError);
+        assert.ok(failure.cause instanceof RespError);
+        assert.strictEqual(failure.cause.code, 'NOPERM');
+        assert.deepStrictEqual(
+          await client.send([
+            ['LRANGE', key, '0', '-1'],
+            ['ECHO', 'next'],
+          ]),
+          [
+            [
+              [
+                Buffer.from('message'),
+                Buffer.from(channel),
+                Buffer.from('payload'),
+              ],
+            ],
+            [Buffer.from('next')],
+          ],
+        );
+        assert.deepStrictEqual(messages, []);
+
+        await killer.send([['ACL', 'SETUSER', user, '+@pubsub']]);
+        await forceReconnect(client);
+
+        assert.strictEqual(await killer.publish(channel, 'lost'), 0);
+        assert.strictEqual(failures().length, 1);
+      } finally {
+        await closeClient(client);
+        await killer.aclDeluser(user);
+        await killer.del(key);
+      }
+    });
+
     it('returns to the default session after RESET, also across a reconnect', async () => {
       const client = await createClient({
         protocol: SolidisProtocols.RESP3,

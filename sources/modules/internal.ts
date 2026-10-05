@@ -59,13 +59,17 @@ export const SolidisPairingReason =
 
 const commandKindCache = new Map<string, SolidisCommandKind | null>();
 
+export function toCommandWord(text: string) {
+  return text.split('\0', 1)[0].toUpperCase();
+}
+
 function classifyCommand(command: StringOrBuffer[]) {
   const text = toTextPrefix(command[0], 32);
 
   let kind = commandKindCache.get(text);
 
   if (kind === undefined) {
-    kind = SolidisCommandKinds.get(text.toUpperCase()) ?? null;
+    kind = SolidisCommandKinds.get(toCommandWord(text)) ?? null;
 
     if (commandKindCache.size < SolidisCommandKindCacheLimit) {
       commandKindCache.set(text, kind);
@@ -78,7 +82,7 @@ function classifyCommand(command: StringOrBuffer[]) {
 function isUnsupported(command: StringOrBuffer[]) {
   const words = command
     .slice(0, 3)
-    .map((word) => toTextPrefix(word, 16).split('\0', 1)[0].toUpperCase());
+    .map((word) => toCommandWord(toTextPrefix(word, 16)));
 
   return [1, 2, 3].some((length) =>
     SolidisUnsupportedCommandNameSet.has(words.slice(0, length).join(' ')),

@@ -33,6 +33,10 @@ export class SolidisPubSub {
     return [...this.#getSubscriptions(eventName).values()];
   }
 
+  public countSubscriptions(eventName: SolidisSubscriptionEventName) {
+    return this.#getSubscriptions(eventName).size;
+  }
+
   public clearSubscriptions(eventName: SolidisSubscriptionEventName) {
     this.#getSubscriptions(eventName).clear();
   }

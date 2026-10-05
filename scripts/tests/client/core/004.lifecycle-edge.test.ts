@@ -22,6 +22,7 @@ import {
   waitFor,
 } from '../../utils/index.ts';
 
+import type { StringOrBuffer } from '../../../../sources/index.ts';
 import type { FeaturedClient } from '../../utils/index.ts';
 
 describe('lifecycle-edge', () => {
@@ -395,6 +396,47 @@ describe('lifecycle-edge', () => {
       assert.fail('expected SolidisConnectionError for connection refusal');
     }
     assert.strictEqual(error.message, 'connect ECONNREFUSED 127.0.0.1:1');
+  });
+
+  it('answers an empty or refused send() without connecting', async () => {
+    const server = new MockRedisServer();
+
+    await server.listen();
+
+    const clients = [
+      track(new SolidisFeaturedClient(mockClientOptions(server.port))),
+      track(new SolidisFeaturedClient(mockClientOptions(1))),
+    ];
+    const notArray: StringOrBuffer[][] = JSON.parse('"GET"');
+    const notText: StringOrBuffer[][] = JSON.parse('[["GET", 1]]');
+    const refusals: [StringOrBuffer[][], string][] = [
+      [
+        [['MONITOR']],
+        'MONITOR is not supported: it breaks the pairing of requests and replies.',
+      ],
+      [[[]], 'Cannot send an empty or non-array command.'],
+      [notArray, 'Cannot send an empty or non-array command.'],
+      [notText, 'GET takes only strings and Buffers.'],
+    ];
+
+    try {
+      for (const client of clients) {
+        client.on('error', () => {});
+
+        assert.deepStrictEqual(await client.send([]), []);
+
+        for (const [commands, message] of refusals) {
+          await assert.rejects(client.send(commands), {
+            name: 'SolidisRequesterError',
+            message,
+          });
+        }
+      }
+
+      assert.strictEqual(server.acceptedCount, 0);
+    } finally {
+      await server.close();
+    }
   });
 
   it('guarantees initialization completes before a concurrent connect resolves', async () => {

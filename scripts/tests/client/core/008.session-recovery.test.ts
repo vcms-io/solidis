@@ -11,6 +11,8 @@ import {
   SolidisClientError,
   SolidisCommandError,
   SolidisConnectionError,
+  SolidisDefaultOptions,
+  SolidisParser,
   SolidisProtocols,
   SolidisRequesterError,
 } from '../../../../sources/index.ts';
@@ -546,6 +548,123 @@ describe('session-recovery', () => {
       });
     }
 
+    async function startRestoreServer(
+      respond: (command: string[], connection: number) => string | undefined,
+    ) {
+      const server = new MockRedisServer();
+      const parsers = new Map<net.Socket, SolidisParser>();
+      const commands: string[][][] = [];
+
+      server.onData((socket, data) => {
+        const parser =
+          parsers.get(socket) ?? new SolidisParser(SolidisDefaultOptions);
+
+        parsers.set(socket, parser);
+
+        for (const command of parser.parse(data)) {
+          if (!Array.isArray(command)) {
+            continue;
+          }
+
+          const text = command.map(String);
+          const connection = server.acceptedCount;
+
+          text[0] = text[0].toUpperCase();
+
+          commands[connection] ??= [];
+          commands[connection].push(text);
+
+          const reply = respond(text, connection);
+
+          if (reply === undefined) {
+            const kind = text[0].toLowerCase();
+
+            socket.write(
+              kind.includes('subscribe')
+                ? text
+                    .slice(1)
+                    .map(
+                      (channel) =>
+                        `*3\r\n$${kind.length}\r\n${kind}\r\n$${channel.length}\r\n${channel}\r\n:${kind.startsWith('un') ? 0 : 1}\r\n`,
+                    )
+                    .join('')
+                : '*3\r\n$7\r\nmessage\r\n$1\r\nx\r\n$4\r\ndata\r\n',
+            );
+          } else {
+            socket.write(reply);
+          }
+        }
+      });
+
+      await server.listen();
+
+      return { server, commands };
+    }
+
+    const refusal = (channel: string) =>
+      `-NOPERM this user has no permissions to access the '${channel}' channel\r\n`;
+
+    it('fails the handshake when the server refuses to unsubscribe a restored channel', async () => {
+      const { server, commands } = await startRestoreServer(
+        ([name, channel], connection) => {
+          if (connection !== 2) {
+            return undefined;
+          }
+
+          if (name === 'UNSUBSCRIBE' || channel === 'y') {
+            return refusal(channel);
+          }
+
+          return undefined;
+        },
+      );
+      const client = new SolidisFeaturedClient(
+        mockClientOptions(server.port, {
+          autoReconnect: true,
+          connectionRetryDelay: 10,
+          maxConnectionRetries: 5,
+        }),
+      );
+      const errors: Error[] = [];
+
+      client.on('error', (error) => errors.push(error));
+
+      try {
+        await client.connect();
+        await client.subscribe('x', 'y');
+
+        const reconnected = nextEvent(client, 'reconnected');
+
+        server.destroySockets();
+
+        await reconnected;
+
+        const error = errors.find(
+          (candidate) =>
+            candidate.message === 'Failed to restore subscriptions',
+        );
+
+        assert.ok(error instanceof SolidisClientError);
+        assert.ok(error.cause instanceof RespError);
+        assert.strictEqual(
+          error.cause.message,
+          "NOPERM this user has no permissions to access the '***' channel",
+        );
+        assert.deepStrictEqual(commands[2], [
+          ['SUBSCRIBE', 'x'],
+          ['SUBSCRIBE', 'y'],
+          ['UNSUBSCRIBE', 'x'],
+        ]);
+        assert.deepStrictEqual(commands[3], [
+          ['SUBSCRIBE', 'x'],
+          ['SUBSCRIBE', 'y'],
+        ]);
+      } finally {
+        client.quit();
+        await server.close();
+      }
+    });
+
     it('does not report ready when the connection drops while restoring', async () => {
       const server = await startSubscriptionServer((subscribeCount, socket) => {
         if (subscribeCount === 2) {
@@ -739,9 +858,7 @@ describe('session-recovery', () => {
         received.push(text);
 
         if (text.toUpperCase().includes('UNSUBSCRIBE')) {
-          socket.write(
-            '*3\r\n$11\r\nunsubscribe\r\n$1\r\na\r\n:1\r\n*3\r\n$11\r\nunsubscribe\r\n$1\r\nb\r\n:0\r\n',
-          );
+          socket.write('*3\r\n$11\r\nunsubscribe\r\n$1\r\na\r\n:0\r\n');
 
           return;
         }
@@ -800,7 +917,12 @@ describe('session-recovery', () => {
         );
         assert.ok(
           received.some((text) =>
-            text.includes('*3\r\n$11\r\nunsubscribe\r\n$1\r\na\r\n$1\r\nb\r\n'),
+            text.includes('*2\r\n$11\r\nunsubscribe\r\n$1\r\na\r\n'),
+          ),
+        );
+        assert.ok(
+          !received.some((text) =>
+            /unsubscribe\r\n(?:\$1\r\na\r\n)?\$1\r\nb\r\n/.test(text),
           ),
         );
         assert.deepStrictEqual(

@@ -29,11 +29,11 @@ import {
   createRefusal,
   inspectCommand,
   SolidisSessionSendOptions,
+  toCommandWord,
 } from './internal.ts';
 import { SolidisParser } from './parser.ts';
 
 import type {
-  SolidisCommandKind,
   SolidisPipeline,
   SolidisRequest,
   SolidisSubRequest,
@@ -89,8 +89,6 @@ export class SolidisRequester {
   #pendingRequests: SolidisRequest[] = [];
   #inflightQueue: SolidisPipeline[] = [];
   #inflightHead = 0;
-  #subscriptionQueue: SolidisSubRequest[] = [];
-  #subscriptionHead = 0;
   #timedOutCount = 0;
   #timedOutRun = 0;
   #protocol: SolidisProtocols = SolidisProtocols.RESP2;
@@ -226,22 +224,18 @@ export class SolidisRequester {
           }
 
           const kind = request.kinds?.[index];
-          const command = this.#expandCommand(request.commands[index], kind);
-          const isSubscription = isSubscriptionEventName(kind);
-          const subRequest = {
+          const command = request.commands[index];
+
+          pipeline.commands.push(command);
+          pipeline.subRequests.push({
             request,
             command,
             kind,
-            span: isSubscription ? command.length - 1 : 1,
+            span: isSubscriptionEventName(kind)
+              ? command.length - 1 || Number(!isUnsubscribeEventName(kind))
+              : 1,
             index,
-          };
-
-          pipeline.commands.push(command);
-          pipeline.subRequests.push(subRequest);
-
-          if (isSubscription && !isUnsubscribeEventName(kind)) {
-            this.#subscriptionQueue.push(subRequest);
-          }
+          });
 
           pipeline.timeout = request.timeout;
           pipeline.isBlocking ||= request.isBlocking;
@@ -343,31 +337,6 @@ export class SolidisRequester {
     }
 
     return [isQueueing, isWatching];
-  }
-
-  #expandCommand(
-    command: StringOrBuffer[],
-    kind: SolidisCommandKind | undefined,
-  ) {
-    if (command.length > 1 || !isUnsubscribeEventName(kind)) {
-      return command;
-    }
-
-    const subscribeKind = kind.replace('un', '');
-    const channels: StringOrBuffer[] =
-      this.#options.pubSub.getSubscriptions(kind);
-
-    for (const subRequest of this.#subscriptionQueue.slice(
-      this.#subscriptionHead,
-    )) {
-      if (subRequest.kind === subscribeKind) {
-        for (let index = 1; index < subRequest.command.length; index += 1) {
-          channels.push(subRequest.command[index]);
-        }
-      }
-    }
-
-    return channels.length === 0 ? command : [command[0], ...channels];
   }
 
   #seal(pipeline: SolidisPipeline) {
@@ -493,12 +462,22 @@ export class SolidisRequester {
 
     let replies = [reply];
 
-    if (subRequest.span > 1) {
+    if (subRequest.span !== 1) {
       pipeline.subReplies.push(reply);
 
       if (
-        pipeline.subReplies.length < subRequest.span &&
-        !(reply instanceof RespError)
+        !(reply instanceof RespError) &&
+        (subRequest.span
+          ? pipeline.subReplies.length < subRequest.span
+          : Array.isArray(reply) &&
+            reply[2] !==
+              (subRequest.kind === 'sunsubscribe'
+                ? 0
+                : this.#options.pubSub.countSubscriptions(
+                    subRequest.kind === 'unsubscribe'
+                      ? 'psubscribe'
+                      : 'subscribe',
+                  )))
       ) {
         return;
       }
@@ -508,13 +487,6 @@ export class SolidisRequester {
     }
 
     pipeline.subRequestIndex += 1;
-
-    if (this.#subscriptionQueue[this.#subscriptionHead] === subRequest) {
-      this.#subscriptionHead = dequeue(
-        this.#subscriptionQueue,
-        this.#subscriptionHead,
-      );
-    }
 
     if (pipeline.subRequestIndex === pipeline.subRequests.length) {
       clearTimeout(pipeline.timer);
@@ -546,6 +518,7 @@ export class SolidisRequester {
       subRequest.command === discardedExecCommand ? [null] : replies;
     const error =
       this.#options.rejectOnPartialPipelineError &&
+      !request.isSession &&
       result.find((reply): reply is RespError => reply instanceof RespError);
 
     request.replies[subRequest.index] = result;
@@ -600,7 +573,7 @@ export class SolidisRequester {
       this.#negotiatedProtocol = this.#protocol;
 
       for (let index = 2; index < command.length; index += 2) {
-        if (String(command[index]).toUpperCase() === 'AUTH') {
+        if (toCommandWord(String(command[index])) === 'AUTH') {
           this.#authentication = {
             username: command[index + 1],
             password: command[index + 2],
@@ -675,8 +648,6 @@ export class SolidisRequester {
 
     this.#inflightQueue = [];
     this.#inflightHead = 0;
-    this.#subscriptionQueue = [];
-    this.#subscriptionHead = 0;
     this.#timedOutCount = 0;
     this.#timedOutRun = 0;
     this.#parser = new SolidisParser(this.#options);

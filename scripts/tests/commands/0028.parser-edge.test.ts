@@ -57,6 +57,18 @@ describe('parser-edge', () => {
       );
     });
 
+    it('refuses a negative length other than -1 for arrays and bulk strings', () => {
+      for (const length of ['-2', '-5', '-10']) {
+        for (const prefix of ['*', '$']) {
+          assert.throws(
+            () => parseOnce(bytes(`${prefix}${length}\r\n`)),
+            isParserError(`Invalid length '${length}'`),
+            `${prefix}${length}`,
+          );
+        }
+      }
+    });
+
     it('refuses replies nested deeper than 512 levels', () => {
       const [deepest] = parseOnce(bytes(`${'*1\r\n'.repeat(512)}:1\r\n`));
 
@@ -367,6 +379,25 @@ describe('parser-edge', () => {
       );
     });
 
+    it('refuses big numbers spelled the JavaScript way', () => {
+      for (const text of [
+        '0x10',
+        ' 5',
+        '5 ',
+        '0b11',
+        '0o7',
+        '\t1',
+        '1\xa0',
+        '1_0',
+        '+-1',
+      ]) {
+        const [value] = parseOnce(bytes(`(${text}\r\n`));
+
+        assert.ok(value instanceof RespError, JSON.stringify(text));
+        assert.strictEqual(value.message, `BigNumber: '${text}'`);
+      }
+    });
+
     it('joins a line end split by an empty chunk', () => {
       assert.deepStrictEqual(
         parseOnce(bytes('+OK\r'), bytes(''), bytes('\n')),
@@ -410,6 +441,46 @@ describe('parser-edge', () => {
         () => parser.parse(bytes('a'.repeat(8))),
         isParserError('Line length exceeds maximum allowed 1024'),
       );
+    });
+
+    it('rejects a bulk string one byte past the configured maximum', () => {
+      const parser = new SolidisParser({
+        parser: { maxBulkStringLength: 4 },
+      });
+
+      assert.throws(
+        () => parser.parse(bytes('$5\r\n')),
+        isParserError('Bulk length 5 exceeds maximum allowed 4'),
+      );
+    });
+
+    it('rejects an unfinished line in the chunk that takes it past the maximum', () => {
+      for (const [tail, isAllowed] of [
+        ['aaaaa', true],
+        ['aaaaa\r', true],
+        ['aaaaaa', false],
+        ['aaaaaa\r', false],
+      ] as const) {
+        const parser = new SolidisParser({
+          parser: { maxBulkStringLength: 10 },
+        });
+
+        assert.deepStrictEqual(parser.parse(bytes('+aaaaa')), []);
+
+        if (isAllowed) {
+          assert.deepStrictEqual(parser.parse(bytes(tail)), []);
+          assert.deepStrictEqual(
+            parser.parse(bytes(tail.endsWith('\r') ? '\n' : '\r\n')),
+            ['aaaaaaaaaa'],
+          );
+        } else {
+          assert.throws(
+            () => parser.parse(bytes(tail)),
+            isParserError('Line length exceeds maximum allowed 10'),
+            JSON.stringify(tail),
+          );
+        }
+      }
     });
 
     it('parses a line split across thousands of chunks in linear time', () => {

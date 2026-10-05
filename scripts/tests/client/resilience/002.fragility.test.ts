@@ -1539,8 +1539,8 @@ describe('fragility', () => {
     });
   });
 
-  describe('unsubscribe expansion', () => {
-    it('expands an empty UNSUBSCRIBE to include all subscribed channels', async () => {
+  describe('argument-less unsubscribe', () => {
+    it('sends an empty UNSUBSCRIBE as is', async () => {
       const server = await startMockServer();
 
       const received: string[] = [];
@@ -1589,13 +1589,10 @@ describe('fragility', () => {
         { description: 'UNSUBSCRIBE frame to arrive at mock server' },
       );
 
-      assert.strictEqual(
-        unsubFrame,
-        '*2\r\n$11\r\nUNSUBSCRIBE\r\n$2\r\nch\r\n',
-      );
+      assert.strictEqual(unsubFrame, '*1\r\n$11\r\nUNSUBSCRIBE\r\n');
     });
 
-    it('expands an empty SUNSUBSCRIBE to include all subscribed shard channels', async () => {
+    it('sends an empty SUNSUBSCRIBE as is, so shard channels of several slots can leave together', async () => {
       const server = await startMockServer();
 
       const received: string[] = [];
@@ -1607,7 +1604,7 @@ describe('fragility', () => {
         if (text.includes('SSUBSCRIBE') && !text.includes('SUNSUBSCRIBE')) {
           socket.write(
             Buffer.from(
-              '*3\r\n$10\r\nssubscribe\r\n$5\r\nsh.ch\r\n:1\r\n',
+              '*3\r\n$10\r\nssubscribe\r\n$4\r\nsh.a\r\n:1\r\n*3\r\n$10\r\nssubscribe\r\n$4\r\nsh.b\r\n:2\r\n',
               'latin1',
             ),
           );
@@ -1618,7 +1615,7 @@ describe('fragility', () => {
         if (text.includes('SUNSUBSCRIBE')) {
           socket.write(
             Buffer.from(
-              '*3\r\n$12\r\nsunsubscribe\r\n$5\r\nsh.ch\r\n:0\r\n',
+              '*3\r\n$12\r\nsunsubscribe\r\n$4\r\nsh.b\r\n:1\r\n*3\r\n$12\r\nsunsubscribe\r\n$4\r\nsh.a\r\n:0\r\n',
               'latin1',
             ),
           );
@@ -1626,7 +1623,7 @@ describe('fragility', () => {
           return;
         }
 
-        socket.write(Buffer.from('+OK\r\n', 'latin1'));
+        socket.write(Buffer.from('+PONG\r\n', 'latin1'));
       });
 
       const client = trackMockClient(
@@ -1636,21 +1633,20 @@ describe('fragility', () => {
       );
 
       await client.connect();
-      await client.ssubscribe('sh.ch');
+      await client.ssubscribe('sh.a', 'sh.b');
       await client.sunsubscribe();
+
+      assert.deepStrictEqual(await client.send([['PING']]), [['PONG']]);
 
       const sunsubFrame = await waitFor(
         () => received.find((frame) => frame.includes('SUNSUBSCRIBE')),
         { description: 'SUNSUBSCRIBE frame to arrive at mock server' },
       );
 
-      assert.strictEqual(
-        sunsubFrame,
-        '*2\r\n$12\r\nSUNSUBSCRIBE\r\n$5\r\nsh.ch\r\n',
-      );
+      assert.strictEqual(sunsubFrame, '*1\r\n$12\r\nSUNSUBSCRIBE\r\n');
     });
 
-    it('expands an empty PUNSUBSCRIBE to include all subscribed patterns', async () => {
+    it('sends an empty PUNSUBSCRIBE as is', async () => {
       const server = await startMockServer();
 
       const received: string[] = [];
@@ -1699,10 +1695,7 @@ describe('fragility', () => {
         { description: 'PUNSUBSCRIBE frame to arrive at mock server' },
       );
 
-      assert.strictEqual(
-        punsubFrame,
-        '*2\r\n$12\r\nPUNSUBSCRIBE\r\n$4\r\nch.*\r\n',
-      );
+      assert.strictEqual(punsubFrame, '*1\r\n$12\r\nPUNSUBSCRIBE\r\n');
     });
   });
 

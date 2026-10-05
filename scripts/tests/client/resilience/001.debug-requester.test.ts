@@ -723,6 +723,47 @@ describe('debug-requester', () => {
       assert.strictEqual(connection.writes.length, 0);
     });
 
+    it('reads command names and HELLO options only up to a NUL byte, as the server does', async () => {
+      const { connection, pubSub, requester } = createRequester();
+
+      await assert.rejects(requester.send([['MONITOR\0x']]), {
+        message:
+          'MONITOR\0X is not supported: it breaks the pairing of requests and replies.',
+      });
+      await assert.rejects(requester.send([['CLIENT\0', 'REPLY', 'SKIP']]), {
+        message:
+          'CLIENT\0 is not supported: it breaks the pairing of requests and replies.',
+      });
+
+      const tracked = requester.send([
+        ['SELECT\0', '2'],
+        ['HELLO', '3', 'AUTH\0x', 'user', 'secret'],
+        ['SUBSCRIBE\0x', 'news'],
+        ['MULTI\0'],
+      ]);
+
+      await flushed();
+
+      connection.reply(
+        `+OK\r\n%1\r\n+proto\r\n:3\r\n${subscribeConfirmation('subscribe', 'news', 1)}+OK\r\n`,
+      );
+
+      assert.strictEqual((await tracked).length, 4);
+      assert.strictEqual(requester.database, 2);
+      assert.strictEqual(requester.protocol, SolidisProtocols.RESP3);
+      assert.deepStrictEqual(requester.authentication, {
+        username: 'user',
+        password: 'secret',
+      });
+      assert.deepStrictEqual(pubSub.getSubscriptions('subscribe'), [
+        Buffer.from('news'),
+      ]);
+      await assert.rejects(requester.send([['SSUBSCRIBE', 'shard']]), {
+        message:
+          'SSUBSCRIBE is not supported inside a transaction: it breaks the pairing of requests and replies.',
+      });
+    });
+
     it('refuses a send() argument that is not an array', async () => {
       const { connection, requester } = createRequester();
 
@@ -1036,6 +1077,67 @@ describe('debug-requester', () => {
         connection.writes.at(-1),
         commandsToBuffer([['MULTI'], ['INCR', 'counter'], ['EXEC']]),
       );
+    });
+
+    it('refuses every command but MULTI, EXEC, DISCARD and RESET after a lost MULTI', async () => {
+      const { connection, requester } = createRequester();
+      const multi = settle(requester.send([['MULTI']]));
+
+      await flushed();
+
+      connection.emit('close', new SolidisConnectionError('lost'));
+
+      assert.ok((await multi) instanceof SolidisConnectionError);
+
+      for (const [command, name] of [
+        [['GET', 'k'], 'GET'],
+        [['WATCH', 'k'], 'WATCH'],
+        [['UNWATCH'], 'UNWATCH'],
+        [['SELECT', '1'], 'SELECT'],
+        [['HELLO', '3'], 'HELLO'],
+        [['AUTH', 'secret'], 'AUTH'],
+        [['SUBSCRIBE', 'news'], 'SUBSCRIBE'],
+        [['CLIENT', 'ID'], 'CLIENT ID'],
+      ] as const) {
+        await assert.rejects(requester.send([[...command]]), {
+          name: 'SolidisRequesterError',
+          message: `${name} is refused after a lost MULTI.`,
+        });
+      }
+
+      const reset = requester.send([['RESET'], ['GET', 'k']]);
+
+      await flushed();
+
+      assert.deepStrictEqual(
+        connection.writes.at(-1),
+        commandsToBuffer([['RESET'], ['GET', 'k']]),
+      );
+
+      connection.reply('+RESET\r\n$-1\r\n');
+
+      assert.deepStrictEqual(await reset, [['RESET'], [null]]);
+    });
+
+    it('resolves error replies of handshake requests even with rejectOnPartialPipelineError', async () => {
+      const { connection, requester } = createRequester({
+        rejectOnPartialPipelineError: true,
+      });
+      const session = requester.send(
+        [['SUBSCRIBE', 'news']],
+        SolidisSessionSendOptions,
+      );
+      const command = settle(requester.send([['GET', 'k']]));
+
+      await flushed();
+
+      connection.reply('-NOPERM no access\r\n-WRONGTYPE wrong kind\r\n');
+
+      const [[refusal]] = await session;
+
+      assert.ok(refusal instanceof RespError);
+      assert.strictEqual(refusal.code, 'NOPERM');
+      assert.ok((await command) instanceof SolidisCommandError);
     });
 
     it('counts an unanswered MULTI as lost and an unanswered EXEC as the end of its transaction', async () => {
@@ -1513,30 +1615,49 @@ describe('debug-requester', () => {
       assert.strictEqual(requester.database, 2);
     });
 
-    it('expands an argument-less UNSUBSCRIBE over more channels than a call takes arguments', async () => {
-      const { connection, requester } = createRequester();
+    it('sends an argument-less UNSUBSCRIBE as is and reads its replies however many channels it ends', async () => {
+      const { connection, pubSub, requester } = createRequester();
       const channels = Array.from(
         { length: 150_000 },
         (_, index) => `c${index}`,
       );
-      const subscribing = settle(requester.send([['SUBSCRIBE', ...channels]]));
-      const unsubscribing = settle(requester.send([['UNSUBSCRIBE']]));
+      const subscribing = requester.send([['SUBSCRIBE', ...channels]]);
+      const unsubscribing = requester.send([['UNSUBSCRIBE']]);
 
       await flushed();
 
-      assert.deepStrictEqual(connection.writes, [
-        commandsToBuffer([
-          ['SUBSCRIBE', ...channels],
-          ['UNSUBSCRIBE', ...channels],
-        ]),
-      ]);
+      assert.strictEqual(connection.writes.length, 1);
+      assert.ok(
+        connection.writes[0].equals(
+          commandsToBuffer([['SUBSCRIBE', ...channels], ['UNSUBSCRIBE']]),
+        ),
+      );
 
-      connection.emit('close', new SolidisConnectionError('lost'));
+      connection.reply(
+        channels
+          .map((channel, index) =>
+            subscribeConfirmation('subscribe', channel, index + 1),
+          )
+          .join(''),
+      );
+      connection.reply(
+        channels
+          .map((channel, index) =>
+            subscribeConfirmation(
+              'unsubscribe',
+              channel,
+              channels.length - index - 1,
+            ),
+          )
+          .join(''),
+      );
 
-      await Promise.all([subscribing, unsubscribing]);
+      assert.strictEqual((await subscribing)[0].length, channels.length);
+      assert.strictEqual((await unsubscribing)[0].length, channels.length);
+      assert.strictEqual(pubSub.hasActiveSubscriptions, false);
     });
 
-    it('expands an argument-less UNSUBSCRIBE with the exact bytes of binary channels', async () => {
+    it('ends a binary channel with an argument-less UNSUBSCRIBE', async () => {
       const { connection, pubSub, requester } = createRequester();
       const channel = Buffer.from([0x63, 0xff, 0xfe]);
 
@@ -1547,7 +1668,7 @@ describe('debug-requester', () => {
       await flushed();
 
       assert.deepStrictEqual(connection.writes, [
-        commandsToBuffer([['UNSUBSCRIBE', channel]]),
+        commandsToBuffer([['UNSUBSCRIBE']]),
       ]);
 
       connection.emit(
@@ -2328,6 +2449,59 @@ describe('debug-requester', () => {
       assert.deepStrictEqual(getEvents(events, 'error'), []);
     });
 
+    it('sends an argument-less SUNSUBSCRIBE as is and reads its replies until no shard channel is left', async () => {
+      const { connection, pubSub, requester } = createRequester();
+
+      for (const channel of ['a', 'b']) {
+        pubSub.dispatchSubscriptionChange('ssubscribe', [
+          'ssubscribe',
+          channel,
+          1,
+        ]);
+      }
+
+      const unsubscribed = requester.send([['SUNSUBSCRIBE']]);
+      const next = requester.send([['PING']]);
+
+      await flushed();
+
+      assert.deepStrictEqual(connection.writes, [
+        commandsToBuffer([['SUNSUBSCRIBE'], ['PING']]),
+      ]);
+
+      connection.reply(subscribeConfirmation('sunsubscribe', 'b', 1));
+      connection.reply(
+        `${subscribeConfirmation('sunsubscribe', 'a', 0)}+PONG\r\n`,
+      );
+
+      assert.deepStrictEqual(await unsubscribed, [
+        [
+          [Buffer.from('sunsubscribe'), Buffer.from('b'), 1],
+          [Buffer.from('sunsubscribe'), Buffer.from('a'), 0],
+        ],
+      ]);
+      assert.deepStrictEqual(await next, [['PONG']]);
+      assert.strictEqual(pubSub.hasActiveSubscriptions, false);
+
+      const empty = requester.send([['SUNSUBSCRIBE']]);
+      const unknown = requester.send([['SUNSUBSCRIBE']]);
+
+      await flushed();
+
+      connection.reply(
+        "*3\r\n$12\r\nsunsubscribe\r\n$-1\r\n:0\r\n-ERR unknown command 'SUNSUBSCRIBE'\r\n",
+      );
+
+      assert.deepStrictEqual(await empty, [
+        [[Buffer.from('sunsubscribe'), null, 0]],
+      ]);
+
+      const [[refusal]] = await unknown;
+
+      assert.ok(refusal instanceof RespError);
+      assert.strictEqual(refusal.code, 'ERR');
+    });
+
     it('resolves SUBSCRIBE only after every channel is confirmed', async () => {
       const { connection, pubSub, requester } = createRequester();
 
@@ -2409,32 +2583,44 @@ describe('debug-requester', () => {
       assert.deepStrictEqual(await next, [['PONG']]);
     });
 
-    it('expands an argument-less UNSUBSCRIBE into the tracked channels', async () => {
+    it('reads the replies of an argument-less UNSUBSCRIBE or PUNSUBSCRIBE until only the other kind is left', async () => {
       const { connection, pubSub, requester } = createRequester();
 
       pubSub.dispatchSubscriptionChange('subscribe', ['subscribe', 'a', 1]);
       pubSub.dispatchSubscriptionChange('subscribe', ['subscribe', 'b', 2]);
       pubSub.dispatchSubscriptionChange('psubscribe', ['psubscribe', 'p*', 3]);
+      pubSub.dispatchSubscriptionChange('ssubscribe', ['ssubscribe', 's', 1]);
 
-      const pending = requester.send([['UNSUBSCRIBE']]);
+      const channels = requester.send([['UNSUBSCRIBE']]);
+      const patterns = requester.send([['PUNSUBSCRIBE']]);
+      const next = requester.send([['PING']]);
 
       await flushed();
 
       assert.deepStrictEqual(connection.writes, [
-        commandsToBuffer([['UNSUBSCRIBE', 'a', 'b']]),
+        commandsToBuffer([['UNSUBSCRIBE'], ['PUNSUBSCRIBE'], ['PING']]),
       ]);
 
       connection.reply(
-        subscribeConfirmation('unsubscribe', 'a', 2) +
-          subscribeConfirmation('unsubscribe', 'b', 1),
+        subscribeConfirmation('unsubscribe', 'b', 2) +
+          subscribeConfirmation('unsubscribe', 'a', 1),
       );
 
-      const [replies] = await pending;
-
-      assert.strictEqual(replies.length, 2);
-      assert.strictEqual(pubSub.getSubscriptions('subscribe').length, 0);
+      assert.strictEqual((await channels)[0].length, 2);
       assert.deepStrictEqual(pubSub.getSubscriptions('psubscribe'), [
         Buffer.from('p*'),
+      ]);
+
+      connection.reply(
+        `${subscribeConfirmation('punsubscribe', 'p*', 0)}*2\r\n$4\r\npong\r\n$0\r\n\r\n`,
+      );
+
+      assert.strictEqual((await patterns)[0].length, 1);
+      assert.deepStrictEqual(await next, [
+        [[Buffer.from('pong'), Buffer.from('')]],
+      ]);
+      assert.deepStrictEqual(pubSub.getSubscriptions('ssubscribe'), [
+        Buffer.from('s'),
       ]);
     });
 
@@ -2588,7 +2774,7 @@ describe('debug-requester', () => {
         commandsToBuffer([
           ['PSUBSCRIBE', 'p*'],
           ['SUBSCRIBE', binary],
-          ['UNSUBSCRIBE', 'a', 'b', 'c', binary],
+          ['UNSUBSCRIBE'],
           ['GET', 'k'],
         ]),
       ]);
@@ -2623,7 +2809,7 @@ describe('debug-requester', () => {
       ]);
     });
 
-    it('leaves settled SUBSCRIBEs out of a later argument-less UNSUBSCRIBE', async () => {
+    it('ends an argument-less UNSUBSCRIBE with the replies of the channels the server took', async () => {
       const { connection, pubSub, requester } = createRequester();
       const subscribed = requester.send([
         ['SUBSCRIBE', 'a'],
@@ -2646,7 +2832,7 @@ describe('debug-requester', () => {
 
       assert.deepStrictEqual(
         connection.writes.at(-1),
-        commandsToBuffer([['UNSUBSCRIBE', 'a']]),
+        commandsToBuffer([['UNSUBSCRIBE']]),
       );
 
       connection.reply(subscribeConfirmation('unsubscribe', 'a', 0));
@@ -2655,7 +2841,7 @@ describe('debug-requester', () => {
       assert.deepStrictEqual(pubSub.getSubscriptions('subscribe'), []);
     });
 
-    it('expands argument-less UNSUBSCRIBEs in time that grows only with the SUBSCRIBEs in flight', async () => {
+    it('sends argument-less UNSUBSCRIBEs in time that does not grow with the requests in flight', async () => {
       const { connection, requester } = createRequester();
       const backlog = settle(
         requester.send(Array.from({ length: 200_000 }, () => ['GET', 'k'])),
