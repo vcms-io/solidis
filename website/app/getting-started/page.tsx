@@ -183,7 +183,7 @@ const client = new SolidisFeaturedClient({
 client.on('connect', () => console.log('Connected to server'));
 client.on('ready', () => console.log('Client is ready for commands'));
 client.on('error', (err) => console.error('Error occurred: ', err));
-client.on('end', () => console.log('Connection closed'));
+client.on('end', () => console.log('Client quit'));
 
 await client.connect();
 

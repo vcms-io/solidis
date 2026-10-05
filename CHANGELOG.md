@@ -262,7 +262,7 @@ Other option changes:
 
 - **URI parsing.** The path's database is applied, percent-encoded credentials are decoded, and bracketed IPv6 hosts work. A scheme other than `redis:` or `rediss:`, or an invalid database, throws a `SolidisClientError`. `redis://name@host` now means user `name` with an empty password; 0.4.x sent `name` as the password, as `redis-cli` reads it. Write `redis://:secret@host` for a password alone.
 - **Reconnect delay.** `connectionRetryDelay` now starts an exponential backoff that doubles per failed attempt, is capped by `maxConnectionRetryDelay` (`2000` ms) and is jittered to 50–100%. With the defaults, the 20 retries wait 17–33 seconds instead of 2. Lower `maxConnectionRetries` or `maxConnectionRetryDelay` to fail faster.
-  - `maxConnectionRetries` bounds each `connect()` and each lost connection. When the background reconnect gives up, the client emits an `error` (`Connection failed after N retries.`) and stops until the next command or `connect()`. `Infinity` retries forever.
+  - `maxConnectionRetries` bounds each `connect()` and each lost connection. When the background reconnect gives up, the client emits an `error` (`Connection failed after N retries.`) and stops until the next command or `connect()`, which starts again from the first attempt. `Infinity` retries forever.
   - A connection that closes before it stays ready for `maxConnectionRetryDelay` counts as a failed attempt. Servers or proxies that drop connections, or refuse a changed password, are retried with growing delays until the retries run out, not in an endless loop.
   - `reconnecting(attempt, delay)` fires before every attempt, including the first after a drop. `attempt` counts from 1 since the connection was last stable.
 - **Handshake.**
@@ -271,7 +271,7 @@ Other option changes:
   - A ready check denied with `NOPERM` counts as ready, and the check stops waiting when its connection closes.
   - A user chosen at runtime with `auth()` or `hello()`, and a protocol chosen with `hello()`, are restored after a reconnect until `RESET`, after which a reconnect uses the configured user, protocol and database. `SELECT`, `HELLO` and `AUTH` queued in a transaction count once `EXEC` runs them, and a `MULTI` or `WATCH` the server refuses does not count as lost.
   - A `CLIENT SETNAME` error other than `NOPERM` or an unknown command fails with `CLIENT SETNAME failed`.
-  - An error sent before any request, as from a server in protected mode or at `maxclients`, rejects the waiting requests at once with a `SolidisConnectionError` that carries the server's reply. When the handshake sends nothing, `connect()` resolves first, and the refusal reaches the waiting commands, a command already sent, or the `error` listeners.
+  - An error sent before any request, as from a server in protected mode or at `maxclients`, fails the first handshake step with that step's error, such as `CLIENT SETNAME failed`, whose `cause` holds the server's reply. When the handshake sends nothing, `connect()` resolves first, and the refusal rejects the waiting commands with a `SolidisConnectionError` that carries the reply, or reaches a command already sent or the `error` listeners.
   - `WRONGPASS` or `NOAUTH` on any step, including restoring the database and subscriptions, and any other `AUTH` error fail with `Authentication failed`. Another `SELECT` error fails with `SELECT failed`.
 - **Listener errors.** A throwing `connect`, `ready`, `reconnected`, `close`, `reconnecting`, `drain` or `end` listener no longer breaks the session; the client emits an `error` such as `A 'ready' listener threw`. A throwing `debug` listener goes to `process.emitWarning()`, and debug entries are delivered asynchronously.
 - **Unhandled errors.** An `error` event without a listener now also goes to `process.emitWarning()`, even after `removeAllListeners()`. Add a listener to handle errors yourself:
@@ -305,8 +305,8 @@ Skip this step unless you build the internal classes yourself or write custom co
   - Removed: `InvalidReplyPrefix`, `escapeReply()`, `tryReplyToConfigInfo()` (use `tryReplyToStringRecord()`), `tryReplyToStringRecordRecursively()` and `tryReplyToSortedSetMembersOrNull()`, and from `common/utils`, `checkReplyIsArray()` and `checkReplyIsMessageEvent()`.
   - Added reply readers: `tryReplyTuple()`, `tryReplyToInteger()`, `tryReplyToStringOrBuffer()` with its nullable, array and record variants, `tryReplyToCuckooFilterInsertResults()`, `tryReplyToJsonNumberText()`, `tryReplyToJsonNumbers()`, `tryReplyToNumberOrErrorArray()`, `tryReplyToStreamEntryOrDeleted()` and `tryReplyToStreamGroupReadResultsOrNull()`.
   - Added executors: `executeIntegerCommand()`, `buildKeyIntegerExecutor()`, `buildKeyPopExecutor()` and `buildKeyStringOrBufferExecutor()`.
-  - Added helpers: `newUnexpectedReplyError()`, `describeReply()`, `setRecordEntry()` and `appendRecordEntries()`.
-  - `tryReplyToKeyValuePairOrNull()` and `tryReplyToKeyStringElementsOrNull()` take an optional `options` argument.
+  - Added helpers: `newUnexpectedReplyError()`, `describeReply()`, `setRecordEntry()`, `appendRecordEntries()` and `buildKeyExpireCommand()`.
+  - `tryReplyToKeyValuePairOrNull()` and `tryReplyToKeyStringElementsOrNull()` take an optional `options` argument, and `tryReplyToModuleInfo()` an optional command name.
 - **Removed types:**
   - `SolidisRecursiveStringRecord`, `RespClientReplyMode`, `RespAclLogKey`, `RespAclLogNumberKey` and `SolidisClientRecoveryStep`.
   - Pub/Sub: `SolidisSubscribeMethod`, `SolidisSSubscribeMethod`, `SolidisPSubscribeMethod` and `SolidisTranslatedPubSubReplies`.
@@ -321,7 +321,7 @@ Skip this step unless you build the internal classes yourself or write custom co
 - `{ bigint: true }` returns a `bigint` from `incr`, `incrby`, `decr`, `decrby`, `hincrby`, `bitfield` and `bitfieldRo`. Increments and bitfield values accept `bigint`.
 - `Buffer` values for `append`, `msetnx`, `lpush`, `rpush`, `lpushx`, `lset`, `linsert`, `lrem` and `lpos`, and `Buffer` messages for `publish` and `spublish`.
 - `'-inf'`, `'+inf'` and exclusive bounds such as `'(1'` for `zcount`, `zrangebyscore`, `zrevrangebyscore` and `zremrangebyscore` (`CommandScoreBound`).
-- `send(commands, { timeout })` gives one request its own timeout, applied while it waits for the connection and again while it waits for the reply. `send(commands, { blockingTimeout })` handles a raw blocking command like `blpop()`.
+- `send(commands, { timeout })` gives one request its own timeout, applied while it waits for the connection and again while it waits for the reply. Like `commandTimeout`, it resets the connection once every command in flight has timed out, also when `commandTimeout` is `0`. `send(commands, { blockingTimeout })` handles a raw blocking command like `blpop()`.
 - `maxConnectionRetryDelay` caps the reconnect backoff.
 - The `reconnecting(attempt, delay)` and `push(reply)` events, and the cause as the argument of `close(error)`. `push` carries RESP3 pushes that are not Pub/Sub messages, such as client tracking invalidations.
 - `expire(key, seconds, mode)`, `lpop(key, count)` and `rpop(key, count)`, and `hset(key, fields)` for several fields.
@@ -404,7 +404,7 @@ See [Upgrading from 0.4.x](#upgrading-from-04x) for replacements.
 - `quit()` left pending commands to time out, or pending forever with `commandTimeout: 0`.
 - `close` was declared but never emitted, so a lost connection showed only as a later `reconnected`.
 - A handshake interrupted by a lost connection could continue on the next connection or report `ready` while disconnected or after `quit()`.
-- A transaction lost its `WATCH` in a reconnect and committed anyway, also when `WATCH` was sent again, and a database selected inside a transaction was lost after a reconnect.
+- A transaction lost its `WATCH` in a reconnect and committed anyway, also when `WATCH` was sent again or an `EXEC` or `DISCARD` outside a transaction failed, and a database selected inside a transaction was lost after a reconnect.
 - A `MULTI` sent with `send()` was lost in a reconnect, so the commands after it ran one by one and `EXEC` failed. Those commands are refused now, and the `EXEC` returns `null`.
 - `multi()` left `WATCH` armed after an empty `exec()`, a `discard()` or an `exec()` that rejected a failed call, so the next transaction was aborted. It also reported a refused `MULTI` as `EXECABORT` although the queued commands had run, ran `pipeline()` outside the transaction and threw a `TypeError` for `send`, `quit` and the event methods.
 - `exec()` waited for the queued calls before sending the transaction, so commands sent after it in the same tick ran first, and calls queued after it joined its transaction. It sends at once now, and a call that queues no command makes it send `UNWATCH` and reject, with the call's own error when it has one.
@@ -427,6 +427,8 @@ See [Upgrading from 0.4.x](#upgrading-from-04x) for replacements.
 - A non-string argument, such as `undefined` from an optional property passed to `mset`, `hmset`, `mget` or `hmget`, failed every request sent in the same tick. Only that request is rejected now.
 - An invalid `port` was retried for about two seconds before `connect()` rejected with `Connection failed after 20 retries.` It now rejects at once with a `SolidisConnectionError`.
 - RESP3 doubles spelled `-nan`, as Redis 6.2 sends them, failed to parse, and long simple string replies split across many chunks took quadratic time.
+- Text such as `0x10`, `0b11` or a number padded with spaces was read as a number, in RESP3 doubles and in replies that commands read as numbers. It is an error reply or an unexpected reply now. Integers and big numbers with a leading `+`, which RESP3 allows, failed to parse.
+- A negative length other than the RESP2 null array and bulk string was read as `null`, so a malformed push could take the reply of a command. It is a protocol error now.
 - `bitop()` threw a plain `Error`, and an unparsable URI a `TypeError`; both are `SolidisError`s now. `uri` brackets IPv6 hosts, encodes the username, and masks a password that comes without a username.
 - The parser re-read partially received arrays from the start on every chunk, so large replies took quadratic time.
 - URIs ignored the database, did not decode percent-encoded credentials and kept the brackets of IPv6 hosts.
@@ -442,7 +444,7 @@ See [Upgrading from 0.4.x](#upgrading-from-04x) for replacements.
 
 ### Security
 
-- Error messages, stack traces and debug entries no longer list command arguments; a failed `AUTH` used to show the password, and a failed `SET` the value. Arguments the server quotes back, such as an ACL rule or the arguments of an unknown command, become `***`, also when the server joins several into one quoted span, as for an ACL selector, or quotes a token from inside one, as in a script error.
+- Error messages, stack traces and debug entries no longer list command arguments; a failed `AUTH` used to show the password, and a failed `SET` the value. Arguments the server quotes back, such as an ACL rule or the arguments of an unknown command, become `***`, also when the server joins several into one quoted span, as for an ACL selector, or quotes a token from inside one. A Lua error is masked from its first quote, since it can quote text the script decoded from an argument. Error replies in the raw results of `send()`, `pipeline()` and `exec()` keep the server's text.
 - User data shaped like a Pub/Sub message is never dispatched as a `message` event on RESP2.
 - An integer reply longer than 20 characters or a big number longer than 4,096 characters is returned as an error reply, and a length line longer than 20 characters or nesting deeper than 512 levels is a protocol error, so one reply can no longer stall the event loop. Errors about a malformed line quote at most 32 characters, and error messages are cut to 4,096 characters before masking.
 
@@ -453,7 +455,7 @@ See [Upgrading from 0.4.x](#upgrading-from-04x) for replacements.
 - In alternating benchmark runs against 0.4.0, throughput is on par or better across the suite.
 - Replies and timeouts for tens of thousands of pipelines in flight take linear time. Masking bounds how much argument text it searches for quoted spans, so a reply full of quotes cannot stall the event loop.
 - Error replies no longer capture a stack trace they then drop.
-- Measured with each version's `npm run bundle`, the minimal client with `get` and `set` shrinks from 29,494 to 29,134 bytes.
+- Measured with each version's `npm run bundle`, the minimal client with `get` and `set` shrinks from 29,494 to 29,376 bytes.
 
 ## [0.4.0] and earlier
 

@@ -344,6 +344,7 @@ await client.subscribe('news');`}
   commandTimeout: 5000,
   connectionTimeout: 2000,
   readyCheckInterval: 100,
+  maxReadyCheckRetries: 100,
   maxCommandsPerPipeline: 300,
   maxEventListenersForClient: 10240,
   rejectOnPartialPipelineError: false,
@@ -415,7 +416,7 @@ await client.fill(['key1', 'key2', 'key3'], 'value');`}
                     <CodeBlock
                       code={`const result = await client.send([['COMMAND', 'SOME', 'OPTIONS']]);
 
-const job = await client.send([['BLPOP', 'jobs', '30']], { timeout: 35_000 });`}
+const job = await client.send([['BLPOP', 'jobs', '30']], { blockingTimeout: 30_000 });`}
                       language="typescript"
                     />
                     <p className="text-xs text-muted-foreground">
@@ -607,8 +608,16 @@ client.on('debug', (entry) => console.log(\`[\${entry.type}] \${entry.message}\`
                       descriptionKey: 'apiReference.eventReconnecting',
                     },
                     {
+                      name: 'reconnected',
+                      descriptionKey: 'apiReference.eventReconnected',
+                    },
+                    {
                       name: 'end',
                       descriptionKey: 'apiReference.eventEnd',
+                    },
+                    {
+                      name: 'drain',
+                      descriptionKey: 'apiReference.eventDrain',
                     },
                     {
                       name: 'error',
@@ -621,6 +630,14 @@ client.on('debug', (entry) => console.log(\`[\${entry.type}] \${entry.message}\`
                     {
                       name: 'smessage',
                       descriptionKey: 'apiReference.eventShardMessage',
+                    },
+                    {
+                      name: 'pmessage',
+                      descriptionKey: 'apiReference.eventPatternMessage',
+                    },
+                    {
+                      name: 'subscribe',
+                      descriptionKey: 'apiReference.eventSubscription',
                     },
                     {
                       name: 'push',

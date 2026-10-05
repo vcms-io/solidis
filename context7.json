@@ -12,6 +12,6 @@
     "Import SolidisFeaturedClient from '@vcms-io/solidis/featured' for the full Redis command set",
     "For minimal bundle size, import SolidisClient from '@vcms-io/solidis' and add only needed commands via .extend()",
     "Solidis has zero dependencies — do not add other Redis client libraries alongside it",
-    "All commands return Promises and are fully typed; prefer TypeScript strict mode"
+    "Commands return Promises (scan iterators are async generators) and are fully typed; prefer TypeScript strict mode"
   ]
 }

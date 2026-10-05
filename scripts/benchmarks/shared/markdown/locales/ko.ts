@@ -9,7 +9,7 @@ export const ko: BenchmarkLocale = {
     `${fluentEmoji('Travel and places', 'High Voltage')} Solidis vs ${competitors.join(', ')}`,
   generatedOnPrefix: '측정일',
   headline: (wins, total, averageLead) =>
-    `벤치마크 **${total}**개 중 **${wins}**개에서 가장 빠름 · 처리량은 다음으로 빠른 클라이언트의 평균 **${averageLead.toFixed(1)}배** ${fluentEmoji('Travel and places', 'Rocket')}`,
+    `벤치마크 **${total}**개 중 **${wins}**개에서 가장 빠름 · 처리량은 평균적으로 다음으로 빠른 클라이언트의 **${averageLead.toFixed(1)}배** ${fluentEmoji('Travel and places', 'Rocket')}`,
   subtitle: (iterations, concurrency, payloadLabel, _payloadCount, repeats) =>
     `*작업 ${iterations.toLocaleString('en-US')}회 × 동시 실행 ${concurrency.toLocaleString('en-US')} · ${payloadLabel} 페이로드 · 클라이언트마다 ${repeats.toLocaleString('en-US')}회 측정*`,
 
@@ -30,10 +30,10 @@ export const ko: BenchmarkLocale = {
   resultsTitle: '### 초당 작업 수',
   mainTableHeaders: {
     benchmark: '벤치마크',
-    lead: '차이',
+    lead: '배율',
   },
   rankingFootnote: (subject) =>
-    `반복 측정의 초당 작업 수 중앙값이며, 벤치마크마다 가장 빠른 클라이언트를 굵게 표시합니다. 차이 = \`${subject}\` ÷ 다른 클라이언트 중 가장 빠른 값.`,
+    `반복 측정의 초당 작업 수 중앙값이며, 벤치마크마다 가장 빠른 클라이언트를 굵게 표시합니다. 배율 = \`${subject}\` ÷ 다른 클라이언트 중 가장 빠른 값.`,
   note: (note) =>
     note.kind === 'noAutoPipeline'
       ? `${note.commands.join(', ')}는 오토 파이프라이닝하지 않습니다`

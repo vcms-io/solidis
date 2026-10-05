@@ -9,7 +9,7 @@ Solidis is a zero-dependency RESP (Redis Serialization Protocol) client for Node
 - [Getting Started](https://solidis.vcms.io/getting-started): Installation, client setup, and first commands
 - [API Reference](https://solidis.vcms.io/api-reference): Classes, methods, and interfaces
 - [Architecture](https://solidis.vcms.io/architecture): Internal structure and SOLID design principles
-- [Benchmarks](https://solidis.vcms.io/benchmarks): Throughput, latency, CPU and memory against every comparable Node.js client
+- [Benchmarks](https://solidis.vcms.io/benchmarks): Throughput against every comparable Node.js client
 - [FAQ](https://solidis.vcms.io/faq): Common questions and answers
 
 ## Tutorials
