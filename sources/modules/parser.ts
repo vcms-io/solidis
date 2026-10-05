@@ -130,24 +130,33 @@ export class SolidisParser {
     const availableLength =
       this.#buffer.length - this.#offset + this.#pendingLength;
 
-    if (
-      !this.#requiredLength &&
-      !chunk.includes(NEWLINE) &&
-      (previous.at(-1) !== SolidisCarriageReturnByte ||
-        chunk[0] !== SolidisLineFeedByte)
-    ) {
-      if (availableLength > this.#maxBulkStringLength) {
-        throw this.#createLineLengthError();
+    let length = this.#requiredLength;
+
+    if (!length) {
+      const lineFeed =
+        previous.at(-1) === SolidisCarriageReturnByte &&
+        chunk[0] === SolidisLineFeedByte
+          ? 0
+          : chunk.indexOf(NEWLINE) + 1 || -1;
+
+      if (lineFeed < 0) {
+        if (
+          availableLength -
+            (chunk.at(-1) === SolidisCarriageReturnByte ? 2 : 1) >
+          this.#maxBulkStringLength
+        ) {
+          throw this.#createLineLengthError();
+        }
+
+        return;
       }
 
-      return;
+      length = availableLength - chunk.length + lineFeed + 1;
     }
 
-    if (availableLength < this.#requiredLength) {
+    if (availableLength < length) {
       return;
     }
-
-    const length = this.#requiredLength || availableLength;
 
     this.#buffer = Buffer.concat(
       [this.#buffer.subarray(this.#offset), ...this.#pendingChunks],
@@ -266,10 +275,8 @@ export class SolidisParser {
       }
 
       case SolidisDoubleReplyByte: {
-        const text = this.#readText(start, end);
-
         return (
-          parseDouble(text) ??
+          parseDouble(this.#readText(start, end)) ??
           new RespError(`Double: ${this.#describeLine(start, end)}`)
         );
       }

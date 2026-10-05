@@ -292,6 +292,18 @@ describe('lifecycle-edge', () => {
     );
   });
 
+  it('lets extend() shadow uri like any other member', () => {
+    const client = track(
+      new SolidisFeaturedClient(buildClientOptions({ lazyConnect: true })),
+    ).extend({
+      uri() {
+        return 'custom';
+      },
+    });
+
+    assert.strictEqual(client.uri(), 'custom');
+  });
+
   it('rejects connect() after the client has been quit', async () => {
     const client = new SolidisFeaturedClient(
       buildClientOptions({ lazyConnect: true }),

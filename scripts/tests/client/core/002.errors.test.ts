@@ -10,6 +10,7 @@ import { after, before, describe, it } from 'node:test';
 import { SolidisFeaturedClient } from '../../../../sources/client/featured.ts';
 import {
   checkReplyIsPubSubEvent,
+  findErrorInReplies,
   getPubSubEventName,
   isMessageEventName,
   RespError,
@@ -335,13 +336,23 @@ describe('errors', () => {
     );
   });
 
-  it('creates RespError without stack', () => {
-    const error = new RespError('test message');
+  it('creates RespError without stack and leaves the stack trace limit as it was', () => {
+    const { stackTraceLimit } = Error;
 
-    assert.ok(error instanceof SolidisError);
-    assert.strictEqual(error.name, 'RespError');
-    assert.strictEqual(error.message, 'test message');
-    assert.strictEqual(error.stack, undefined);
+    Error.stackTraceLimit = 7;
+
+    try {
+      const error = new RespError('test message');
+
+      assert.ok(error instanceof SolidisError);
+      assert.strictEqual(error.name, 'RespError');
+      assert.strictEqual(error.message, 'test message');
+      assert.strictEqual(error.code, 'test');
+      assert.strictEqual(error.stack, undefined);
+      assert.strictEqual(Error.stackTraceLimit, 7);
+    } finally {
+      Error.stackTraceLimit = stackTraceLimit;
+    }
   });
 
   it('creates SolidisError preserving original error', () => {
@@ -485,6 +496,27 @@ describe('errors', () => {
 
     assert.doesNotThrow(() => escapeReply([]));
     assert.strictEqual(escapeReply([]), undefined);
+  });
+
+  it('names the event of a Pub/Sub frame of any length', () => {
+    assert.strictEqual(getPubSubEventName([Buffer.from('message')]), 'message');
+    assert.strictEqual(
+      checkReplyIsPubSubEvent([Buffer.from('unsubscribe')]),
+      true,
+    );
+    assert.strictEqual(getPubSubEventName([Buffer.from('get')]), undefined);
+  });
+
+  it('finds an error reply at any depth of a reply', () => {
+    const error = new RespError('ERR nested');
+
+    assert.strictEqual(findErrorInReplies(error), error);
+    assert.strictEqual(findErrorInReplies(['OK', [1, [error]]]), error);
+    assert.strictEqual(
+      findErrorInReplies(['OK', [1, Buffer.from('x')]]),
+      false,
+    );
+    assert.strictEqual(findErrorInReplies(null), false);
   });
 
   it('returns false for pubsub event checks with non-buffer event names', () => {

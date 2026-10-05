@@ -3411,7 +3411,7 @@ describe('fragility', () => {
       assert.strictEqual(errors.length, 4);
     });
 
-    it('rejects unsent requests held in the schedule queue on fault recovery', async () => {
+    it('rejects unsent requests held in the schedule queue as unsent when the connection closes', async () => {
       const { SolidisRequester } = await import(
         '../../../../sources/modules/requester.ts'
       );
@@ -3444,12 +3444,15 @@ describe('fragility', () => {
         .send([['QUEUED-CMD']])
         .catch((error: Error) => error);
 
-      mockConnection.emit('close', new Error('forced recovery'));
+      const closeError = new Error('forced recovery');
+
+      mockConnection.emit('close', closeError);
 
       const result = await pending;
 
-      assert.ok(result instanceof Error);
-      assert.strictEqual(result.message, 'forced recovery');
+      assert.ok(result instanceof SolidisRequesterError);
+      assert.strictEqual(result.message, 'Socket is not connected.');
+      assert.strictEqual(result.cause, closeError);
 
       await new Promise<void>((resolve) => setImmediate(resolve));
 

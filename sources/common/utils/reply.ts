@@ -40,23 +40,19 @@ export function findErrorInReplies(replies: SolidisData): false | RespError {
   return false;
 }
 
-function readPubSubEventName(reply: SolidisData[]) {
+export function checkReplyIsPubSubEvent(reply: SolidisData[]): boolean {
+  return getPubSubEventName(reply) !== undefined;
+}
+
+export function getPubSubEventName(
+  reply: SolidisData[],
+): SolidisMessageEventName | SolidisSubscriptionEventName | undefined {
   const name = reply[0];
   const eventName = Buffer.isBuffer(name) ? name.toString('latin1') : '';
 
   return isMessageEventName(eventName) || isSubscriptionEventName(eventName)
     ? eventName
     : undefined;
-}
-
-export function checkReplyIsPubSubEvent(reply: SolidisData[]): boolean {
-  return readPubSubEventName(reply) !== undefined;
-}
-
-export function getPubSubEventName(
-  reply: SolidisData[],
-): SolidisMessageEventName | SolidisSubscriptionEventName | undefined {
-  return reply.length >= 3 ? readPubSubEventName(reply) : undefined;
 }
 
 export function isMessageEventName(

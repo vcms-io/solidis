@@ -23,7 +23,6 @@ import {
   SolidisSocketNotConnectedMessage,
 } from './common/utils/internal.ts';
 import { resolveClientOptions } from './common/utils/options.ts';
-import { findErrorInReplies } from './common/utils/reply.ts';
 import { toCommandError } from './common/utils/request.ts';
 import { SolidisConnection } from './modules/connection.ts';
 import {
@@ -71,12 +70,22 @@ export class SolidisClient extends EventEmitter {
 
   [key: string]: unknown;
 
+  public readonly uri: string;
+
   constructor(options: SolidisClientOptions = {}) {
     super();
 
     const emit = this.emit.bind(this);
 
     this.#options = resolveClientOptions(options);
+
+    const { host, port, tls, authentication } = this.#options;
+    const credentials =
+      authentication.username || authentication.password
+        ? `${encodeURIComponent(authentication.username)}:***@`
+        : '';
+
+    this.uri = `${tls ? 'rediss' : 'redis'}://${credentials}${host.includes(':') ? `[${host}]` : host}:${port}`;
     this.#debug = this.#options.debug
       ? (type, message, data) => {
           const entry = { timestamp: Date.now(), type, message, data };
@@ -107,16 +116,6 @@ export class SolidisClient extends EventEmitter {
         }
       });
     }
-  }
-
-  public get uri() {
-    const { host, port, tls, authentication } = this.#options;
-    const credentials =
-      authentication.username || authentication.password
-        ? `${encodeURIComponent(authentication.username)}:***@`
-        : '';
-
-    return `${tls ? 'rediss' : 'redis'}://${credentials}${host.includes(':') ? `[${host}]` : host}:${port}`;
   }
 
   public send(
@@ -522,10 +521,13 @@ export class SolidisClient extends EventEmitter {
 
       const error = await handshake
         .send(subscriptions.map((subscription) => [eventName, subscription]))
-        .then(findErrorInReplies, (sendError: unknown) =>
-          sendError instanceof SolidisCommandError
-            ? sendError.cause
-            : sendError,
+        .then(
+          (replies) =>
+            replies.flat().find((reply) => reply instanceof RespError),
+          (sendError: unknown) =>
+            sendError instanceof SolidisCommandError
+              ? sendError.cause
+              : sendError,
         );
 
       if (!error) {

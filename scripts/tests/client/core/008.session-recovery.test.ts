@@ -257,6 +257,28 @@ describe('session-recovery', () => {
       }
     });
 
+    it('returns to the configured database after a reconnect that follows RESET', async () => {
+      const client = await createClient({
+        database: 2,
+        connectionRetryDelay: 10,
+      });
+      const key = keyspace.key('reset-select');
+
+      try {
+        await client.set(key, 'two');
+        await client.select(7);
+        await client.send([['RESET']]);
+
+        assert.strictEqual(await client.get(key), null);
+
+        await forceReconnect(client, await client.clientId());
+
+        assert.strictEqual(await client.get(key), 'two');
+      } finally {
+        await closeClient(client);
+      }
+    });
+
     it('returns to the configured database when database recovery is off', async () => {
       const client = await createClient({
         database: 2,

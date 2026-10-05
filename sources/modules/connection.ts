@@ -5,12 +5,13 @@ import { SolidisMaximumTimerDelay } from '../common/internal.ts';
 import {
   SolidisClientError,
   SolidisConnectionError,
-  wrapWithSolidisConnectionError,
 } from '../common/utils/error.ts';
 import {
   resolveTimerDelay,
   SolidisClientQuitMessage,
+  SolidisConnectionClosedMessage,
   SolidisSocketNotConnectedMessage,
+  wrapWithSolidisError,
 } from '../common/utils/internal.ts';
 import { EventEmitter } from './internal.ts';
 
@@ -148,13 +149,13 @@ export class SolidisConnection extends EventEmitter {
       return;
     }
 
-    const delay = this.#getRetryDelay();
-
-    if (delay === 0 && !this.#isReconnecting && !this.#hasConnected) {
+    if (!this.#failedAttempts && !this.#isReconnecting && !this.#hasConnected) {
       this.#attempt();
 
       return;
     }
+
+    const delay = this.#getRetryDelay();
 
     this.#retryTimer = setTimeout(() => this.#attempt(), delay);
 
@@ -168,14 +169,16 @@ export class SolidisConnection extends EventEmitter {
       return 0;
     }
 
-    return Math.round(
-      (Math.min(
-        connectionRetryDelay * 2 ** (this.#failedAttempts - 1),
-        maxConnectionRetryDelay,
-        SolidisMaximumTimerDelay,
-      ) *
-        (1 + Math.random())) /
-        2,
+    return resolveTimerDelay(
+      Math.round(
+        (Math.min(
+          connectionRetryDelay * 2 ** (this.#failedAttempts - 1),
+          maxConnectionRetryDelay,
+          SolidisMaximumTimerDelay,
+        ) *
+          (1 + Math.random())) /
+          2,
+      ),
     );
   }
 
@@ -196,7 +199,7 @@ export class SolidisConnection extends EventEmitter {
           })
         : net.connect({ host, port });
     } catch (error) {
-      const failure = wrapWithSolidisConnectionError(error);
+      const failure = wrapWithSolidisError(SolidisConnectionError, error);
 
       this.#isReconnecting = false;
       this.#rejectWaiters(failure);
@@ -278,7 +281,7 @@ export class SolidisConnection extends EventEmitter {
     this.#debug?.('error', 'Socket error', error);
 
     if (this.#isConnected) {
-      this.emit('error', wrapWithSolidisConnectionError(error));
+      this.emit('error', wrapWithSolidisError(SolidisConnectionError, error));
     }
   }
 
@@ -293,7 +296,7 @@ export class SolidisConnection extends EventEmitter {
       this.#onAttemptFailed(
         failure === undefined
           ? new SolidisConnectionError('Socket closed before connection.')
-          : wrapWithSolidisConnectionError(failure),
+          : wrapWithSolidisError(SolidisConnectionError, failure),
       );
 
       return;
@@ -303,7 +306,9 @@ export class SolidisConnection extends EventEmitter {
 
     this.#debug?.('info', 'Connection closed');
 
-    this.#lose(new SolidisConnectionError('Connection closed.', failure));
+    this.#lose(
+      new SolidisConnectionError(SolidisConnectionClosedMessage, failure),
+    );
   }
 
   #onAttemptTimeout(socket: SolidisSocket) {

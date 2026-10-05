@@ -1,3 +1,5 @@
+import { wrapWithSolidisError } from './internal.ts';
+
 export class SolidisError extends Error {
   public name = 'SolidisError';
 
@@ -11,8 +13,13 @@ export class RespError extends SolidisError {
   public readonly code: string;
 
   constructor(message: string) {
+    const { stackTraceLimit } = Error;
+
+    Error.stackTraceLimit = 0;
+
     super(message);
 
+    Error.stackTraceLimit = stackTraceLimit;
     this.stack = undefined;
     this.code = message.split(' ', 1)[0];
   }
@@ -44,22 +51,6 @@ export class SolidisRequesterError extends SolidisError {
 
 export function wrapWithError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
-}
-
-function wrapWithSolidisError<T extends SolidisError>(
-  ErrorClass: new (message: string, cause?: unknown) => T,
-  error: unknown,
-): T {
-  if (error instanceof ErrorClass) {
-    return error;
-  }
-
-  return new ErrorClass(
-    error instanceof Error
-      ? error.message || ('errors' in error ? `${error.errors}` : '')
-      : String(error),
-    error,
-  );
 }
 
 export function wrapWithSolidisClientError(error: unknown): SolidisClientError {

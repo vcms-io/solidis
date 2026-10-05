@@ -661,6 +661,55 @@ describe('parser-edge', () => {
       assert.deepStrictEqual(parser.parse(bytes('+next\r\n')), ['next']);
     });
 
+    it('limits the content of a line the same way however the chunks split it', () => {
+      const parse = (chunks: string[]) => {
+        const parser = new SolidisParser({
+          ...SolidisDefaultOptions,
+          parser: { maxBulkStringLength: 10 },
+        });
+
+        return chunks.flatMap((chunk) => parser.parse(Buffer.from(chunk)));
+      };
+
+      for (const chunks of [
+        ['+aaaaaaaaaa\r\n'],
+        ['+aaaaa', 'aaaaa\r\n'],
+        ['+aaaaa', 'aaaaa', '\r\n'],
+        ['+aaaaa', 'aaaaa\r', '\n'],
+        ['+a', 'aaaa', 'aaaa', 'a\r', '\n'],
+      ]) {
+        assert.deepStrictEqual(parse(chunks), ['aaaaaaaaaa']);
+      }
+
+      for (const chunks of [
+        ['+aaaaaaaaaaa\r\n'],
+        ['+aaaaa', 'aaaaaa', '\r\n'],
+        ['+aaaaa', 'aaaaa', 'a\r', '\n'],
+      ]) {
+        assert.throws(() => parse(chunks), {
+          name: 'SolidisParserError',
+          message: 'Line length exceeds maximum allowed 10',
+        });
+      }
+    });
+
+    it('returns a bulk string that follows a line split across chunks as a view of its own chunk', () => {
+      const parser = new SolidisParser(SolidisDefaultOptions);
+      const line = `+${'a'.repeat(200_000)}`;
+      const replies = [
+        ...parser.parse(Buffer.from(line.slice(0, 60_000))),
+        ...parser.parse(Buffer.from(line.slice(60_000, 120_000))),
+        ...parser.parse(Buffer.from(line.slice(120_000, 180_000))),
+        ...parser.parse(Buffer.from(`${line.slice(180_000)}\r\n$3\r\nabc\r\n`)),
+      ];
+      const [text, bulk] = replies;
+
+      assert.strictEqual(text, 'a'.repeat(200_000));
+      assert.ok(Buffer.isBuffer(bulk));
+      assert.strictEqual(bulk.toString(), 'abc');
+      assert.ok(bulk.buffer.byteLength < 30_000);
+    });
+
     it('starts the next chunk clean after a bulk string that ends exactly at a chunk end', () => {
       const parser = createParser();
 

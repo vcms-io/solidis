@@ -447,6 +447,15 @@ describe('debug-requester', () => {
       return `*3\r\n$${eventName.length}\r\n${eventName}\r\n$${channel.length}\r\n${channel}\r\n:${count}\r\n`;
     }
 
+    it('hands a push shorter than a Pub/Sub event to push listeners', () => {
+      const { connection, events } = createRequester();
+
+      connection.reply('>2\r\n$7\r\nmessage\r\n$2\r\nch\r\n');
+
+      assert.strictEqual(getEvents(events, 'push').length, 1);
+      assert.deepStrictEqual(getEvents(events, 'error'), []);
+    });
+
     it('coalesces requests sent in the same tick into one write', async () => {
       const { connection, requester } = createRequester();
 
@@ -592,7 +601,7 @@ describe('debug-requester', () => {
       assert.deepStrictEqual(await next, [['PONG']]);
     });
 
-    it('rejects in-flight and unflushed requests when the connection closes', async () => {
+    it('rejects in-flight requests with the close error and unsent ones as not connected', async () => {
       const { connection, requester } = createRequester({
         maxCommandsPerPipeline: 1,
       });
@@ -614,7 +623,12 @@ describe('debug-requester', () => {
       connection.emit('close', error);
 
       assert.strictEqual(await inflight, error);
-      assert.strictEqual(await unflushed, error);
+
+      const unsent = await unflushed;
+
+      assert.ok(unsent instanceof SolidisRequesterError);
+      assert.strictEqual(unsent.message, 'Socket is not connected.');
+      assert.strictEqual(unsent.cause, error);
 
       await flushed();
 
@@ -1744,6 +1758,55 @@ describe('debug-requester', () => {
       assert.deepStrictEqual(await patient, [['b']]);
     });
 
+    it('keeps the connection after a timed-out pipeline ahead of a longer one completes late', async () => {
+      const { connection, requester } = createRequester({
+        commandTimeout: 100,
+      });
+
+      const first = settle(requester.send([['ECHO', 'a']], { timeout: 20 }));
+      const patient = requester.send([['ECHO', 'b']], { timeout: 60_000 });
+      const third = settle(requester.send([['ECHO', 'c']], { timeout: 40 }));
+
+      assert.ok((await first) instanceof SolidisRequesterError);
+      assert.ok((await third) instanceof SolidisRequesterError);
+
+      connection.reply('+a\r\n');
+
+      const fourth = settle(requester.send([['ECHO', 'd']], { timeout: 150 }));
+
+      assert.ok((await fourth) instanceof SolidisRequesterError);
+      assert.strictEqual(connection.resets.length, 0);
+
+      connection.reply('+b\r\n+c\r\n+d\r\n');
+
+      assert.deepStrictEqual(await patient, [['b']]);
+    });
+
+    it('counts timed-out pipelines afresh after the connection is lost', async () => {
+      const { connection, requester } = createRequester({
+        commandTimeout: 30,
+      });
+
+      const first = settle(requester.send([['ECHO', 'a']], { timeout: 20 }));
+      const second = settle(requester.send([['ECHO', 'b']], { timeout: 40 }));
+
+      assert.ok((await first) instanceof SolidisRequesterError);
+      assert.ok((await second) instanceof SolidisRequesterError);
+      assert.strictEqual(connection.resets.length, 1);
+
+      connection.isConnected = true;
+
+      const patient = requester.send([['ECHO', 'c']], { timeout: 60_000 });
+      const quick = settle(requester.send([['ECHO', 'd']], { timeout: 50 }));
+
+      assert.ok((await quick) instanceof SolidisRequesterError);
+      assert.strictEqual(connection.resets.length, 1);
+
+      connection.reply('+c\r\n+d\r\n');
+
+      assert.deepStrictEqual(await patient, [['c']]);
+    });
+
     it('resets once the pipelines left in flight have timed out, after an earlier one completed late', async () => {
       const { connection, requester } = createRequester({
         commandTimeout: 100,
@@ -1868,6 +1931,47 @@ describe('debug-requester', () => {
       assert.ok(error instanceof SolidisRequesterError);
       assert.strictEqual(error.message, 'Command(s) timed out after 300 ms.');
       assert.strictEqual(connection.resets.length, 1);
+    });
+
+    it('times out pipelines behind one with a longer timeout in linear time', async () => {
+      const { connection, requester } = createRequester({
+        commandTimeout: 100,
+        maxCommandsPerPipeline: 1,
+      });
+      const count = 50_000;
+      const commands = Array.from({ length: count }, (_, index) => [
+        'ECHO',
+        `${index}`,
+      ]);
+      const early = settle(requester.send(commands, { timeout: 300 }));
+
+      await flushed();
+
+      connection.reply('>2\r\n+push\r\n+between\r\n');
+
+      const patient = settle(
+        requester.send([['ECHO', 'patient']], { timeout: 60_000 }),
+      );
+      const late = Promise.all(
+        commands.map((command) =>
+          settle(requester.send([command], { timeout: 600 })),
+        ),
+      );
+
+      assert.ok((await early) instanceof SolidisRequesterError);
+
+      const startedAt = performance.now();
+
+      for (const error of await late) {
+        assert.ok(error instanceof SolidisRequesterError);
+      }
+
+      assert.ok(performance.now() - startedAt < 2000);
+      assert.strictEqual(connection.resets.length, 0);
+
+      connection.emit('close', new SolidisConnectionError('lost'));
+
+      assert.ok((await patient) instanceof SolidisConnectionError);
     });
 
     it('never times out a blocking request with a zero blocking timeout', async () => {
@@ -2073,8 +2177,10 @@ describe('debug-requester', () => {
       }
     });
 
-    it('resets the tracked session on RESET', async () => {
-      const { connection, pubSub, requester } = createRequester();
+    it('resets the tracked session on RESET, back to the configured database', async () => {
+      const { connection, pubSub, requester } = createRequester({
+        database: 4,
+      });
 
       const pending = requester.send([
         ['SELECT', '5'],
@@ -2090,7 +2196,7 @@ describe('debug-requester', () => {
 
       await pending;
 
-      assert.strictEqual(requester.database, 0);
+      assert.strictEqual(requester.database, 4);
       assert.strictEqual(requester.protocol, SolidisProtocols.RESP2);
       assert.strictEqual(pubSub.hasActiveSubscriptions, false);
     });

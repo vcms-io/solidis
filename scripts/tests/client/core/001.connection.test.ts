@@ -319,6 +319,39 @@ describe('connection', () => {
     assert.strictEqual(errors.length, 2);
   });
 
+  it('announces every retry of the first connect, also without a retry delay', async () => {
+    for (const [options, delays] of [
+      [{ connectionRetryDelay: 0 }, [0, 0]],
+      [{ connectionRetryDelay: -50 }, [0, 0]],
+      [{ maxConnectionRetryDelay: Number.NaN }, [0, 0]],
+    ] as const) {
+      const client = new SolidisFeaturedClient(
+        buildClientOptions({
+          host: '127.0.0.1',
+          port: 1,
+          lazyConnect: true,
+          maxConnectionRetries: 2,
+          connectionTimeout: 100,
+          ...options,
+        }),
+      );
+      const reconnecting: [number, number][] = [];
+
+      client.on('error', () => {});
+      client.on('reconnecting', (attempt, delay) => {
+        reconnecting.push([attempt, delay]);
+      });
+
+      await assert.rejects(() => client.connect(), {
+        message: 'Connection failed after 2 retries.',
+      });
+      assert.deepStrictEqual(reconnecting, [
+        [2, delays[0]],
+        [3, delays[1]],
+      ]);
+    }
+  });
+
   it('rejects connection to wrong port with zero timeout', async () => {
     const client = new SolidisFeaturedClient(
       buildClientOptions({
