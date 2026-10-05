@@ -67,6 +67,7 @@ import { createCommand as createSetrangeCommand } from '../../../sources/command
 import { shutdown } from '../../../sources/command/shutdown.ts';
 import { createCommand as createSmismemberCommand } from '../../../sources/command/smismember.ts';
 import { createCommand as createSpublishCommand } from '../../../sources/command/spublish.ts';
+import { createCommand as createTimeSeriesCreateCommand } from '../../../sources/command/ts.create.ts';
 import { createCommand as createTimeSeriesMrangeCommand } from '../../../sources/command/ts.mrange.ts';
 import { createCommand as createTimeSeriesMrevrangeCommand } from '../../../sources/command/ts.mrevrange.ts';
 import { createCommand as createTimeSeriesRangeCommand } from '../../../sources/command/ts.range.ts';
@@ -80,7 +81,11 @@ import { createCommand as createXreadCommand } from '../../../sources/command/xr
 import { createCommand as createXreadgroupCommand } from '../../../sources/command/xreadgroup.ts';
 import { createCommand as createZinterCommand } from '../../../sources/command/zinter.ts';
 import { zrange } from '../../../sources/command/zrange.ts';
-import { RespError, SolidisConnectionError } from '../../../sources/index.ts';
+import {
+  RespError,
+  SolidisConnectionError,
+  SolidisRequesterError,
+} from '../../../sources/index.ts';
 
 import type { SolidisData, StringOrBuffer } from '../../../sources/index.ts';
 
@@ -102,6 +107,48 @@ function bulk(text: string) {
 }
 
 describe('reply-guards', () => {
+  it('reads time-series labels as a record of names and values', () => {
+    assert.deepStrictEqual(
+      createTimeSeriesCreateCommand('k', { labels: { area: 'north' } }),
+      ['TS.CREATE', 'k', 'LABELS', 'area', 'north'],
+    );
+    assert.throws(
+      () =>
+        createTimeSeriesCreateCommand('k', {
+          labels: ['area', 'north'] as never,
+        }),
+      { message: '[TS.CREATE] Expected an object of names and values' },
+    );
+  });
+  it('reads only a connection lost after SHUTDOWN was sent as a shutdown, from any build', async () => {
+    class ForeignConnectionError extends Error {
+      public name = 'SolidisConnectionError';
+    }
+
+    const failing = (error: Error) => ({
+      send: () => Promise.reject(error),
+    });
+    const lost = new ForeignConnectionError('Connection closed.');
+    const refusal = new RespError('ERR max number of clients reached');
+    const refused = new ForeignConnectionError(refusal.message, {
+      cause: refusal,
+    });
+    const unsent = new SolidisRequesterError(
+      'Socket is not connected.',
+      new SolidisConnectionError('Connection closed.'),
+    );
+
+    assert.strictEqual(
+      await shutdown.call(failing(lost), { nosave: true }),
+      'OK',
+    );
+
+    for (const error of [refused, unsent]) {
+      await assert.rejects(shutdown.call(failing(error)), error);
+    }
+
+    await assert.rejects(shutdown.call(failing(lost), { abort: true }), lost);
+  });
   it('sends server administration commands and reads their replies', async () => {
     const recorder = createRecorder('OK');
 

@@ -458,6 +458,12 @@ export type CommandTimeSeriesRangeParameters<Filter extends unknown[] = []> =
       toTimestamp: number,
       ...filter: Filter,
       options?: CommandTimeSeriesRangeOptions<number | 'end' | '+'>,
+    ]
+  | [
+      fromTimestamp: number,
+      toTimestamp: number,
+      ...filter: Filter,
+      options?: CommandTimeSeriesRangeOptions,
     ];
 
 export interface CommandTimeSeriesMGetOptions {

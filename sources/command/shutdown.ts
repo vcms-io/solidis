@@ -1,4 +1,4 @@
-import { SolidisConnectionError } from '../common/utils/error.ts';
+import { SolidisConnectionClosedMessage } from '../common/utils/internal.ts';
 import { RespOK } from '../types/resp.ts';
 import { executeCommand, tryReplyOK } from './utils/index.ts';
 
@@ -34,7 +34,11 @@ export async function shutdown<T>(this: T, options?: CommandShutdownOptions) {
   try {
     return await executeCommand(this, createCommand(options), tryReplyOK);
   } catch (error) {
-    if (options?.abort || !(error instanceof SolidisConnectionError)) {
+    if (
+      options?.abort ||
+      !(error instanceof Error) ||
+      error.message !== SolidisConnectionClosedMessage
+    ) {
       throw error;
     }
 

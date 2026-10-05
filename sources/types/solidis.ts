@@ -1,4 +1,4 @@
-import type { EventEmitter } from 'node:events';
+import type { EventEmitter, errorMonitor } from 'node:events';
 import type { Socket } from 'node:net';
 import type { ConnectionOptions, TLSSocket } from 'node:tls';
 import type { SolidisClient } from '../client.ts';
@@ -142,14 +142,14 @@ export interface SolidisClientEventHandlers<T = SolidisClient> {
     event: E,
     ...parameters: Parameters<SolidisClientEvents[E]>
   ) => boolean;
-  on: <E extends keyof SolidisClientEvents>(
-    event: E,
-    listener: SolidisClientEvents[E],
-  ) => T;
-  once: <E extends keyof SolidisClientEvents>(
-    event: E,
-    listener: SolidisClientEvents[E],
-  ) => T;
+  on: {
+    <E extends keyof SolidisClientEvents>(
+      event: E,
+      listener: SolidisClientEvents[E],
+    ): T;
+    (event: typeof errorMonitor, listener: SolidisClientEvents['error']): T;
+  };
+  once: SolidisClientEventHandlers<T>['on'];
 }
 
 export interface SolidisConnectionEvents {

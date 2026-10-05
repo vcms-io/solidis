@@ -1,6 +1,7 @@
 /** Public types promise exactly what the runtime accepts and returns. */
 
 import assert from 'node:assert/strict';
+import { errorMonitor } from 'node:events';
 import { describe, it } from 'node:test';
 
 import { SolidisFeaturedClient } from '../../../sources/client/featured.ts';
@@ -16,6 +17,7 @@ import type {
   CommandIntegerOptions,
   CommandSortOptions,
   CommandSortStoreOptions,
+  CommandTimeSeriesRangeOptions,
   RespInteger,
   RespLmpop,
   RespOK,
@@ -275,6 +277,7 @@ describe('type-contracts', () => {
     async function contract(
       sortOptions: CommandSortOptions | CommandSortStoreOptions,
       pipeline: Pipeline,
+      rangeOptions: CommandTimeSeriesRangeOptions,
     ) {
       const sorted: number | (string | null)[] = await client.sort(
         'k',
@@ -320,6 +323,11 @@ describe('type-contracts', () => {
       await client.tsMrange(0, '+', filter, { aggregation, align: '-' });
       // @ts-expect-error start alignment needs an explicit start
       await client.tsMrevrange('-', '+', filter, { aggregation, align: '-' });
+      await client.tsRange('series', 0, 10, { aggregation, align: 'end' });
+      await client.tsRevrange('series', 0, 10, { aggregation, align: 'start' });
+      await client.tsMrange(0, 10, filter, rangeOptions);
+      client.on(errorMonitor, (error: Error) => void error.message);
+      client.once(errorMonitor, (error: Error) => void error.message);
       await client.jsonDebug('MEMORY', 'k');
       // @ts-expect-error JSON.DEBUG MEMORY needs a key
       await client.jsonDebug('MEMORY');

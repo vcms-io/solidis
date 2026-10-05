@@ -325,10 +325,7 @@ export function buildTimeSeriesCommand<
 
   if (options.labels) {
     command.push('LABELS');
-
-    for (const [label, value] of Object.entries(options.labels)) {
-      command.push(label, value);
-    }
+    appendRecordEntries(command, options.labels);
   }
 
   return command;
