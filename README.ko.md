@@ -144,8 +144,8 @@ const job = await worker.blpop(['jobs'], 0); // 타임아웃 0은 무한 대기
 const views = await client.incr('views', { bigint: true }); // bigint
 ```
 
-- INCR, INCRBY, DECR, DECRBY, HINCRBY, BITFIELD, BITFIELD_RO는 `number`를 돌려주고, `Number.MAX_SAFE_INTEGER`를 넘는 결과는 에러로 처리합니다. 커맨드는 이미 실행된 상태이며, 정확한 값은 `cause`에 `bigint`로 담깁니다.
-- `{ bigint: true }`를 넘기면 항상 `bigint`를 돌려주고, 반환 타입도 그에 맞게 바뀝니다.
+- 커맨드는 정수를 `number`로 돌려주고, TTL이나 타임시리즈 타임스탬프처럼 `Number.MAX_SAFE_INTEGER`를 넘는 값은 에러로 처리합니다. 커맨드는 이미 실행된 상태이며, 정확한 값은 `cause`에 `bigint`로 담깁니다.
+- INCR, INCRBY, DECR, DECRBY, HINCRBY, BITFIELD, BITFIELD_RO는 `{ bigint: true }`를 넘기면 항상 `bigint`를 돌려주고, 반환 타입도 그에 맞게 바뀝니다.
 - INCRBYFLOAT는 반올림된 `number`를, HINCRBYFLOAT는 서버가 보낸 텍스트를 그대로 돌려줍니다.
 
 </details>
@@ -164,7 +164,7 @@ const images = await client.mget('image', 'logo', { buffer: true }); // (Buffer 
 
 | `Buffer`                  | 커맨드                                                                                                                                                         |
 | :------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 그대로 저장               | SET, SETNX, SETEX, PSETEX, GETSET, SETRANGE, APPEND, MSET, MSETNX, HSET, HSETNX, HMSET, LPUSH, RPUSH, LPUSHX, RPUSHX, LSET, XADD, RESTORE                      |
+| 그대로 저장               | SET, SETNX, SETEX, PSETEX, GETSET, SETRANGE, APPEND, MSET, MSETNX, HSET, HSETNX, HMSET, LPUSH, RPUSH, LPUSHX, RPUSHX, LSET, LINSERT, XADD, RESTORE             |
 | 비교할 값                 | LINSERT, LREM, LPOS, SMISMEMBER, DELEX, SET                                                                                                                    |
 | 그 밖의 인자              | PUBLISH, SPUBLISH(메시지) · BF.LOADCHUNK, CF.LOADCHUNK(청크) · AUTH, HELLO(자격 증명) · `send()`(모든 인자)                                                    |
 | `{ buffer: true }`로 읽기 | GET, GETDEL, GETEX, GETRANGE, MGET, HGET, HMGET, HGETALL, HVALS, LINDEX, LRANGE, LPOP, RPOP, LMOVE, BLMOVE, RPOPLPUSH, BRPOPLPUSH, BLPOP, BRPOP, LMPOP, BLMPOP |
@@ -221,7 +221,7 @@ const pending = await client.xpending('jobs', 'workers', '-', '+', 10);
 
 <small>측정일 2026-10-05 15:52:42 · linux x64 · Node.js v22.23.0 · Redis 8.10.2</small>
 
-### 벤치마크 **19**개 중 **19**개에서 가장 빠름 · 처리량은 평균적으로 다음으로 빠른 클라이언트의 **1.5배** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Rocket.png?raw=true" alt="Rocket" width="25" height="25" />
+### 벤치마크 **19**개 중 **19**개에서 가장 빠름 · 처리량은 2위 클라이언트 대비 평균 **1.5배** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Rocket.png?raw=true" alt="Rocket" width="25" height="25" />
 
 ### 순위
 
@@ -453,7 +453,7 @@ _작업 100,000회 × 동시 실행 10,000 · 1 KB 페이로드 · 클라이언�
 - `setImmediate`로 파이프라인 자동 병합
 - 선형 시간 증분 RESP 파서
 - bulk 응답은 복사 없이 뷰로 반환
-- 파이프라인은 만들자마자 쓰고, Node가 `writev`로 묶음
+- 파이프라인은 만들자마자 소켓에 쓰고, Node가 `writev`로 묶음
 
 </td>
 <td width="50%" valign="top">
@@ -463,7 +463,7 @@ _작업 100,000회 × 동시 실행 10,000 · 1 KB 페이로드 · 클라이언�
 - RESP2, RESP3 지원 (Redis와 Valkey가 보내지 않는 스트리밍 응답 제외)
 - RESP3 응답 타입 15가지 전부 (Map, Set, Push, Attribute, BigNumber, ...)
 - RESP3 push가 커맨드 응답을 가로채지 않음
-- 2^53을 넘는 정수는 `bigint`로: 원시 응답은 자동, 커맨드는 `{ bigint: true }`
+- 2^53을 넘는 정수는 `bigint`로: 원시 응답은 자동, INCR, DECR, HINCRBY, BITFIELD는 `{ bigint: true }`
 - 바이너리 세이프: `Buffer` 값 쓰기, `{ buffer: true }`로 바이트 그대로 읽기
 
 </td>

@@ -42,7 +42,7 @@ With `debug: true`, entries reach only the `debug` event and are no longer print
 
 `clientReply()` and `sync()` are removed. `CLIENT REPLY OFF` and `SKIP` skip replies and `SYNC` streams replication data, so later commands received the wrong replies.
 
-`send()` now rejects these with a `SolidisRequesterError` before writing anything:
+`send()` now rejects these with a `SolidisRequesterError` before connecting or writing anything:
 
 - `CLIENT REPLY OFF`, `CLIENT REPLY SKIP`, `MONITOR`, `SYNC`, `PSYNC`, `REPLCONF ACK`, `REPLCONF GETACK`, `SCRIPT DEBUG YES`, `SCRIPT DEBUG SYNC`.
 - `SUBSCRIBE`, `UNSUBSCRIBE` and their pattern and shard variants inside a transaction.
@@ -54,8 +54,6 @@ With `debug: true`, entries reach only the `debug` event and are no longer print
 #### 3. Handle command errors through `cause`
 
 A server error always rejects with a `SolidisCommandError`. Its message is `[COMMAND] <server message>` without the arguments, and `cause` is the server's `RespError`, which has a new `code` property.
-
-Text the server quotes with `'` or `` ` `` is masked from there to the last quote when an argument contains it, also when the server cut it short or quotes a token from inside a script: `ERR Error in ACL SETUSER modifier '***'`. Unquoted echoes stay, such as `GEOADD` coordinates, `redis.error_reply()` text or a function name in `FUNCTION LOAD`. Messages over 4,096 characters are cut, and a cut message that masks anything is masked to its end.
 
 ```typescript
 import { RespError, SolidisCommandError } from '@vcms-io/solidis';
@@ -97,6 +95,7 @@ try {
 | `multi()` … `exec()`                 | `[null]` when `WATCH` aborted; resolved EXECABORT                                 | `null` when aborted; EXECABORT rejects                           |
 | empty `exec()`                       | `[]` without contacting the server                                                | Sends `MULTI` and `EXEC`; `null` when a watched key changed      |
 | `hrandfield(key, count, true)`       | `Record<string, string>`                                                          | `{ field, value }[]`, keeping the duplicates of a negative count |
+| `hrandfield(key, undefined, true)`   | One field name                                                                    | One `{ field, value }` entry                                     |
 | `tsInfo(key)`                        | Raw `Record<string, unknown>`                                                     | `RespTimeSeriesInfo`: `labels` as a record, `rules` as entries   |
 | `tsMadd()`, `bfMadd()`, `bfInsert()` | Rejected the call when one item failed, after storing the others                  | One entry per item; a failed or skipped item is a `RespError`    |
 | `cfInsert()`, `cfInsertnx()`         | Rejected with `Invalid reply` when the filter was full                            | `null` for each item a full filter could not take                |
@@ -106,7 +105,8 @@ try {
 | `xinfoStream(key, true, count)`      | Declared `firstEntry` and `lastEntry`, always `null` with FULL                    | `RespStreamInfoFull` drops them; `count` needs `full: true`      |
 | `xautoclaim()`, `xclaim()`           | Rejected after claiming a deleted entry on Redis 6.2                              | Skip deleted entries                                             |
 | `tsMget()`                           | Rejected a series without samples                                                 | `timestamp` and `value` are `null` for it                        |
-| `jsonObjkeys()`                      | Rejected a missing key with `Unexpected reply: null`                              | `null` with a legacy path; the server's error with a JSONPath    |
+| `tsGet()`                            | Rejected a series without samples                                                 | `null`                                                           |
+| `jsonObjkeys()`                      | Rejected a missing key with `Unexpected reply: null`                              | `null`, or the error RedisJSON sends for a JSONPath              |
 | `memoryStats()`                      | `db` always empty; unreported fields were `NaN`                                   | `db` keyed by database index; unreported fields are `0`          |
 | `aclLog()`                           | Missing `entryId` and timestamps were `0`                                         | `number \| null`                                                 |
 | `aclGetuser()`                       | On Redis 6.2, `keys` and `channels` joined patterns with commas                   | Patterns with their `~` or `&` prefix, space-separated           |
@@ -115,6 +115,7 @@ try {
 | `bgsave()`, `bgrewriteaof()`         | Typed `'OK'`; rejected the actual reply                                           | The server's status, such as `'Background saving started'`       |
 | `reset()`                            | Typed `'OK'`; rejected the actual reply                                           | `'RESET'`                                                        |
 | `commandDocs()`                      | Rejected every command with subcommands                                           | `subcommands` is a record of `RespCommandDoc`                    |
+| `functionStats()`                    | Rejected with `Invalid reply` while a function ran                                | `runningScript.command` lists the arguments as `string[]`        |
 
 ```typescript
 // pipeline() returns one raw reply per command, in order, and an array of them
@@ -174,7 +175,7 @@ for (;;) {
 }
 ```
 
-**Integers beyond `Number.MAX_SAFE_INTEGER`.** `incr`, `incrby`, `decr`, `decrby` and `hincrby` rejected them with `Invalid reply`, and `bitfield` and `bitfieldRo` rounded them. All now reject with `Unexpected reply: integer exceeds Number.MAX_SAFE_INTEGER` and the exact value as `cause`. The command has already run, so do not retry it blindly. Pass `{ bigint: true }` for a `bigint`:
+**Integers beyond `Number.MAX_SAFE_INTEGER`.** Commands that read an integer rejected one past it with `Invalid reply` or, like `bitfield`, `httl` and the time-series commands, rounded it. All now reject with `Unexpected reply: integer exceeds Number.MAX_SAFE_INTEGER` and the exact value as `cause`. The command has already run, so do not retry it blindly. `incr`, `incrby`, `decr`, `decrby`, `hincrby`, `bitfield` and `bitfieldRo` take `{ bigint: true }` for a `bigint`:
 
 ```typescript
 const total = await client.incrby('counter', 10n, { bigint: true }); // bigint
@@ -291,7 +292,7 @@ Skip this step unless you build the internal classes yourself or write custom co
   - `close(error)` and `reconnecting(attempt, delay)` replace `closed` and `reconnected`; `data` and `drain` are new.
 - **`SolidisRequester`:** `setNegotiatedProtocol()`, `onReply()` and `recoveryFromFault()` are removed. It tracks `protocol`, `database` and `authentication` itself, `send()` takes request options, and its options require an `emit` function.
 - **`SolidisParser`:** takes `{ parser }` options. The synchronous `parse(chunk)` replaces the asynchronous `queueParse(...buffers)`.
-- **`SolidisPubSub`:** takes the client's `emit`. `getSubscriptions()`, `clearSubscriptions()`, `clear()`, `dispatchPush()`, `dispatchMessage()` and `dispatchSubscriptionChange()` replace the per-kind getters and clear methods, `getChannelsForUnsubscribeCommand()` and `dispatchPubSubEvent()`. `getSubscriptions()` returns the exact bytes of each channel as `Buffer[]`.
+- **`SolidisPubSub`:** takes the client's `emit`. `getSubscriptions()`, `countSubscriptions()`, `clearSubscriptions()`, `clear()`, `dispatchPush()`, `dispatchMessage()` and `dispatchSubscriptionChange()` replace the per-kind getters and clear methods, `getChannelsForUnsubscribeCommand()` and `dispatchPubSubEvent()`. `getSubscriptions()` returns the exact bytes of each channel as `Buffer[]`.
 - **Debug:**
   - Removed: `SolidisDebugMemory`, `SolidisDebugTransform`, `SolidisDebugEvents`, `SolidisDebugMemoryEventHandlers`, `generateDebugHandle()`, `sanitizeCommandsBufferForDebug()` and `SolidisCredentialCommandNameSet`.
   - `SolidisConnection` and `SolidisRequester` take `debugHandle` (`SolidisDebugHandle`) instead of `debugMemory`.
@@ -348,8 +349,8 @@ Skip this step unless you build the internal classes yourself or write custom co
 
 - Commands wait for the handshake (authentication, `HELLO`, `SELECT`, client name and ready check), bounded by `commandTimeout` or the request's `timeout`, and then run in the order they were sent.
 - RESP3 connections authenticate with one `HELLO 3 AUTH`, and `WRONGPASS` or `NOAUTH` fails the connection instead of continuing unauthenticated.
-- After a reconnect, the client restores the database selected at runtime and every subscription, one command per channel. When the server refuses any channel of a kind, the client unsubscribes from that whole kind and emits an `error`.
-- Blocking commands (`blpop`, `brpop`, `blmove`, `blmpop`, `brpoplpush`, `bzpopmin`, `bzpopmax`, `bzmpop`, `xread` and `xreadgroup` with `block`, `wait` and `waitaof`) run in a pipeline of their own. Their deadline is `commandTimeout` plus their own timeout, and none when they block forever.
+- After a reconnect, the client restores the database selected at runtime and every subscription, one command per channel, so a cluster node accepts shard channels of several slots. When the server refuses any channel of a kind, the client unsubscribes from the channels it restored, forgets the others and emits an `error`. If the server refuses that too, the handshake fails and the client reconnects.
+- Blocking commands (`blpop`, `brpop`, `blmove`, `blmpop`, `brpoplpush`, `bzpopmin`, `bzpopmax`, `bzmpop`, `xread` and `xreadgroup` with `block`, `wait` and `waitaof`) run in a pipeline of their own. Their deadline is `commandTimeout` plus their own timeout, and none when they block forever, so an element popped after `commandTimeout` is no longer lost.
 - The connection also resets when a blocking pipeline times out, or, unless `commandTimeout` is `0`, when a second pipeline in a row times out with nothing received since it was written and the oldest pipeline has waited at least `commandTimeout`. A late reply never reaches a later command, and a silent server is dropped even under constant traffic with shorter per-request timeouts.
 - `quit()` rejects pending commands and `connect()` calls at once with a `SolidisClientError` (`The client was quit.`), also from a `ready` listener or during the ready check. Later calls reject the same way.
 - Pipelines go to the socket as soon as they are sealed instead of waiting for `drain` after each write.
@@ -357,10 +358,9 @@ Skip this step unless you build the internal classes yourself or write custom co
 - When the connection closes, requests in flight reject with the error that closed it, and requests not yet written with a `SolidisRequesterError` (`Socket is not connected.`) whose `cause` is that error.
 - Bulk replies are views of the received data instead of copies. A held `Buffer` reply keeps the chunk it arrived in, up to 64 KB, in memory, so copy it with `Buffer.from()` to keep it long.
 - `zpopmin`, `zpopmax`, `bitfield`, `jsonNumincrby` and `jsonNummultby` never return `null`. `type()` returns core types upper-cased and module type names, such as `ReJSON-RL`, as the server reports them.
-- `jsonNumincrby` and `jsonNummultby` return the same text on both protocols, exact beyond `Number.MAX_SAFE_INTEGER`; for a legacy path, the last number they updated. Both protocols reject with an `ERR` reply when a legacy path matches no number. `bzpopmin` and `bzpopmax` format scores the same way on both protocols.
+- `jsonNumincrby` and `jsonNummultby` return the same text on both protocols, exact beyond `Number.MAX_SAFE_INTEGER`; for a legacy path, the last number they updated. Both protocols reject with the server's error when a legacy path matches no number. `bzpopmin` and `bzpopmax` format scores the same way on both protocols.
 - Commands added with `extend()` keep their generic signatures, so options such as `{ buffer: true }` type their results. `extend()` types only the functions it adds, and `this` inside them as the extended client with the commands of earlier `extend()` calls.
 - Every overload of a command can be called on a transaction, such as `multi().sort(key)` and `multi().jsonArrpop(key)`.
-- An argument-less `UNSUBSCRIBE`, `PUNSUBSCRIBE` or `SUNSUBSCRIBE` also ends subscriptions still being confirmed.
 - A request timeout or `connectionTimeout` longer than 24.8 days, the limit of Node's timers, disables that deadline instead of expiring after 1 ms. Longer reconnect delays and `readyCheckInterval` values are capped at that limit.
 - TLS connections send the host name for SNI unless it is an IP address; a `servername` in `tls` still wins.
 - The `error` for a reply that arrives with no pending request carries the reply as its `cause`.
@@ -369,7 +369,7 @@ Skip this step unless you build the internal classes yourself or write custom co
 - `latencyHistory()`, `latencyGraph()` and `latencyReset()` accept any event name, including `module-acquire-GIL` and every `event` that `latencyLatest()` returns.
 - `bitcount()` and `bitpos()` fill a missing `start` with `0`, and `bitcount()` a missing `end` with `-1`.
 - `functionFlush()` without an argument sends no mode, so the server's `lazyfree-lazy-user-flush` applies, as for `scriptFlush()`. Pass `false` for `SYNC`.
-- The published files keep class and function names, so errors print as `SolidisCommandError: ...` and stack traces name the methods.
+- The published files keep class and function names, so errors print as `SolidisCommandError: ...`.
 - A throwing `error` listener no longer interrupts the client, which still resets the connection and routes the remaining replies. The exception is thrown again asynchronously, so it reaches `uncaughtException` as before.
 - Empty lists:
   - `clientList({ identifiers: [] })` and the time-series range commands with `filterByTs: []` send the empty list, which the server refuses, instead of acting on every client or sample.
@@ -393,60 +393,46 @@ See [Upgrading from 0.4.x](#upgrading-from-04x) for replacements.
 
 - `set()` and `delex()` sent any digest. With `returnOldValue`, a digest that is not 16 characters made Redis 8.4 and later answer one `SET` twice, and every later reply reached the wrong request. A digest that is not 16 hexadecimal digits now rejects before anything is sent.
 - `zrange()` and the other commands that take `withScores` read it when the reply arrived, and the scan iterators read their options again for every page, so changing an options object after the call changed the result. Options are read when the command is called.
-- `auth('')` sent `AUTH` without the empty password.
 - The CommonJS build failed to load because of a circular import. Every entry point now loads through both `require()` and `import()`, and releases verify the packed tarball.
 - A connection timeout could crash the process when the abandoned socket failed later. Timed-out sockets are destroyed, and events from replaced sockets are ignored.
 - With RESP3 and `CLIENT TRACKING`, invalidation pushes were taken as command replies, so a `GET` could return another key's value.
-- On RESP2, while a `SUBSCRIBE` was pending, a reply whose first element was `"message"` was dispatched as a Pub/Sub message, and the following replies shifted.
-- Commands issued during a reconnect ran before `SELECT` and wrote to database 0, and a database chosen with `select()` was lost after a reconnect.
-- Blocking commands timed out after `commandTimeout` while the server still blocked them, so an element popped afterwards was lost.
-- Reconnects used a fixed interval and gave up after about two seconds without an event, so subscriber-only clients stopped receiving messages after short outages.
-- `quit()` left pending commands to time out, or pending forever with `commandTimeout: 0`.
+- Commands issued during a reconnect ran before `SELECT` and wrote to database 0.
 - `close` was declared but never emitted, so a lost connection showed only as a later `reconnected`.
 - A handshake interrupted by a lost connection could continue on the next connection or report `ready` while disconnected or after `quit()`.
-- A transaction lost its `WATCH` in a reconnect and committed anyway, also when `WATCH` was sent again or an `EXEC` or `DISCARD` outside a transaction failed, and a database selected inside a transaction was lost after a reconnect.
-- A `MULTI` sent with `send()` was lost in a reconnect, so the commands after it ran one by one and `EXEC` failed. Those commands are refused now, and the `EXEC` returns `null`.
-- `multi()` left `WATCH` armed after an empty `exec()`, a `discard()` or an `exec()` that rejected a failed call, so the next transaction was aborted. It also reported a refused `MULTI` as `EXECABORT` although the queued commands had run, ran `pipeline()` outside the transaction and threw a `TypeError` for `send`, `quit` and the event methods.
-- `exec()` waited for the queued calls before sending the transaction, so commands sent after it in the same tick ran first, and calls queued after it joined its transaction. It sends at once now, and a call that queues no command makes it send `UNWATCH` and reject, with the call's own error when it has one.
-- Commands sent before the client was ready could run after commands sent later, such as from a `ready` listener or after `await connect()`.
-- A protocol chosen with `hello()` was lost in a reconnect, so a RESP3 client came back on RESP2 and refused every command while subscribed.
-- A server that refused the connection, such as one in protected mode or at `maxclients`, was retried as if the connection had dropped, and its reason was not reported.
-- A command that is not an array, such as `send([undefined])`, rejected every request sent in the same tick.
+- `exec()` waited for the queued calls before sending the transaction, so commands sent after it in the same tick ran first, and calls queued after it joined its transaction. It sends at once now.
 - Replies parsed before a protocol error in the same chunk were rejected with the parser error, although the server had executed their commands.
-- An empty password was treated as none: `auth(user, '')` sent the username as the password, `hello()` skipped `AUTH`, and `authentication: { username, password: '' }` sent `AUTH <username>` and failed with `Authentication failed`. `hello()` also dropped an empty client name, which clears the name.
+- An empty password was treated as none: `auth('')` sent `AUTH` without it, `auth(user, '')` sent the username as the password, `hello()` skipped `AUTH`, and `authentication: { username, password: '' }` sent `AUTH <username>` and failed with `Authentication failed`. `hello()` also dropped an empty client name, which clears the name.
 - `jsonArrpop(key, undefined, index)` ignored the index and popped the last element.
 - Changing, clearing or reusing a command array after `send()` changed or dropped the commands sent, or left the promise pending. `send()` copies the arrays now.
-- `send()` with an argument that is not an array split a string into one command per character, so `send('GET')` sent `G`, `E` and `T`, and never settled for a number.
-- A user chosen at runtime with `auth()` or `hello()` was lost in a reconnect.
 - Commands built from more than about 125,000 items, such as `bfInsert`, `cfInsert`, `hexpire`, `migrate` with `keys`, `pubsubNumsub`, `xread`, `xreadgroup` and the weights of `zinter`, threw a `RangeError` instead of being sent.
 - A subscription to a channel name that is not valid UTF-8 was unsubscribed and restored with different bytes.
-- Shard channels in different cluster slots were restored with one `SSUBSCRIBE`, which a cluster node refuses with `CROSSSLOT`, so all of them were lost.
-- Connecting to a host name with several addresses, such as `localhost`, when every address refused, gave errors with an empty message. The message now lists the failed attempts.
-- `TYPE` rejected module type names such as `ReJSON-RL`, `INFO` dropped fields with empty values, `REPLICAOF` rejected the reply for an existing primary, and `ROLE` rejected Sentinel replies.
+- An argument-less `UNSUBSCRIBE`, `PUNSUBSCRIBE` or `SUNSUBSCRIBE` listed the channels the client knew, so it missed subscriptions still being confirmed, and a Redis 7 cluster node refused `SUNSUBSCRIBE` with `CROSSSLOT` when its shard channels hash to several slots. They are sent without arguments now.
+- Connecting to a host name with several addresses, such as `localhost`, when every address refused, failed with `SolidisConnectionError: AggregateError`. The message now lists the failed attempts.
+- `INFO` dropped fields with empty values, and `REPLICAOF` rejected the reply for an existing primary.
 - `geosearch`, `georadius`, `commandList`, `aclCat`, `pubsubChannels`, `pubsubShardchannels`, `functionList` and the scan iterators dropped empty-string options, so `scan({ match: '' })` returned every key, and `aclGenpass(0)` and a scan `count` of `0` were dropped as well. `sort()` rejected `{ store: undefined }`.
-- A non-string argument, such as `undefined` from an optional property passed to `mset`, `hmset`, `mget` or `hmget`, failed every request sent in the same tick. Only that request is rejected now.
+- A command that is not an array, such as `send([undefined])`, or an argument that is neither a string nor a `Buffer`, such as `undefined` from an optional property passed to `mset`, `hmset`, `mget` or `hmget`, failed every request sent in the same tick. Only that request is rejected now.
+- A command name followed by a NUL byte, such as `SUBSCRIBE\0x`, which Redis 8 can run as `SUBSCRIBE`, was not handled as that command, so its replies could reach other requests.
 - An invalid `port` was retried for about two seconds before `connect()` rejected with `Connection failed after 20 retries.` It now rejects at once with a `SolidisConnectionError`.
-- RESP3 doubles spelled `-nan`, as Redis 6.2 sends them, failed to parse, and long simple string replies split across many chunks took quadratic time.
-- Text such as `0x10`, `0b11` or a number padded with spaces was read as a number, in RESP3 doubles and in replies that commands read as numbers. It is an error reply or an unexpected reply now. Integers and big numbers with a leading `+`, which RESP3 allows, failed to parse.
+- RESP3 doubles spelled `-nan`, as Redis 6.2 sends them, failed to parse.
+- Text such as `0x10`, `0b11` or a number padded with spaces was read as a number, in RESP3 doubles and big numbers and in replies that commands read as numbers. It is an error reply or an unexpected reply now. Integers with a leading `+`, which RESP3 allows, failed to parse.
 - A negative length other than the RESP2 null array and bulk string was read as `null`, so a malformed push could take the reply of a command. It is a protocol error now.
 - `bitop()` threw a plain `Error`, and an unparsable URI a `TypeError`; both are `SolidisError`s now. `uri` brackets IPv6 hosts, encodes the username, and masks a password that comes without a username.
-- The parser re-read partially received arrays from the start on every chunk, so large replies took quadratic time.
-- URIs ignored the database, did not decode percent-encoded credentials and kept the brackets of IPv6 hosts.
 - RESP2 infinite scores failed to parse in `zscore`, `zrange` with scores, `zincrby` and `zmpop`, and `bzmpop` failed after the server had already popped the members.
-- `bgsave`, `bgrewriteaof` and `reset` rejected their successful replies, and `ping` rejected while subscribed on RESP2.
-- `xreadgroup` rejected the whole batch when the pending history held a deleted entry, and `XINFO` turned unknown values into `0`.
+- `ping` rejected while subscribed on RESP2.
 - Time-series commands placed `IGNORE` after `LABELS`, which created labels from its arguments, and `geosearchstore` did not send `storedist`.
 - `__proto__` fields disappeared from returned records, RESP3 verbatim strings kept their `txt:` prefix, and `INFO` values containing `:` were cut short.
-- `hrandfield` with a negative count lost duplicates, `jsonType` did not return `null` for a missing key with a JSONPath on RESP3, and `commandDocs` rejected every command that has subcommands, could not read the RESP3 set of history entries, never marked an argument optional or multiple, and left `docFlags` empty on RESP3.
+- `jsonType` did not return `null` for a missing key with a JSONPath on RESP3, and `commandDocs` could not read the RESP3 set of history entries, never marked an argument optional or multiple, and left `docFlags` empty on RESP3.
 - `jsonMerge(key, value)` sent no path, which the server refuses, and `jsonArrindex()` dropped `stop` without `start`. They now send `$` and a start of `0`.
-- `functionStats()` rejected with `Invalid reply` while a function was running.
-- Reply conversions for time-series `NaN` samples, JSON legacy paths, `CF.INFO`, `BITPOS`, `BITCOUNT`, `SORT` and `TYPE` were corrected.
+- `incrby`, `decrby`, `hincrby` and `bitfield` sent a `number` past `Number.MAX_SAFE_INTEGER` as its shortest decimal, such as `1152921504606847000` for `2 ** 60`, so the server used another integer.
+- `zrandmember(key, undefined, true)` sent `WITHSCORES` without a count, which the server refuses.
+- Reply conversions for time-series `NaN` samples, JSON legacy paths, `CF.INFO`, `BITPOS`, `BITCOUNT` and `SORT` were corrected.
 
 ### Security
 
-- Error messages, stack traces and debug entries no longer list command arguments; a failed `AUTH` used to show the password, and a failed `SET` the value. Arguments the server quotes back, such as an ACL rule or the arguments of an unknown command, become `***`, also when the server joins several into one quoted span, as for an ACL selector, or quotes a token from inside one. A Lua error is masked from its first quote, since it can quote text the script decoded from an argument. Error replies in the raw results of `send()`, `pipeline()` and `exec()` keep the server's text.
-- User data shaped like a Pub/Sub message is never dispatched as a `message` event on RESP2.
-- An integer reply longer than 20 characters or a big number longer than 4,096 characters is returned as an error reply, and a length line longer than 20 characters or nesting deeper than 512 levels is a protocol error, so one reply can no longer stall the event loop. Errors about a malformed line quote at most 32 characters, and error messages are cut to 4,096 characters before masking.
+- Error messages, stack traces and debug entries no longer list command arguments; a failed `AUTH` used to show the password, and a failed `SET` the value. Error replies in the raw results of `send()`, `pipeline()` and `exec()` keep the server's text.
+- Text the server quotes back with `'` or `` ` ``, such as an ACL rule or the arguments of an unknown command, is masked from there to the last quote when an argument contains it: `ERR Error in ACL SETUSER modifier '***'`. This holds also when the server joins several arguments into one quoted span, cuts the message short or quotes a token from inside one. A Lua error is masked from its first quote, since it can quote text the script decoded from an argument. Unquoted echoes stay, such as `GEOADD` coordinates, `redis.error_reply()` text or a function name in `FUNCTION LOAD`. Messages over 4,096 characters are cut, and a cut message that masks anything is masked to its end.
+- User data shaped like a Pub/Sub message, as in a reply read while a `SUBSCRIBE` is pending, is never dispatched as a `message` event on RESP2, and later replies no longer shift.
+- An integer reply longer than 20 characters or a big number longer than 4,096 characters is returned as an error reply, and a length line longer than 20 characters or nesting deeper than 512 levels is a protocol error, so one reply can no longer stall the event loop. Errors about a malformed line quote at most 32 characters.
 
 ### Performance
 
@@ -455,7 +441,7 @@ See [Upgrading from 0.4.x](#upgrading-from-04x) for replacements.
 - In alternating benchmark runs against 0.4.0, throughput is on par or better across the suite.
 - Replies and timeouts for tens of thousands of pipelines in flight take linear time. Masking bounds how much argument text it searches for quoted spans, so a reply full of quotes cannot stall the event loop.
 - Error replies no longer capture a stack trace they then drop.
-- Measured with each version's `npm run bundle`, the minimal client with `get` and `set` shrinks from 29,494 to 29,376 bytes.
+- Measured with each version's `npm run bundle`, the minimal client with `get` and `set` shrinks from 29,494 to 29,366 bytes.
 
 ## [0.4.0] and earlier
 

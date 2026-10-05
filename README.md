@@ -144,8 +144,8 @@ const job = await worker.blpop(['jobs'], 0); // a timeout of 0 waits forever
 const views = await client.incr('views', { bigint: true }); // bigint
 ```
 
-- INCR, INCRBY, DECR, DECRBY, HINCRBY, BITFIELD and BITFIELD_RO return `number` and reject a result past `Number.MAX_SAFE_INTEGER`. The command has run by then; `cause` holds the exact `bigint`.
-- `{ bigint: true }` always returns a `bigint`, and the return type follows.
+- Commands return integers as `number` and reject one past `Number.MAX_SAFE_INTEGER`, such as a TTL or a time-series timestamp. The command has run by then; `cause` holds the exact `bigint`.
+- INCR, INCRBY, DECR, DECRBY, HINCRBY, BITFIELD and BITFIELD_RO take `{ bigint: true }`, which always returns a `bigint`; the return type follows.
 - INCRBYFLOAT returns a rounded `number`; HINCRBYFLOAT returns the server's exact text.
 
 </details>
@@ -164,7 +164,7 @@ const images = await client.mget('image', 'logo', { buffer: true }); // (Buffer 
 
 | `Buffer`                     | Commands                                                                                                                                                       |
 | :--------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Stored as is                 | SET, SETNX, SETEX, PSETEX, GETSET, SETRANGE, APPEND, MSET, MSETNX, HSET, HSETNX, HMSET, LPUSH, RPUSH, LPUSHX, RPUSHX, LSET, XADD, RESTORE                      |
+| Stored as is                 | SET, SETNX, SETEX, PSETEX, GETSET, SETRANGE, APPEND, MSET, MSETNX, HSET, HSETNX, HMSET, LPUSH, RPUSH, LPUSHX, RPUSHX, LSET, LINSERT, XADD, RESTORE             |
 | Compared values              | LINSERT, LREM, LPOS, SMISMEMBER, DELEX, SET                                                                                                                    |
 | Other arguments              | PUBLISH, SPUBLISH (message) · BF.LOADCHUNK, CF.LOADCHUNK (chunk) · AUTH, HELLO (credentials) · `send()` (any argument)                                         |
 | Read with `{ buffer: true }` | GET, GETDEL, GETEX, GETRANGE, MGET, HGET, HMGET, HGETALL, HVALS, LINDEX, LRANGE, LPOP, RPOP, LMOVE, BLMOVE, RPOPLPUSH, BRPOPLPUSH, BLPOP, BRPOP, LMPOP, BLMPOP |
@@ -463,7 +463,7 @@ _100,000 operations × 10,000 concurrency · 1 KB payload · 10 repeats per clie
 - RESP2 and RESP3, except streamed replies, which Redis and Valkey never send
 - All 15 RESP3 reply types (Map, Set, Push, Attribute, BigNumber, ...)
 - RESP3 pushes never take a command's reply
-- `bigint` past 2^53: automatic in raw replies, `{ bigint: true }` for commands
+- `bigint` past 2^53: automatic in raw replies, `{ bigint: true }` for INCR, DECR, HINCRBY and BITFIELD
 - Binary-safe: `Buffer` values in, `{ buffer: true }` bytes out
 
 </td>

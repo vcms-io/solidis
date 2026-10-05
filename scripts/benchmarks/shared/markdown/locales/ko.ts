@@ -9,7 +9,7 @@ export const ko: BenchmarkLocale = {
     `${fluentEmoji('Travel and places', 'High Voltage')} Solidis vs ${competitors.join(', ')}`,
   generatedOnPrefix: '측정일',
   headline: (wins, total, averageLead) =>
-    `벤치마크 **${total}**개 중 **${wins}**개에서 가장 빠름 · 처리량은 평균적으로 다음으로 빠른 클라이언트의 **${averageLead.toFixed(1)}배** ${fluentEmoji('Travel and places', 'Rocket')}`,
+    `벤치마크 **${total}**개 중 **${wins}**개에서 가장 빠름 · 처리량은 2위 클라이언트 대비 평균 **${averageLead.toFixed(1)}배** ${fluentEmoji('Travel and places', 'Rocket')}`,
   subtitle: (iterations, concurrency, payloadLabel, _payloadCount, repeats) =>
     `*작업 ${iterations.toLocaleString('en-US')}회 × 동시 실행 ${concurrency.toLocaleString('en-US')} · ${payloadLabel} 페이로드 · 클라이언트마다 ${repeats.toLocaleString('en-US')}회 측정*`,
 
