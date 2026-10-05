@@ -11,6 +11,7 @@ import {
   createClient,
   createKeyspace,
   detectServerCapabilities,
+  readServerTime,
   waitFor,
 } from '../utils/index.ts';
 
@@ -210,7 +211,8 @@ describe('strings', () => {
     const getexMillisPttl = await client.pttl(key);
     assert.ok(getexMillisPttl >= 49000 && getexMillisPttl <= 50000);
 
-    const futureSeconds = Math.floor(Date.now() / 1000) + 3600;
+    const futureSeconds =
+      Math.floor((await readServerTime(client)) / 1000) + 3600;
 
     assert.strictEqual(
       await client.getex(key, { expireAtSeconds: futureSeconds }),
@@ -219,7 +221,7 @@ describe('strings', () => {
     const getexFutureSecondsTtl = await client.ttl(key);
     assert.ok(getexFutureSecondsTtl > 3590 && getexFutureSecondsTtl <= 3600);
 
-    const futureMilliseconds = Date.now() + 7200000;
+    const futureMilliseconds = (await readServerTime(client)) + 7200000;
 
     assert.strictEqual(
       await client.getex(key, { expireAtMilliseconds: futureMilliseconds }),

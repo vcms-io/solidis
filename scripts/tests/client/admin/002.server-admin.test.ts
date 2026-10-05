@@ -215,7 +215,7 @@ describe('server-admin', () => {
 
   it('returns a timestamp from LASTSAVE', async () => {
     const timestamp = await client.lastsave();
-    const nowSeconds = Math.floor(Date.now() / 1000);
+    const [nowSeconds] = await client.time();
 
     assert.ok(Number.isInteger(timestamp) && timestamp > 0, `${timestamp}`);
     assert.ok(

@@ -8,6 +8,7 @@ import {
   createClient,
   createKeyspace,
   detectServerCapabilities,
+  readServerTime,
   waitFor,
 } from '../utils/index.ts';
 
@@ -250,7 +251,8 @@ describe('keys-generic', () => {
 
   it('supports EXPIREAT and EXPIRETIME', async () => {
     const key = keyspace.key('expireat');
-    const futureSeconds = Math.floor(Date.now() / 1000) + 1000;
+    const futureSeconds =
+      Math.floor((await readServerTime(client)) / 1000) + 1000;
 
     await client.set(key, 'value');
 
@@ -266,7 +268,7 @@ describe('keys-generic', () => {
 
   it('supports PEXPIREAT and PEXPIRETIME', async () => {
     const key = keyspace.key('pexpireat');
-    const futureMilliseconds = Date.now() + 1000000;
+    const futureMilliseconds = (await readServerTime(client)) + 1000000;
 
     await client.set(key, 'value');
 
@@ -304,7 +306,7 @@ describe('keys-generic', () => {
     }
 
     const key = keyspace.key('expireat-modes');
-    const future = Math.floor(Date.now() / 1000) + 3600;
+    const future = Math.floor((await readServerTime(client)) / 1000) + 3600;
 
     await client.set(key, 'val');
 
@@ -418,7 +420,7 @@ describe('keys-generic', () => {
       assert.fail('expected non-null dump result');
     }
 
-    const futureMs = Date.now() + 60000;
+    const futureMs = (await readServerTime(client)) + 60000;
 
     assert.strictEqual(
       await client.restore(destination, futureMs, serialized, {
@@ -476,7 +478,7 @@ describe('keys-generic', () => {
     }
 
     const key = keyspace.key('pexpireat-nx');
-    const futureMs = Date.now() + 60000;
+    const futureMs = (await readServerTime(client)) + 60000;
 
     await client.set(key, 'val');
 

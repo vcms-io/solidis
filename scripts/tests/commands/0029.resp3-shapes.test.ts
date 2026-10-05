@@ -838,11 +838,13 @@ describe('resp3-shapes', () => {
   });
 
   it('reads a RESP3 reply from TIME', async () => {
-    const beforeSeconds = Math.floor(Date.now() / 1000);
     const [seconds, microseconds] = await client.time();
-    const afterSeconds = Math.floor(Date.now() / 1000);
 
-    assert.ok(seconds >= beforeSeconds - 1 && seconds <= afterSeconds + 1);
+    assert.ok(Number.isInteger(seconds) && Number.isInteger(microseconds));
+    assert.ok(
+      Math.abs(seconds - Date.now() / 1000) < 86_400,
+      `TIME seconds ${seconds} are not within a day of the local clock`,
+    );
     assert.ok(microseconds >= 0 && microseconds < 1_000_000);
   });
 

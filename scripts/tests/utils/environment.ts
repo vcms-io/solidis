@@ -9,7 +9,6 @@ import { SolidisProtocols } from '../../../sources/index.ts';
 import type { SolidisClientOptions } from '../../../sources/index.ts';
 
 export interface TestConnectionTarget {
-  label: string;
   host: string;
   port: number;
   username?: string;
@@ -63,10 +62,8 @@ export function resolveConnectionTarget(): TestConnectionTarget {
   const port = readPort(process.env.SOLIDIS_TEST_PORT);
   const username = process.env.SOLIDIS_TEST_USERNAME;
   const password = process.env.SOLIDIS_TEST_PASSWORD;
-  const label = process.env.SOLIDIS_TEST_LABEL ?? `${host}:${port}`;
 
   return {
-    label,
     host,
     port,
     username: username && username.length > 0 ? username : undefined,

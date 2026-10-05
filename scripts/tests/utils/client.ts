@@ -72,6 +72,18 @@ export async function closeClient(
   });
 }
 
+/**
+ * Reads the server's clock in milliseconds, so expiry assertions hold on a
+ * server whose clock differs from the machine running the tests.
+ */
+export async function readServerTime(
+  client: Pick<SolidisFeaturedClient, 'time'>,
+): Promise<number> {
+  const [seconds, microseconds] = await client.time();
+
+  return seconds * 1000 + Math.floor(microseconds / 1000);
+}
+
 export async function closeAllClients(): Promise<void> {
   const pending = Array.from(activeClients).map((client) =>
     closeClient(client),
