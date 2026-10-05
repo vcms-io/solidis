@@ -116,11 +116,11 @@ export default function BenchmarksPage() {
               );
 
               return (
-                <div key={benchmark.name}>
+                <div key={benchmark.name.en}>
                   <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between mb-2">
                     <div>
                       <span className="text-sm font-medium text-foreground">
-                        {benchmark.name}
+                        {benchmark.name[locale]}
                       </span>
                       <span className="block sm:inline sm:ml-2 text-xs text-muted-foreground font-mono">
                         {benchmark.commands}

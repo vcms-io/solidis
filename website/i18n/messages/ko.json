@@ -45,7 +45,11 @@
     "starOnGitHub": "GitHub에서 Solidis에 스타 주기",
     "performance": "성능",
     "benchmarkDesc": "{clients}와 비교한 벤치마크 {total}개 중 {wins}개에서 가장 빠르며, 다음으로 빠른 클라이언트보다 최대 {peak} 빠릅니다. 작업 {iterations}회, 동시 실행 {concurrency}, {payload} 페이로드.",
-    "terminal": "터미널"
+    "terminal": "터미널",
+    "statDependencies": "의존성 0",
+    "statCommands": "커맨드 383개",
+    "statBundle": "29 KB 미만",
+    "statCoverage": "커버리지 100%"
   },
   "footer": {
     "description": "Redis와 RESP 호환 서버를 위한 고성능 RESP 클라이언트",
@@ -237,7 +241,7 @@
     "bufferMgmt": "복사 없는 버퍼",
     "bufferMgmtDesc": "bulk 응답은 받은 데이터의 뷰이고 파이프라인마다 버퍼 하나로 직렬화하므로, GC 부담이 적습니다.",
     "lazyConn": "지연 연결",
-    "lazyConnDesc": "lazyConnect를 켜면 connect()를 호출할 때까지 연결하지 않으므로, 쓰지 않는 클라이언트가 연결을 붙잡지 않습니다."
+    "lazyConnDesc": "lazyConnect를 켜면 생성자에서 연결하지 않고, connect()를 호출하거나 첫 커맨드를 보낼 때 연결합니다."
   },
   "apiReference": {
     "title": "API 레퍼런스",
@@ -254,7 +258,7 @@
     "constructor": "생성자",
     "parameters": "매개변수",
     "optionalConfig": "설정 객체(선택)",
-    "connectDesc": "서버에 연결하고 클라이언트가 준비되면 resolve됩니다. lazyConnect가 true가 아니면 생성자가 이미 호출하며, 그 전에 보낸 커맨드는 연결될 때까지 기다립니다.",
+    "connectDesc": "서버에 연결하고 클라이언트가 준비되면 resolve됩니다. lazyConnect가 true가 아니면 생성자가 호출하고, true면 첫 커맨드도 연결을 시작합니다. 준비되기 전에 보낸 커맨드는 준비될 때까지 기다립니다.",
     "disconnectDesc": "Redis 서버와의 연결을 닫고 리소스를 정리합니다.",
     "setDesc": "키에 문자열 값을 설정합니다.",
     "getDesc": "키의 값을 가져옵니다.",
@@ -270,7 +274,7 @@
     "rawCommands": "원시 커맨드",
     "debugging": "디버깅",
     "customCommandsDesc": "extend()로 커맨드를 직접 추가해, 핵심 코드를 건드리지 않고 상위 기능을 만드세요.",
-    "rawCommandsDesc": "아직 메서드가 없는 커맨드는 send()로 실행하세요. 받은 그대로 보내지만, MONITOR, SYNC, CLIENT REPLY OFF처럼 응답을 짝지을 수 없는 커맨드는 거부합니다. timeout 옵션은 그 요청의 commandTimeout을 대신하며, 0이면 끕니다.",
+    "rawCommandsDesc": "아직 메서드가 없는 커맨드는 send()로 실행하세요. 받은 그대로 보내지만, MONITOR, SYNC, CLIENT REPLY OFF처럼 응답을 짝지을 수 없는 커맨드는 거부합니다. timeout 옵션은 그 요청의 commandTimeout을 대신하며, 0이면 끕니다. BLPOP 같은 원시 블로킹 커맨드는 blockingTimeout을 넘기면 blpop()처럼 처리합니다.",
     "binaryValues": "바이너리 값",
     "binaryValuesDesc": "set, mset, hset, lpush, xadd 같은 쓰기 커맨드는 Buffer 값을 바이트 그대로 저장하고, publish와 spublish는 Buffer 메시지를, send()는 모든 인자에 Buffer를 받습니다. 읽기는 기본적으로 UTF-8로 디코딩하며, get, mget, hget, hgetall, lrange, blpop 같은 읽기 커맨드에 { buffer: true }를 넘기면 Buffer로 받습니다.",
     "bigIntegers": "큰 정수",
@@ -304,9 +308,9 @@
     "maxSpeedBoost": "최대 속도 향상",
     "dependencies": "의존성",
     "bundleSize": "번들 크기",
-    "methodologyDesc": "작업 {iterations}회 × 동시 실행 {concurrency} × {repeats}회 반복 · {payload} 페이로드 · {mode} 모드 · 비교 대상 {clients}",
+    "methodologyDesc": "작업 {iterations}회 × 동시 실행 {concurrency} × {repeats}회 반복 · {payload} 페이로드 · {mode} 모드(트랜잭션은 배치) · 비교 대상 {clients}",
     "platform": "플랫폼",
-    "benchmarkResultsDesc": "벤치마크 {total}개 중 {wins}개에서 가장 빠름 · 다음으로 빠른 클라이언트보다 평균 {average} 처리량",
+    "benchmarkResultsDesc": "벤치마크 {total}개 중 {wins}개에서 가장 빠름 · 처리량은 다음으로 빠른 클라이언트의 평균 {average}",
     "whyFaster": "Solidis가 더 빠른 이유",
     "zeroDeps": "의존성 제로",
     "zeroDepsDesc2": "외부 라이브러리 오버헤드 없음, 순수 Node.js 구현",
@@ -425,7 +429,9 @@
     "statusResearch": "검토 중",
     "latestBadge": "최신",
     "viewOnGitHubLink": "GitHub에서 보기",
-    "cachedWarning": "GitHub에서 릴리스를 불러오지 못했습니다. 저장소의 CHANGELOG.md를 참고하세요."
+    "cachedWarning": "GitHub에서 릴리스를 불러오지 못했습니다. 저장소의 CHANGELOG.md를 참고하세요.",
+    "released": "{date} 릴리스",
+    "author": "{author}"
   },
   "tutorialSession": {
     "backToTutorials": "← 튜토리얼로 돌아가기",
@@ -462,7 +468,7 @@
     "tip1Title": "프로덕션에서 보안 쿠키 사용",
     "tip1Desc": "항상 httpOnly, secure, sameSite 플래그를 설정하세요",
     "tip2Title": "세션 로테이션 구현",
-    "tip2Desc": "세션 고정 공격을 방지하기 위해 로그인 후 세션 ID를 재생성하세요",
+    "tip2Desc": "로그인한 뒤 세션 ID를 새로 발급해 세션 고정 공격을 막으세요",
     "tip3Title": "적절한 TTL 값 설정",
     "tip3Desc": "애플리케이션에 맞게 사용자 경험과 보안 사이에서 균형을 잡으세요",
     "tip4Title": "클라이언트 인스턴스 재사용",

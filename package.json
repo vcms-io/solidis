@@ -2,7 +2,7 @@
   "name": "@vcms-io/solidis",
   "version": "0.4.0",
   "author": "Jay Lee <jay@vendit.co.kr>",
-  "description": "The fastest Redis client for Node.js. Zero dependencies, #1 in all 19 benchmarks, battle-tested in production.",
+  "description": "The fastest Redis client for Node.js. Zero dependencies, battle-tested in production.",
   "repository": {
     "type": "git",
     "url": "https://github.com/vcms-io/solidis.git"

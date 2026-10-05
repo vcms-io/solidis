@@ -45,7 +45,11 @@
     "starOnGitHub": "Star Solidis on GitHub",
     "performance": "Performance",
     "benchmarkDesc": "Fastest in {wins} of {total} benchmarks against {clients}, and up to {peak} faster than the next-fastest client. {iterations} operations, {concurrency} concurrency, {payload} payload.",
-    "terminal": "terminal"
+    "terminal": "terminal",
+    "statDependencies": "0 deps",
+    "statCommands": "383 commands",
+    "statBundle": "< 29 KB",
+    "statCoverage": "100% coverage"
   },
   "footer": {
     "description": "High-performance RESP client for Redis and other RESP-compatible servers.",
@@ -237,7 +241,7 @@
     "bufferMgmt": "Zero-Copy Buffers",
     "bufferMgmtDesc": "Bulk replies are views of the received data, and each pipeline is serialized into one buffer, which keeps garbage collection low.",
     "lazyConn": "Lazy Connections",
-    "lazyConnDesc": "With lazyConnect, the client connects only when you call connect(), so idle clients hold no connection."
+    "lazyConnDesc": "With lazyConnect, the constructor does not connect; the client connects on connect() or on its first command."
   },
   "apiReference": {
     "title": "API Reference",
@@ -254,7 +258,7 @@
     "constructor": "Constructor",
     "parameters": "Parameters",
     "optionalConfig": "Optional configuration object",
-    "connectDesc": "Connects to the server and resolves once the client is ready. The constructor already calls it unless lazyConnect is true, and commands sent before then wait for the connection.",
+    "connectDesc": "Connects to the server and resolves once the client is ready. The constructor calls it unless lazyConnect is true, in which case the first command also connects. Commands sent before the client is ready wait for it.",
     "disconnectDesc": "Closes the connection to the Redis server and cleans up resources.",
     "setDesc": "Sets a key to hold the string value.",
     "getDesc": "Gets the value of a key.",
@@ -270,7 +274,7 @@
     "rawCommands": "Raw Commands",
     "debugging": "Debugging",
     "customCommandsDesc": "Add your own commands with extend() to build higher-level abstractions without touching the core.",
-    "rawCommandsDesc": "Run commands that have no method yet with send(). It sends them as given but refuses commands whose replies cannot be paired, such as MONITOR, SYNC and CLIENT REPLY OFF. Its timeout option replaces commandTimeout for that request; 0 disables it.",
+    "rawCommandsDesc": "Run commands that have no method yet with send(). It sends them as given but refuses commands whose replies cannot be paired, such as MONITOR, SYNC and CLIENT REPLY OFF. Its timeout option replaces commandTimeout for that request; 0 disables it. Pass blockingTimeout with a raw blocking command such as BLPOP to handle it like blpop().",
     "binaryValues": "Binary Values",
     "binaryValuesDesc": "Writes such as set, mset, hset, lpush and xadd store Buffer values byte for byte, publish and spublish take Buffer messages, and send() takes a Buffer for any argument. Reads decode UTF-8 unless you pass { buffer: true } to reads such as get, mget, hget, hgetall, lrange and blpop.",
     "bigIntegers": "Big Integers",
@@ -304,7 +308,7 @@
     "maxSpeedBoost": "Max Speed Boost",
     "dependencies": "Dependencies",
     "bundleSize": "Bundle Size",
-    "methodologyDesc": "{iterations} operations × {concurrency} concurrent × {repeats} repeats · {payload} payload · {mode} mode · against {clients}",
+    "methodologyDesc": "{iterations} operations × {concurrency} concurrent × {repeats} repeats · {payload} payload · {mode} mode, transactions in batches · against {clients}",
     "platform": "Platform",
     "benchmarkResultsDesc": "Fastest in {wins} / {total} benchmarks · {average} the throughput of the next-fastest client on average",
     "whyFaster": "Why Solidis is Faster",
@@ -425,7 +429,9 @@
     "statusResearch": "Research",
     "latestBadge": "Latest",
     "viewOnGitHubLink": "View on GitHub",
-    "cachedWarning": "Could not load the releases from GitHub. See CHANGELOG.md in the repository."
+    "cachedWarning": "Could not load the releases from GitHub. See CHANGELOG.md in the repository.",
+    "released": "Released {date}",
+    "author": "by {author}"
   },
   "tutorialSession": {
     "backToTutorials": "← Back to Tutorials",

@@ -39,6 +39,7 @@ function BenchmarkBar({
   index: number;
   animated: boolean;
 }) {
+  const { locale } = useI18n();
   const fastest = Math.max(...data.bars.map((bar) => bar.operationsPerSecond));
 
   return (
@@ -46,7 +47,7 @@ function BenchmarkBar({
       <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between mb-2">
         <div>
           <span className="text-sm font-medium text-foreground">
-            {data.name}
+            {data.name[locale]}
           </span>
           <span className="ml-2 text-xs text-muted-foreground font-mono">
             {data.commands}
@@ -188,13 +189,13 @@ export default function HomePage() {
             className="hero-reveal flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-muted-foreground font-mono mb-10"
             style={{ '--hero-delay': '450ms' } as React.CSSProperties}
           >
-            <span>0 deps</span>
+            <span>{t('home.statDependencies')}</span>
             <span className="text-foreground/15">·</span>
-            <span>383 commands</span>
+            <span>{t('home.statCommands')}</span>
             <span className="text-foreground/15">·</span>
-            <span>&lt; 29 KB</span>
+            <span>{t('home.statBundle')}</span>
             <span className="text-foreground/15">·</span>
-            <span>100% coverage</span>
+            <span>{t('home.statCoverage')}</span>
           </div>
 
           <div
@@ -373,7 +374,7 @@ await client.set('key', 'value');`}
             <div ref={benchmarkReference} className="card-base p-6 space-y-5">
               {BENCHMARK_DATA.map((benchmark, index) => (
                 <BenchmarkBar
-                  key={benchmark.name}
+                  key={benchmark.name.en}
                   data={benchmark}
                   index={index}
                   animated={benchmarkVisible}

@@ -3,7 +3,7 @@
   "url": "https://context7.com/vcms-io/solidis",
   "public_key": "pk_1lc6uDRxBDTW0y1JAkFSR",
   "projectTitle": "Solidis",
-  "description": "The fastest Redis & Valkey client for Node.js. Zero dependencies, full RESP2/RESP3 support, TypeScript-first.",
+  "description": "The fastest Redis client for Node.js; works with Valkey. Zero dependencies, RESP2 and RESP3, TypeScript-first.",
   "folders": [],
   "excludeFolders": ["website", "sources", "scripts", "assets"],
   "excludeFiles": ["README.ko.md"],

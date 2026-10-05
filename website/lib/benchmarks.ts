@@ -28,8 +28,8 @@ export const benchmarkClients = [
 export const benchmarkSummary = {
   wins: 19,
   total: 19,
-  averageLead: 1.51,
-  peakLead: 2.86,
+  averageLead: 1.47,
+  peakLead: 2.16,
   iterations: 100000,
   concurrency: 10000,
   repeats: 5,
@@ -38,709 +38,766 @@ export const benchmarkSummary = {
   nodeVersion: 'v22.23.0',
   platform: 'linux x64',
   server: 'Redis 8.10.2',
-  measuredOn: '2026-10-04',
+  measuredOn: '2026-10-05',
 };
 
 export const benchmarkCases = [
   {
-    name: 'Pub/Sub',
-    commands: 'PUBLISH + MESSAGE',
-    lead: 2.86,
-    clients: [
-      {
-        name: 'solidis',
-        operationsPerSecond: 417516,
-        note: 0,
-      },
-      {
-        name: 'ioredis',
-        operationsPerSecond: 53133,
-        note: 0,
-      },
-      {
-        name: 'iovalkey',
-        operationsPerSecond: 56009,
-        note: 0,
-      },
-      {
-        name: 'node-redis',
-        operationsPerSecond: 58068,
-        note: 0,
-      },
-      {
-        name: 'valkey-glide',
-        operationsPerSecond: 43934,
-        note: 1,
-      },
-      {
-        name: 'speedkey',
-        operationsPerSecond: 145795,
-        note: 1,
-      },
-    ],
-  },
-  {
-    name: 'Transaction Mixed',
+    name: {
+      en: 'Transaction Mixed',
+      ko: '트랜잭션 혼합',
+    },
     commands: 'SET + GET',
-    lead: 2.21,
+    lead: 2.16,
     clients: [
       {
         name: 'solidis',
-        operationsPerSecond: 135743,
+        operationsPerSecond: 132489,
         note: 0,
       },
       {
         name: 'ioredis',
-        operationsPerSecond: 27945,
+        operationsPerSecond: 28383,
         note: 0,
       },
       {
         name: 'iovalkey',
-        operationsPerSecond: 30405,
+        operationsPerSecond: 30515,
         note: 0,
       },
       {
         name: 'node-redis',
-        operationsPerSecond: 61481,
+        operationsPerSecond: 61391,
         note: 0,
       },
       {
         name: 'valkey-glide',
-        operationsPerSecond: 42248,
-        note: 2,
+        operationsPerSecond: 42067,
+        note: 1,
       },
       {
         name: 'speedkey',
-        operationsPerSecond: 46978,
+        operationsPerSecond: 46702,
         note: 0,
       },
     ],
   },
   {
-    name: 'Transaction',
+    name: {
+      en: 'Transaction',
+      ko: '트랜잭션',
+    },
     commands: 'SET + EXPIRE + GET',
-    lead: 2.19,
+    lead: 2.13,
     clients: [
       {
         name: 'solidis',
-        operationsPerSecond: 170151,
+        operationsPerSecond: 166541,
         note: 0,
       },
       {
         name: 'ioredis',
-        operationsPerSecond: 35603,
+        operationsPerSecond: 35400,
         note: 0,
       },
       {
         name: 'iovalkey',
-        operationsPerSecond: 39148,
+        operationsPerSecond: 39513,
         note: 0,
       },
       {
         name: 'node-redis',
-        operationsPerSecond: 77589,
+        operationsPerSecond: 78160,
         note: 0,
       },
       {
         name: 'valkey-glide',
-        operationsPerSecond: 67294,
+        operationsPerSecond: 66785,
+        note: 1,
+      },
+      {
+        name: 'speedkey',
+        operationsPerSecond: 55690,
+        note: 0,
+      },
+    ],
+  },
+  {
+    name: {
+      en: 'Pub/Sub',
+      ko: 'Pub/Sub',
+    },
+    commands: 'PUBLISH + MESSAGE',
+    lead: 1.82,
+    clients: [
+      {
+        name: 'solidis',
+        operationsPerSecond: 303068,
+        note: 0,
+      },
+      {
+        name: 'ioredis',
+        operationsPerSecond: 145181,
+        note: 0,
+      },
+      {
+        name: 'iovalkey',
+        operationsPerSecond: 159889,
+        note: 0,
+      },
+      {
+        name: 'node-redis',
+        operationsPerSecond: 166822,
+        note: 0,
+      },
+      {
+        name: 'valkey-glide',
+        operationsPerSecond: 43026,
         note: 2,
       },
       {
         name: 'speedkey',
-        operationsPerSecond: 55889,
-        note: 0,
+        operationsPerSecond: 130874,
+        note: 2,
       },
     ],
   },
   {
-    name: 'Set',
+    name: {
+      en: 'Set',
+      ko: 'Set',
+    },
     commands: 'SET',
-    lead: 1.66,
+    lead: 1.68,
     clients: [
       {
         name: 'solidis',
-        operationsPerSecond: 358588,
+        operationsPerSecond: 356016,
         note: 0,
       },
       {
         name: 'ioredis',
-        operationsPerSecond: 144654,
+        operationsPerSecond: 145096,
         note: 0,
       },
       {
         name: 'iovalkey',
-        operationsPerSecond: 150988,
+        operationsPerSecond: 154884,
         note: 0,
       },
       {
         name: 'node-redis',
-        operationsPerSecond: 216632,
+        operationsPerSecond: 212103,
         note: 0,
       },
       {
         name: 'valkey-glide',
-        operationsPerSecond: 115715,
+        operationsPerSecond: 114190,
         note: 0,
       },
       {
         name: 'speedkey',
-        operationsPerSecond: 173263,
+        operationsPerSecond: 168189,
         note: 0,
       },
     ],
   },
   {
-    name: 'Set Read',
+    name: {
+      en: 'Set Read',
+      ko: 'Set 조회',
+    },
     commands: 'SADD + SISMEMBER + SMEMBERS',
+    lead: 1.57,
+    clients: [
+      {
+        name: 'solidis',
+        operationsPerSecond: 162910,
+        note: 0,
+      },
+      {
+        name: 'ioredis',
+        operationsPerSecond: 60454,
+        note: 0,
+      },
+      {
+        name: 'iovalkey',
+        operationsPerSecond: 61533,
+        note: 0,
+      },
+      {
+        name: 'node-redis',
+        operationsPerSecond: 104063,
+        note: 0,
+      },
+      {
+        name: 'valkey-glide',
+        operationsPerSecond: 71317,
+        note: 3,
+      },
+      {
+        name: 'speedkey',
+        operationsPerSecond: 84321,
+        note: 3,
+      },
+    ],
+  },
+  {
+    name: {
+      en: 'Sorted Set',
+      ko: 'Sorted Set',
+    },
+    commands: 'ZADD + ZRANGE + ZREM',
     lead: 1.51,
     clients: [
       {
         name: 'solidis',
-        operationsPerSecond: 158698,
+        operationsPerSecond: 140288,
         note: 0,
       },
       {
         name: 'ioredis',
-        operationsPerSecond: 60044,
+        operationsPerSecond: 57874,
         note: 0,
       },
       {
         name: 'iovalkey',
-        operationsPerSecond: 60970,
+        operationsPerSecond: 60743,
         note: 0,
       },
       {
         name: 'node-redis',
-        operationsPerSecond: 105357,
+        operationsPerSecond: 93158,
         note: 0,
       },
       {
         name: 'valkey-glide',
-        operationsPerSecond: 69886,
+        operationsPerSecond: 59909,
         note: 3,
       },
       {
         name: 'speedkey',
-        operationsPerSecond: 81814,
+        operationsPerSecond: 69074,
         note: 3,
       },
     ],
   },
   {
-    name: 'Expire',
-    commands: 'SET + EXPIRE + TTL',
-    lead: 1.5,
-    clients: [
-      {
-        name: 'solidis',
-        operationsPerSecond: 176662,
-        note: 0,
-      },
-      {
-        name: 'ioredis',
-        operationsPerSecond: 74728,
-        note: 0,
-      },
-      {
-        name: 'iovalkey',
-        operationsPerSecond: 74042,
-        note: 0,
-      },
-      {
-        name: 'node-redis',
-        operationsPerSecond: 117988,
-        note: 0,
-      },
-      {
-        name: 'valkey-glide',
-        operationsPerSecond: 81648,
-        note: 3,
-      },
-      {
-        name: 'speedkey',
-        operationsPerSecond: 93510,
-        note: 3,
-      },
-    ],
-  },
-  {
-    name: 'Pipeline Mixed',
-    commands: 'SET + INCR + GET',
-    lead: 1.47,
-    clients: [
-      {
-        name: 'solidis',
-        operationsPerSecond: 161464,
-        note: 0,
-      },
-      {
-        name: 'ioredis',
-        operationsPerSecond: 72169,
-        note: 0,
-      },
-      {
-        name: 'iovalkey',
-        operationsPerSecond: 72765,
-        note: 0,
-      },
-      {
-        name: 'node-redis',
-        operationsPerSecond: 110060,
-        note: 0,
-      },
-      {
-        name: 'valkey-glide',
-        operationsPerSecond: 73278,
-        note: 3,
-      },
-      {
-        name: 'speedkey',
-        operationsPerSecond: 83964,
-        note: 3,
-      },
-    ],
-  },
-  {
-    name: 'Set Mutation',
+    name: {
+      en: 'Set Mutation',
+      ko: 'Set 변경',
+    },
     commands: 'SADD + SISMEMBER + SREM',
+    lead: 1.46,
+    clients: [
+      {
+        name: 'solidis',
+        operationsPerSecond: 152865,
+        note: 0,
+      },
+      {
+        name: 'ioredis',
+        operationsPerSecond: 55120,
+        note: 0,
+      },
+      {
+        name: 'iovalkey',
+        operationsPerSecond: 66221,
+        note: 0,
+      },
+      {
+        name: 'node-redis',
+        operationsPerSecond: 104612,
+        note: 0,
+      },
+      {
+        name: 'valkey-glide',
+        operationsPerSecond: 72579,
+        note: 3,
+      },
+      {
+        name: 'speedkey',
+        operationsPerSecond: 96384,
+        note: 3,
+      },
+    ],
+  },
+  {
+    name: {
+      en: 'Hash Mutation',
+      ko: 'Hash 변경',
+    },
+    commands: 'HMSET + HMGET + HDEL',
+    lead: 1.46,
+    clients: [
+      {
+        name: 'solidis',
+        operationsPerSecond: 130521,
+        note: 0,
+      },
+      {
+        name: 'ioredis',
+        operationsPerSecond: 56190,
+        note: 0,
+      },
+      {
+        name: 'iovalkey',
+        operationsPerSecond: 60422,
+        note: 0,
+      },
+      {
+        name: 'node-redis',
+        operationsPerSecond: 89452,
+        note: 0,
+      },
+      {
+        name: 'valkey-glide',
+        operationsPerSecond: 52164,
+        note: 3,
+      },
+      {
+        name: 'speedkey',
+        operationsPerSecond: 63384,
+        note: 3,
+      },
+    ],
+  },
+  {
+    name: {
+      en: 'Expire',
+      ko: 'Expire',
+    },
+    commands: 'SET + EXPIRE + TTL',
     lead: 1.45,
     clients: [
       {
         name: 'solidis',
-        operationsPerSecond: 150603,
+        operationsPerSecond: 175382,
         note: 0,
       },
       {
         name: 'ioredis',
-        operationsPerSecond: 54562,
+        operationsPerSecond: 74851,
         note: 0,
       },
       {
         name: 'iovalkey',
-        operationsPerSecond: 55943,
+        operationsPerSecond: 75247,
         note: 0,
       },
       {
         name: 'node-redis',
-        operationsPerSecond: 103954,
+        operationsPerSecond: 120794,
         note: 0,
       },
       {
         name: 'valkey-glide',
-        operationsPerSecond: 68904,
+        operationsPerSecond: 82053,
         note: 3,
       },
       {
         name: 'speedkey',
-        operationsPerSecond: 95150,
+        operationsPerSecond: 93355,
         note: 3,
       },
     ],
   },
   {
-    name: 'Non-Transaction',
-    commands: 'SETPX + GET',
-    lead: 1.43,
-    clients: [
-      {
-        name: 'solidis',
-        operationsPerSecond: 199141,
-        note: 0,
-      },
-      {
-        name: 'ioredis',
-        operationsPerSecond: 84981,
-        note: 0,
-      },
-      {
-        name: 'iovalkey',
-        operationsPerSecond: 85394,
-        note: 0,
-      },
-      {
-        name: 'node-redis',
-        operationsPerSecond: 139537,
-        note: 0,
-      },
-      {
-        name: 'valkey-glide',
-        operationsPerSecond: 84803,
-        note: 3,
-      },
-      {
-        name: 'speedkey',
-        operationsPerSecond: 105140,
-        note: 3,
-      },
-    ],
-  },
-  {
-    name: 'Sorted Set',
-    commands: 'ZADD + ZRANGE + ZREM',
+    name: {
+      en: 'Counter',
+      ko: 'Counter',
+    },
+    commands: 'INCR + DECR',
     lead: 1.41,
     clients: [
       {
         name: 'solidis',
-        operationsPerSecond: 135803,
+        operationsPerSecond: 262411,
         note: 0,
       },
       {
         name: 'ioredis',
-        operationsPerSecond: 58457,
+        operationsPerSecond: 125352,
         note: 0,
       },
       {
         name: 'iovalkey',
-        operationsPerSecond: 58598,
+        operationsPerSecond: 127873,
         note: 0,
       },
       {
         name: 'node-redis',
-        operationsPerSecond: 96649,
+        operationsPerSecond: 186646,
         note: 0,
       },
       {
         name: 'valkey-glide',
-        operationsPerSecond: 60293,
+        operationsPerSecond: 102293,
         note: 3,
       },
       {
         name: 'speedkey',
-        operationsPerSecond: 67905,
+        operationsPerSecond: 139762,
         note: 3,
       },
     ],
   },
   {
-    name: 'Hash Mutation',
-    commands: 'HMSET + HMGET + HDEL',
-    lead: 1.4,
+    name: {
+      en: 'Pipeline Mixed',
+      ko: '파이프라인 혼합',
+    },
+    commands: 'SET + INCR + GET',
+    lead: 1.41,
     clients: [
       {
         name: 'solidis',
-        operationsPerSecond: 129665,
+        operationsPerSecond: 159382,
         note: 0,
       },
       {
         name: 'ioredis',
-        operationsPerSecond: 56380,
+        operationsPerSecond: 74311,
         note: 0,
       },
       {
         name: 'iovalkey',
-        operationsPerSecond: 57411,
+        operationsPerSecond: 74324,
         note: 0,
       },
       {
         name: 'node-redis',
-        operationsPerSecond: 92620,
+        operationsPerSecond: 113366,
         note: 0,
       },
       {
         name: 'valkey-glide',
-        operationsPerSecond: 50847,
+        operationsPerSecond: 74577,
         note: 3,
       },
       {
         name: 'speedkey',
-        operationsPerSecond: 62275,
+        operationsPerSecond: 84374,
         note: 3,
       },
     ],
   },
   {
-    name: 'Multi-Key',
+    name: {
+      en: 'Multi-Key',
+      ko: 'Multi-Key',
+    },
     commands: 'MSET + MGET',
-    lead: 1.4,
+    lead: 1.41,
     clients: [
       {
         name: 'solidis',
-        operationsPerSecond: 146607,
+        operationsPerSecond: 147734,
         note: 0,
       },
       {
         name: 'ioredis',
-        operationsPerSecond: 62691,
+        operationsPerSecond: 62752,
         note: 0,
       },
       {
         name: 'iovalkey',
-        operationsPerSecond: 67782,
+        operationsPerSecond: 67363,
         note: 0,
       },
       {
         name: 'node-redis',
-        operationsPerSecond: 104888,
+        operationsPerSecond: 105118,
         note: 0,
       },
       {
         name: 'valkey-glide',
-        operationsPerSecond: 62920,
+        operationsPerSecond: 63253,
         note: 3,
       },
       {
         name: 'speedkey',
-        operationsPerSecond: 73153,
+        operationsPerSecond: 74299,
         note: 3,
       },
     ],
   },
   {
-    name: 'List Range',
+    name: {
+      en: 'List Range',
+      ko: 'List 범위',
+    },
     commands: 'LPUSH + RPUSH + LRANGE',
     lead: 1.39,
     clients: [
       {
         name: 'solidis',
-        operationsPerSecond: 129149,
+        operationsPerSecond: 131181,
         note: 0,
       },
       {
         name: 'ioredis',
-        operationsPerSecond: 54818,
+        operationsPerSecond: 54713,
         note: 0,
       },
       {
         name: 'iovalkey',
-        operationsPerSecond: 56357,
+        operationsPerSecond: 56837,
         note: 0,
       },
       {
         name: 'node-redis',
-        operationsPerSecond: 93180,
+        operationsPerSecond: 94197,
         note: 0,
       },
       {
         name: 'valkey-glide',
-        operationsPerSecond: 59012,
+        operationsPerSecond: 58771,
         note: 3,
       },
       {
         name: 'speedkey',
-        operationsPerSecond: 73972,
+        operationsPerSecond: 73520,
         note: 3,
       },
     ],
   },
   {
-    name: 'Counter',
-    commands: 'INCR + DECR',
-    lead: 1.36,
+    name: {
+      en: 'Non-Transaction',
+      ko: '비트랜잭션',
+    },
+    commands: 'SET PX + GET',
+    lead: 1.37,
     clients: [
       {
         name: 'solidis',
-        operationsPerSecond: 256374,
+        operationsPerSecond: 197536,
         note: 0,
       },
       {
         name: 'ioredis',
-        operationsPerSecond: 122279,
+        operationsPerSecond: 83139,
         note: 0,
       },
       {
         name: 'iovalkey',
-        operationsPerSecond: 126950,
+        operationsPerSecond: 84659,
         note: 0,
       },
       {
         name: 'node-redis',
-        operationsPerSecond: 188379,
+        operationsPerSecond: 144495,
         note: 0,
       },
       {
         name: 'valkey-glide',
-        operationsPerSecond: 105579,
+        operationsPerSecond: 85057,
         note: 3,
       },
       {
         name: 'speedkey',
-        operationsPerSecond: 134550,
+        operationsPerSecond: 104437,
         note: 3,
       },
     ],
   },
   {
-    name: 'Hash Round-Trip',
+    name: {
+      en: 'Hash Round-Trip',
+      ko: 'Hash 왕복',
+    },
     commands: 'HSET + HGET + HGETALL',
-    lead: 1.32,
+    lead: 1.34,
     clients: [
       {
         name: 'solidis',
-        operationsPerSecond: 139889,
+        operationsPerSecond: 147706,
         note: 0,
       },
       {
         name: 'ioredis',
-        operationsPerSecond: 67268,
+        operationsPerSecond: 68192,
         note: 0,
       },
       {
         name: 'iovalkey',
-        operationsPerSecond: 70715,
+        operationsPerSecond: 71850,
         note: 0,
       },
       {
         name: 'node-redis',
-        operationsPerSecond: 106351,
+        operationsPerSecond: 110564,
         note: 0,
       },
       {
         name: 'valkey-glide',
-        operationsPerSecond: 60126,
+        operationsPerSecond: 60961,
         note: 3,
       },
       {
         name: 'speedkey',
-        operationsPerSecond: 68992,
+        operationsPerSecond: 71031,
         note: 3,
       },
     ],
   },
   {
-    name: 'Info / Config',
-    commands: 'INFO + CONFIGGET',
-    lead: 1.3,
+    name: {
+      en: 'Info / Config',
+      ko: 'Info / Config',
+    },
+    commands: 'INFO + CONFIG GET',
+    lead: 1.31,
     clients: [
       {
         name: 'solidis',
-        operationsPerSecond: 221244,
+        operationsPerSecond: 221248,
         note: 0,
       },
       {
         name: 'ioredis',
-        operationsPerSecond: 111662,
+        operationsPerSecond: 110553,
         note: 4,
       },
       {
         name: 'iovalkey',
-        operationsPerSecond: 114254,
+        operationsPerSecond: 115176,
         note: 4,
       },
       {
         name: 'node-redis',
-        operationsPerSecond: 169603,
+        operationsPerSecond: 169294,
         note: 0,
       },
       {
         name: 'valkey-glide',
-        operationsPerSecond: 89851,
+        operationsPerSecond: 90634,
         note: 3,
       },
       {
         name: 'speedkey',
-        operationsPerSecond: 94652,
+        operationsPerSecond: 96632,
         note: 3,
       },
     ],
   },
   {
-    name: 'Stream',
+    name: {
+      en: 'Stream',
+      ko: 'Stream',
+    },
     commands: 'XADD + XRANGE + XLEN',
-    lead: 1.3,
+    lead: 1.29,
     clients: [
       {
         name: 'solidis',
-        operationsPerSecond: 138618,
+        operationsPerSecond: 139482,
         note: 0,
       },
       {
         name: 'ioredis',
-        operationsPerSecond: 57671,
+        operationsPerSecond: 59404,
         note: 0,
       },
       {
         name: 'iovalkey',
-        operationsPerSecond: 59617,
+        operationsPerSecond: 58520,
         note: 0,
       },
       {
         name: 'node-redis',
-        operationsPerSecond: 106839,
+        operationsPerSecond: 107845,
         note: 0,
       },
       {
         name: 'valkey-glide',
-        operationsPerSecond: 53578,
+        operationsPerSecond: 54787,
         note: 3,
       },
       {
         name: 'speedkey',
-        operationsPerSecond: 55703,
+        operationsPerSecond: 54820,
         note: 3,
       },
     ],
   },
   {
-    name: 'List Mutation',
+    name: {
+      en: 'List Mutation',
+      ko: 'List 변경',
+    },
     commands: 'LPUSH + RPUSH + LPOP + RPOP + LLEN',
     lead: 1.2,
     clients: [
       {
         name: 'solidis',
-        operationsPerSecond: 108588,
+        operationsPerSecond: 109155,
         note: 0,
       },
       {
         name: 'ioredis',
-        operationsPerSecond: 41561,
+        operationsPerSecond: 40558,
         note: 0,
       },
       {
         name: 'iovalkey',
-        operationsPerSecond: 41759,
+        operationsPerSecond: 42514,
         note: 0,
       },
       {
         name: 'node-redis',
-        operationsPerSecond: 90323,
+        operationsPerSecond: 90870,
         note: 0,
       },
       {
         name: 'valkey-glide',
-        operationsPerSecond: 49315,
+        operationsPerSecond: 49325,
         note: 3,
       },
       {
         name: 'speedkey',
-        operationsPerSecond: 57527,
+        operationsPerSecond: 58306,
         note: 3,
       },
     ],
   },
   {
-    name: 'Get',
+    name: {
+      en: 'Get',
+      ko: 'Get',
+    },
     commands: 'GET',
-    lead: 1.11,
+    lead: 1.05,
     clients: [
       {
         name: 'solidis',
-        operationsPerSecond: 337734,
+        operationsPerSecond: 349064,
         note: 0,
       },
       {
         name: 'ioredis',
-        operationsPerSecond: 194495,
+        operationsPerSecond: 198949,
         note: 0,
       },
       {
         name: 'iovalkey',
-        operationsPerSecond: 193653,
+        operationsPerSecond: 194934,
         note: 0,
       },
       {
         name: 'node-redis',
-        operationsPerSecond: 303690,
+        operationsPerSecond: 331877,
         note: 0,
       },
       {
         name: 'valkey-glide',
-        operationsPerSecond: 113341,
+        operationsPerSecond: 112287,
         note: 0,
       },
       {
         name: 'speedkey',
-        operationsPerSecond: 193311,
+        operationsPerSecond: 183291,
         note: 0,
       },
     ],
@@ -749,12 +806,12 @@ export const benchmarkCases = [
 
 export const benchmarkNotes = [
   {
-    en: 'Subscribes over RESP3, which it requires for Pub/Sub',
-    ko: 'Pub/Sub에는 RESP3가 필요해 RESP3로 구독합니다',
-  },
-  {
     en: 'Does not take MULTI and EXEC in a batch, so it sends the commands between them as an atomic batch',
     ko: '배치에 MULTI와 EXEC를 넣을 수 없어, 그 사이의 커맨드를 원자적 배치로 보냅니다',
+  },
+  {
+    en: 'Subscribes over RESP3, which it requires for Pub/Sub',
+    ko: 'Pub/Sub에는 RESP3가 필요해 RESP3로 구독합니다',
   },
   {
     en: 'Does not keep the order of concurrent commands, so it sends each operation as one batch',

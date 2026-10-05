@@ -23,7 +23,7 @@ import { useGitHubReleases } from '@/hooks/use-github-releases';
 import { useI18n } from '@/lib/i18n-context';
 
 export default function UpdatesPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { releases, loading, fallback } = useGitHubReleases();
 
   const upcomingFeatures = [
@@ -45,7 +45,7 @@ export default function UpdatesPage() {
       : 'bg-muted text-muted-foreground';
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    return new Date(dateString).toLocaleDateString(locale, {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -111,11 +111,13 @@ export default function UpdatesPage() {
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
               <div className="flex items-center gap-1">
                 <Calendar className="h-3 w-3" />
-                Released {formatDate(releases[0].published_at)}
+                {t('updates.released', {
+                  date: formatDate(releases[0].published_at),
+                })}
               </div>
               <div className="flex items-center gap-1">
                 <User className="h-3 w-3" />
-                by {releases[0].author.login}
+                {t('updates.author', { author: releases[0].author.login })}
               </div>
             </div>
           </CardContent>

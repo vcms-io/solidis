@@ -1,6 +1,6 @@
 # Solidis website
 
-The documentation site of [Solidis](../README.md), built with Next.js, next-intl and Tailwind CSS.
+The documentation site of [Solidis](../README.md), built with Next.js and Tailwind CSS.
 
 Install its dependencies once with `npm install` in this directory, then run these from the repository root:
 

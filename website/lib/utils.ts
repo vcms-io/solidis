@@ -20,6 +20,8 @@ function listNames(names: string[], conjunction: string) {
 }
 
 export function getBenchmarkClaims(locale: string) {
+  const times = locale === 'ko' ? '배' : 'x';
+
   return {
     clients: listNames(
       benchmarkClients
@@ -29,8 +31,8 @@ export function getBenchmarkClaims(locale: string) {
     ),
     wins: benchmarkSummary.wins,
     total: benchmarkSummary.total,
-    peak: `${benchmarkSummary.peakLead.toFixed(1)}x`,
-    average: `${benchmarkSummary.averageLead.toFixed(1)}x`,
+    peak: `${benchmarkSummary.peakLead.toFixed(1)}${times}`,
+    average: `${benchmarkSummary.averageLead.toFixed(1)}${times}`,
     iterations: benchmarkSummary.iterations.toLocaleString('en-US'),
     concurrency: benchmarkSummary.concurrency.toLocaleString('en-US'),
     repeats: benchmarkSummary.repeats,
