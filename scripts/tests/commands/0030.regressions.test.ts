@@ -575,39 +575,24 @@ describe('regressions', () => {
         (_, index) => `v${index}`,
       );
       const command = ['MSET', ...values];
-      const { sort } = Array.prototype;
-      const sortedLengths: number[] = [];
+      const startedAt = performance.now();
+      const arity = toCommandError(
+        new RespError("ERR wrong number of arguments for 'mset' command"),
+        command,
+      );
 
-      Array.prototype.sort = function (compare) {
-        sortedLengths.push(this.length);
+      assert.ok(performance.now() - startedAt < 5000);
+      assert.strictEqual(
+        arity.message,
+        "[MSET] ERR wrong number of arguments for 'mset' command",
+      );
 
-        return sort.call(this, compare);
-      };
+      const prefixed = toCommandError(
+        new RespError("ERR invalid 'v0'"),
+        command.slice(0, 1001),
+      );
 
-      try {
-        const startedAt = performance.now();
-        const arity = toCommandError(
-          new RespError("ERR wrong number of arguments for 'mset' command"),
-          command,
-        );
-
-        assert.ok(performance.now() - startedAt < 5000);
-        assert.strictEqual(
-          arity.message,
-          "[MSET] ERR wrong number of arguments for 'mset' command",
-        );
-        assert.deepStrictEqual(sortedLengths, [0]);
-
-        const quoted = toCommandError(
-          new RespError("ERR invalid 'v0'"),
-          command.slice(0, 1001),
-        );
-
-        assert.strictEqual(quoted.message, "[MSET] ERR invalid '***'");
-        assert.deepStrictEqual(sortedLengths, [0, 1000]);
-      } finally {
-        Array.prototype.sort = sort;
-      }
+      assert.strictEqual(prefixed.message, "[MSET] ERR invalid '***'");
     });
 
     it('keeps the subcommand of a container command visible', () => {
@@ -657,7 +642,7 @@ describe('regressions', () => {
       const secret = `hunter2 ${'s'.repeat(5000)}`;
       const open = toCommandError(
         new RespError(`ERR invalid 'x' 'y' \`${secret}\` more`),
-        ['SET', 'key', secret],
+        ['SET', 'k', secret],
       );
 
       assert.strictEqual(open.message, "[SET] ERR invalid 'x' 'y' `***");
@@ -851,6 +836,157 @@ describe('regressions', () => {
       );
     });
 
+    it('redacts text the server quotes from inside an argument', () => {
+      const script = Buffer.from([
+        ...Buffer.from('return hunter2'),
+        0xff,
+        ...Buffer.from('secret'),
+      ]);
+      const cases: [(string | Buffer)[], string, string][] = [
+        [
+          ['EVAL', "return 'x' .. hunter2secretQ", '0'],
+          "ERR Error compiling script (new function): user_script:1: '<eof>' expected near 'hunter2secretQ'",
+          "ERR Error compiling script (new function): user_script:1: '<eof>' expected near '***'",
+        ],
+        [
+          ['EVAL', 'return hunter2secretQ', '0'],
+          "ERR user_script:1: Script attempted to access nonexistent global variable 'hunter2secretQ' script: ca74dfe, on @user_script:1.",
+          "ERR user_script:1: Script attempted to access nonexistent global variable '***' script: ca74dfe, on @user_script:1.",
+        ],
+        [
+          [
+            'FUNCTION',
+            'LOAD',
+            "#!lua name=secret_library\nredis.register_function('f', function() return 1 end)",
+          ],
+          "ERR Library 'secret_library' already exists",
+          "ERR Library '***' already exists",
+        ],
+        [
+          [
+            'FT.AGGREGATE',
+            'index',
+            '*',
+            'APPLY',
+            'hunter2secret(@title)',
+            'AS',
+            'x',
+          ],
+          "Unknown function name 'hunter2secret'",
+          "Unknown function name '***'",
+        ],
+        [
+          ['EVAL', script, '0'],
+          "ERR user_script:1: Script attempted to access nonexistent global variable 'hunter2\uFFFDsecret' script: 1, on @user_script:1.",
+          "ERR user_script:1: Script attempted to access nonexistent global variable '***' script: 1, on @user_script:1.",
+        ],
+        [
+          ['EVAL', 'return hunter2\uD800secret', '0'],
+          "ERR user_script:1: Script attempted to access nonexistent global variable 'hunter2\uFFFDsecret' script: 1, on @user_script:1.",
+          "ERR user_script:1: Script attempted to access nonexistent global variable '***' script: 1, on @user_script:1.",
+        ],
+        [
+          ['SET', 'key', 'value'],
+          "ERR invalid 'x' 'y'",
+          "ERR invalid 'x' '***'",
+        ],
+        [['SET', 'k', 'x y'], "ERR invalid 'p' 'q'", "ERR invalid 'p' 'q'"],
+        [
+          ['SET', 'k', 'v'],
+          "ERR invalid '' here 'x'",
+          "ERR invalid '' here 'x'",
+        ],
+        [
+          ['EVAL', Buffer.from(`return ${'a'.repeat(5000)}\u{1F600}tail`), '0'],
+          `ERR near '${'a'.repeat(4085)}\u{1F600}tail and more`,
+          "ERR near '***",
+        ],
+      ];
+
+      for (const [command, message, redacted] of cases) {
+        const error = toCommandError(new RespError(message), command);
+
+        assert.strictEqual(
+          error.message,
+          `[${getCommandName(command)}] ${redacted}`,
+        );
+      }
+    });
+
+    it('masks a cut message to its end once it masks anything', () => {
+      const secret = `hunter2 ${'s'.repeat(5000)}`;
+      const error = toCommandError(
+        new RespError(`ERR invalid 'x' 'y' \`${secret}\` more`),
+        ['SET', 'x', secret],
+      );
+
+      assert.strictEqual(error.message, "[SET] ERR invalid '***");
+      assert.ok(error.cause instanceof RespError);
+      assert.ok(!error.cause.message.includes('hunter2'));
+    });
+
+    it('keeps the characters of a message outside what it masks', () => {
+      const reply = new RespError("ERR bad \uFFFD'token' here");
+      const kept = toCommandError(reply, ['GET', 'k']);
+
+      assert.strictEqual(kept.message, "[GET] ERR bad \uFFFD'token' here");
+      assert.strictEqual(kept.cause, reply);
+
+      const masked = toCommandError(new RespError("ERR bad \uFFFD'x' here"), [
+        'GET',
+        'k',
+        'x',
+      ]);
+
+      assert.strictEqual(masked.message, "[GET] ERR bad \uFFFD'***' here");
+
+      const trailing = new RespError("ERR bad \uFFFD'");
+
+      assert.strictEqual(
+        toCommandError(trailing, ['GET', 'k']).cause,
+        trailing,
+      );
+    });
+
+    it('bounds the search for quoted text inside arguments', () => {
+      const letters = 'bcdefghijklmnopqrstuvwxyz';
+      const quoted = Array.from(
+        { length: 500 },
+        (_, index) =>
+          `'aa${letters[index % 25]}${letters[Math.floor(index / 25)]}'`,
+      ).join(' ');
+      const large = Buffer.alloc(8 * 1024 * 1024, 'a');
+      const empty = Array.from({ length: 1_000_000 }, () => '');
+
+      for (const command of [
+        ['SET', 'k', large],
+        ['MSET', ...empty],
+      ]) {
+        const startedAt = performance.now();
+        const error = toCommandError(new RespError(`ERR ${quoted}`), command);
+
+        assert.ok(performance.now() - startedAt < 2000);
+        assert.ok(error.message.endsWith("'***'"), error.message.slice(-40));
+        assert.ok(error.message.startsWith(`[${command[0]}] ERR 'aabb'`));
+      }
+
+      const huge = Buffer.alloc(67_108_864 + 1024, 'a');
+      const message = "OOM command not allowed when used memory > 'maxmemory'.";
+
+      assert.strictEqual(
+        toCommandError(new RespError(message), ['SET', 'k', huge]).message,
+        `[SET] ${message}`,
+      );
+      assert.strictEqual(
+        toCommandError(new RespError("ERR invalid 'hunter2'"), [
+          'SET',
+          'k',
+          Buffer.concat([huge, Buffer.from('hunter2')]),
+        ]).message,
+        "[SET] ERR invalid '***'",
+      );
+    });
+
     it('redacts a long quoted argument in linear time', () => {
       const argument = 'x'.repeat(200_000);
       const startedAt = performance.now();
@@ -929,6 +1065,41 @@ describe('regressions', () => {
             return true;
           },
         );
+      }
+    });
+
+    it('redacts a Lua token and a library name the server quotes from inside a script', async (context) => {
+      await assert.rejects(
+        executeCommand(client, ['EVAL', 'return hunter2secretQ', '0']),
+        (error: unknown) => {
+          assert.ok(error instanceof SolidisCommandError);
+          assert.ok(error.message.includes("variable '***'"), error.message);
+          assert.ok(!String(error.cause).includes('hunter2secretQ'));
+
+          return true;
+        },
+      );
+
+      if (!features.isAtLeast7) {
+        context.skip('functions require Redis 7.0+');
+
+        return;
+      }
+
+      const library = keyspace.key('secret_library').replace(/\W/g, '_');
+      const code = `#!lua name=${library}\nredis.register_function('${library}_f', function() return 1 end)`;
+
+      try {
+        await client.functionLoad(code);
+        await assert.rejects(client.functionLoad(code), (error: unknown) => {
+          assert.ok(error instanceof SolidisCommandError);
+          assert.ok(error.message.includes("Library '***'"), error.message);
+          assert.ok(!error.message.includes(library));
+
+          return true;
+        });
+      } finally {
+        await client.functionDelete(library).catch(() => {});
       }
     });
 

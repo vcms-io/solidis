@@ -4,6 +4,7 @@ import {
   SolidisContainerCommandNameSet,
   SolidisDollarByte,
   SolidisLineFeedByte,
+  SolidisMaskingSearchLimit,
   SolidisMaximumErrorMessageLength,
 } from '../internal.ts';
 import { RespError, SolidisCommandError } from './error.ts';
@@ -92,72 +93,63 @@ export function getCommandName(command: readonly StringOrBuffer[]): string {
   return `${name} ${toText(subcommand).toUpperCase()}`;
 }
 
-function findLowerBound(texts: readonly string[], text: string) {
-  let low = 0;
-  let high = texts.length;
-
-  while (low < high) {
-    const middle = (low + high) >>> 1;
-
-    if (texts[middle] < text) {
-      low = middle + 1;
-    } else {
-      high = middle;
-    }
-  }
-
-  return low;
-}
-
-function stripReplacementCharacters(text: string) {
-  return text.replace(/\uFFFD+(?=['`])|(\uFFFD+)/g, '$1');
-}
-
 function redactArguments(
   message: string,
   command: readonly StringOrBuffer[],
   visibleLength: number,
 ) {
-  const source = stripReplacementCharacters(
-    message.slice(0, SolidisMaximumErrorMessageLength),
-  );
-  const starts = new Set(source.match(/(?<=['`])./gs));
+  const text = message.slice(0, SolidisMaximumErrorMessageLength);
+  const isCut = message.length > SolidisMaximumErrorMessageLength;
+  const starts = new Set(text.match(/(?<=['`])./gs));
 
   if (starts.size === 0) {
-    return source;
+    return text;
   }
 
+  const hiddenArguments = command.slice(visibleLength);
   const candidates = new Set(
-    command
-      .slice(visibleLength)
+    hiddenArguments
       .map((argument) =>
-        stripReplacementCharacters(
-          toTextPrefix(argument, source.length).replace(
-            /[\r\n]|\p{Cs}/gu,
-            (character) => (character < ' ' ? ' ' : '\uFFFD'),
-          ),
+        toTextPrefix(argument, text.length).replace(
+          /[\r\n]|\p{Cs}/gu,
+          (character) => (character < ' ' ? ' ' : '\uFFFD'),
         ),
       )
-      .filter((text) => starts.has(text[0])),
+      .filter((candidate) => starts.has(candidate[0])),
   );
-  const sorted = [...candidates].sort();
-  const lengths = new Set(sorted.map((text) => text.length));
+  const lengths = new Set([...candidates].map((candidate) => candidate.length));
+  const searched = [...candidates, ...hiddenArguments];
+  const searchCost = searched.reduce(
+    (cost, value) => cost + value.length + 32,
+    0,
+  );
 
-  for (const { index } of source.matchAll(/['`]/g)) {
-    const quote = source[index];
-    let closing = source.indexOf(quote, index + 1);
+  let searchBudget = SolidisMaskingSearchLimit + searchCost;
 
-    if (closing < 0 && message.length > SolidisMaximumErrorMessageLength) {
-      closing = source.length;
+  for (const { index } of text.matchAll(/['`]/g)) {
+    const quote = text[index];
+    let closing = text.indexOf(quote, index + 1);
+
+    if (closing < 0 && isCut) {
+      closing = text.length;
     }
 
     if (closing < 0) {
       continue;
     }
 
-    const span = source.slice(index + 1, closing) || quote;
+    const span = text.slice(index + 1, closing);
+    const pieces = span.trim() && span.split(/[\p{Cs}\uFFFD]+/u);
 
-    let isArgument = sorted[findLowerBound(sorted, span)]?.startsWith(span);
+    searchBudget -= searchCost;
+
+    let isArgument =
+      searchBudget < 0 ||
+      searched.some((value) =>
+        pieces
+          ? pieces.every((piece) => value.includes(piece))
+          : typeof value === 'string' && value.startsWith(span || quote),
+      );
 
     for (
       let space = span.indexOf(' ');
@@ -168,11 +160,11 @@ function redactArguments(
     }
 
     if (isArgument) {
-      return `${source.slice(0, index + 1)}***${source.slice(Math.max(closing, source.lastIndexOf("'"), source.lastIndexOf('`')))}`;
+      return `${text.slice(0, index + 1)}***${isCut ? '' : text.slice(Math.max(text.lastIndexOf("'"), text.lastIndexOf('`')))}`;
     }
   }
 
-  return source;
+  return text;
 }
 
 export function toCommandError(
