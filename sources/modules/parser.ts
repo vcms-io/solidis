@@ -12,6 +12,7 @@ import {
   SolidisErrorReplyByte,
   SolidisIntegerMaximumLength,
   SolidisIntegerReplyByte,
+  SolidisKilobyte,
   SolidisLineFeedByte,
   SolidisLinePreviewLength,
   SolidisLowercaseFByte,
@@ -94,7 +95,11 @@ export class SolidisParser {
   }
 
   public parse(chunk: Buffer, replies: SolidisData[] = []): SolidisData[] {
-    const tail = chunk.length > 0 ? this.#append(chunk) : undefined;
+    const tail = chunk.length > 0 ? this.#append(chunk) : NeedsMoreData;
+
+    if (tail === NeedsMoreData) {
+      return replies;
+    }
 
     while (this.#offset < this.#buffer.length) {
       const step = this.#readStep();
@@ -123,9 +128,15 @@ export class SolidisParser {
       return;
     }
 
-    const previous = this.#pendingChunks.at(-1) ?? this.#buffer;
+    const pendingChunks = this.#pendingChunks;
+    const previous = pendingChunks.at(-1) ?? this.#buffer;
 
-    this.#pendingChunks.push(chunk);
+    pendingChunks.push(chunk);
+
+    if (pendingChunks.length > 1 && previous.length < SolidisKilobyte) {
+      pendingChunks.push(Buffer.concat(pendingChunks.splice(-2)));
+    }
+
     this.#pendingLength += chunk.length;
 
     const availableLength =
@@ -149,18 +160,18 @@ export class SolidisParser {
           throw this.#createLineLengthError();
         }
 
-        return;
+        return NeedsMoreData;
       }
 
       length = availableLength - chunk.length + lineFeed + 1;
     }
 
     if (availableLength < length) {
-      return;
+      return NeedsMoreData;
     }
 
     this.#buffer = Buffer.concat(
-      [this.#buffer.subarray(this.#offset), ...this.#pendingChunks],
+      [this.#buffer.subarray(this.#offset), ...pendingChunks],
       length,
     );
     this.#offset = 0;
@@ -506,8 +517,6 @@ export class SolidisParser {
       Math.min(end, start + SolidisLinePreviewLength),
     );
 
-    return end - start > SolidisLinePreviewLength
-      ? `'${text}...'`
-      : `'${text}'`;
+    return `'${text}${end - start > SolidisLinePreviewLength ? '...' : ''}'`;
   }
 }

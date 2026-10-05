@@ -15,11 +15,11 @@ export class RespError extends SolidisError {
   constructor(message: string) {
     const { stackTraceLimit } = Error;
 
-    Error.stackTraceLimit = 0;
+    Reflect.set(Error, 'stackTraceLimit', 0);
 
     super(message);
 
-    Error.stackTraceLimit = stackTraceLimit;
+    Reflect.set(Error, 'stackTraceLimit', stackTraceLimit);
     this.stack = undefined;
     this.code = message.split(' ', 1)[0];
   }

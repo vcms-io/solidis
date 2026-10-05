@@ -512,6 +512,56 @@ describe('parser-edge', () => {
       assert.ok(elapsed < 500, `took ${Math.round(elapsed)} ms`);
     });
 
+    it('parses a line that grows by one byte per chunk in linear time', () => {
+      const parser = createParser();
+      const head = Buffer.concat([bytes('+'), Buffer.alloc(262143, 0x61)]);
+      const byte = bytes('a');
+      const count = 20000;
+      const replies: SolidisData[] = [];
+      const startedAt = performance.now();
+
+      replies.push(...parser.parse(head));
+
+      for (let index = 0; index < count; index += 1) {
+        replies.push(...parser.parse(byte));
+      }
+
+      replies.push(...parser.parse(bytes('\r\n')));
+
+      const elapsed = performance.now() - startedAt;
+      const [line] = replies;
+
+      assert.strictEqual(replies.length, 1);
+      assert.strictEqual(
+        typeof line === 'string' && line.length,
+        262143 + count,
+      );
+      assert.ok(elapsed < 500, `took ${Math.round(elapsed)} ms`);
+    });
+
+    it('merges the small chunks of an incomplete reply', (context) => {
+      const parser = createParser();
+      const size = 20000;
+      const stream = bytes(`$${size}\r\n${'x'.repeat(size)}\r\n`);
+      const concat = context.mock.method(Buffer, 'concat');
+      const replies: SolidisData[] = [];
+
+      for (let offset = 0; offset < stream.length; offset += 1) {
+        replies.push(...parser.parse(stream.subarray(offset, offset + 1)));
+      }
+
+      const largest = concat.mock.calls.reduce(
+        (length, call) => Math.max(length, call.arguments[0].length),
+        0,
+      );
+
+      assert.deepStrictEqual(replies, [Buffer.alloc(size, 'x')]);
+      assert.ok(
+        largest <= Math.ceil(size / 1024) + 2,
+        `${largest} chunks in one copy`,
+      );
+    });
+
     it('reads no number from integer and length lines longer than 64 bits allow', () => {
       const [integer] = parseOnce(bytes(`:${'9'.repeat(21)}\r\n`));
 

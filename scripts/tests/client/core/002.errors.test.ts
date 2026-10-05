@@ -381,6 +381,31 @@ describe('errors', () => {
     assert.deepStrictEqual(limits, [0, 10]);
   });
 
+  it('creates a RespError while the stack trace limit is read-only', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      Error,
+      'stackTraceLimit',
+    );
+
+    Object.defineProperty(Error, 'stackTraceLimit', {
+      configurable: true,
+      value: 3,
+      writable: false,
+    });
+
+    try {
+      const error = new RespError('ERR frozen');
+
+      assert.strictEqual(error.code, 'ERR');
+      assert.strictEqual(error.stack, undefined);
+      assert.strictEqual(Error.stackTraceLimit, 3);
+    } finally {
+      if (descriptor) {
+        Object.defineProperty(Error, 'stackTraceLimit', descriptor);
+      }
+    }
+  });
+
   it('creates SolidisError preserving original error', () => {
     const original = new Error('original');
     const solidisError = new SolidisError('wrapped', original);
@@ -544,6 +569,15 @@ describe('errors', () => {
 
     assert.strictEqual(findErrorInReplies(error), error);
     assert.strictEqual(findErrorInReplies(['OK', [1, [error]]]), error);
+    assert.strictEqual(findErrorInReplies(new Map([['key', error]])), error);
+    assert.strictEqual(
+      findErrorInReplies(['OK', new Set([1, new Map([['key', [error]]])])]),
+      error,
+    );
+    assert.strictEqual(
+      findErrorInReplies(new Map([['key', new Set(['OK'])]])),
+      false,
+    );
     assert.strictEqual(
       findErrorInReplies(['OK', [1, Buffer.from('x')]]),
       false,

@@ -27,7 +27,11 @@ export function findErrorInReplies(replies: SolidisData): false | RespError {
     return replies;
   }
 
-  if (Array.isArray(replies)) {
+  if (
+    Array.isArray(replies) ||
+    replies instanceof Set ||
+    replies instanceof Map
+  ) {
     for (const reply of replies) {
       const error = findErrorInReplies(reply);
 
