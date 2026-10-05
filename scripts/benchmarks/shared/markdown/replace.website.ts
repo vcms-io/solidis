@@ -26,7 +26,7 @@ if (cases.length === 0) {
 }
 
 function round(value: number | null): number {
-  return Math.round((value ?? 0) * 100) / 100;
+  return Number((value ?? 0).toFixed(1));
 }
 
 function describeCommands(operation: string): string {
@@ -41,10 +41,7 @@ function describeCommands(operation: string): string {
 }
 
 const data = {
-  benchmarkClients: merged.libraries.map(({ name, version }) => ({
-    name,
-    version,
-  })),
+  benchmarkClients: merged.libraries.map(({ name }) => ({ name })),
   benchmarkSummary: {
     wins: analysis.subjectWins,
     total: analysis.cases.length,
@@ -59,7 +56,6 @@ const data = {
     nodeVersion: environment?.nodeVersion ?? '',
     platform: environment ? `${environment.platform} ${environment.arch}` : '',
     server: environment?.server ?? '',
-    measuredOn: merged.createdAt.slice(0, 10),
   },
   benchmarkCases: cases.map((comparison) => ({
     name: {

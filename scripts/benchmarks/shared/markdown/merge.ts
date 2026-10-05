@@ -1,7 +1,6 @@
 import { writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-import { describeFailedResults } from '../results.ts';
 import { generateMarkdownReport, generateSummary } from './index.ts';
 import { loadSnapshot, mergeSnapshots } from './snapshot.ts';
 
@@ -47,14 +46,6 @@ if (snapshotPaths.length === 0) {
 const merged = mergeSnapshots(
   await Promise.all(snapshotPaths.map((path) => loadSnapshot(path))),
 );
-const failures = describeFailedResults(merged.results);
-
-if (failures.length > 0) {
-  console.error(
-    `Refusing to report failed benchmark results:\n${failures.join('\n')}`,
-  );
-  process.exit(1);
-}
 
 const contents: Record<string, string> = {
   report: generateMarkdownReport(merged),

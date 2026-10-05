@@ -1,35 +1,29 @@
 export const benchmarkClients = [
   {
     name: 'solidis',
-    version: '0.5.0',
   },
   {
     name: 'ioredis',
-    version: '6.0.0',
   },
   {
     name: 'iovalkey',
-    version: '0.4.0',
   },
   {
     name: 'node-redis',
-    version: '6.3.0',
   },
   {
     name: 'valkey-glide',
-    version: '2.5.3',
   },
   {
     name: 'speedkey',
-    version: '0.4.2',
   },
 ];
 
 export const benchmarkSummary = {
   wins: 19,
   total: 19,
-  averageLead: 1.49,
-  peakLead: 2.22,
+  averageLead: 1.5,
+  peakLead: 2.2,
   iterations: 100000,
   concurrency: 10000,
   repeats: 10,
@@ -38,7 +32,6 @@ export const benchmarkSummary = {
   nodeVersion: 'v22.23.0',
   platform: 'linux x64',
   server: 'Redis 8.10.2',
-  measuredOn: '2026-10-05',
 };
 
 export const benchmarkCases = [
@@ -48,7 +41,7 @@ export const benchmarkCases = [
       ko: '트랜잭션 혼합',
     },
     commands: 'SET + GET',
-    lead: 2.22,
+    lead: 2.2,
     clients: [
       {
         name: 'solidis',
@@ -88,7 +81,7 @@ export const benchmarkCases = [
       ko: '트랜잭션',
     },
     commands: 'SET + EXPIRE + GET',
-    lead: 2.15,
+    lead: 2.2,
     clients: [
       {
         name: 'solidis',
@@ -168,7 +161,7 @@ export const benchmarkCases = [
       ko: 'Set',
     },
     commands: 'SET',
-    lead: 1.61,
+    lead: 1.6,
     clients: [
       {
         name: 'solidis',
@@ -208,7 +201,7 @@ export const benchmarkCases = [
       ko: 'Set 조회',
     },
     commands: 'SADD + SISMEMBER + SMEMBERS',
-    lead: 1.55,
+    lead: 1.5,
     clients: [
       {
         name: 'solidis',
@@ -248,7 +241,7 @@ export const benchmarkCases = [
       ko: '파이프라인 혼합',
     },
     commands: 'SET + INCR + GET',
-    lead: 1.49,
+    lead: 1.5,
     clients: [
       {
         name: 'solidis',
@@ -288,7 +281,7 @@ export const benchmarkCases = [
       ko: 'Expire',
     },
     commands: 'SET + EXPIRE + TTL',
-    lead: 1.49,
+    lead: 1.5,
     clients: [
       {
         name: 'solidis',
@@ -328,7 +321,7 @@ export const benchmarkCases = [
       ko: 'Sorted Set',
     },
     commands: 'ZADD + ZRANGE + ZREM',
-    lead: 1.47,
+    lead: 1.5,
     clients: [
       {
         name: 'solidis',
@@ -368,7 +361,7 @@ export const benchmarkCases = [
       ko: 'Set 변경',
     },
     commands: 'SADD + SISMEMBER + SREM',
-    lead: 1.47,
+    lead: 1.5,
     clients: [
       {
         name: 'solidis',
@@ -408,7 +401,7 @@ export const benchmarkCases = [
       ko: 'Multi-Key',
     },
     commands: 'MSET + MGET',
-    lead: 1.45,
+    lead: 1.4,
     clients: [
       {
         name: 'solidis',
@@ -448,7 +441,7 @@ export const benchmarkCases = [
       ko: 'Counter',
     },
     commands: 'INCR + DECR',
-    lead: 1.42,
+    lead: 1.4,
     clients: [
       {
         name: 'solidis',
@@ -488,7 +481,7 @@ export const benchmarkCases = [
       ko: '비트랜잭션',
     },
     commands: 'SET PX + GET',
-    lead: 1.42,
+    lead: 1.4,
     clients: [
       {
         name: 'solidis',
@@ -528,7 +521,7 @@ export const benchmarkCases = [
       ko: 'Hash 변경',
     },
     commands: 'HMSET + HMGET + HDEL',
-    lead: 1.41,
+    lead: 1.4,
     clients: [
       {
         name: 'solidis',
@@ -608,7 +601,7 @@ export const benchmarkCases = [
       ko: 'Hash 왕복',
     },
     commands: 'HSET + HGET + HGETALL',
-    lead: 1.39,
+    lead: 1.4,
     clients: [
       {
         name: 'solidis',
@@ -648,7 +641,7 @@ export const benchmarkCases = [
       ko: 'Stream',
     },
     commands: 'XADD + XRANGE + XLEN',
-    lead: 1.32,
+    lead: 1.3,
     clients: [
       {
         name: 'solidis',
@@ -688,7 +681,7 @@ export const benchmarkCases = [
       ko: 'Info / Config',
     },
     commands: 'INFO + CONFIG GET',
-    lead: 1.27,
+    lead: 1.3,
     clients: [
       {
         name: 'solidis',
@@ -728,7 +721,7 @@ export const benchmarkCases = [
       ko: 'List 변경',
     },
     commands: 'LPUSH + RPUSH + LPOP + RPOP + LLEN',
-    lead: 1.22,
+    lead: 1.2,
     clients: [
       {
         name: 'solidis',
@@ -768,7 +761,7 @@ export const benchmarkCases = [
       ko: 'Get',
     },
     commands: 'GET',
-    lead: 1.08,
+    lead: 1.1,
     clients: [
       {
         name: 'solidis',

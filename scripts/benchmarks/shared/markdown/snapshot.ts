@@ -2,6 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import { serializeConfig } from '../configuration.ts';
+import { describeFailedResults } from '../results.ts';
 
 import type {
   BenchConfig,
@@ -112,7 +113,7 @@ export function mergeSnapshots(
     right.createdAt > left.createdAt ? right : left,
   );
 
-  return {
+  const merged: BenchmarkSnapshot = {
     suiteName: first.suiteName,
     libraries: [...libraries.values()],
     environments: [...environments.values()],
@@ -120,4 +121,13 @@ export function mergeSnapshots(
     results: [...results.values()],
     createdAt: latest.createdAt,
   };
+  const failures = describeFailedResults(merged.results);
+
+  if (failures.length > 0) {
+    throw new Error(
+      `Refusing to report failed benchmark results:\n${failures.join('\n')}`,
+    );
+  }
+
+  return merged;
 }
