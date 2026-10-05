@@ -54,6 +54,13 @@ describe('options', () => {
       });
     });
 
+    it('reads a user without a password as that user with an empty password', () => {
+      assert.deepStrictEqual(parseConnectionUri('redis://name@host'), {
+        host: 'host',
+        authentication: { username: 'name', password: '' },
+      });
+    });
+
     it('strips the brackets of an IPv6 host', () => {
       assert.deepStrictEqual(parseConnectionUri('redis://[::1]:6379'), {
         host: '::1',

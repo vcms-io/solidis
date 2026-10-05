@@ -29,6 +29,7 @@ type IsEqual<Left, Right> =
 const binary = Buffer.from([0x00, 0xff, 0xfe, 0x80, 0x0d, 0x0a, 0xc3, 0x28]);
 const split = Buffer.from('가나', 'utf8');
 const second = Buffer.from([0x01, 0x02, 0xc0, 0xaf]);
+const third = Buffer.from([0xfe, 0x80, 0x00, 0xc3]);
 const buffer = { buffer: true } as const;
 
 describe('binary-values', () => {
@@ -199,21 +200,21 @@ describe('binary-values', () => {
         const target = keyspace.key(protocol, 'list-target');
 
         assert.strictEqual(await client.rpush(key, binary, second), 2);
-        assert.strictEqual(await client.lpush(key, split), 3);
+        assert.strictEqual(await client.lpush(key, third), 3);
         assert.strictEqual(await client.lpushx(key, [second]), 4);
         assert.strictEqual(
-          await client.linsert(key, 'AFTER', binary, split),
+          await client.linsert(key, 'AFTER', binary, third),
           5,
         );
         assert.deepStrictEqual(await client.lrange(key, 0, -1, buffer), [
           second,
-          split,
+          third,
           binary,
-          split,
+          third,
           second,
         ]);
         assert.strictEqual(await client.lpos(key, binary), 2);
-        assert.strictEqual(await client.lrem(key, 1, split), 1);
+        assert.strictEqual(await client.lrem(key, 1, third), 1);
         assert.strictEqual(await client.lset(key, 0, binary), 'OK');
         assert.deepStrictEqual(await client.lindex(key, 0, buffer), binary);
         assert.deepStrictEqual(await client.lindex(key, -1, buffer), second);
@@ -228,7 +229,7 @@ describe('binary-values', () => {
         const isSeveral: IsEqual<typeof several, Buffer[] | null> = true;
 
         assert.strictEqual(isSeveral, true);
-        assert.deepStrictEqual(several, [second, split]);
+        assert.deepStrictEqual(several, [second, third]);
 
         await client.rpush(key, binary, second);
 

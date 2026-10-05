@@ -1078,6 +1078,9 @@ describe('connection', () => {
 
           await connected;
 
+          const errors: Error[] = [];
+
+          connection.on('error', (error) => errors.push(error));
           stale.emit('data', Buffer.from('+STALE\r\n'));
           stale.emit('drain');
           stale.emit('error', new Error('stale failure'));
@@ -1086,11 +1089,54 @@ describe('connection', () => {
 
           assert.deepStrictEqual(received, [Buffer.from('+FRESH\r\n')]);
           assert.deepStrictEqual(closes, []);
+          assert.deepStrictEqual(errors, []);
           assert.strictEqual(connection.isConnected, true);
 
           connection.quit();
 
           assert.strictEqual(current.destroyed, true);
+        });
+      });
+
+      it('keeps retrying without a limit when maxConnectionRetries is Infinity', async () => {
+        await withScriptedSockets(async (sockets) => {
+          const connection = createConnection({
+            connectionTimeout: 0,
+            connectionRetryDelay: 1,
+            maxConnectionRetryDelay: 1,
+            maxConnectionRetries: Number.POSITIVE_INFINITY,
+          });
+          const errors: Error[] = [];
+
+          connection.on('error', (error) => errors.push(error));
+
+          const connected = connection.connect();
+
+          for (let index = 0; index < 40; index += 1) {
+            await waitFor(() => sockets.length === index + 1, {
+              description: `attempt ${index + 1}`,
+            });
+
+            sockets[index].emit('close');
+          }
+
+          await waitFor(() => sockets.length === 41, {
+            description: 'attempt 41',
+          });
+
+          sockets[40].emit('connect');
+
+          await connected;
+
+          assert.strictEqual(errors.length, 40);
+          assert.ok(
+            errors.every(
+              (error) => error.message === 'Socket closed before connection.',
+            ),
+          );
+          assert.strictEqual(connection.isConnected, true);
+
+          connection.quit();
         });
       });
 

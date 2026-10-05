@@ -355,6 +355,32 @@ describe('errors', () => {
     }
   });
 
+  it('captures no stack trace while it creates a RespError', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      Error,
+      'stackTraceLimit',
+    );
+    const limits: unknown[] = [];
+
+    Object.defineProperty(Error, 'stackTraceLimit', {
+      configurable: true,
+      get: () => limits.at(-1) ?? 10,
+      set: (limit: unknown) => {
+        limits.push(limit);
+      },
+    });
+
+    try {
+      assert.strictEqual(new RespError('ERR captured').code, 'ERR');
+    } finally {
+      if (descriptor) {
+        Object.defineProperty(Error, 'stackTraceLimit', descriptor);
+      }
+    }
+
+    assert.deepStrictEqual(limits, [0, 10]);
+  });
+
   it('creates SolidisError preserving original error', () => {
     const original = new Error('original');
     const solidisError = new SolidisError('wrapped', original);
