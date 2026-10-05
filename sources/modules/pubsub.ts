@@ -3,6 +3,7 @@ import {
   SolidisSubscriptionEventNames,
 } from '../common/constants.ts';
 import { SolidisPubSubError } from '../common/utils/error.ts';
+import { isStringOrBuffer, readText } from '../common/utils/internal.ts';
 import { isUnsubscribeEventName } from '../common/utils/reply.ts';
 import { RespPush } from '../types/resp.ts';
 
@@ -12,16 +13,7 @@ import type {
   SolidisData,
   SolidisMessageEventName,
   SolidisSubscriptionEventName,
-  StringOrBuffer,
 } from '../types/solidis.ts';
-
-function toText(value: SolidisData | undefined) {
-  return isPayload(value) ? value.toString() : undefined;
-}
-
-function isPayload(value: SolidisData | undefined): value is StringOrBuffer {
-  return typeof value === 'string' || Buffer.isBuffer(value);
-}
 
 export class SolidisPubSub {
   readonly #subscriptions = SolidisSubscribeEventNames.map(
@@ -60,8 +52,8 @@ export class SolidisPubSub {
     reply: SolidisData[],
   ) {
     const isPattern = eventName === 'pmessage';
-    const pattern = toText(reply[1]);
-    const channel = isPattern ? toText(reply[2]) : pattern;
+    const pattern = readText(reply[1]);
+    const channel = isPattern ? readText(reply[2]) : pattern;
     const message = isPattern ? reply[3] : reply[2];
 
     if (
@@ -77,7 +69,11 @@ export class SolidisPubSub {
       return;
     }
 
-    if (pattern === undefined || channel === undefined || !isPayload(message)) {
+    if (
+      pattern === undefined ||
+      channel === undefined ||
+      !isStringOrBuffer(message)
+    ) {
       this.#emitMalformedEventError(eventName);
 
       return;
@@ -103,7 +99,7 @@ export class SolidisPubSub {
       return;
     }
 
-    if (!isPayload(channel)) {
+    if (!isStringOrBuffer(channel)) {
       return;
     }
 

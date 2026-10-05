@@ -1,4 +1,5 @@
 import { RespError, SolidisCommandError } from '../../common/utils/error.ts';
+import { isStringOrBuffer, readText } from '../../common/utils/internal.ts';
 import { formatDouble, parseDouble } from '../../common/utils/number.ts';
 import { getCommandName } from '../../common/utils/request.ts';
 import { RespOK } from '../../types/resp.ts';
@@ -10,7 +11,6 @@ import type {
   CommandIntegerOptions,
 } from '../../types/command.ts';
 import type {
-  RespConfigInfo,
   RespGeoRadius,
   RespInteger,
   RespLmpop,
@@ -77,10 +77,6 @@ export function newUnexpectedReplyError(
   );
 }
 
-export function escapeReply(reply: SolidisData[][]): SolidisData {
-  return reply[0]?.[0];
-}
-
 export function setRecordEntry<T>(
   record: Record<string, T>,
   key: string,
@@ -143,15 +139,13 @@ export function tryReplyToString(
   reply: unknown,
   commandName?: CommandName,
 ): string {
-  if (typeof reply === 'string') {
-    return reply;
+  const text = readText(reply);
+
+  if (text === undefined) {
+    throw newUnexpectedReplyError(reply, commandName);
   }
 
-  if (Buffer.isBuffer(reply)) {
-    return reply.toString();
-  }
-
-  throw newUnexpectedReplyError(reply, commandName);
+  return text;
 }
 
 export function tryReplyToStringOrNull(
@@ -261,28 +255,13 @@ export function tryReplyToNumber(
   reply: unknown,
   commandName?: CommandName,
 ): number {
-  if (typeof reply === 'number') {
-    return reply;
-  }
-
   if (typeof reply === 'boolean') {
     return reply ? 1 : 0;
   }
 
-  if (typeof reply === 'bigint') {
-    return tryReplyNumber(reply, commandName);
-  }
-
-  const value =
-    typeof reply === 'string' || Buffer.isBuffer(reply)
-      ? parseDouble(reply.toString())
-      : undefined;
-
-  if (value === undefined) {
-    throw newUnexpectedReplyError(reply, commandName);
-  }
-
-  return value;
+  return (
+    parseDouble(readText(reply) ?? '') ?? tryReplyNumber(reply, commandName)
+  );
 }
 
 export function tryReplyToNumberOrNull(
@@ -314,7 +293,7 @@ export function processPairedArray(
     const key = targetArray[index];
     const value = targetArray[index + 1];
 
-    processor(Buffer.isBuffer(key) ? key.toString() : `${key}`, value);
+    processor(readText(key) ?? `${key}`, value);
   }
 }
 
@@ -521,11 +500,7 @@ export function tryReplyToJsonNumbers(
   reply: unknown,
   commandName?: CommandName,
 ): (number | null)[] {
-  if (Array.isArray(reply)) {
-    return tryReplyToNullableNumberArray(reply, commandName);
-  }
-
-  return [tryReplyToNumberOrNull(reply, commandName)];
+  return [tryReplyToNumberScalarOrArray(reply, commandName)].flat();
 }
 
 export function tryReplyToJsonNumberText(
@@ -665,23 +640,13 @@ export function tryReplyToModuleInfo(modules: unknown): RespModuleInfo {
   return result;
 }
 
-export function tryReplyToConfigInfo(reply: unknown): RespConfigInfo {
-  const result: RespConfigInfo = {};
-
-  for (const [key, value] of tryReplyToMap(reply, 'CONFIG')) {
-    setRecordEntry(result, `${key}`, tryReplyToString(value, 'CONFIG'));
-  }
-
-  return result;
-}
-
 export function tryReplyToGeoRadius(
   reply: unknown,
   commandName: CommandName,
   options?: CommandGeoSearchOptions | CommandGeoRadiusOptions,
 ): RespGeoRadius[] {
   return tryReplyArray(reply, commandName).map((item) => {
-    if (typeof item === 'string' || Buffer.isBuffer(item)) {
+    if (isStringOrBuffer(item)) {
       return { member: tryReplyToString(item, commandName) };
     }
 
@@ -748,14 +713,9 @@ export function tryReplyToStreamEntryOrDeleted(
 ): RespStreamEntry | RespStreamDeletedEntry {
   const [id, fields] = tryReplyTuple(entry, 2, commandName);
 
-  if (fields === null) {
-    return { id: tryReplyToString(id, commandName), fields };
-  }
-
-  return {
-    id: tryReplyToString(id, commandName),
-    fields: tryReplyToStringRecord(fields, commandName),
-  };
+  return fields === null
+    ? { id: tryReplyToString(id, commandName), fields }
+    : tryReplyToStreamEntry(entry, commandName);
 }
 
 function tryReplyToStreams<T>(

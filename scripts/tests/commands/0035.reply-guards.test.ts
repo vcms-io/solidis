@@ -973,5 +973,8 @@ describe('reply-guards', () => {
       message:
         '[TEST] Unexpected reply: integer exceeds Number.MAX_SAFE_INTEGER',
     });
+    assert.strictEqual(tryReplyToNumber(true), 1);
+    assert.strictEqual(tryReplyToNumber(false), 0);
+    assert.strictEqual(tryReplyToNumber(Buffer.from('2.5')), 2.5);
   });
 });

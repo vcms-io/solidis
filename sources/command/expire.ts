@@ -1,20 +1,12 @@
-import { executeCommand, tryReplyNumber } from './utils/index.ts';
+import {
+  buildKeyExpireCommand,
+  executeCommand,
+  tryReplyNumber,
+} from './utils/index.ts';
 
 import type { CommandKeyExpireMode } from '../index.ts';
 
-export function createCommand(
-  key: string,
-  seconds: number,
-  mode?: CommandKeyExpireMode,
-) {
-  const command = ['EXPIRE', key, `${seconds}`];
-
-  if (mode) {
-    command.push(...mode.split(' '));
-  }
-
-  return command;
-}
+export const createCommand = buildKeyExpireCommand('EXPIRE');
 
 export async function expire<T>(
   this: T,

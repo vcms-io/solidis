@@ -1,8 +1,18 @@
 import { SolidisMaximumTimerDelay } from '../internal.ts';
 
+import type { StringOrBuffer } from '../../types/solidis.ts';
+
 export const SolidisSocketNotConnectedMessage = 'Socket is not connected.';
 export const SolidisConnectionClosedMessage = 'Connection closed.';
 export const SolidisClientQuitMessage = 'The client was quit.';
+
+export function isStringOrBuffer(value: unknown): value is StringOrBuffer {
+  return typeof value === 'string' || Buffer.isBuffer(value);
+}
+
+export function readText(value: unknown) {
+  return isStringOrBuffer(value) ? value.toString() : undefined;
+}
 
 export function toTextPrefix(argument: string | Buffer, length: number) {
   return typeof argument === 'string'

@@ -1,6 +1,5 @@
 import { toCommandError } from '../../common/utils/request.ts';
 import {
-  escapeReply,
   newCommandError,
   tryReplyNumber,
   tryReplyOK,
@@ -23,6 +22,7 @@ import type {
   CommandGeoSearchFromOptions,
   CommandGeoSearchOptions,
   CommandIntegerOptions,
+  CommandKeyExpireMode,
   CommandScanOptions,
   CommandSetOptions,
   CommandSortOptions,
@@ -98,7 +98,7 @@ export async function executeCommand<T, R, Options extends object | undefined>(
   assertSender(client, command);
 
   const replyOptions = options && { ...options };
-  const reply = escapeReply(await client.send([command], sendOptions));
+  const reply = (await client.send([command], sendOptions))[0]?.[0];
 
   if (reply instanceof Error) {
     throw toCommandError(reply, command);
@@ -634,6 +634,18 @@ export function buildHashFieldExpireCommand(
   }
 
   return [...command, 'FIELDS', `${fields.length}`, ...fields];
+}
+
+export function buildKeyExpireCommand(commandName: string) {
+  return (key: string, time: number, mode?: CommandKeyExpireMode) => {
+    const command = [commandName, key, `${time}`];
+
+    if (mode) {
+      command.push(...mode.split(' '));
+    }
+
+    return command;
+  };
 }
 
 export function buildScriptCommand(

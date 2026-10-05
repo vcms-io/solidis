@@ -1,7 +1,7 @@
 import { SolidisSubscriptionEventNames } from '../common/constants.ts';
 import { SolidisCommandKindCacheLimit } from '../common/internal.ts';
 import { SolidisRequesterError } from '../common/utils/error.ts';
-import { toTextPrefix } from '../common/utils/internal.ts';
+import { isStringOrBuffer, toTextPrefix } from '../common/utils/internal.ts';
 import { isSubscriptionEventName } from '../common/utils/reply.ts';
 import { getCommandName } from '../common/utils/request.ts';
 
@@ -100,7 +100,7 @@ export function inspectCommand(
   }
 
   for (const argument of command) {
-    if (typeof argument !== 'string' && !Buffer.isBuffer(argument)) {
+    if (!isStringOrBuffer(argument)) {
       return createRefusal(command, 'takes only strings and Buffers.');
     }
   }

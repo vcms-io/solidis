@@ -489,13 +489,19 @@ describe('errors', () => {
     );
   });
 
-  it('does not throw a raw TypeError when escapeReply receives an empty array', async () => {
-    const { escapeReply } = await import(
-      '../../../../sources/command/utils/reply.ts'
+  it('does not throw a raw TypeError when a sender returns no replies', async () => {
+    const { executeCommand, tryReplyToString } = await import(
+      '../../../../sources/command/utils/index.ts'
     );
+    const sender = { send: async () => [] };
 
-    assert.doesNotThrow(() => escapeReply([]));
-    assert.strictEqual(escapeReply([]), undefined);
+    assert.strictEqual(await executeCommand(sender, ['GET', 'k']), undefined);
+    await assert.rejects(
+      executeCommand(sender, ['GET', 'k'], tryReplyToString),
+      (error: unknown) =>
+        error instanceof SolidisCommandError &&
+        error.message === '[GET] Unexpected reply: undefined',
+    );
   });
 
   it('names the event of a Pub/Sub frame of any length', () => {

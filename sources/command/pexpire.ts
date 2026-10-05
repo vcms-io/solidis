@@ -1,20 +1,12 @@
-import { executeCommand, tryReplyNumber } from './utils/index.ts';
+import {
+  buildKeyExpireCommand,
+  executeCommand,
+  tryReplyNumber,
+} from './utils/index.ts';
 
 import type { CommandKeyExpireMode } from '../index.ts';
 
-export function createCommand(
-  key: string,
-  milliseconds: number,
-  mode?: CommandKeyExpireMode,
-) {
-  const command = ['PEXPIRE', key, `${milliseconds}`];
-
-  if (mode) {
-    command.push(...mode.split(' '));
-  }
-
-  return command;
-}
+export const createCommand = buildKeyExpireCommand('PEXPIRE');
 
 export async function pexpire<T>(
   this: T,

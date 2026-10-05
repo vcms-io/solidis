@@ -1,4 +1,4 @@
-import { executeCommand, tryReplyToConfigInfo } from './utils/index.ts';
+import { executeCommand, tryReplyToStringRecord } from './utils/index.ts';
 
 import type { RespConfigInfo } from '../index.ts';
 
@@ -13,6 +13,6 @@ export async function configGet<T>(
   return await executeCommand(
     this,
     createCommand(parameter),
-    tryReplyToConfigInfo,
+    tryReplyToStringRecord,
   );
 }
