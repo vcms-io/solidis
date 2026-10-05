@@ -28,7 +28,7 @@
 <table align="center">
 <tr>
 <td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Rocket.png?raw=true" alt="Rocket" width="32" height="32" /><br/><strong>0 deps</strong><br/><sub>의존성 없음</sub></td>
-<td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Package.png?raw=true" alt="Package" width="32" height="32" /><br/><strong>383</strong><br/><sub>커맨드</sub></td>
+<td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Package.png?raw=true" alt="Package" width="32" height="32" /><br/><strong>384</strong><br/><sub>커맨드</sub></td>
 <td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Test%20Tube.png?raw=true" alt="Test Tube" width="32" height="32" /><br/><strong>35K+</strong><br/><sub>테스트 코드 줄 수</sub></td>
 <td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Animals/Feather.png?raw=true" alt="Feather" width="32" height="32" /><br/><strong>&lt; 29KB</strong><br/><sub>최소 번들</sub></td>
 </tr>
@@ -115,6 +115,8 @@ client.on('message', (channel, message) => {
 await client.subscribe('events');
 ```
 
+- 클러스터 노드가 어떤 슬롯을 더 이상 맡지 않게 되면, 그 슬롯의 샤드 채널 구독을 `SUNSUBSCRIBE` 응답과 똑같은 메시지로 해지합니다. 그때 보낸 `SUNSUBSCRIBE`는 이 메시지를 자기 응답으로 받을 수 있고, 실제 응답은 다음 커맨드로 넘어갈 수 있습니다.
+
 </details>
 
 <details>
@@ -172,7 +174,7 @@ const images = await client.mget('image', 'logo', { buffer: true }); // (Buffer 
 - `Buffer` 응답은 수신한 청크(최대 64KB)의 뷰입니다. 오래 보관하려면 `Buffer.from()`으로 복사하세요.
 - `send()`는 커맨드 배열을 복사하지만 그 안의 `Buffer`는 복사하지 않습니다. 커맨드가 끝날 때까지 `Buffer`를 바꾸지 마세요.
 - 필드 이름(HGETALL, HSCAN, 스트림)과 RESP3 맵 키는 `send()`에서도 UTF-8로 디코딩합니다. UTF-8이 아닌 이름은 서로 겹칠 수 있으니 바이너리 데이터는 값에 담으세요.
-- 스트림 읽기, HSCAN, HRANDFIELD, GETSET, SORT, SORT_RO, LCS는 값을 UTF-8 문자열로 돌려줍니다. 이들에서 바이너리 값을 읽으려면 `send()`를 쓰세요.
+- 스트림 읽기, HSCAN, HRANDFIELD, GETSET, SORT, SORT_RO, LCS는 값을 UTF-8 문자열로 돌려줍니다. 바이너리 값은 `send()`로 읽으세요.
 - MGET과 HMGET은 마지막 인자가 `undefined`이면 키가 아니라 옵션이 없는 것으로 봅니다.
 
 </details>
@@ -430,7 +432,7 @@ _작업 100,000회 × 동시 실행 10,000 · 1 KB 페이로드 · 클라이언�
 
 - 샘플마다 **별도 워커 스레드**에서 실행하므로 GC와 JIT 상태가 다음 샘플로 이어지지 않습니다.
 - 샘플마다 라이브러리 순서를 **바꾸고**, 매번 서버를 **비우고 안정화**한 뒤 측정합니다.
-- 모든 라이브러리가 같은 **결정론적 바이너리 페이로드**를 쓰고, 측정이 끝나면 모든 응답과 Pub/Sub 메시지를 검사합니다.
+- 모든 라이브러리가 미리 정해 둔 같은 **바이너리 페이로드**를 쓰고, 측정이 끝나면 모든 응답과 Pub/Sub 메시지를 검사합니다.
 - 트랜잭션과 트랜잭션 혼합은 작업마다 배치 하나로 보냅니다(`batch` 모드). Pub/Sub은 한 번에 최대 4MB의 메시지를 발행하고 모두 도착할 때까지 기다립니다.
 - 처리량은 반복 측정의 **중앙값**이고, 편차는 σ / 중앙값입니다.
 - 지연 시간은 설정한 동시 실행 수에서 **작업마다** 재고, 모든 반복을 합쳐 계산합니다.
@@ -462,8 +464,8 @@ _작업 100,000회 × 동시 실행 10,000 · 1 KB 페이로드 · 클라이언�
 
 - RESP2, RESP3 지원 (Redis와 Valkey가 보내지 않는 스트리밍 응답 제외)
 - RESP3 응답 타입 15가지 전부 (Map, Set, Push, Attribute, BigNumber, ...)
-- RESP3 push가 커맨드 응답을 가로채지 않음
-- 2^53을 넘는 정수는 `bigint`로: 원시 응답은 자동, INCR, DECR, HINCRBY, BITFIELD는 `{ bigint: true }`
+- 추적 무효화 같은 push가 커맨드 응답을 가로채지 않음
+- 2^53을 넘는 정수는 `bigint`로: 원시 응답은 자동, INCR, INCRBY, DECR, DECRBY, HINCRBY, BITFIELD, BITFIELD_RO는 `{ bigint: true }`
 - 바이너리 세이프: `Buffer` 값 쓰기, `{ buffer: true }`로 바이트 그대로 읽기
 
 </td>

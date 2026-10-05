@@ -47,7 +47,7 @@
     "benchmarkDesc": "{clients}와 비교한 벤치마크 {total}개 중 {wins}개에서 가장 빠르며, 2위 클라이언트보다 최대 {peak} 빠릅니다. 작업 {iterations}회, 동시 실행 {concurrency}, {payload} 페이로드.",
     "terminal": "터미널",
     "statDependencies": "의존성 없음",
-    "statCommands": "커맨드 383개",
+    "statCommands": "커맨드 384개",
     "statBundle": "29 KB 미만",
     "statCoverage": "커버리지 100%"
   },
@@ -72,7 +72,7 @@
     "basicClient": "기본 클라이언트 (SolidisClient)",
     "basicClientDesc": "기본 클라이언트는 번들을 줄이려고 최소 기능만 담고 있어, 쓸 커맨드를 붙여서 사용합니다:",
     "featuredClient": "전체 기능 클라이언트 (SolidisFeaturedClient)",
-    "featuredClientDesc": "기본 제공 커맨드 383개를 모두 붙여 둔 클라이언트:",
+    "featuredClientDesc": "기본 제공 커맨드 384개를 모두 붙여 둔 클라이언트:",
     "connectionManagement": "연결 관리",
     "connectionManagementDesc": "Redis 연결을 관리하는 방법",
     "basicOperations": "기본 작업",

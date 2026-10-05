@@ -28,7 +28,7 @@
 <table align="center">
 <tr>
 <td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Rocket.png?raw=true" alt="Rocket" width="32" height="32" /><br/><strong>0 deps</strong><br/><sub>zero dependencies</sub></td>
-<td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Package.png?raw=true" alt="Package" width="32" height="32" /><br/><strong>383</strong><br/><sub>commands</sub></td>
+<td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Package.png?raw=true" alt="Package" width="32" height="32" /><br/><strong>384</strong><br/><sub>commands</sub></td>
 <td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Test%20Tube.png?raw=true" alt="Test Tube" width="32" height="32" /><br/><strong>35K+</strong><br/><sub>lines of tests</sub></td>
 <td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Animals/Feather.png?raw=true" alt="Feather" width="32" height="32" /><br/><strong>&lt; 29KB</strong><br/><sub>min bundle</sub></td>
 </tr>
@@ -114,6 +114,8 @@ client.on('message', (channel, message) => {
 });
 await client.subscribe('events');
 ```
+
+- When a cluster node stops serving a slot, it unsubscribes clients from the slot's shard channels with messages identical to `SUNSUBSCRIBE` replies. A `SUNSUBSCRIBE` sent at that moment can take one as its reply and pass its own reply to the next command.
 
 </details>
 
@@ -462,8 +464,8 @@ _100,000 operations × 10,000 concurrency · 1 KB payload · 10 repeats per clie
 
 - RESP2 and RESP3, except streamed replies, which Redis and Valkey never send
 - All 15 RESP3 reply types (Map, Set, Push, Attribute, BigNumber, ...)
-- RESP3 pushes never take a command's reply
-- `bigint` past 2^53: automatic in raw replies, `{ bigint: true }` for INCR, DECR, HINCRBY and BITFIELD
+- Pushes such as tracking invalidations never take a command's reply
+- `bigint` past 2^53: automatic in raw replies, `{ bigint: true }` for INCR, INCRBY, DECR, DECRBY, HINCRBY, BITFIELD and BITFIELD_RO
 - Binary-safe: `Buffer` values in, `{ buffer: true }` bytes out
 
 </td>

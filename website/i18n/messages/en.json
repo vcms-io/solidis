@@ -47,7 +47,7 @@
     "benchmarkDesc": "Fastest in {wins} of {total} benchmarks against {clients}, and up to {peak} faster than the next-fastest client. {iterations} operations, {concurrency} concurrency, {payload} payload.",
     "terminal": "terminal",
     "statDependencies": "0 deps",
-    "statCommands": "383 commands",
+    "statCommands": "384 commands",
     "statBundle": "< 29 KB",
     "statCoverage": "100% coverage"
   },
@@ -72,7 +72,7 @@
     "basicClient": "Basic Client (SolidisClient)",
     "basicClientDesc": "The basic client contains minimal functionality to reduce bundle size. You need to extend it with specific commands:",
     "featuredClient": "Featured Client (SolidisFeaturedClient)",
-    "featuredClientDesc": "A convenience client with all 383 built-in commands pre-loaded:",
+    "featuredClientDesc": "A convenience client with all 384 built-in commands pre-loaded:",
     "connectionManagement": "Connection Management",
     "connectionManagementDesc": "Learn how to manage Redis connections",
     "basicOperations": "Basic Operations",
