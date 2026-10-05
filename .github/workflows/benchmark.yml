@@ -34,7 +34,7 @@ jobs:
           - 'set:SADD+SISMEMBER+SMEMBERS'
           - 'set:SADD+SISMEMBER+SREM'
           - 'expire:SET+EXPIRE+TTL'
-          - 'nonTx:SETPX+GET'
+          - 'nonTx:SET PX+GET'
           - 'list:LPUSH+RPUSH+LRANGE'
           - 'list:LPUSH+RPUSH+LPOP+RPOP+LLEN'
           - 'counter:INCR+DECR'
@@ -44,7 +44,7 @@ jobs:
           - 'pipeline:SET+INCR+GET'
           - 'stream:XADD+XRANGE+XLEN'
           - 'zset:ZADD+ZRANGE+ZREM'
-          - 'info:INFO+CONFIGGET'
+          - 'info:INFO+CONFIG GET'
           - 'pubsub:PUBLISH+MESSAGE'
 
     steps:

@@ -20,7 +20,7 @@ if (!solidisResult) {
   process.exit(1);
 }
 
-const bundleKilobytes = Math.ceil(solidisResult.bundleBytes / 1024);
+const bundleKilobytes = Math.floor(solidisResult.bundleBytes / 1024) + 1;
 const badgeLabel = `<${bundleKilobytes}KB`;
 const displayLabel = `< ${bundleKilobytes}KB`;
 
@@ -76,6 +76,10 @@ for (const readmeFile of readmeFiles) {
       pattern: /(\*\*&lt; )\d+(KB\*\*)/g,
       replacement: `$1${bundleKilobytes}$2`,
     },
+    {
+      pattern: /(\*\*)\d+(KB 미만\*\*)/g,
+      replacement: `$1${bundleKilobytes}$2`,
+    },
   ]);
 
   if (changed) {
@@ -95,17 +99,11 @@ const websiteFiles: Array<{
     ],
   },
   {
-    path: 'website/app/page.tsx',
-    replacements: [
-      { pattern: /&lt; \d+ KB/g, replacement: `&lt; ${bundleKilobytes} KB` },
-    ],
-  },
-  {
     path: 'website/i18n/messages/en.json',
     replacements: [
       {
-        pattern: /Under \d+ KB min bundle/g,
-        replacement: `Under ${bundleKilobytes} KB min bundle`,
+        pattern: /(Under |"statBundle": "< )\d+( KB)/g,
+        replacement: `$1${bundleKilobytes}$2`,
       },
     ],
   },
@@ -113,8 +111,8 @@ const websiteFiles: Array<{
     path: 'website/i18n/messages/ko.json',
     replacements: [
       {
-        pattern: /최소 번들 \d+ KB 미만/g,
-        replacement: `최소 번들 ${bundleKilobytes} KB 미만`,
+        pattern: /(최소 번들이 |"statBundle": ")\d+( KB 미만)/g,
+        replacement: `$1${bundleKilobytes}$2`,
       },
     ],
   },

@@ -35,7 +35,7 @@ interface IORedisClient {
   scanBuffer(cursor: string, ...options: string[]): Promise<unknown>;
   unlink(...keys: string[]): Promise<unknown>;
   subscribe(channel: string): Promise<unknown>;
-  on(event: string, listener: () => void): unknown;
+  on(event: string, listener: (...values: Buffer[]) => void): unknown;
 }
 
 type IORedisConstructor = new (options: object) => IORedisClient;
@@ -180,7 +180,9 @@ class IORedisFamilyAdapter extends BenchmarkClientAdapter {
         await client.subscribe(channel);
       },
       onMessage(handler) {
-        client.on('message', handler);
+        client.on('messageBuffer', (_channel: Buffer, message: Buffer) =>
+          handler(message),
+        );
       },
       async close() {
         client.disconnect();

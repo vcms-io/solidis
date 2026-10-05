@@ -9,6 +9,13 @@ export interface PhaseMeasurement {
   peakMemoryBytes: number;
 }
 
+const collections: PerformanceEntry[] = [];
+const observer = new PerformanceObserver((list) => {
+  collections.push(...list.getEntries());
+});
+
+observer.observe({ entryTypes: ['gc'] });
+
 function readMemoryBytes(): number {
   const { heapUsed, arrayBuffers } = process.memoryUsage();
 
@@ -18,13 +25,6 @@ function readMemoryBytes(): number {
 export async function measurePhase(
   run: () => Promise<void>,
 ): Promise<PhaseMeasurement> {
-  const collections: PerformanceEntry[] = [];
-  const observer = new PerformanceObserver((list) => {
-    collections.push(...list.getEntries());
-  });
-
-  observer.observe({ entryTypes: ['gc'] });
-
   const baselineMemoryBytes = readMemoryBytes();
 
   let peakMemoryBytes = baselineMemoryBytes;
@@ -42,22 +42,23 @@ export async function measurePhase(
     const { user, system } = process.cpuUsage(cpuStartedAt);
 
     peakMemoryBytes = Math.max(peakMemoryBytes, readMemoryBytes());
-    collections.push(...observer.takeRecords());
+
+    await new Promise((resolve) => setImmediate(resolve));
 
     const endedAt = startedAt + elapsedMs;
+    const gcMilliseconds = [...collections.splice(0), ...observer.takeRecords()]
+      .filter(
+        (entry) => entry.startTime >= startedAt && entry.startTime < endedAt,
+      )
+      .reduce((total, entry) => total + entry.duration, 0);
 
     return {
       elapsedMs,
       cpuMicroseconds: user + system,
-      gcMilliseconds: collections
-        .filter(
-          (entry) => entry.startTime >= startedAt && entry.startTime < endedAt,
-        )
-        .reduce((total, entry) => total + entry.duration, 0),
+      gcMilliseconds,
       peakMemoryBytes: peakMemoryBytes - baselineMemoryBytes,
     };
   } finally {
     clearInterval(sampler);
-    observer.disconnect();
   }
 }

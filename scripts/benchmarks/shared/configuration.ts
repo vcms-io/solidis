@@ -49,7 +49,7 @@ function readOperations(): Set<string> | undefined {
 
   const values = sources
     .join(',')
-    .split(/[,\s]+/)
+    .split(',')
     .map((operation) => operation.trim())
     .filter((operation) => operation.length > 0);
 

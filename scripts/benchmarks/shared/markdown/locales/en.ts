@@ -19,7 +19,7 @@ export const en: BenchmarkLocale = {
     `${fluentEmoji('Travel and places', 'High Voltage')} Solidis vs ${list(competitors)}`,
   generatedOnPrefix: 'Generated on',
   headline: (wins, total, averageLead) =>
-    `Fastest in **${wins}** of **${total}** benchmarks · **${averageLead}** the throughput of the next-fastest client on average ${fluentEmoji('Travel and places', 'Rocket')}`,
+    `Fastest in **${wins}** of **${total}** benchmarks · **${averageLead.toFixed(1)}x** the throughput of the next-fastest client on average ${fluentEmoji('Travel and places', 'Rocket')}`,
   subtitle: (iterations, concurrency, payloadLabel, payloadCount, repeats) =>
     `*${iterations.toLocaleString('en-US')} operations × ${concurrency.toLocaleString('en-US')} concurrency · ${payloadLabel} ${plural(payloadCount, 'payload')} · ${repeats.toLocaleString('en-US')} ${plural(repeats, 'repeat')} per client*`,
 
@@ -101,7 +101,8 @@ export const en: BenchmarkLocale = {
   methodologyItems: [
     'Every sample runs in its own **worker thread**, so garbage collection and JIT state never carry over.',
     'The library order **rotates** per sample, and the server is **flushed and settled** before each one.',
-    'All libraries get the same **deterministic binary payloads**, and every reply is checked after the measured phase.',
+    'All libraries get the same **deterministic binary payloads**, and every reply and Pub/Sub message is checked after the measured phase.',
+    'Transaction and Transaction Mixed send each operation as one batch (`batch` mode). Pub/Sub publishes at most 4 MB of messages at a time and waits until they arrive.',
     'Throughput is the **median** of the repeats; spread is σ / median.',
     'Latency is timed **per operation** at the configured concurrency, over all repeats.',
     'CPU/op is the **process CPU time** (user + system) of the measured phase per operation, so it includes garbage collection and native threads. GC/op is the garbage-collection pause time, divided the same way.',
@@ -119,7 +120,7 @@ export const en: BenchmarkLocale = {
     'set:SADD+SISMEMBER+SMEMBERS': 'Set Read',
     'set:SADD+SISMEMBER+SREM': 'Set Mutation',
     'expire:SET+EXPIRE+TTL': 'Expire',
-    'nonTx:SETPX+GET': 'Non-Transaction',
+    'nonTx:SET PX+GET': 'Non-Transaction',
     'list:LPUSH+RPUSH+LRANGE': 'List Range',
     'list:LPUSH+RPUSH+LPOP+RPOP+LLEN': 'List Mutation',
     'counter:INCR+DECR': 'Counter',
@@ -129,7 +130,7 @@ export const en: BenchmarkLocale = {
     'pipeline:SET+INCR+GET': 'Pipeline Mixed',
     'stream:XADD+XRANGE+XLEN': 'Stream',
     'zset:ZADD+ZRANGE+ZREM': 'Sorted Set',
-    'info:INFO+CONFIGGET': 'Info / Config',
+    'info:INFO+CONFIG GET': 'Info / Config',
     'pubsub:PUBLISH+MESSAGE': 'Pub/Sub',
   },
 };

@@ -5,7 +5,7 @@ export interface BenchmarkLocale {
 
   reportTitle(competitors: string[]): string;
   generatedOnPrefix: string;
-  headline(wins: number, total: number, averageLead: string): string;
+  headline(wins: number, total: number, averageLead: number): string;
   subtitle(
     iterations: number,
     concurrency: number,

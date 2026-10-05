@@ -24,14 +24,6 @@ await client.get('key');
 export { client };
 `;
 
-const ENTRY_IOVALKEY = `\
-import Redis from 'iovalkey';
-const client = new Redis();
-await client.set('key', 'value');
-await client.get('key');
-export { client };
-`;
-
 const ENTRY_NODE_REDIS = `\
 import { createClient } from 'redis';
 const client = createClient();
@@ -56,11 +48,6 @@ const targets: BundleTarget[] = [
   {
     name: 'ioredis',
     entryContent: ENTRY_IOREDIS,
-    external: [],
-  },
-  {
-    name: 'iovalkey',
-    entryContent: ENTRY_IOVALKEY,
     external: [],
   },
   {

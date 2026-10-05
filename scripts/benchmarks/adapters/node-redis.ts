@@ -117,13 +117,17 @@ class NodeRedisAdapter extends BenchmarkClientAdapter {
     target: ConnectionTarget,
   ): Promise<PubSubSubscriber> {
     const client = await connect(target);
-    let messageHandler: (() => void) | undefined;
+    let messageHandler: ((message: unknown) => void) | undefined;
 
     return {
       async subscribe(channel) {
-        await client.subscribe(channel, () => {
-          messageHandler?.();
-        });
+        await client.subscribe(
+          channel,
+          (message: Buffer) => {
+            messageHandler?.(message);
+          },
+          true,
+        );
       },
       onMessage(handler) {
         messageHandler = handler;

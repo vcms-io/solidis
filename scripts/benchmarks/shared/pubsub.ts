@@ -2,10 +2,12 @@ import { performance } from 'node:perf_hooks';
 
 import { pubSubDeliveryTimeoutBytesPerMs } from './constants.ts';
 import { measurePhase } from './measurement.ts';
+import { logError, logSuccess } from './utils.ts';
 
 import type { BenchmarkSuite } from './suite.ts';
 import type { BenchContext, BenchmarkCase, CaseRunResult } from './types.ts';
 
+const pubSubCaseName = 'pubsub:PUBLISH+MESSAGE';
 const pubSubMaxInFlightPayloadBytes = 4 * 1024 * 1024;
 
 async function runPubSubMessages(
@@ -116,6 +118,60 @@ async function publishAndWaitForDelivery(
   }
 }
 
+function verifyDelivery(
+  context: BenchContext,
+  messages: unknown[],
+  refusedPublishes: number,
+): string | undefined {
+  const { warmup, iterations } = context.config;
+  const published = new Map<string, Buffer[]>();
+
+  for (let index = 0; index < iterations; index += 1) {
+    const payload = context.payloadPool.at(warmup + index);
+    const key = payload.toString('latin1', 0, 8);
+    const payloads = published.get(key);
+
+    if (payloads) {
+      payloads.push(payload);
+    } else {
+      published.set(key, [payload]);
+    }
+  }
+
+  let unmatched = iterations - messages.length;
+
+  for (const message of messages) {
+    if (!Buffer.isBuffer(message)) {
+      unmatched += 1;
+
+      continue;
+    }
+
+    const payloads = published.get(message.toString('latin1', 0, 8)) ?? [];
+    const index = payloads.findIndex((payload) => payload.equals(message));
+
+    if (index < 0) {
+      unmatched += 1;
+    } else {
+      payloads.splice(index, 1);
+    }
+  }
+
+  const label = `verify ${pubSubCaseName} [${context.library}]`;
+
+  if (unmatched > 0 || refusedPublishes > 0) {
+    const message = `${unmatched}/${iterations} messages did not match a published payload; ${refusedPublishes} PUBLISH replies were not 1`;
+
+    logError(`${label}: ${message}`);
+
+    return message;
+  }
+
+  logSuccess(`${label} ${iterations} messages`);
+
+  return undefined;
+}
+
 export async function runPubSubBenchmark(
   suite: BenchmarkSuite,
   context: BenchContext,
@@ -133,21 +189,29 @@ export async function runPubSubBenchmark(
   const channel = `${context.keyPrefix}:channel`;
   const latenciesMilliseconds = new Float64Array(context.config.iterations);
   const issuedAt = new Float64Array(context.config.iterations);
+  const messages: unknown[] = [];
   let received = 0;
+  let refusedPublishes = 0;
   let isMeasuring = false;
 
-  subscriber.onMessage(() => {
+  subscriber.onMessage((message) => {
     if (isMeasuring && received < issuedAt.length) {
       latenciesMilliseconds[received] = performance.now() - issuedAt[received];
+      messages.push(message);
     }
 
     received += 1;
   });
 
-  const publish = (publisherIndex: number, payloadOffset: number) =>
-    publishers[publisherIndex].execute([
+  const publish = async (publisherIndex: number, payloadOffset: number) => {
+    const [receivers] = await publishers[publisherIndex].execute([
       ['PUBLISH', channel, context.payloadPool.at(payloadOffset)],
     ]);
+
+    if (isMeasuring && Number(receivers) !== 1) {
+      refusedPublishes += 1;
+    }
+  };
 
   try {
     await subscriber.subscribe(channel);
@@ -176,7 +240,11 @@ export async function runPubSubBenchmark(
       ),
     );
 
-    return { ...measurement, latenciesMilliseconds };
+    return {
+      ...measurement,
+      latenciesMilliseconds,
+      verificationError: verifyDelivery(context, messages, refusedPublishes),
+    };
   } finally {
     await subscriber.close();
     await suite.closeBenchClientPool(publishers);
@@ -185,7 +253,7 @@ export async function runPubSubBenchmark(
 
 export function createPubSubCase(suite: BenchmarkSuite): BenchmarkCase {
   return {
-    name: 'pubsub:PUBLISH+MESSAGE',
+    name: pubSubCaseName,
     commandsPerUnit: 1,
     payloadSlotsPerUnit: 1,
     sampleCommands: [['PUBLISH', 'channel', '']],

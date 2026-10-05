@@ -84,7 +84,6 @@ jobs:
             README.md
             README.ko.md
             website/app/benchmarks/page.tsx
-            website/app/page.tsx
             website/i18n/messages/en.json
             website/i18n/messages/ko.json
             website/public/llms.txt

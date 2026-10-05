@@ -17,7 +17,7 @@ const require = createRequire(import.meta.url);
 
 export interface PubSubSubscriber {
   subscribe(channel: string): Promise<void>;
-  onMessage(handler: () => void): void;
+  onMessage(handler: (message: unknown) => void): void;
   close(): Promise<void>;
 }
 

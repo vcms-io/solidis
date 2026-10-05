@@ -109,7 +109,7 @@ class ComparisonSuite extends BenchmarkSuite {
         verify: verifyExpire,
       }),
       this.commandCase({
-        name: 'nonTx:SETPX+GET',
+        name: 'nonTx:SET PX+GET',
         unit: buildNonTransaction,
         verify: verifyNonTransaction,
       }),
@@ -166,7 +166,7 @@ class ComparisonSuite extends BenchmarkSuite {
         verify: verifySortedSet,
       }),
       this.commandCase({
-        name: 'info:INFO+CONFIGGET',
+        name: 'info:INFO+CONFIG GET',
         unit: buildInfoConfig,
         verify: verifyInfoConfig,
       }),

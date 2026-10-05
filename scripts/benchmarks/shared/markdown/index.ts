@@ -113,7 +113,7 @@ function buildStandings(
           `### ${locale.headline(
             analysis.subjectWins,
             analysis.cases.length,
-            formatRatio(analysis.averageLead, 1),
+            analysis.averageLead,
           )}`,
           '',
         ]),
@@ -245,7 +245,10 @@ function buildEnvironment(
     [labels.iterations, configuration.iterations.toLocaleString('en-US')],
     [labels.warmup, configuration.warmup.toLocaleString('en-US')],
     [labels.connections, `${configuration.clients}`],
-    [labels.concurrencyPerConnection, `${configuration.concurrency}`],
+    [
+      labels.concurrencyPerConnection,
+      configuration.concurrency.toLocaleString('en-US'),
+    ],
     [labels.repeats, `${configuration.repeats}`],
     [labels.cooldown, `${configuration.cooldownMs}ms`],
     [labels.date, formatDate(snapshot.createdAt)],

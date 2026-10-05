@@ -206,7 +206,7 @@ class GlideFamilyAdapter extends BenchmarkClientAdapter {
   ): Promise<PubSubSubscriber> {
     const { GlideClientConfiguration } = this.#load();
     let client: GlideClient | undefined;
-    let messageHandler: (() => void) | undefined;
+    let messageHandler: ((message: unknown) => void) | undefined;
 
     return {
       subscribe: async (channel) => {
@@ -216,7 +216,8 @@ class GlideFamilyAdapter extends BenchmarkClientAdapter {
               channel,
             ]),
           },
-          callback: () => messageHandler?.(),
+          callback: (message: { message: unknown }) =>
+            messageHandler?.(message.message),
         });
       },
       onMessage(handler) {

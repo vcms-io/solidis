@@ -62,8 +62,12 @@ const data = {
     measuredOn: merged.createdAt.slice(0, 10),
   },
   benchmarkCases: cases.map((comparison) => ({
-    name:
-      en.operationDisplayNames[comparison.operation] ?? comparison.operation,
+    name: {
+      en:
+        en.operationDisplayNames[comparison.operation] ?? comparison.operation,
+      ko:
+        ko.operationDisplayNames[comparison.operation] ?? comparison.operation,
+    },
     commands: describeCommands(comparison.operation),
     lead: round(comparison.lead),
     clients: comparison.results.map((result) => ({

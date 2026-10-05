@@ -113,7 +113,7 @@ class SolidisAdapter extends BenchmarkClientAdapter {
         await client.subscribe(channel);
       },
       onMessage(handler) {
-        client.on('message', handler);
+        client.on('message', (_channel, message) => handler(message));
       },
       close() {
         return close(client);

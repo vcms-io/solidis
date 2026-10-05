@@ -9,7 +9,7 @@ export const ko: BenchmarkLocale = {
     `${fluentEmoji('Travel and places', 'High Voltage')} Solidis vs ${competitors.join(', ')}`,
   generatedOnPrefix: '측정일',
   headline: (wins, total, averageLead) =>
-    `벤치마크 **${total}**개 중 **${wins}**개에서 가장 빠름 · 다음으로 빠른 클라이언트보다 평균 **${averageLead}** 처리량 ${fluentEmoji('Travel and places', 'Rocket')}`,
+    `벤치마크 **${total}**개 중 **${wins}**개에서 가장 빠름 · 처리량은 다음으로 빠른 클라이언트의 평균 **${averageLead.toFixed(1)}배** ${fluentEmoji('Travel and places', 'Rocket')}`,
   subtitle: (iterations, concurrency, payloadLabel, _payloadCount, repeats) =>
     `*작업 ${iterations.toLocaleString('en-US')}회 × 동시 실행 ${concurrency.toLocaleString('en-US')} · ${payloadLabel} 페이로드 · 클라이언트마다 ${repeats.toLocaleString('en-US')}회 측정*`,
 
@@ -48,7 +48,7 @@ export const ko: BenchmarkLocale = {
 
   detailedMetricsTitle: `## ${fluentEmoji('Objects', 'Bar Chart')} 상세 지표`,
   detailedMetricsDescription:
-    '라이브러리별 초당 작업 수와 커맨드 수, 지연 시간(p50 / p95 / p99 / p99.9), 작업당 CPU와 GC 시간, 최대 메모리, 분산입니다.',
+    '라이브러리별 초당 작업 수와 커맨드 수, 지연 시간(p50 / p95 / p99 / p99.9), 작업당 CPU와 GC 시간, 최대 메모리, 편차입니다.',
   expandDetailedMetrics: '상세 지표 펼치기',
   detailedMetricsHeaders: {
     benchmark: '벤치마크',
@@ -62,7 +62,7 @@ export const ko: BenchmarkLocale = {
     cpu: 'CPU/작업',
     gc: 'GC/작업',
     memory: '메모리',
-    spread: '분산',
+    spread: '편차',
   },
 
   environmentTitle: `## ${fluentEmoji('Objects', 'Gear')} 환경과 설정`,
@@ -89,10 +89,11 @@ export const ko: BenchmarkLocale = {
 
   methodologyTitle: `## ${fluentEmoji('Objects', 'Open Book')} 측정 방법론`,
   methodologyItems: [
-    '샘플마다 **별도 워커 스레드**에서 실행하므로 GC와 JIT 상태가 다음 라이브러리로 넘어가지 않습니다.',
+    '샘플마다 **별도 워커 스레드**에서 실행하므로 GC와 JIT 상태가 다음 샘플로 이어지지 않습니다.',
     '샘플마다 라이브러리 순서를 **바꾸고**, 매번 서버를 **비우고 안정화**한 뒤 측정합니다.',
-    '모든 라이브러리가 같은 **결정론적 바이너리 페이로드**를 쓰고, 측정이 끝나면 모든 응답을 검사합니다.',
-    '처리량은 반복 측정의 **중앙값**이고, 분산은 σ / 중앙값입니다.',
+    '모든 라이브러리가 같은 **결정론적 바이너리 페이로드**를 쓰고, 측정이 끝나면 모든 응답과 Pub/Sub 메시지를 검사합니다.',
+    '트랜잭션과 트랜잭션 혼합은 작업마다 배치 하나로 보냅니다(`batch` 모드). Pub/Sub은 한 번에 최대 4MB의 메시지를 발행하고 모두 도착할 때까지 기다립니다.',
+    '처리량은 반복 측정의 **중앙값**이고, 편차는 σ / 중앙값입니다.',
     '지연 시간은 설정한 동시 실행 수에서 **작업마다** 재고, 모든 반복을 합쳐 계산합니다.',
     '작업당 CPU는 측정 구간의 **프로세스 CPU 시간**(user + system)을 작업 수로 나눈 값으로, GC와 네이티브 스레드를 포함합니다. 작업당 GC는 GC 일시정지 시간을 같은 방식으로 나눈 값입니다.',
     '메모리는 측정 구간 동안 워커의 힙과 `ArrayBuffer` 메모리(모든 `Buffer` 포함)가 가장 많이 늘어난 양이며, 20ms마다 잽니다. 네이티브 코드가 쓰는 메모리는 포함하지 않습니다. 실제 애플리케이션처럼 응답은 검사할 때까지 보관합니다.',
@@ -109,7 +110,7 @@ export const ko: BenchmarkLocale = {
     'set:SADD+SISMEMBER+SMEMBERS': 'Set 조회',
     'set:SADD+SISMEMBER+SREM': 'Set 변경',
     'expire:SET+EXPIRE+TTL': 'Expire',
-    'nonTx:SETPX+GET': '비트랜잭션',
+    'nonTx:SET PX+GET': '비트랜잭션',
     'list:LPUSH+RPUSH+LRANGE': 'List 범위',
     'list:LPUSH+RPUSH+LPOP+RPOP+LLEN': 'List 변경',
     'counter:INCR+DECR': 'Counter',
@@ -119,7 +120,7 @@ export const ko: BenchmarkLocale = {
     'pipeline:SET+INCR+GET': '파이프라인 혼합',
     'stream:XADD+XRANGE+XLEN': 'Stream',
     'zset:ZADD+ZRANGE+ZREM': 'Sorted Set',
-    'info:INFO+CONFIGGET': 'Info / Config',
+    'info:INFO+CONFIG GET': 'Info / Config',
     'pubsub:PUBLISH+MESSAGE': 'Pub/Sub',
   },
 };
