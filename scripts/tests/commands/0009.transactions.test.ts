@@ -620,17 +620,24 @@ describe('transactions', () => {
   });
 
   it('rejects exec() when a queued call queues no command', async () => {
-    const extended = (await createClient()).extend({ async idle() {} });
+    const extended = (await createClient()).extend({
+      async idle() {},
+      async sendNothing() {
+        assert.deepStrictEqual(await this.send([]), []);
+      },
+    });
 
     try {
-      const transaction = extended.multi();
+      for (const call of ['idle', 'sendNothing'] as const) {
+        const transaction = extended.multi();
 
-      transaction.idle();
+        transaction[call]();
 
-      await assert.rejects(transaction.exec(), {
-        name: 'SolidisCommandError',
-        message: '[EXEC] A call queued no command',
-      });
+        await assert.rejects(transaction.exec(), {
+          name: 'SolidisCommandError',
+          message: '[EXEC] A call queued no command',
+        });
+      }
     } finally {
       await closeClient(extended);
     }

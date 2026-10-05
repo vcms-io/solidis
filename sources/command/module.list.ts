@@ -12,6 +12,8 @@ export function createCommand() {
 
 export async function moduleList<T>(this: T): Promise<RespModuleInfo[]> {
   return await executeCommand(this, createCommand(), (reply, command) =>
-    tryReplyArray(reply, command).map(tryReplyToModuleInfo),
+    tryReplyArray(reply, command).map((item) =>
+      tryReplyToModuleInfo(item, command),
+    ),
   );
 }

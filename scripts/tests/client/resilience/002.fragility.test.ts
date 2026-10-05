@@ -2322,7 +2322,7 @@ describe('fragility', () => {
         () => client.moduleList(),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[MODULE] Unexpected reply: string',
+          error.message === '[MODULE LIST] Unexpected reply: string',
       );
     });
 
@@ -2343,7 +2343,8 @@ describe('fragility', () => {
         () => client.moduleList(),
         (error: Error) =>
           error instanceof SolidisCommandError &&
-          error.message === '[MODULE] Unexpected reply: missing name or ver',
+          error.message ===
+            '[MODULE LIST] Unexpected reply: missing name or ver',
       );
     });
 

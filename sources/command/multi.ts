@@ -68,11 +68,15 @@ export function multi<T extends object>(this: T): SolidisTransactionClient<T> {
   assertSender(client, ['MULTI']);
 
   const queue = (commands: StringOrBuffer[][]) => {
-    for (const command of copyCommands(commands)) {
+    const batch = copyCommands(commands);
+
+    for (const command of batch) {
       transactionQueue.push(command);
     }
 
-    return new Promise<never>(() => {});
+    return batch.length > 0
+      ? new Promise<never>(() => {})
+      : Promise.resolve([]);
   };
   const proxyHandler: ProxyHandler<object> = {
     get(_, property) {

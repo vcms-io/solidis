@@ -50,7 +50,9 @@ export async function hello<T>(
         id: Number(map.get('id')),
         mode: String(map.get('mode')),
         role: String(map.get('role')),
-        modules: tryReplyArray(modules, command).map(tryReplyToModuleInfo),
+        modules: tryReplyArray(modules, command).map((item) =>
+          tryReplyToModuleInfo(item, command),
+        ),
       };
     },
   );

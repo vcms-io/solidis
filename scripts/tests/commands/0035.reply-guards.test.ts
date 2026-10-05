@@ -25,6 +25,7 @@ import { createCommand as createFunctionFlushCommand } from '../../../sources/co
 import { functionStats } from '../../../sources/command/function.stats.ts';
 import { get } from '../../../sources/command/get.ts';
 import { createCommand as createGetsetCommand } from '../../../sources/command/getset.ts';
+import { hello } from '../../../sources/command/hello.ts';
 import { createCommand as createHashExpireCommand } from '../../../sources/command/hexpire.ts';
 import { hmget } from '../../../sources/command/hmget.ts';
 import { createCommand as createHmsetCommand } from '../../../sources/command/hmset.ts';
@@ -32,6 +33,7 @@ import { hset } from '../../../sources/command/hset.ts';
 import { createCommand as createHsetnxCommand } from '../../../sources/command/hsetnx.ts';
 import { createCommand as createJsonArrpopCommand } from '../../../sources/command/json.arrpop.ts';
 import { createCommand as createJsonGetCommand } from '../../../sources/command/json.get.ts';
+import { createCommand as createJsonMergeCommand } from '../../../sources/command/json.merge.ts';
 import { latencyLatest } from '../../../sources/command/latency.latest.ts';
 import { createCommand as createLatencyResetCommand } from '../../../sources/command/latency.reset.ts';
 import { lcs } from '../../../sources/command/lcs.ts';
@@ -42,6 +44,7 @@ import {
   createCommand as createMigrateCommand,
   migrate,
 } from '../../../sources/command/migrate.ts';
+import { moduleList } from '../../../sources/command/module.list.ts';
 import {
   createCommand as createModuleLoadCommand,
   moduleLoad,
@@ -72,7 +75,10 @@ import { createCommand as createTimeSeriesMrangeCommand } from '../../../sources
 import { createCommand as createTimeSeriesMrevrangeCommand } from '../../../sources/command/ts.mrevrange.ts';
 import { createCommand as createTimeSeriesRangeCommand } from '../../../sources/command/ts.range.ts';
 import { createCommand as createTimeSeriesRevrangeCommand } from '../../../sources/command/ts.revrange.ts';
-import { tryReplyToNumber } from '../../../sources/command/utils/reply.ts';
+import {
+  tryReplyToInteger,
+  tryReplyToNumber,
+} from '../../../sources/command/utils/reply.ts';
 import { createCommand as createXaddCommand } from '../../../sources/command/xadd.ts';
 import { xautoclaim } from '../../../sources/command/xautoclaim.ts';
 import { xinfoStream } from '../../../sources/command/xinfo.stream.ts';
@@ -976,5 +982,48 @@ describe('reply-guards', () => {
     assert.strictEqual(tryReplyToNumber(true), 1);
     assert.strictEqual(tryReplyToNumber(false), 0);
     assert.strictEqual(tryReplyToNumber(Buffer.from('2.5')), 2.5);
+  });
+
+  it('reads only safe integers as integer replies', () => {
+    for (const reply of [1.5, Number.POSITIVE_INFINITY, Number.NaN, 2 ** 60]) {
+      for (const options of [undefined, { bigint: true }]) {
+        assert.throws(() => tryReplyToInteger(reply, 'INCR', options), {
+          name: 'SolidisCommandError',
+          message: '[INCR] Unexpected reply: number',
+        });
+      }
+    }
+
+    assert.strictEqual(tryReplyToInteger(-7, 'INCR', undefined), -7);
+    assert.strictEqual(tryReplyToInteger(-7, 'INCR', { bigint: true }), -7n);
+    assert.strictEqual(
+      tryReplyToInteger(2n ** 60n, 'INCR', { bigint: true }),
+      2n ** 60n,
+    );
+  });
+
+  it('names the command that returned a malformed module', async () => {
+    await assert.rejects(
+      hello.call(createRecorder(new Map([['modules', ['x']]]))),
+      { message: '[HELLO] Unexpected reply: string' },
+    );
+    await assert.rejects(moduleList.call(createRecorder([['name', 'x']])), {
+      message: '[MODULE LIST] Unexpected reply: missing name or ver',
+    });
+  });
+
+  it('merges JSON at the root unless a path is given', () => {
+    assert.deepStrictEqual(createJsonMergeCommand('key', '{}'), [
+      'JSON.MERGE',
+      'key',
+      '$',
+      '{}',
+    ]);
+    assert.deepStrictEqual(createJsonMergeCommand('key', '{}', '.a'), [
+      'JSON.MERGE',
+      'key',
+      '.a',
+      '{}',
+    ]);
   });
 });

@@ -240,6 +240,10 @@ export function tryReplyToInteger<
   commandName: CommandName | undefined,
   options: Options | undefined,
 ): RespInteger<Options> {
+  if (typeof reply === 'number' && !Number.isSafeInteger(reply)) {
+    throw newUnexpectedReplyError(reply, commandName);
+  }
+
   if (options?.bigint !== true) {
     return tryReplyNumber(reply, commandName) as RespInteger<Options>;
   }
@@ -608,8 +612,10 @@ export function tryReplyToStringRecord(
   return tryReplyToStringOrBufferRecord(fields, commandName, undefined);
 }
 
-export function tryReplyToModuleInfo(modules: unknown): RespModuleInfo {
-  const commandName = 'MODULE';
+export function tryReplyToModuleInfo(
+  modules: unknown,
+  commandName?: CommandName,
+): RespModuleInfo {
   const moduleData = tryReplyToMap(modules, commandName);
 
   const name = moduleData.get('name');
