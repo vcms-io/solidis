@@ -55,7 +55,7 @@ With `debug: true`, entries reach only the `debug` event and are no longer print
 
 A server error always rejects with a `SolidisCommandError`. Its message is `[COMMAND] <server message>` without the arguments, and `cause` is the server's `RespError`, which has a new `code` property.
 
-An argument the server quotes back with `'` or `` ` `` is masked from there to the last quote, also when the server cut it short: `ERR Error in ACL SETUSER modifier '***'`. Unquoted echoes stay, such as `GEOADD` coordinates, `redis.error_reply()` text or a `FUNCTION LOAD` library name, and so does text the server quotes from inside an argument, such as a Lua token in a script error. Messages over 4,096 characters are cut, and a quoted argument the cut leaves open is masked to the end.
+Text the server quotes with `'` or `` ` `` is masked from there to the last quote when an argument contains it, also when the server cut it short or quotes a token from inside a script: `ERR Error in ACL SETUSER modifier '***'`. Unquoted echoes stay, such as `GEOADD` coordinates, `redis.error_reply()` text or a function name in `FUNCTION LOAD`. Messages over 4,096 characters are cut, and a cut message that masks anything is masked to its end.
 
 ```typescript
 import { RespError, SolidisCommandError } from '@vcms-io/solidis';
@@ -302,7 +302,7 @@ Skip this step unless you build the internal classes yourself or write custom co
   - `executeCommand(client, command, replyTo, options, sendOptions)` passes `replyTo` a copy of `options` taken at call time, takes request options last and rejects error replies.
   - `newCommandError(message, commandName, cause)` replaces the `prefix` parameter with a command name and an optional cause.
   - `tryReplyArray()` returns `unknown[]`, and `tryReplyToStringArray()` drops its `nullable` overload; use `tryReplyToNullableStringArray()`.
-  - Removed: `InvalidReplyPrefix`, `tryReplyToStringRecordRecursively()` and `tryReplyToSortedSetMembersOrNull()`, and from `common/utils`, `checkReplyIsArray()` and `checkReplyIsMessageEvent()`.
+  - Removed: `InvalidReplyPrefix`, `escapeReply()`, `tryReplyToConfigInfo()` (use `tryReplyToStringRecord()`), `tryReplyToStringRecordRecursively()` and `tryReplyToSortedSetMembersOrNull()`, and from `common/utils`, `checkReplyIsArray()` and `checkReplyIsMessageEvent()`.
   - Added reply readers: `tryReplyTuple()`, `tryReplyToInteger()`, `tryReplyToStringOrBuffer()` with its nullable, array and record variants, `tryReplyToCuckooFilterInsertResults()`, `tryReplyToJsonNumberText()`, `tryReplyToJsonNumbers()`, `tryReplyToNumberOrErrorArray()`, `tryReplyToStreamEntryOrDeleted()` and `tryReplyToStreamGroupReadResultsOrNull()`.
   - Added executors: `executeIntegerCommand()`, `buildKeyIntegerExecutor()`, `buildKeyPopExecutor()` and `buildKeyStringOrBufferExecutor()`.
   - Added helpers: `newUnexpectedReplyError()`, `describeReply()`, `setRecordEntry()` and `appendRecordEntries()`.
@@ -442,7 +442,7 @@ See [Upgrading from 0.4.x](#upgrading-from-04x) for replacements.
 
 ### Security
 
-- Error messages, stack traces and debug entries no longer list command arguments; a failed `AUTH` used to show the password, and a failed `SET` the value. Arguments the server quotes back, such as an ACL rule or the arguments of an unknown command, become `***`, also when the server joins several into one quoted span, as for an ACL selector.
+- Error messages, stack traces and debug entries no longer list command arguments; a failed `AUTH` used to show the password, and a failed `SET` the value. Arguments the server quotes back, such as an ACL rule or the arguments of an unknown command, become `***`, also when the server joins several into one quoted span, as for an ACL selector, or quotes a token from inside one, as in a script error.
 - User data shaped like a Pub/Sub message is never dispatched as a `message` event on RESP2.
 - An integer reply longer than 20 characters or a big number longer than 4,096 characters is returned as an error reply, and a length line longer than 20 characters or nesting deeper than 512 levels is a protocol error, so one reply can no longer stall the event loop. Errors about a malformed line quote at most 32 characters, and error messages are cut to 4,096 characters before masking.
 
@@ -451,9 +451,9 @@ See [Upgrading from 0.4.x](#upgrading-from-04x) for replacements.
 - Replies split across socket chunks parse in linear time, and a reply that spans chunks copies only its own bytes.
 - Serialization measures each argument once, replies allocate less, and bulk replies are zero-copy views.
 - In alternating benchmark runs against 0.4.0, throughput is on par or better across the suite.
-- Replies and timeouts for tens of thousands of pipelines in flight take linear time. Masking looks each quoted span up instead of comparing it with every argument, and reads only the start of each argument.
+- Replies and timeouts for tens of thousands of pipelines in flight take linear time. Masking bounds how much argument text it searches for quoted spans, so a reply full of quotes cannot stall the event loop.
 - Error replies no longer capture a stack trace they then drop.
-- Measured with each version's `npm run bundle`, the minimal client with `get` and `set` shrinks from 29,494 to 29,391 bytes.
+- Measured with each version's `npm run bundle`, the minimal client with `get` and `set` shrinks from 29,494 to 29,134 bytes.
 
 ## [0.4.0] and earlier
 

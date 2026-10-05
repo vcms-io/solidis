@@ -489,7 +489,7 @@ _100,000 operations × 10,000 concurrency · 1 KB payload · 5 repeats per clien
 - TLS (`rediss://` or the `tls` option)
 - ACL username and password
 - Debug entries name commands, never their arguments
-- Error messages mask the arguments the server quotes back
+- Error messages mask the argument text the server quotes back
 - `maxBulkStringLength` guard and a 512-level nesting limit
 
 </td>
@@ -670,8 +670,8 @@ try {
 > [!NOTE]
 >
 > - Errors for arguments of the declared types are `SolidisError`s linked by the standard `cause`.
-> - Messages add the command name (`[INCR] ERR ...`), not its arguments. A quoted argument becomes `'***'` in the message and in `cause`. Unquoted echoes and text quoted from inside an argument stay: GEOADD coordinates, `redis.error_reply()` text, a FUNCTION LOAD library name, a Lua token in a script error.
-> - Messages longer than 4,096 characters are cut; a quoted argument the cut leaves open is masked to the end.
+> - Messages add the command name (`[INCR] ERR ...`), not its arguments. Quoted text found in an argument becomes `'***'` in the message and in `cause`, also a Lua token from a script. Unquoted echoes stay: GEOADD coordinates, `redis.error_reply()` text, a function name in FUNCTION LOAD.
+> - Messages longer than 4,096 characters are cut, and a cut message that masks anything is masked to its end.
 > - Arguments are checked by declared type only. From JavaScript, a string for an array, an array for an object or ioredis-style `set(key, value, 'EX', 10)` builds a different command. Field records accept objects only.
 > - ESM and CJS clients and commands mix, but each build has its own error classes, so `instanceof` matches its own build only.
 > - TS.MADD, BF.MADD and BF.INSERT return a rejected item as a `RespError` in their result.
