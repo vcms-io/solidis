@@ -4,6 +4,7 @@ export const SolidisCarriageReturnByte = 13;
 export const SolidisLineFeedByte = 10;
 export const SolidisZeroByte = 48;
 export const SolidisMinusByte = 45;
+export const SolidisPlusByte = 43;
 export const SolidisColonByte = 58;
 export const SolidisLowercaseTByte = 116;
 export const SolidisLowercaseFByte = 102;

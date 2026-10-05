@@ -21,6 +21,7 @@ import {
   SolidisMinusByte,
   SolidisNewLine,
   SolidisNullReplyByte,
+  SolidisPlusByte,
   SolidisPushReplyByte,
   SolidisSetReplyByte,
   SolidisStringReplyByte,
@@ -93,7 +94,7 @@ export class SolidisParser {
   }
 
   public parse(chunk: Buffer, replies: SolidisData[] = []): SolidisData[] {
-    const tail = this.#append(chunk);
+    const tail = chunk.length > 0 ? this.#append(chunk) : undefined;
 
     while (this.#offset < this.#buffer.length) {
       const step = this.#readStep();
@@ -296,7 +297,11 @@ export class SolidisParser {
       return NeedsMoreData;
     }
 
-    const length = this.#readLength(start + 1, lineEnd);
+    const length = this.#readLength(
+      start + 1,
+      lineEnd,
+      type === SolidisBulkReplyByte,
+    );
 
     if (length < 0) {
       this.#offset = lineEnd + 2;
@@ -352,20 +357,22 @@ export class SolidisParser {
       return NeedsMoreData;
     }
 
-    const count = this.#readLength(start + 1, lineEnd);
+    const count = this.#readLength(
+      start + 1,
+      lineEnd,
+      type === SolidisArrayReplyByte,
+    );
 
     this.#offset = lineEnd + 2;
-
-    if (type === SolidisAttributeReplyByte && count <= 0) {
-      return NoValue;
-    }
 
     if (count < 0) {
       return null;
     }
 
     if (count === 0) {
-      return createAggregate(type, createItems(type));
+      return type === SolidisAttributeReplyByte
+        ? NoValue
+        : createAggregate(type, createItems(type));
     }
 
     if (this.#frames.length >= SolidisMaximumNestingDepth) {
@@ -427,9 +434,10 @@ export class SolidisParser {
 
   #parseInteger(start: number, end: number): number | bigint | undefined {
     const buffer = this.#buffer;
-    const isNegative = buffer[start] === SolidisMinusByte;
+    const sign = buffer[start];
+    const isNegative = sign === SolidisMinusByte;
 
-    let index = isNegative ? start + 1 : start;
+    let index = isNegative || sign === SolidisPlusByte ? start + 1 : start;
     let value = 0;
 
     if (index === end || end - start > SolidisIntegerMaximumLength) {
@@ -454,10 +462,10 @@ export class SolidisParser {
     return isNegative ? -value : value;
   }
 
-  #readLength(start: number, end: number) {
+  #readLength(start: number, end: number, isNullable: boolean) {
     const length = this.#parseInteger(start, end);
 
-    if (typeof length !== 'number') {
+    if (typeof length !== 'number' || (length < 0 && !isNullable)) {
       throw new SolidisParserError(
         `Invalid length ${this.#describeLine(start, end)}`,
       );
@@ -487,7 +495,7 @@ export class SolidisParser {
         ? this.#readText(start, end)
         : '';
 
-    return /^-?\d+$/.test(text)
+    return /^[+-]?\d+$/.test(text)
       ? BigInt(text)
       : new RespError(`BigNumber: ${this.#describeLine(start, end)}`);
   }

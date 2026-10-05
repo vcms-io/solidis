@@ -56,6 +56,16 @@ function rejectPipeline(pipeline: SolidisPipeline, error: unknown) {
   }
 }
 
+function dequeue(queue: unknown[], head: number) {
+  if ((head + 1) * 2 < queue.length) {
+    return head + 1;
+  }
+
+  queue.splice(0, head + 1);
+
+  return 0;
+}
+
 function createPipeline(): SolidisPipeline {
   return {
     commands: [],
@@ -79,6 +89,8 @@ export class SolidisRequester {
   #pendingRequests: SolidisRequest[] = [];
   #inflightQueue: SolidisPipeline[] = [];
   #inflightHead = 0;
+  #subscriptionQueue: SolidisSubRequest[] = [];
+  #subscriptionHead = 0;
   #timedOutCount = 0;
   #timedOutRun = 0;
   #protocol: SolidisProtocols = SolidisProtocols.RESP2;
@@ -214,20 +226,22 @@ export class SolidisRequester {
           }
 
           const kind = request.kinds?.[index];
-          const command = this.#expandCommand(
-            request.commands[index],
-            kind,
-            pipeline,
-          );
-
-          pipeline.commands.push(command);
-          pipeline.subRequests.push({
+          const command = this.#expandCommand(request.commands[index], kind);
+          const isSubscription = isSubscriptionEventName(kind);
+          const subRequest = {
             request,
             command,
             kind,
-            span: isSubscriptionEventName(kind) ? command.length - 1 : 1,
+            span: isSubscription ? command.length - 1 : 1,
             index,
-          });
+          };
+
+          pipeline.commands.push(command);
+          pipeline.subRequests.push(subRequest);
+
+          if (isSubscription && !isUnsubscribeEventName(kind)) {
+            this.#subscriptionQueue.push(subRequest);
+          }
 
           pipeline.timeout = request.timeout;
           pipeline.isBlocking ||= request.isBlocking;
@@ -274,6 +288,7 @@ export class SolidisRequester {
           return createRefusal(command, 'is refused after a lost MULTI.');
         }
 
+        isQueueing = true;
         isQueueingLost = false;
         isWatchLost ||= kind === 'exec';
       }
@@ -282,7 +297,7 @@ export class SolidisRequester {
         continue;
       }
 
-      if (kind === 'exec' && isWatchLost) {
+      if (kind === 'exec' && isWatchLost && isQueueing) {
         kind = 'discard';
         request.commands = [...commands];
         request.commands[index] = discardedExecCommand;
@@ -291,8 +306,8 @@ export class SolidisRequester {
       if (kind === 'multi') {
         isQueueing = true;
       } else if (kind === 'exec' || kind === 'discard' || kind === 'reset') {
+        isWatchLost &&= !isQueueing && kind !== 'reset';
         isQueueing = false;
-        isWatchLost = false;
       } else if (!isQueueing && (kind === 'watch' || kind === 'unwatch')) {
         isWatchLost &&= kind === 'watch';
       }
@@ -319,8 +334,8 @@ export class SolidisRequester {
         if (kind === 'multi') {
           isQueueing = true;
         } else if (kind === 'exec' || kind === 'discard' || kind === 'reset') {
+          isWatching &&= !isQueueing && kind !== 'reset';
           isQueueing = false;
-          isWatching = false;
         } else if (!isQueueing && (kind === 'watch' || kind === 'unwatch')) {
           isWatching = kind === 'watch';
         }
@@ -333,7 +348,6 @@ export class SolidisRequester {
   #expandCommand(
     command: StringOrBuffer[],
     kind: SolidisCommandKind | undefined,
-    pipeline: SolidisPipeline,
   ) {
     if (command.length > 1 || !isUnsubscribeEventName(kind)) {
       return command;
@@ -343,15 +357,12 @@ export class SolidisRequester {
     const channels: StringOrBuffer[] =
       this.#options.pubSub.getSubscriptions(kind);
 
-    for (const { subRequests } of [
-      ...this.#inflightQueue.slice(this.#inflightHead),
-      pipeline,
-    ]) {
-      for (const subRequest of subRequests) {
-        if (subRequest.kind === subscribeKind) {
-          for (let index = 1; index < subRequest.command.length; index += 1) {
-            channels.push(subRequest.command[index]);
-          }
+    for (const subRequest of this.#subscriptionQueue.slice(
+      this.#subscriptionHead,
+    )) {
+      if (subRequest.kind === subscribeKind) {
+        for (let index = 1; index < subRequest.command.length; index += 1) {
+          channels.push(subRequest.command[index]);
         }
       }
     }
@@ -498,6 +509,13 @@ export class SolidisRequester {
 
     pipeline.subRequestIndex += 1;
 
+    if (this.#subscriptionQueue[this.#subscriptionHead] === subRequest) {
+      this.#subscriptionHead = dequeue(
+        this.#subscriptionQueue,
+        this.#subscriptionHead,
+      );
+    }
+
     if (pipeline.subRequestIndex === pipeline.subRequests.length) {
       clearTimeout(pipeline.timer);
 
@@ -509,12 +527,7 @@ export class SolidisRequester {
         }
       }
 
-      this.#inflightHead += 1;
-
-      if (this.#inflightHead * 2 >= this.#inflightQueue.length) {
-        this.#inflightQueue.splice(0, this.#inflightHead);
-        this.#inflightHead = 0;
-      }
+      this.#inflightHead = dequeue(this.#inflightQueue, this.#inflightHead);
     }
 
     this.#complete(subRequest, replies);
@@ -662,6 +675,8 @@ export class SolidisRequester {
 
     this.#inflightQueue = [];
     this.#inflightHead = 0;
+    this.#subscriptionQueue = [];
+    this.#subscriptionHead = 0;
     this.#timedOutCount = 0;
     this.#timedOutRun = 0;
     this.#parser = new SolidisParser(this.#options);

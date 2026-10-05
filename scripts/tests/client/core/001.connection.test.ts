@@ -994,7 +994,7 @@ describe('connection', () => {
         });
       });
 
-      it('rejects and reports a connection the socket layer refuses on the spot', async () => {
+      it('rejects a connection the socket layer refuses on the spot, and reports it when nothing waits', async () => {
         const connection = new SolidisConnection({
           ...SolidisDefaultOptions,
           host: '127.0.0.1',
@@ -1010,10 +1010,37 @@ describe('connection', () => {
 
         assert.ok(error instanceof SolidisConnectionError);
         assert.ok(error.cause instanceof RangeError);
-        assert.deepStrictEqual(errors, [error]);
+        assert.strictEqual(errors.length, 0);
         assert.strictEqual(connection.isConnected, false);
 
+        connection.reconnect();
+
+        await waitFor(() => errors.length > 0);
+
+        assert.ok(errors[0] instanceof SolidisConnectionError);
+        assert.ok(errors[0].cause instanceof RangeError);
+
         connection.quit();
+      });
+
+      it('reports a refused connection once, after the constructor returns', async (context) => {
+        const emitWarning = context.mock.method(process, 'emitWarning');
+        const client = new SolidisFeaturedClient({
+          host: '127.0.0.1',
+          port: 70000,
+        });
+        const errors: Error[] = [];
+
+        client.on('error', (error) => errors.push(error));
+
+        await waitFor(() => errors.length > 0);
+        await delay(20);
+
+        assert.strictEqual(errors.length, 1);
+        assert.ok(errors[0] instanceof SolidisConnectionError);
+        assert.strictEqual(emitWarning.mock.callCount(), 0);
+
+        client.quit();
       });
 
       it('ignores a stale socket that connects after its attempt timed out', async () => {

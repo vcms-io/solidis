@@ -9,8 +9,8 @@ export function parseDouble(text: string): number | undefined {
 
   if (
     !text ||
-    (Number.isNaN(value) &&
-      text.toLowerCase().replace(/^-/, '') !== SolidisNotANumberText)
+    /[\sbox]/i.test(text) ||
+    (Number.isNaN(value) && !/^-?nan$/i.test(text))
   ) {
     return undefined;
   }

@@ -187,6 +187,49 @@ describe('session-guards', () => {
       }
     });
 
+    it('starts over from the first attempt once a background reconnect gave up', async () => {
+      const server = await startServer(answerPong);
+      const client = new SolidisFeaturedClient(
+        mockClientOptions(server.port, {
+          autoReconnect: true,
+          maxConnectionRetries: 2,
+          connectionRetryDelay: 200,
+          maxConnectionRetryDelay: 400,
+        }),
+      );
+      const errors: Error[] = [];
+      const attempts: number[][] = [];
+
+      client.on('error', (error) => errors.push(error));
+      client.on('reconnecting', (attempt, delay) =>
+        attempts.push([attempt, delay]),
+      );
+
+      try {
+        await client.connect();
+
+        server.closesOnAccept = true;
+        server.destroySockets();
+
+        await waitFor(
+          () =>
+            errors.some(
+              (error) => error.message === 'Connection failed after 2 retries.',
+            ),
+          { timeout: 5000 },
+        );
+
+        attempts.length = 0;
+        server.closesOnAccept = false;
+
+        assert.strictEqual(await client.ping(), 'PONG');
+        assert.deepStrictEqual(attempts, [[1, 0]]);
+      } finally {
+        client.quit();
+        await server.close();
+      }
+    });
+
     it('announces every reconnect attempt, including the first one after a drop', async () => {
       const server = await startServer(answerPong);
       const client = new SolidisFeaturedClient(
@@ -1989,6 +2032,89 @@ describe('session-guards', () => {
         assert.strictEqual(await killer.get(key), '91');
       } finally {
         await closeClient(client);
+      }
+    });
+
+    it('keeps a lost WATCH through an EXEC or DISCARD sent outside a transaction', async () => {
+      const client = await createClient({ connectionRetryDelay: 10 });
+      const key = keyspace.key('stray-watch');
+
+      try {
+        for (const stray of ['DISCARD', 'EXEC']) {
+          await killer.set(key, '100');
+          await client.watch(key);
+          await forceReconnect(client);
+          await killer.set(key, '500');
+
+          const [[reply]] = await client.send([[stray]]);
+
+          assert.ok(reply instanceof RespError);
+          assert.strictEqual(reply.message, `ERR ${stray} without MULTI`);
+
+          const transaction = client.multi();
+
+          transaction.set(key, '90');
+
+          assert.strictEqual(await transaction.exec(), null, stray);
+          assert.strictEqual(await killer.get(key), '500');
+        }
+      } finally {
+        await closeClient(client);
+      }
+    });
+
+    it('keeps a WATCH lost while an EXEC or DISCARD outside a transaction was in flight', async () => {
+      for (const stray of ['DISCARD', 'EXEC']) {
+        const received: string[] = [];
+        const replies: Record<string, string> = {
+          WATCH: '+OK\r\n',
+          MULTI: '+OK\r\n',
+          SET: '+QUEUED\r\n',
+          EXEC: '*1\r\n+OK\r\n',
+          DISCARD: '+OK\r\n',
+        };
+        const server = await startServer((socket, data) => {
+          for (const [, name] of data
+            .toString()
+            .matchAll(/\*\d+\r\n\$\d+\r\n([A-Z]+)\r\n/g)) {
+            received.push(name);
+
+            if (received.length === 2) {
+              socket.destroy();
+
+              return;
+            }
+
+            socket.write(replies[name]);
+          }
+        });
+        const client = new SolidisFeaturedClient(
+          mockClientOptions(server.port),
+        );
+
+        try {
+          await client.connect();
+          await client.watch('key');
+          await assert.rejects(client.send([[stray]]), {
+            name: 'SolidisConnectionError',
+          });
+
+          const transaction = client.multi();
+
+          transaction.set('key', 'value');
+
+          assert.strictEqual(await transaction.exec(), null, stray);
+          assert.deepStrictEqual(received, [
+            'WATCH',
+            stray,
+            'MULTI',
+            'SET',
+            'DISCARD',
+          ]);
+        } finally {
+          client.quit();
+          await server.close();
+        }
       }
     });
 

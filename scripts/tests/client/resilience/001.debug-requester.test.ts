@@ -2623,6 +2623,63 @@ describe('debug-requester', () => {
       ]);
     });
 
+    it('leaves settled SUBSCRIBEs out of a later argument-less UNSUBSCRIBE', async () => {
+      const { connection, pubSub, requester } = createRequester();
+      const subscribed = requester.send([
+        ['SUBSCRIBE', 'a'],
+        ['SUBSCRIBE', 'x'],
+      ]);
+
+      await flushed();
+
+      connection.reply(
+        `${subscribeConfirmation('subscribe', 'a', 1)}-NOPERM no permissions\r\n`,
+      );
+
+      const [, [refusal]] = await subscribed;
+
+      assert.ok(refusal instanceof RespError);
+
+      const unsubscribed = requester.send([['UNSUBSCRIBE']]);
+
+      await flushed();
+
+      assert.deepStrictEqual(
+        connection.writes.at(-1),
+        commandsToBuffer([['UNSUBSCRIBE', 'a']]),
+      );
+
+      connection.reply(subscribeConfirmation('unsubscribe', 'a', 0));
+
+      assert.strictEqual((await unsubscribed)[0].length, 1);
+      assert.deepStrictEqual(pubSub.getSubscriptions('subscribe'), []);
+    });
+
+    it('expands argument-less UNSUBSCRIBEs in time that grows only with the SUBSCRIBEs in flight', async () => {
+      const { connection, requester } = createRequester();
+      const backlog = settle(
+        requester.send(Array.from({ length: 200_000 }, () => ['GET', 'k'])),
+      );
+
+      await flushed();
+
+      const unsubscribes = Array.from({ length: 20_000 }, () =>
+        settle(requester.send([['UNSUBSCRIBE']])),
+      );
+      const startedAt = performance.now();
+
+      await flushed();
+
+      const elapsed = performance.now() - startedAt;
+
+      assert.ok(elapsed < 300, `${elapsed} ms`);
+      assert.strictEqual(connection.writes.length, 667 + 67);
+
+      connection.emit('close', new SolidisConnectionError('lost'));
+
+      await Promise.all([backlog, ...unsubscribes]);
+    });
+
     it('rejects subscription commands while a transaction is open', async () => {
       const { connection, requester } = createRequester();
 
@@ -2934,6 +2991,33 @@ describe('debug-requester', () => {
       connection.reply('+OK\r\n+QUEUED\r\n+OK\r\n');
 
       assert.deepStrictEqual(await queuedUnwatch, [['OK'], ['QUEUED'], [null]]);
+
+      await exchange([['WATCH', 'balance']], '+OK\r\n');
+
+      connection.emit('close', new SolidisConnectionError('lost'));
+
+      const [[strayExec], [strayDiscard]] = await exchange(
+        [['EXEC'], ['DISCARD']],
+        '-ERR EXEC without MULTI\r\n-ERR DISCARD without MULTI\r\n',
+      );
+
+      assert.ok(strayExec instanceof RespError);
+      assert.ok(strayDiscard instanceof RespError);
+      assert.deepStrictEqual(
+        await exchange([['MULTI'], ['EXEC']], '+OK\r\n+OK\r\n'),
+        [['OK'], [null]],
+      );
+
+      await exchange([['WATCH', 'balance']], '+OK\r\n');
+
+      connection.emit('close', new SolidisConnectionError('lost'));
+
+      await exchange([['RESET']], '+RESET\r\n');
+
+      assert.deepStrictEqual(
+        await exchange([['MULTI'], ['EXEC']], '+OK\r\n*0\r\n'),
+        [['OK'], [[]]],
+      );
     });
 
     it('rejects in strict mode only on top-level errors, with a redacted SolidisCommandError', async () => {

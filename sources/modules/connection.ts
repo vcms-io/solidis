@@ -202,8 +202,12 @@ export class SolidisConnection extends EventEmitter {
       const failure = wrapWithSolidisError(SolidisConnectionError, error);
 
       this.#isReconnecting = false;
-      this.#rejectWaiters(failure);
-      this.emit('error', failure);
+
+      if (this.#waiters.length > 0) {
+        this.#rejectWaiters(failure);
+      } else {
+        this.emit('error', failure);
+      }
 
       return;
     }
@@ -362,9 +366,9 @@ export class SolidisConnection extends EventEmitter {
       this.#failedAttempts = 0;
       this.#remainingReconnects = maxConnectionRetries + 1;
     } else {
-      this.#failedAttempts += 1;
-
       exhaustion = this.#spendReconnect(error);
+
+      this.#failedAttempts = exhaustion ? 0 : this.#failedAttempts + 1;
     }
 
     this.emit('close', error);

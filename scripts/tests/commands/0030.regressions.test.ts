@@ -38,6 +38,7 @@ import {
   createKeyspace,
   detectServerCapabilities,
   isCommandSupported,
+  readServerTime,
 } from '../utils/index.ts';
 
 import type { SolidisData } from '../../../sources/index.ts';
@@ -464,8 +465,24 @@ describe('regressions', () => {
       assert.ok(Number.isNaN(parseDouble('NaN')));
       assert.ok(Number.isNaN(parseDouble('-nan')));
 
-      for (const text of ['', 'Inf', 'abc', '--nan', 'nan-', '1,5']) {
-        assert.strictEqual(parseDouble(text), undefined, text);
+      for (const text of [
+        '',
+        'Inf',
+        'abc',
+        '--nan',
+        'nan-',
+        '+nan',
+        '1,5',
+        ' ',
+        '\t',
+        ' 7 ',
+        '7 ',
+        '0x1f',
+        '0X1F',
+        '0b11',
+        '0o7',
+      ]) {
+        assert.strictEqual(parseDouble(text), undefined, JSON.stringify(text));
       }
 
       assert.strictEqual(formatDouble(Number.NaN), 'nan');
@@ -844,9 +861,9 @@ describe('regressions', () => {
       ]);
       const cases: [(string | Buffer)[], string, string][] = [
         [
-          ['EVAL', "return 'x' .. hunter2secretQ", '0'],
-          "ERR Error compiling script (new function): user_script:1: '<eof>' expected near 'hunter2secretQ'",
-          "ERR Error compiling script (new function): user_script:1: '<eof>' expected near '***'",
+          ['SET', 'key', "return 'x' .. hunter2secretQ"],
+          "ERR invalid '<eof>' expected near 'hunter2secretQ'",
+          "ERR invalid '<eof>' expected near '***'",
         ],
         [
           ['EVAL', 'return hunter2secretQ', '0'],
@@ -876,14 +893,14 @@ describe('regressions', () => {
           "Unknown function name '***'",
         ],
         [
-          ['EVAL', script, '0'],
-          "ERR user_script:1: Script attempted to access nonexistent global variable 'hunter2\uFFFDsecret' script: 1, on @user_script:1.",
-          "ERR user_script:1: Script attempted to access nonexistent global variable '***' script: 1, on @user_script:1.",
+          ['SET', 'key', script],
+          "ERR invalid token 'hunter2\uFFFDsecret' in value",
+          "ERR invalid token '***' in value",
         ],
         [
-          ['EVAL', 'return hunter2\uD800secret', '0'],
-          "ERR user_script:1: Script attempted to access nonexistent global variable 'hunter2\uFFFDsecret' script: 1, on @user_script:1.",
-          "ERR user_script:1: Script attempted to access nonexistent global variable '***' script: 1, on @user_script:1.",
+          ['SET', 'key', 'return hunter2\uD800secret'],
+          "ERR invalid token 'hunter2\uFFFDsecret' in value",
+          "ERR invalid token '***' in value",
         ],
         [
           ['SET', 'key', 'value'],
@@ -911,6 +928,52 @@ describe('regressions', () => {
           `[${getCommandName(command)}] ${redacted}`,
         );
       }
+    });
+
+    it('masks a Lua error from its first quote', () => {
+      const cases: [string[], string, string][] = [
+        [
+          ['EVAL', '"API\\"KEY-123" = 1', '0'],
+          `ERR Error compiling script (new function): user_script:1: unexpected symbol near '"API"KEY-123"'`,
+          "ERR Error compiling script (new function): user_script:1: unexpected symbol near '***'",
+        ],
+        [
+          ['EVAL', 'local t = {} return t["S\\069CRET"].x', '0'],
+          "ERR user_script:1: attempt to index field 'SECRET' (a nil value) script: 83d1365870d33ed5d6797d42e759405677f60890, on @user_script:1.",
+          "ERR user_script:1: attempt to index field '***' (a nil value) script: 83d1365870d33ed5d6797d42e759405677f60890, on @user_script:1.",
+        ],
+        [
+          ['EVAL', 'local t = {} return t["S\\069CRET"].x', '0'],
+          "ERR Error running script (call to f_83d1365870d33ed5d6797d42e759405677f60890): @user_script:1: user_script:1: attempt to index field 'SECRET' (a nil value)",
+          "ERR Error running script (call to f_83d1365870d33ed5d6797d42e759405677f60890): @user_script:1: user_script:1: attempt to index field '***' (a nil value)",
+        ],
+        [
+          ['FCALL', 'probe', '0', 'secret'],
+          "ERR user_function:2: attempt to index field 'SECRET' (a nil value) script: probe, on @user_function:2.",
+          "ERR user_function:2: attempt to index field '***' (a nil value) script: probe, on @user_function:2.",
+        ],
+        [
+          ['EVAL', "return 'x' .. secret", '0'],
+          "ERR Error compiling script (new function): user_script:1: '<eof>' expected near 'secret'",
+          "ERR Error compiling script (new function): user_script:1: '***'",
+        ],
+      ];
+
+      for (const [command, message, redacted] of cases) {
+        assert.strictEqual(
+          toCommandError(new RespError(message), command).message,
+          `[${command[0]}] ${redacted}`,
+        );
+      }
+
+      assert.strictEqual(
+        toCommandError(new RespError('ERR user_script:1: no quotes'), [
+          'EVAL',
+          'x',
+          '0',
+        ]).message,
+        '[EVAL] ERR user_script:1: no quotes',
+      );
     });
 
     it('masks a cut message to its end once it masks anything', () => {
@@ -1304,18 +1367,14 @@ describe('regressions', () => {
       assert.strictEqual(await client.expire(key, 10, 'LT'), 1);
       assert.strictEqual(await client.expire(key, 400, 'XX GT'), 1);
       assert.strictEqual(await client.pexpire(key, 100_000, 'XX LT'), 1);
+
+      const now = await readServerTime(client);
+
       assert.strictEqual(
-        await client.expireat(
-          key,
-          Math.floor(Date.now() / 1000) + 500,
-          'XX GT',
-        ),
+        await client.expireat(key, Math.floor(now / 1000) + 500, 'XX GT'),
         1,
       );
-      assert.strictEqual(
-        await client.pexpireat(key, Date.now() + 10_000, 'XX LT'),
-        1,
-      );
+      assert.strictEqual(await client.pexpireat(key, now + 10_000, 'XX LT'), 1);
       assert.ok((await client.ttl(key)) <= 10);
 
       await client.persist(key);

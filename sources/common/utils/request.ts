@@ -124,7 +124,9 @@ function redactArguments(
     0,
   );
 
-  let searchBudget = SolidisMaskingSearchLimit + searchCost;
+  let searchBudget = /user_(?:script|function):/.test(text)
+    ? -1
+    : SolidisMaskingSearchLimit + searchCost;
 
   for (const { index } of text.matchAll(/['`]/g)) {
     const quote = text[index];

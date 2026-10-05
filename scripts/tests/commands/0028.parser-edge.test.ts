@@ -33,17 +33,28 @@ function isParserError(message: string) {
 }
 
 describe('parser-edge', () => {
-  describe('negative-length aggregates resolve to null', () => {
-    it('parses a null map', () => {
-      assert.deepStrictEqual(parseOnce(bytes('%-1\r\n')), [null]);
+  describe('negative lengths', () => {
+    it('parses the RESP2 null array and null bulk string', () => {
+      assert.deepStrictEqual(parseOnce(bytes('*-1\r\n$-1\r\n')), [null, null]);
     });
 
-    it('parses a null set', () => {
-      assert.deepStrictEqual(parseOnce(bytes('~-1\r\n')), [null]);
+    it('refuses a negative length for every other type', () => {
+      for (const prefix of ['%', '~', '>', '|', '!', '=']) {
+        assert.throws(
+          () => parseOnce(bytes(`${prefix}-1\r\n`)),
+          isParserError("Invalid length '-1'"),
+          prefix,
+        );
+      }
     });
 
-    it('parses a null push', () => {
-      assert.deepStrictEqual(parseOnce(bytes('>-1\r\n')), [null]);
+    it('never lets a negative push length take the next reply', () => {
+      const parser = createParser();
+
+      assert.throws(
+        () => parser.parse(bytes('>-1\r\n+OK\r\n')),
+        isParserError("Invalid length '-1'"),
+      );
     });
 
     it('refuses replies nested deeper than 512 levels', () => {
@@ -157,12 +168,6 @@ describe('parser-edge', () => {
   });
 
   describe('attributes', () => {
-    it('ignores a null attribute and surfaces the next reply', () => {
-      assert.deepStrictEqual(parseOnce(bytes('|-1\r\n+actual\r\n')), [
-        'actual',
-      ]);
-    });
-
     it('ignores an empty attribute and surfaces the next reply', () => {
       assert.deepStrictEqual(parseOnce(bytes('|0\r\n+actual\r\n')), ['actual']);
     });
@@ -318,10 +323,6 @@ describe('parser-edge', () => {
       assert.strictEqual(reply.message, 'SYNTAX invalid syntax');
       assert.strictEqual(reply.code, 'SYNTAX');
     });
-
-    it('parses a null blob error as null', () => {
-      assert.deepStrictEqual(parseOnce(bytes('!-1\r\n')), [null]);
-    });
   });
 
   describe('boundary scalars', () => {
@@ -338,14 +339,40 @@ describe('parser-edge', () => {
       assert.deepStrictEqual(parseOnce(bytes('=5\r\nab:cd\r\n')), ['ab:cd']);
     });
 
-    it('parses a negative-length verbatim string as null', () => {
-      assert.deepStrictEqual(parseOnce(bytes('=-1\r\n')), [null]);
-    });
-
     it('parses the -nan spelling that Redis 6.2 sends as NaN', () => {
       const [value] = parseOnce(bytes(',-nan\r\n'));
 
       assert.ok(typeof value === 'number' && Number.isNaN(value));
+    });
+
+    it('parses integers and big numbers with a plus sign', () => {
+      assert.deepStrictEqual(parseOnce(bytes(':+5\r\n(+12\r\n:+\r\n')), [
+        5,
+        12n,
+        new RespError("Integer: '+'"),
+      ]);
+    });
+
+    it('refuses doubles spelled the JavaScript way', () => {
+      for (const text of ['0x10', ' 7', '7 ', '0b11', '0o7', '\t1', '1\xa0']) {
+        const [value] = parseOnce(bytes(`,${text}\r\n`));
+
+        assert.ok(value instanceof RespError, JSON.stringify(text));
+        assert.strictEqual(value.message, `Double: '${text}'`);
+      }
+
+      assert.deepStrictEqual(
+        parseOnce(bytes(',+1.5e3\r\n,1E300\r\n')),
+        [1500, 1e300],
+      );
+    });
+
+    it('joins a line end split by an empty chunk', () => {
+      assert.deepStrictEqual(
+        parseOnce(bytes('+OK\r'), bytes(''), bytes('\n')),
+        ['OK'],
+      );
+      assert.deepStrictEqual(parseOnce(bytes(''), bytes('+OK\r\n')), ['OK']);
     });
 
     it('parses a double of exactly zero', () => {
