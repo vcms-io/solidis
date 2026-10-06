@@ -3,10 +3,13 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
+import { aclDeluser } from '../../../sources/command/acl.deluser.ts';
 import { aclGetuser } from '../../../sources/command/acl.getuser.ts';
 import { aclLog } from '../../../sources/command/acl.log.ts';
+import { aclSetuser } from '../../../sources/command/acl.setuser.ts';
 import { createCommand as createAppendCommand } from '../../../sources/command/append.ts';
 import { createCommand as createAuthCommand } from '../../../sources/command/auth.ts';
+import { bfInfo } from '../../../sources/command/bf.info.ts';
 import {
   bfInsert,
   createCommand as createBloomInsertCommand,
@@ -22,6 +25,7 @@ import {
   commandDocs,
   createCommand as createCommandDocsCommand,
 } from '../../../sources/command/command.docs.ts';
+import { debug } from '../../../sources/command/debug.ts';
 import {
   createCommand as createDelexCommand,
   delex,
@@ -32,6 +36,7 @@ import { createCommand as createFunctionFlushCommand } from '../../../sources/co
 import { functionStats } from '../../../sources/command/function.stats.ts';
 import { get } from '../../../sources/command/get.ts';
 import { createCommand as createGetsetCommand } from '../../../sources/command/getset.ts';
+import { hdel } from '../../../sources/command/hdel.ts';
 import {
   createCommand as createHelloCommand,
   hello,
@@ -44,15 +49,23 @@ import {
   hset,
 } from '../../../sources/command/hset.ts';
 import { createCommand as createHsetnxCommand } from '../../../sources/command/hsetnx.ts';
+import { info } from '../../../sources/command/info.ts';
+import { jsonArrappend } from '../../../sources/command/json.arrappend.ts';
+import { jsonArrinsert } from '../../../sources/command/json.arrinsert.ts';
 import { createCommand as createJsonArrpopCommand } from '../../../sources/command/json.arrpop.ts';
 import { createCommand as createJsonGetCommand } from '../../../sources/command/json.get.ts';
 import { createCommand as createJsonMergeCommand } from '../../../sources/command/json.merge.ts';
+import { latencyHistogram } from '../../../sources/command/latency.histogram.ts';
 import { latencyLatest } from '../../../sources/command/latency.latest.ts';
 import { createCommand as createLatencyResetCommand } from '../../../sources/command/latency.reset.ts';
 import { lcs } from '../../../sources/command/lcs.ts';
 import { createCommand as createLinsertCommand } from '../../../sources/command/linsert.ts';
+import { lolwut } from '../../../sources/command/lolwut.ts';
 import { createCommand as createLposCommand } from '../../../sources/command/lpos.ts';
-import { createCommand as createLpushCommand } from '../../../sources/command/lpush.ts';
+import {
+  createCommand as createLpushCommand,
+  lpush,
+} from '../../../sources/command/lpush.ts';
 import { createCommand as createLpushxCommand } from '../../../sources/command/lpushx.ts';
 import { lrange } from '../../../sources/command/lrange.ts';
 import { createCommand as createLremCommand } from '../../../sources/command/lrem.ts';
@@ -75,6 +88,7 @@ import {
 import { moduleUnload } from '../../../sources/command/module.unload.ts';
 import { createCommand as createMsetCommand } from '../../../sources/command/mset.ts';
 import { createCommand as createMsetnxCommand } from '../../../sources/command/msetnx.ts';
+import { multi } from '../../../sources/command/multi.ts';
 import { createCommand as createPsetexCommand } from '../../../sources/command/psetex.ts';
 import { createCommand as createPublishCommand } from '../../../sources/command/publish.ts';
 import { createCommand as createPubsubNumsubCommand } from '../../../sources/command/pubsub.numsub.ts';
@@ -82,8 +96,13 @@ import { createCommand as createPubsubShardnumsubCommand } from '../../../source
 import { replconf } from '../../../sources/command/replconf.ts';
 import { replicaof } from '../../../sources/command/replicaof.ts';
 import { createCommand as createRestoreCommand } from '../../../sources/command/restore.ts';
-import { createCommand as createRpushCommand } from '../../../sources/command/rpush.ts';
+import {
+  createCommand as createRpushCommand,
+  rpush,
+} from '../../../sources/command/rpush.ts';
 import { createCommand as createRpushxCommand } from '../../../sources/command/rpushx.ts';
+import { sadd } from '../../../sources/command/sadd.ts';
+import { sdiff } from '../../../sources/command/sdiff.ts';
 import {
   createCommand as createSetCommand,
   set,
@@ -92,8 +111,11 @@ import { createCommand as createSetexCommand } from '../../../sources/command/se
 import { createCommand as createSetnxCommand } from '../../../sources/command/setnx.ts';
 import { createCommand as createSetrangeCommand } from '../../../sources/command/setrange.ts';
 import { shutdown } from '../../../sources/command/shutdown.ts';
+import { sinter } from '../../../sources/command/sinter.ts';
 import { createCommand as createSmismemberCommand } from '../../../sources/command/smismember.ts';
 import { createCommand as createSpublishCommand } from '../../../sources/command/spublish.ts';
+import { srem } from '../../../sources/command/srem.ts';
+import { sunion } from '../../../sources/command/sunion.ts';
 import { createCommand as createTimeSeriesCreateCommand } from '../../../sources/command/ts.create.ts';
 import { createCommand as createTimeSeriesMrangeCommand } from '../../../sources/command/ts.mrange.ts';
 import { createCommand as createTimeSeriesMrevrangeCommand } from '../../../sources/command/ts.mrevrange.ts';
@@ -103,14 +125,17 @@ import {
   tryReplyToInteger,
   tryReplyToNumber,
 } from '../../../sources/command/utils/reply.ts';
+import { watch } from '../../../sources/command/watch.ts';
 import { createCommand as createXaddCommand } from '../../../sources/command/xadd.ts';
 import { xautoclaim } from '../../../sources/command/xautoclaim.ts';
+import { xdel } from '../../../sources/command/xdel.ts';
 import { xinfoStream } from '../../../sources/command/xinfo.stream.ts';
 import { createCommand as createXpendingCommand } from '../../../sources/command/xpending.ts';
 import { createCommand as createXreadCommand } from '../../../sources/command/xread.ts';
 import { createCommand as createXreadgroupCommand } from '../../../sources/command/xreadgroup.ts';
 import { createCommand as createZinterCommand } from '../../../sources/command/zinter.ts';
 import { zrange } from '../../../sources/command/zrange.ts';
+import { zrem } from '../../../sources/command/zrem.ts';
 import {
   RespError,
   SolidisConnectionError,
@@ -307,6 +332,153 @@ describe('reply-guards', () => {
       'PUBSUB',
       'SHARDNUMSUB',
     ]);
+  });
+
+  it('sends variadic commands with as many items as the caller can spread', async () => {
+    const items = Array.from({ length: 80_000 }, (_, index) => `${index}`);
+    const calls: [string, (sender: object) => Promise<unknown>][] = [
+      ['SADD', (sender) => sadd.call(sender, 'key', ...items)],
+      ['SREM', (sender) => srem.call(sender, 'key', ...items)],
+      ['ZREM', (sender) => zrem.call(sender, 'key', ...items)],
+      ['LPUSH', (sender) => lpush.call(sender, 'key', ...items)],
+      ['RPUSH', (sender) => rpush.call(sender, 'key', ...items)],
+      ['HDEL', (sender) => hdel.call(sender, 'key', ...items)],
+      ['HMGET', (sender) => hmget.call(sender, 'key', ...items)],
+      ['MGET', (sender) => mget.call(sender, ...items)],
+      ['XDEL', (sender) => xdel.call(sender, 'key', ...items)],
+      ['SINTER', (sender) => sinter.call(sender, ...items)],
+      ['SUNION', (sender) => sunion.call(sender, ...items)],
+      ['SDIFF', (sender) => sdiff.call(sender, ...items)],
+      ['WATCH', (sender) => watch.call(sender, ...items)],
+      [
+        'JSON.ARRAPPEND',
+        (sender) => jsonArrappend.call(sender, 'key', '$', ...items),
+      ],
+      [
+        'JSON.ARRINSERT',
+        (sender) => jsonArrinsert.call(sender, 'key', '$', 0, ...items),
+      ],
+      ['ACL', (sender) => aclDeluser.call(sender, ...items)],
+      ['ACL', (sender) => aclSetuser.call(sender, 'user', ...items)],
+      ['LATENCY', (sender) => latencyHistogram.call(sender, ...items)],
+      ['LOLWUT', (sender) => lolwut.call(sender, 5, ...items)],
+      ['DEBUG', (sender) => debug.call(sender, 'SLEEP', ...items)],
+      ['REPLCONF', (sender) => replconf.call(sender, 'CAPA', ...items)],
+    ];
+
+    for (const [name, call] of calls) {
+      const recorder = createRecorder(null);
+
+      await call(recorder).catch(() => {});
+
+      const [command] = recorder.commands;
+
+      assert.strictEqual(command?.[0], name);
+      assert.strictEqual(command.at(-1), '79999');
+    }
+
+    const recorder = createRecorder([]);
+    const client: {
+      send: typeof recorder.send;
+      sadd: typeof sadd;
+      multi: typeof multi;
+    } = Object.assign(Object.create(recorder), { sadd, multi });
+    const transaction = client.multi();
+
+    transaction.sadd('key', ...items.slice(0, 50_000));
+    await transaction.exec().catch(() => {});
+
+    assert.strictEqual(recorder.commands[1]?.length, 50_002);
+  });
+
+  it('leaves no send property of its own on a client a transaction used', () => {
+    const recorder = createRecorder(null);
+    const client: {
+      send: typeof recorder.send;
+      sadd: typeof sadd;
+      multi: typeof multi;
+    } = Object.assign(Object.create(recorder), { sadd, multi });
+
+    client.multi().sadd('key', 'member');
+
+    assert.strictEqual(Object.hasOwn(client, 'send'), false);
+    assert.strictEqual(client.send, recorder.send);
+
+    const send = createRecorder(null).send;
+
+    client.send = send;
+    client.multi().sadd('key', 'member');
+
+    assert.strictEqual(Object.hasOwn(client, 'send'), true);
+    assert.strictEqual(client.send, send);
+  });
+
+  it('keeps server field names such as __proto__ and constructor as data', async () => {
+    const fields = await info.call(
+      createRecorder(bulk('__proto__:x\r\nconstructor:y\r\n')),
+    );
+
+    assert.deepStrictEqual(Object.keys(fields), ['__proto__', 'constructor']);
+    assert.strictEqual(
+      Object.getOwnPropertyDescriptor(fields, '__proto__')?.value,
+      'x',
+    );
+    assert.strictEqual(Object.getPrototypeOf(fields), Object.prototype);
+
+    const histogram = await latencyHistogram.call(
+      createRecorder(
+        new Map([
+          [
+            '__proto__',
+            new Map<string, SolidisData>([
+              ['calls', 2],
+              ['histogram_usec', new Map([['8', 2]])],
+            ]),
+          ],
+        ]),
+      ),
+    );
+
+    assert.deepStrictEqual(
+      Object.getOwnPropertyDescriptor(histogram, '__proto__')?.value,
+      { calls: 2, histogramUsec: { 8: 2 } },
+    );
+    assert.strictEqual(Object.getPrototypeOf(histogram), Object.prototype);
+    assert.deepStrictEqual(
+      await bfInfo.call(
+        createRecorder(
+          new Map<string, SolidisData>([
+            ['Capacity', 5],
+            ['constructor', 7],
+            ['__proto__', 9],
+          ]),
+        ),
+        'key',
+      ),
+      {
+        capacity: 5,
+        size: 0,
+        numberOfFilters: 0,
+        numberOfItemsInserted: 0,
+        expansionRate: 0,
+      },
+    );
+    assert.deepStrictEqual(
+      await cfInfo.call(
+        createRecorder([bulk('Size'), 5, bulk('toString'), 7]),
+        'key',
+      ),
+      {
+        size: 5,
+        numberOfBuckets: 0,
+        numberOfFilter: 0,
+        numberOfItemsInserted: 0,
+        numberOfItemsDeleted: 0,
+        bucketSize: 0,
+        expansionRate: 0,
+        maxIteration: 0,
+      },
+    );
   });
 
   it('refuses a digest that is not 16 hexadecimal digits before sending it', async () => {
@@ -1047,6 +1219,21 @@ describe('reply-guards', () => {
     }
 
     assert.strictEqual(tryReplyToInteger(-7, 'INCR', undefined), -7);
+    assert.strictEqual(tryReplyToInteger(Buffer.from('-12'), 'ROLE'), -12);
+    assert.strictEqual(
+      tryReplyToInteger('9007199254740993', 'INCR', { bigint: true }),
+      9007199254740993n,
+    );
+    assert.throws(() => tryReplyToInteger('9007199254740993', 'TIME'), {
+      message:
+        '[TIME] Unexpected reply: integer exceeds Number.MAX_SAFE_INTEGER',
+      cause: 9007199254740993n,
+    });
+    for (const reply of ['1.5', '1e3', '-', ' 1', '1'.repeat(20)]) {
+      assert.throws(() => tryReplyToInteger(reply, 'TIME'), {
+        message: '[TIME] Unexpected reply: string',
+      });
+    }
     assert.strictEqual(tryReplyToInteger(-7, 'INCR', { bigint: true }), -7n);
     assert.strictEqual(
       tryReplyToInteger(2n ** 60n, 'INCR', { bigint: true }),

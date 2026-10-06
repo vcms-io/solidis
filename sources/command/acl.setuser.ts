@@ -11,7 +11,7 @@ export async function aclSetuser<T>(
 ) {
   return await executeCommand(
     this,
-    createCommand(username, ...rules),
+    createCommand(username).concat(rules),
     tryReplyOK,
   );
 }

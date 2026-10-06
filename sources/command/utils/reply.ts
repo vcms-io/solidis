@@ -231,25 +231,39 @@ export function tryReplyNumberOrNull(
   return reply === null ? null : tryReplyNumber(reply, commandName);
 }
 
+function readInteger(reply: unknown) {
+  const text = readText(reply);
+
+  if (text === undefined || !/^-?\d{1,19}$/.test(text)) {
+    return reply;
+  }
+
+  const value = Number(text);
+
+  return Number.isSafeInteger(value) ? value : BigInt(text);
+}
+
 export function tryReplyToInteger<
-  Options extends CommandIntegerOptions | undefined,
+  Options extends CommandIntegerOptions | undefined = undefined,
 >(
   reply: unknown,
-  commandName: CommandName | undefined,
-  options: Options | undefined,
+  commandName?: CommandName,
+  options?: Options,
 ): RespInteger<Options> {
-  if (typeof reply === 'number' && !Number.isSafeInteger(reply)) {
-    throw newUnexpectedReplyError(reply, commandName);
+  const value = readInteger(reply);
+
+  if (typeof value === 'number' && !Number.isSafeInteger(value)) {
+    throw newUnexpectedReplyError(value, commandName);
   }
 
   if (options?.bigint !== true) {
-    return tryReplyNumber(reply, commandName) as RespInteger<Options>;
+    return tryReplyNumber(value, commandName) as RespInteger<Options>;
   }
 
   return (
-    typeof reply === 'bigint'
-      ? reply
-      : BigInt(tryReplyNumber(reply, commandName))
+    typeof value === 'bigint'
+      ? value
+      : BigInt(tryReplyNumber(value, commandName))
   ) as RespInteger<Options>;
 }
 

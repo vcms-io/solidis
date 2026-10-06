@@ -12,10 +12,9 @@ export function createCommand(section?: string) {
 }
 
 function parseInfo(reply: string): Record<string, string> {
-  const lines = reply.split(SolidisNewLine);
-  const record: Record<string, string> = {};
+  const record: Record<string, string> = Object.create(null);
 
-  for (const line of lines) {
+  for (const line of reply.split(SolidisNewLine)) {
     const trimmedLine = line.trim();
 
     if (trimmedLine && !trimmedLine.startsWith('#')) {
@@ -25,14 +24,15 @@ function parseInfo(reply: string): Record<string, string> {
       const trimmedValue = trimmedLine.slice(separatorIndex + 1).trim();
 
       if (separatorIndex !== -1 && trimmedKey) {
-        record[trimmedKey] = Object.hasOwn(record, trimmedKey)
-          ? `${record[trimmedKey]}\n${trimmedValue}`
-          : trimmedValue;
+        record[trimmedKey] =
+          trimmedKey in record
+            ? `${record[trimmedKey]}\n${trimmedValue}`
+            : trimmedValue;
       }
     }
   }
 
-  return record;
+  return { ...record };
 }
 
 export async function info<T>(

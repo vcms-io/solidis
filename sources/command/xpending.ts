@@ -3,7 +3,7 @@ import {
   executeCommand,
   tryReplyArray,
   tryReplyNumber,
-  tryReplyToNumber,
+  tryReplyToInteger,
   tryReplyTuple,
 } from './utils/index.ts';
 
@@ -101,7 +101,7 @@ export async function xpending<T>(
 
                 return {
                   name: String(name),
-                  count: tryReplyToNumber(total, command),
+                  count: tryReplyToInteger(total, command),
                 };
               }),
       };

@@ -628,13 +628,11 @@ describe('modules-json', () => {
     if (typeof result[0] !== 'number' || result[0] <= 0) {
       assert.fail(`expected positive memory size, got: ${result[0]}`);
     }
-    if (capabilities.isValkey) {
-      assert.strictEqual(result[0], 40);
-    } else if (capabilities.atLeast(8, 10)) {
-      assert.strictEqual(result[0], 80);
-    } else {
-      assert.strictEqual(result[0], 128);
-    }
+    const [[raw]] = await client.send([
+      ['JSON.DEBUG', 'MEMORY', key, '$.user'],
+    ]);
+
+    assert.deepStrictEqual(result, raw);
   });
 
   it('returns root-level keys with JSON.OBJKEYS (no path)', async (context) => {

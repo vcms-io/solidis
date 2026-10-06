@@ -881,6 +881,11 @@ describe('server-admin', () => {
       '127.0.0.1',
       '6379',
     ]);
+    assert.deepStrictEqual(createCommand('NO', 'ONE'), [
+      'REPLICAOF',
+      'NO',
+      'ONE',
+    ]);
   });
 
   it('lists loaded modules with MODULE LIST', async () => {

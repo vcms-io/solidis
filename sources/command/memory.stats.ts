@@ -13,7 +13,7 @@ export function createCommand() {
 
 export async function memoryStats<T>(this: T): Promise<RespMemoryStats> {
   return await executeCommand(this, createCommand(), (reply, command) => {
-    const result: Record<string, unknown> = {};
+    const result = new Map<string, unknown>();
     const dbEntries: RespMemoryStats['db'] = {};
 
     processPairedArray(
@@ -40,13 +40,13 @@ export async function memoryStats<T>(this: T): Promise<RespMemoryStats> {
           return;
         }
 
-        result[key] = value;
+        result.set(key, value);
       },
       command,
     );
 
     const toNumber = (key: string) =>
-      tryReplyToNumber(result[key] ?? 0, command);
+      tryReplyToNumber(result.get(key) ?? 0, command);
 
     return {
       peak: {

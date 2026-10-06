@@ -273,6 +273,16 @@ describe('client-commands', () => {
     }
     assert.strictEqual(setDoc.arguments[0].name, 'key');
     assert.strictEqual(setDoc.arguments[0].type, 'key');
+    assert.strictEqual(setDoc.arguments[0].optional, false);
+    assert.strictEqual(setDoc.arguments[0].multiple, false);
+    assert.strictEqual(
+      setDoc.arguments.find(({ name }) => name === 'condition')?.optional,
+      true,
+    );
+
+    const { del } = await client.commandDocs(['del']);
+
+    assert.strictEqual(del.arguments?.[0].multiple, true);
   });
 
   it('parses COMMAND DOCS for a deprecated command', async (context) => {

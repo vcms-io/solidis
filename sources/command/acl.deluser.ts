@@ -7,7 +7,7 @@ export function createCommand(...usernames: string[]) {
 export async function aclDeluser<T>(this: T, ...usernames: string[]) {
   return await executeCommand(
     this,
-    createCommand(...usernames),
+    createCommand().concat(usernames),
     tryReplyNumber,
   );
 }

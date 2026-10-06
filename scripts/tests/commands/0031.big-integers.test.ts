@@ -7,6 +7,7 @@ import { SolidisFeaturedClient } from '../../../sources/client/featured.ts';
 import { bitfieldRo } from '../../../sources/command/bitfield.ro.ts';
 import { createCommand as createBitfieldCommand } from '../../../sources/command/bitfield.ts';
 import { createCommand as createClientKillCommand } from '../../../sources/command/client.kill.ts';
+import { createCommand as createClientListCommand } from '../../../sources/command/client.list.ts';
 import { clientTrackinginfo } from '../../../sources/command/client.trackinginfo.ts';
 import { createCommand as createDecrbyCommand } from '../../../sources/command/decrby.ts';
 import { hello } from '../../../sources/command/hello.ts';
@@ -15,14 +16,18 @@ import { incr } from '../../../sources/command/incr.ts';
 import { createCommand as createIncrbyCommand } from '../../../sources/command/incrby.ts';
 import { createCommand as createIncrbyfloatCommand } from '../../../sources/command/incrbyfloat.ts';
 import { createCommand as createJsonNumincrbyCommand } from '../../../sources/command/json.numincrby.ts';
+import { latencyHistogram } from '../../../sources/command/latency.histogram.ts';
 import { lcs } from '../../../sources/command/lcs.ts';
+import { lpop } from '../../../sources/command/lpop.ts';
 import { createCommand as createLrangeCommand } from '../../../sources/command/lrange.ts';
 import { memoryStats } from '../../../sources/command/memory.stats.ts';
 import { createCommand as createPexpireatCommand } from '../../../sources/command/pexpireat.ts';
 import { role } from '../../../sources/command/role.ts';
 import { createCommand as createSetCommand } from '../../../sources/command/set.ts';
 import { createCommand as createSetexCommand } from '../../../sources/command/setex.ts';
+import { time } from '../../../sources/command/time.ts';
 import { createCommand as createTimeSeriesAddCommand } from '../../../sources/command/ts.add.ts';
+import { buildScanCommand } from '../../../sources/command/utils/command.ts';
 import { tryReplyToInteger } from '../../../sources/command/utils/reply.ts';
 import { createCommand as createXclaimCommand } from '../../../sources/command/xclaim.ts';
 import { xinfoConsumers } from '../../../sources/command/xinfo.consumers.ts';
@@ -44,6 +49,7 @@ import {
 import type {
   CommandIntegerOptions,
   SolidisData,
+  StringOrBuffer,
 } from '../../../sources/index.ts';
 
 type IsEqual<Left, Right> =
@@ -575,6 +581,55 @@ describe('big-integers', () => {
         'MEMORY STATS',
         () => memoryStats.call(answering([text('keys.count'), beyond])),
       ],
+      [
+        'ROLE',
+        () =>
+          role.call(
+            answering([
+              text('master'),
+              1,
+              [[text('127.0.0.1'), text(`${beyond}`), text('1')]],
+            ]),
+          ),
+      ],
+      [
+        'ROLE',
+        () =>
+          role.call(
+            answering([
+              text('master'),
+              1,
+              [[text('127.0.0.1'), text('6379'), text(`${beyond}`)]],
+            ]),
+          ),
+      ],
+      [
+        'XPENDING',
+        () =>
+          xpending.call(
+            answering([
+              1,
+              text('1-0'),
+              text('1-0'),
+              [[text('alice'), text(`${beyond}`)]],
+            ]),
+            's',
+            'g',
+          ),
+      ],
+      ['TIME', () => time.call(answering([text(`${beyond}`), text('0')]))],
+      [
+        'LATENCY HISTOGRAM',
+        () =>
+          latencyHistogram.call(
+            answering(
+              map([
+                'set',
+                map(['calls', 1], ['histogram_usec', map([`${beyond}`, 1])]),
+              ]),
+            ),
+          ),
+      ],
     ];
 
     for (const [name, call] of calls) {
@@ -621,6 +676,10 @@ describe('big-integers', () => {
       '*',
       '1',
     ]);
+    assert.deepStrictEqual(
+      createClientListCommand({ identifiers: [2 ** 60] }),
+      ['CLIENT', 'LIST', 'ID', exact],
+    );
     assert.deepStrictEqual(createClientKillCommand(2 ** 60), [
       'CLIENT',
       'KILL',
@@ -658,6 +717,234 @@ describe('big-integers', () => {
     ]);
   });
 
+  it('sends every integer argument exactly', async () => {
+    const big = 2 ** 60;
+    const exact = '1152921504606846976';
+    const chunk = Buffer.from('chunk');
+    const cases: [module: string, parameters: unknown[], count: number][] = [
+      ['acl.genpass', [big], 1],
+      ['acl.log', [big], 1],
+      ['bf.insert', ['k', ['i'], { capacity: big, expansion: big }], 2],
+      ['bf.loadchunk', ['k', big, chunk], 1],
+      ['bf.reserve', ['k', 0.01, big, big], 2],
+      ['bf.scandump', ['k', big], 1],
+      ['bitcount', ['k', { start: big, end: big }], 2],
+      ['bitfield.ro', ['k', [{ type: 'u8', offset: big }]], 1],
+      [
+        'bitfield',
+        [
+          'k',
+          [
+            { operation: 'GET', type: 'u8', offset: big },
+            { operation: 'SET', type: 'i64', offset: 0, value: big },
+            { operation: 'INCRBY', type: 'i64', offset: 0, increment: big },
+          ],
+        ],
+        3,
+      ],
+      ['bitpos', ['k', big, { start: big, end: big }], 3],
+      ['blmpop', [0, ['k'], 'LEFT', big], 1],
+      ['bzmpop', [0, ['k'], 'MIN', big], 1],
+      ['cf.insert', ['k', ['i'], { capacity: big }], 1],
+      ['cf.loadchunk', ['k', big, chunk], 1],
+      ['cf.reserve', ['k', big, big, big, big], 4],
+      ['cf.scandump', ['k', big], 1],
+      ['client.kill', [big], 1],
+      ['client.list', [{ identifiers: [big] }], 1],
+      ['client.pause', [big], 1],
+      ['client.tracking', ['ON', { redirect: big }], 1],
+      ['client.unblock', [big], 1],
+      ['copy', ['a', 'b', { destinationDatabase: big }], 1],
+      ['decrby', ['k', big], 1],
+      ['expire', ['k', big], 1],
+      ['failover', [{ to: { host: 'h', port: big }, timeout: big }], 2],
+      [
+        'geosearch',
+        [
+          'k',
+          { frommember: 'm' },
+          { byradius: { radius: 1, unit: 'M' } },
+          { count: big },
+        ],
+        1,
+      ],
+      ['getbit', ['k', big], 1],
+      ['getrange', ['k', big, big], 2],
+      ['hexpire', ['k', big, ['f']], 1],
+      ['hincrby', ['k', 'f', big], 1],
+      ['hincrbyfloat', ['k', 'f', big], 1],
+      ['hrandfield', ['k', big], 1],
+      ['incrby', ['k', big], 1],
+      ['incrbyfloat', ['k', big], 1],
+      ['json.arrindex', ['k', '$', '1', { start: big, stop: big }], 2],
+      ['json.arrinsert', ['k', '$', big, '1'], 1],
+      ['json.arrpop', ['k', '$', big], 1],
+      ['json.arrtrim', ['k', '$', { start: big, stop: big }], 2],
+      ['json.numincrby', ['k', '$', big], 1],
+      ['json.nummultby', ['k', '$', big], 1],
+      ['lcs', ['a', 'b', { idx: true, minmatchlen: big }], 1],
+      ['lindex', ['k', big], 1],
+      ['lmpop', [['k'], 'LEFT', big], 1],
+      ['lolwut', [big], 1],
+      ['lpos', ['k', 'e', { rank: big, count: big, maxlen: big }], 3],
+      ['lrange', ['k', big, big], 2],
+      ['lrem', ['k', big, 'e'], 1],
+      ['lset', ['k', big, 'e'], 1],
+      ['ltrim', ['k', big, big], 2],
+      ['memory.usage', ['k', big], 1],
+      ['migrate', ['h', big, 'k', big, big], 3],
+      ['move', ['k', big], 1],
+      ['psetex', ['k', big, 'v'], 1],
+      ['replicaof', ['h', big], 1],
+      ['restore', ['k', big, 'payload', { idletime: big }], 2],
+      ['restore', ['k', 0, 'payload', { freq: big }], 1],
+      ['select', [big], 1],
+      ['set', ['k', 'v', { expireInSeconds: big }], 1],
+      ['set', ['k', 'v', { expireInMilliseconds: big }], 1],
+      ['set', ['k', 'v', { expireAtSeconds: big }], 1],
+      ['set', ['k', 'v', { expireAtMilliseconds: big }], 1],
+      ['setbit', ['k', big, big], 2],
+      ['setex', ['k', big, 'v'], 1],
+      ['setrange', ['k', big, 'v'], 1],
+      ['sintercard', [['k'], big], 1],
+      ['slowlog.get', [big], 1],
+      ['sort', ['k', { limit: { offset: big, count: big } }], 2],
+      ['srandmember', ['k', big], 1],
+      ['swapdb', [big, big], 2],
+      ['ts.add', ['k', big, 1, {}], 1],
+      [
+        'ts.create',
+        [
+          'k',
+          {
+            retention: big,
+            chunkSize: big,
+            ignore: { maxTimediff: big, maxValDiff: 1 },
+          },
+        ],
+        3,
+      ],
+      [
+        'ts.createrule',
+        [
+          'a',
+          'b',
+          {
+            aggregation: {
+              type: 'avg',
+              bucketDuration: big,
+              alignTimestamp: big,
+            },
+          },
+        ],
+        2,
+      ],
+      ['ts.decrby', ['k', 1, { timestamp: big }], 1],
+      ['ts.del', ['k', big, big], 2],
+      ['ts.incrby', ['k', 1, { timestamp: big }], 1],
+      ['ts.madd', ['k', [{ timestamp: big, value: 1 }]], 1],
+      ['ts.mrange', [big, big, { area: 'north' }, {}], 2],
+      ['ts.mrevrange', [big, big, { area: 'north' }, {}], 2],
+      [
+        'ts.range',
+        [
+          'k',
+          big,
+          big,
+          {
+            filterByTs: [big],
+            count: big,
+            aggregation: { type: 'avg', bucketDuration: big },
+            align: big,
+          },
+        ],
+        6,
+      ],
+      ['ts.revrange', ['k', big, big, {}], 2],
+      ['wait', [big, big], 2],
+      ['waitaof', [big, big, big], 3],
+      ['xautoclaim', ['k', 'g', 'c', big, '0', big], 2],
+      [
+        'xclaim',
+        [
+          'k',
+          'g',
+          'c',
+          big,
+          ['1-0'],
+          { idle: big, time: big, retrycount: big },
+        ],
+        4,
+      ],
+      ['xgroup.create', ['k', 'g', '$', false, big], 1],
+      ['xgroup.setid', ['k', 'g', '$', big], 1],
+      ['xinfo.stream', ['k', true, big], 1],
+      ['xpending', ['k', 'g', '-', '+', big, 'c', big], 2],
+      ['xread', [['k'], ['0'], big, big], 2],
+      ['xreadgroup', ['g', 'c', ['k'], ['>'], big, big], 2],
+      ['xsetid', ['k', '1-0', big], 1],
+      ['xtrim', ['k', big], 1],
+      ['zintercard', [['k'], big], 1],
+      ['zmpop', [['k'], 'MIN', big], 1],
+      ['zpopmax', ['k', big], 1],
+      ['zpopmin', ['k', big], 1],
+      ['zrandmember', ['k', big], 1],
+      ['zrangebylex', ['k', '-', '+', { offset: big, count: big }], 2],
+      ['zrangebyscore', ['k', 0, 1, { limit: { offset: big, count: big } }], 2],
+      [
+        'zrangestore',
+        [
+          'd',
+          's',
+          '0',
+          '1',
+          { byScore: true, limit: { offset: big, count: big } },
+        ],
+        2,
+      ],
+      ['zrevrange', ['k', big, big], 2],
+    ];
+
+    for (const [module, parameters, count] of cases) {
+      const { createCommand } = await import(
+        `../../../sources/command/${module}.ts`
+      );
+      const command: unknown[] = Reflect.apply(
+        createCommand,
+        undefined,
+        parameters,
+      );
+
+      assert.strictEqual(
+        command.filter((argument) => argument === exact).length,
+        count,
+        `${module}: ${command.join(' ')}`,
+      );
+    }
+
+    const sent: StringOrBuffer[][] = [];
+
+    await lpop.call(
+      {
+        send: async (commands: StringOrBuffer[][]) => {
+          sent.push(...commands);
+
+          return [[[]]];
+        },
+      },
+      'k',
+      big,
+    );
+
+    assert.deepStrictEqual(sent, [['LPOP', 'k', exact]]);
+    assert.deepStrictEqual(buildScanCommand(['SCAN'], '0', { count: big }), [
+      'SCAN',
+      '0',
+      'COUNT',
+      exact,
+    ]);
+  });
+
   it('converts integer replies according to the options', () => {
     const command = ['INCR', 'key'];
 
@@ -676,7 +963,8 @@ describe('big-integers', () => {
       );
     }
 
-    assert.throws(() => tryReplyToInteger('5', command, { bigint: true }), {
+    assert.strictEqual(tryReplyToInteger('5', command, { bigint: true }), 5n);
+    assert.throws(() => tryReplyToInteger('five', command, { bigint: true }), {
       name: 'SolidisCommandError',
       message: '[INCR] Unexpected reply: string',
     });

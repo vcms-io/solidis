@@ -11,7 +11,7 @@ export async function replconf<T>(
 ) {
   return await executeCommand(
     this,
-    createCommand(subcommand, ...parameters),
+    createCommand(subcommand).concat(parameters),
     tryReplyOK,
   );
 }

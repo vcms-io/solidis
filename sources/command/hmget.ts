@@ -50,7 +50,7 @@ export async function hmget<T>(
 
   return await executeCommand(
     this,
-    createCommand(key, ...fields),
+    createCommand(key).concat(fields),
     tryReplyToNullableStringOrBufferArray,
     options,
   );

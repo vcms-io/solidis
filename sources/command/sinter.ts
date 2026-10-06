@@ -7,7 +7,7 @@ export function createCommand(...keys: string[]) {
 export async function sinter<T>(this: T, ...keys: string[]): Promise<string[]> {
   return await executeCommand(
     this,
-    createCommand(...keys),
+    createCommand().concat(keys),
     tryReplyToStringArray,
   );
 }

@@ -5,5 +5,5 @@ export function createCommand(...keys: string[]) {
 }
 
 export async function watch<T>(this: T, ...keys: string[]) {
-  return await executeCommand(this, createCommand(...keys), tryReplyOK);
+  return await executeCommand(this, createCommand().concat(keys), tryReplyOK);
 }

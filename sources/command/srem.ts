@@ -11,7 +11,7 @@ export async function srem<T>(
 ): Promise<number> {
   return await executeCommand(
     this,
-    createCommand(key, ...members),
+    createCommand(key).concat(members),
     tryReplyNumber,
   );
 }

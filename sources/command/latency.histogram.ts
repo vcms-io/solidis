@@ -1,6 +1,8 @@
 import {
   executeCommand,
   processPairedArray,
+  setRecordEntry,
+  tryReplyToInteger,
   tryReplyToMap,
   tryReplyToNumber,
 } from './utils/index.ts';
@@ -20,7 +22,7 @@ function parseHistogram(
   processPairedArray(
     data,
     (bucket, calls) => {
-      result[tryReplyToNumber(bucket, command)] = tryReplyToNumber(
+      result[tryReplyToInteger(bucket, command)] = tryReplyToNumber(
         calls,
         command,
       );
@@ -37,17 +39,17 @@ export async function latencyHistogram<T>(
 ): Promise<Record<string, RespLatencyHistogram>> {
   return await executeCommand(
     this,
-    createCommand(...events),
+    createCommand().concat(events),
     (reply, command) => {
       const result: Record<string, RespLatencyHistogram> = {};
 
       for (const [event, details] of tryReplyToMap(reply, command)) {
         const map = tryReplyToMap(details, command);
 
-        result[String(event)] = {
+        setRecordEntry(result, String(event), {
           calls: tryReplyToNumber(map.get('calls'), command),
           histogramUsec: parseHistogram(map.get('histogram_usec'), command),
-        };
+        });
       }
 
       return result;

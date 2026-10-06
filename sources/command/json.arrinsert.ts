@@ -19,7 +19,7 @@ export async function jsonArrinsert<T>(
 ): Promise<(number | null)[]> {
   return await executeCommand(
     this,
-    createCommand(key, path, index, ...values),
+    createCommand(key, path, index).concat(values),
     tryReplyToJsonNumbers,
   );
 }

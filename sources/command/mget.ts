@@ -46,7 +46,7 @@ export async function mget<T>(
 
   return await executeCommand(
     this,
-    createCommand(...keys),
+    createCommand().concat(keys),
     tryReplyToNullableStringOrBufferArray,
     options,
   );

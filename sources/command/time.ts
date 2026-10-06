@@ -1,6 +1,6 @@
 import {
   executeCommand,
-  tryReplyToNumber,
+  tryReplyToInteger,
   tryReplyTuple,
 } from './utils/index.ts';
 
@@ -15,8 +15,8 @@ export async function time<T>(
     const [seconds, microseconds] = tryReplyTuple(reply, 2, command);
 
     return [
-      tryReplyToNumber(seconds, command),
-      tryReplyToNumber(microseconds, command),
+      tryReplyToInteger(seconds, command),
+      tryReplyToInteger(microseconds, command),
     ];
   });
 }

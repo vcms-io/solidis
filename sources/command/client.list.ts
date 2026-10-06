@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyToString } from './utils/index.ts';
 
 import type { CommandClientListOptions } from '../index.ts';
@@ -12,7 +13,7 @@ export function createCommand(options?: CommandClientListOptions) {
   }
 
   return options?.identifiers
-    ? [...command, 'ID', ...options.identifiers.map(String)]
+    ? [...command, 'ID', ...options.identifiers.map(formatInteger)]
     : command;
 }
 

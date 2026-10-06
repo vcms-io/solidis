@@ -114,7 +114,11 @@ export function multi<T extends object>(this: T): SolidisTransactionClient<T> {
             const call = (async () =>
               Reflect.apply(method, client, parameters))();
 
-            client.send = send;
+            Reflect.deleteProperty(client, 'send');
+
+            if (client.send !== send) {
+              client.send = send;
+            }
 
             call.catch(() => {});
 

@@ -12,7 +12,7 @@ export async function jsonArrappend<T>(
 ): Promise<(number | null)[]> {
   return await executeCommand(
     this,
-    createCommand(key, path, ...values),
+    createCommand(key, path).concat(values),
     tryReplyToJsonNumbers,
   );
 }

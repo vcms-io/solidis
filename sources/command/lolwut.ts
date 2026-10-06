@@ -21,7 +21,7 @@ export async function lolwut<T>(
 ): Promise<string> {
   return await executeCommand(
     this,
-    createCommand(version, ...optionalArguments),
+    createCommand(version).concat(optionalArguments),
     tryReplyToString,
   );
 }

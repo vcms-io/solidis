@@ -11,7 +11,7 @@ export async function hdel<T>(
 ): Promise<number> {
   return await executeCommand(
     this,
-    createCommand(key, ...fields),
+    createCommand(key).concat(fields),
     tryReplyNumber,
   );
 }

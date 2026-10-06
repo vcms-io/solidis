@@ -6,16 +6,16 @@ import {
 
 import type { RespCuckooFilterInfo } from '../index.ts';
 
-const infoKeyMap: Record<string, keyof RespCuckooFilterInfo> = {
-  Size: 'size',
-  'Number of buckets': 'numberOfBuckets',
-  'Number of filters': 'numberOfFilter',
-  'Number of items inserted': 'numberOfItemsInserted',
-  'Number of items deleted': 'numberOfItemsDeleted',
-  'Bucket size': 'bucketSize',
-  'Expansion rate': 'expansionRate',
-  'Max iterations': 'maxIteration',
-};
+const infoKeyMap = new Map<string, keyof RespCuckooFilterInfo>([
+  ['Size', 'size'],
+  ['Number of buckets', 'numberOfBuckets'],
+  ['Number of filters', 'numberOfFilter'],
+  ['Number of items inserted', 'numberOfItemsInserted'],
+  ['Number of items deleted', 'numberOfItemsDeleted'],
+  ['Bucket size', 'bucketSize'],
+  ['Expansion rate', 'expansionRate'],
+  ['Max iterations', 'maxIteration'],
+]);
 
 export function createCommand(key: string) {
   return ['CF.INFO', key];
@@ -40,7 +40,7 @@ export async function cfInfo<T>(
     processPairedArray(
       reply,
       (key, value) => {
-        const resultKey = infoKeyMap[key];
+        const resultKey = infoKeyMap.get(key);
 
         if (!resultKey) {
           return;

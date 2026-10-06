@@ -13,7 +13,7 @@ export async function rpush<T>(
 ): Promise<number> {
   return await executeCommand(
     this,
-    createCommand(key, ...elements),
+    createCommand(key).concat(elements),
     tryReplyNumber,
   );
 }

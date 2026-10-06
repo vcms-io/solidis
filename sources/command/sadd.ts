@@ -11,7 +11,7 @@ export async function sadd<T>(
 ): Promise<number> {
   return await executeCommand(
     this,
-    createCommand(key, ...members),
+    createCommand(key).concat(members),
     tryReplyNumber,
   );
 }

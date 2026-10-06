@@ -9,5 +9,9 @@ export async function xdel<T>(
   key: string,
   ...ids: string[]
 ): Promise<number> {
-  return await executeCommand(this, createCommand(key, ...ids), tryReplyNumber);
+  return await executeCommand(
+    this,
+    createCommand(key).concat(ids),
+    tryReplyNumber,
+  );
 }
