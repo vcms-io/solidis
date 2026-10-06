@@ -454,6 +454,22 @@ describe('parser-edge', () => {
       );
     });
 
+    it('accepts an unfinished first chunk exactly at the maximum line length', () => {
+      const parser = new SolidisParser({
+        parser: { maxBulkStringLength: 10 },
+      });
+
+      assert.deepStrictEqual(parser.parse(bytes(`+${'a'.repeat(10)}`)), []);
+      assert.deepStrictEqual(parser.parse(bytes('\r\n')), ['aaaaaaaaaa']);
+      assert.throws(
+        () =>
+          new SolidisParser({ parser: { maxBulkStringLength: 10 } }).parse(
+            bytes(`+${'a'.repeat(11)}`),
+          ),
+        isParserError('Line length exceeds maximum allowed 10'),
+      );
+    });
+
     it('rejects an unfinished line in the chunk that takes it past the maximum', () => {
       for (const [tail, isAllowed] of [
         ['aaaaa', true],
@@ -509,6 +525,30 @@ describe('parser-edge', () => {
       assert.ok(error instanceof RespError);
       assert.strictEqual(error.message.length, size + 4);
       assert.strictEqual(integer, 1);
+      assert.ok(elapsed < 500, `took ${Math.round(elapsed)} ms`);
+    });
+
+    it('parses a bulk string full of carriage returns split across thousands of chunks in linear time', () => {
+      const parser = createParser();
+      const size = 8 * 1024 * 1024;
+      const payload = Buffer.alloc(size, 0x0d);
+      const stream = Buffer.concat([
+        bytes(`$${size}\r\n`),
+        payload,
+        bytes('\r\n'),
+      ]);
+      const replies: SolidisData[] = [];
+      const startedAt = performance.now();
+
+      for (let offset = 0; offset < stream.length; offset += 4096) {
+        replies.push(...parser.parse(stream.subarray(offset, offset + 4096)));
+      }
+
+      const elapsed = performance.now() - startedAt;
+      const [bulk] = replies;
+
+      assert.strictEqual(replies.length, 1);
+      assert.ok(Buffer.isBuffer(bulk) && bulk.equals(payload));
       assert.ok(elapsed < 500, `took ${Math.round(elapsed)} ms`);
     });
 
@@ -609,6 +649,14 @@ describe('parser-edge', () => {
 
       assert.ok(long instanceof RespError);
       assert.strictEqual(long.message, `BigNumber: '${'7'.repeat(32)}...'`);
+
+      const [exact, over] = parseOnce(
+        bytes(`,${'x'.repeat(32)}\r\n,${'x'.repeat(33)}\r\n`),
+      );
+
+      assert.ok(exact instanceof RespError && over instanceof RespError);
+      assert.strictEqual(exact.message, `Double: '${'x'.repeat(32)}'`);
+      assert.strictEqual(over.message, `Double: '${'x'.repeat(32)}...'`);
     });
 
     it('rejects an over-long line even when its CRLF arrives with it', () => {

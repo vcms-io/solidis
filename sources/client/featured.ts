@@ -392,7 +392,7 @@ export class SolidisFeaturedClient extends SolidisClient {
   constructor(options?: SolidisClientOptions) {
     super(options);
 
-    this.extend(this);
+    this.extend<Record<string, unknown>>(this);
   }
 
   aclCat = aclCat;

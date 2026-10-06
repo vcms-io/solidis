@@ -50,7 +50,7 @@ export class SolidisRequesterError extends SolidisError {
 }
 
 export function wrapWithError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(String(error));
+  return wrapWithSolidisError(Error, error);
 }
 
 export function wrapWithSolidisClientError(error: unknown): SolidisClientError {

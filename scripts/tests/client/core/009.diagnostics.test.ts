@@ -174,6 +174,82 @@ describe('diagnostics', () => {
     }
   });
 
+  it('logs the established connection and the completed handshake', async () => {
+    const server = await startServer(() => '+OK\r\n');
+    const client = new SolidisClient(
+      mockClientOptions(server.port, { debug: true }),
+    );
+    const messages = collectDebugMessages(client);
+
+    try {
+      await client.connect();
+
+      assert.ok(messages.includes('Connection established'));
+      assert.ok(messages.includes('Initialization completed'));
+    } finally {
+      client.quit();
+      await server.close();
+    }
+  });
+
+  it('refuses a write while the socket is still connecting', async () => {
+    const server = await startServer(() => '+OK\r\n');
+    const connection = new SolidisConnection({
+      ...SolidisDefaultOptions,
+      port: server.port,
+    });
+
+    try {
+      const connecting = connection.connect();
+
+      assert.throws(() => connection.write(Buffer.from('PING\r\n')), {
+        name: 'SolidisConnectionError',
+        message: 'Socket is not connected.',
+      });
+
+      await connecting;
+
+      assert.strictEqual(connection.write(Buffer.from('PING\r\n')), true);
+    } finally {
+      connection.quit();
+      await server.close();
+    }
+  });
+
+  it('stops the attempt timer when the socket closes before it connects', async (context) => {
+    context.mock.method(net, 'connect', () => {
+      const socket = Object.assign(new EventEmitter(), {
+        destroy() {},
+        setNoDelay() {},
+        setKeepAlive() {},
+      });
+
+      setImmediate(() => socket.emit('close'));
+
+      return socket as unknown as net.Socket;
+    });
+
+    const countTimers = () =>
+      process
+        .getActiveResourcesInfo()
+        .filter((resource) => resource === 'Timeout').length;
+    const timers = countTimers();
+    const connection = new SolidisConnection({
+      ...SolidisDefaultOptions,
+      port: 1,
+      connectionTimeout: 60_000,
+      maxConnectionRetries: 0,
+    });
+
+    connection.on('error', () => {});
+
+    await assert.rejects(connection.connect(), SolidisConnectionError);
+
+    assert.strictEqual(countTimers(), timers);
+
+    connection.quit();
+  });
+
   it('reports a socket that closes before it connects', async (context) => {
     context.mock.method(net, 'connect', () => {
       const socket = Object.assign(new EventEmitter(), {

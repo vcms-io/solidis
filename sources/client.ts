@@ -15,12 +15,12 @@ import {
   SolidisClientError,
   SolidisConnectionError,
   SolidisRequesterError,
-  wrapWithError,
 } from './common/utils/error.ts';
 import {
   resolveTimerDelay,
   SolidisClientQuitMessage,
   SolidisSocketNotConnectedMessage,
+  wrapWithSolidisError,
 } from './common/utils/internal.ts';
 import { resolveClientOptions } from './common/utils/options.ts';
 import { toCommandError } from './common/utils/request.ts';
@@ -64,6 +64,7 @@ export class SolidisClient extends EventEmitter {
   #readyLock: Promise<void> | null = null;
   #initialization: Promise<void> | null = null;
   #interruptReadyCheck: (() => void) | undefined;
+  #closeReason: Error | undefined;
   #waitingRequests = new Set<(cause?: unknown) => void>();
 
   declare public on: SolidisClientEventHandlers<this>['on'];
@@ -113,7 +114,7 @@ export class SolidisClient extends EventEmitter {
     if (!this.#options.lazyConnect) {
       this.connect().catch((error: unknown) => {
         if (!this.#connection.isQuitted) {
-          this.emit('error', wrapWithError(error));
+          this.emit('error', wrapWithSolidisError(Error, error));
         }
       });
     }
@@ -141,7 +142,7 @@ export class SolidisClient extends EventEmitter {
         }
       }
 
-      if (batch.length === 0) {
+      if (batch.length === 0 && !this.#connection.isQuitted) {
         resolve([]);
 
         return;
@@ -212,7 +213,17 @@ export class SolidisClient extends EventEmitter {
   public select = select.bind(this);
 
   public extend<T extends Record<string, unknown>>(
-    extensions: T & ThisType<this & SolidisClientExtensions<T, this>>,
+    extensions: T &
+      ThisType<this & SolidisClientExtensions<T, this>> & {
+        [K in keyof T]: T[K] extends (
+          this: infer This,
+          ...parameters: never[]
+        ) => unknown
+          ? this & SolidisClientExtensions<T, this> extends This
+            ? T[K]
+            : never
+          : T[K];
+      },
   ): this & SolidisClientExtensions<T, this> {
     for (const method of Object.getOwnPropertyNames(extensions)) {
       const extension = extensions[method];
@@ -241,7 +252,7 @@ export class SolidisClient extends EventEmitter {
       }
 
       super.emit(errorMonitor, ...parameters);
-      process.emitWarning(wrapWithError(parameters[0]));
+      process.emitWarning(wrapWithSolidisError(Error, parameters[0]));
     } catch (error) {
       queueMicrotask(() => {
         throw error;
@@ -287,8 +298,6 @@ export class SolidisClient extends EventEmitter {
   }
 
   #onConnect() {
-    this.#session += 1;
-
     const session = this.#session;
 
     this.#notify('connect');
@@ -300,6 +309,7 @@ export class SolidisClient extends EventEmitter {
   #onClose(error: Error) {
     this.#isReady = false;
     this.#session += 1;
+    this.#closeReason = error;
     this.#interruptReadyCheck?.();
 
     this.#notify('close', error);
@@ -371,7 +381,7 @@ export class SolidisClient extends EventEmitter {
       await this.#restoreSession(handshake);
     } catch (error) {
       if (session === this.#session) {
-        const reason = wrapWithError(error);
+        const reason = wrapWithSolidisError(Error, error);
 
         this.#debug?.('error', 'Initialization failed', error);
 
@@ -388,10 +398,13 @@ export class SolidisClient extends EventEmitter {
     }
 
     if (session !== this.#session) {
-      throw new SolidisConnectionError(
-        'Connection closed during the handshake.',
-        failure,
-      );
+      throw failure === undefined ||
+        this.#closeReason instanceof SolidisConnectionError
+        ? new SolidisConnectionError(
+            'Connection closed during the handshake.',
+            failure,
+          )
+        : failure;
     }
 
     const isReconnected = this.#hasBeenReady;
@@ -453,7 +466,7 @@ export class SolidisClient extends EventEmitter {
     try {
       return await step;
     } catch (error) {
-      const { cause } = wrapWithError(error);
+      const { cause } = wrapWithSolidisError(Error, error);
       const message = cause instanceof RespError ? cause.message : '';
 
       if (!tolerated?.test(message)) {

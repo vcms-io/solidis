@@ -878,18 +878,34 @@ describe('connection', () => {
     describe('with a scripted socket', () => {
       class ScriptedSocket extends EventEmitter {
         public destroyed = false;
+        public noDelay = false;
+        public keepAlive = false;
 
-        public destroy() {
-          this.destroyed = true;
+        public destroy(error?: Error) {
+          if (!this.destroyed) {
+            this.destroyed = true;
+
+            process.nextTick(() => {
+              if (error) {
+                this.emit('error', error);
+              }
+
+              this.emit('close', error !== undefined);
+            });
+          }
 
           return this;
         }
 
-        public setNoDelay() {
+        public setNoDelay(noDelay: boolean) {
+          this.noDelay = noDelay;
+
           return this;
         }
 
-        public setKeepAlive() {
+        public setKeepAlive(keepAlive: boolean) {
+          this.keepAlive = keepAlive;
+
           return this;
         }
 
@@ -1001,8 +1017,10 @@ describe('connection', () => {
           port: 70000,
         });
         const errors: Error[] = [];
+        const reconnects: number[] = [];
 
         connection.on('error', (error) => errors.push(error));
+        connection.on('reconnecting', (attempt) => reconnects.push(attempt));
 
         const error = await connection
           .connect()
@@ -1019,6 +1037,11 @@ describe('connection', () => {
 
         assert.ok(errors[0] instanceof SolidisConnectionError);
         assert.ok(errors[0].cause instanceof RangeError);
+        assert.deepStrictEqual(reconnects, [1]);
+
+        await assert.rejects(connection.connect(), SolidisConnectionError);
+
+        assert.deepStrictEqual(reconnects, [1]);
 
         connection.quit();
       });
@@ -1095,6 +1118,47 @@ describe('connection', () => {
           connection.quit();
 
           assert.strictEqual(current.destroyed, true);
+        });
+      });
+
+      it("disables Nagle's algorithm and enables keep-alive once connected", async () => {
+        await withScriptedSockets(async (sockets) => {
+          const connection = createConnection({ connectionTimeout: 0 });
+          const connected = connection.connect();
+
+          sockets[0].emit('connect');
+
+          await connected;
+
+          assert.strictEqual(sockets[0].noDelay, true);
+          assert.strictEqual(sockets[0].keepAlive, true);
+
+          connection.quit();
+        });
+      });
+
+      it('reports an error of the connected socket as a connection error', async () => {
+        await withScriptedSockets(async (sockets) => {
+          const connection = createConnection({ connectionTimeout: 0 });
+          const errors: Error[] = [];
+          const connected = connection.connect();
+
+          sockets[0].emit('connect');
+
+          await connected;
+
+          connection.on('error', (error) => errors.push(error));
+
+          const failure = new Error('read ECONNRESET');
+
+          sockets[0].emit('error', failure);
+
+          assert.strictEqual(errors.length, 1);
+          assert.ok(errors[0] instanceof SolidisConnectionError);
+          assert.strictEqual(errors[0].message, 'read ECONNRESET');
+          assert.strictEqual(errors[0].cause, failure);
+
+          connection.quit();
         });
       });
 

@@ -1001,28 +1001,48 @@ describe('fragility', () => {
 
       const error = await client.connect().catch((caught: Error) => caught);
 
-      if (!(error instanceof SolidisConnectionError)) {
-        assert.fail(
-          'expected the timed-out ready check to drop the connection',
-        );
+      if (!(error instanceof SolidisClientError)) {
+        assert.fail('expected the timed-out ready check to fail the handshake');
       }
 
+      assert.strictEqual(error.message, 'Ready check failed');
+      assert.ok(error.cause instanceof SolidisRequesterError);
       assert.strictEqual(
-        error.message,
-        'Connection closed during the handshake.',
-      );
-      assert.ok(error.cause instanceof SolidisClientError);
-      assert.strictEqual(error.cause.message, 'Ready check failed');
-      assert.ok(error.cause.cause instanceof SolidisRequesterError);
-      assert.strictEqual(
-        error.cause.cause.message,
+        error.cause.message,
         'Command(s) timed out after 300 ms.',
       );
+      assert.strictEqual(server.acceptedCount, 1);
       assert.strictEqual(
         readyFired,
         false,
         'ready must not fire when the ready check fails',
       );
+    });
+
+    it('fails the handshake at once when the server does not speak RESP', async () => {
+      const server = await startMockServer();
+
+      server.onData((socket) => {
+        socket.write(Buffer.from('HTTP/1.1 400 Bad Request\r\n\r\n', 'latin1'));
+      });
+
+      const client = trackMockClient(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            clientName: 'solidis',
+            maxConnectionRetries: 20,
+          }),
+        ),
+      );
+      const error = await client.connect().catch((caught: Error) => caught);
+
+      if (!(error instanceof SolidisClientError)) {
+        assert.fail('expected the handshake step to fail');
+      }
+
+      assert.strictEqual(error.message, 'CLIENT SETNAME failed');
+      assert.ok(error.cause instanceof SolidisParserError);
+      assert.strictEqual(server.acceptedCount, 1);
     });
 
     it('fails the connection when the ready check gets a server error', async () => {

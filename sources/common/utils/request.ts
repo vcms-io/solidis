@@ -154,7 +154,7 @@ function redactArguments(
       );
 
     for (
-      let space = span.indexOf(' ');
+      let space = span.indexOf(' ', 1);
       !isArgument && space > 0;
       space = span.indexOf(' ', space + 1)
     ) {

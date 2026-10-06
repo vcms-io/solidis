@@ -39,7 +39,7 @@ export async function createClient(
     /**
      * Swallow asynchronous transport errors here; assertions that care about
      * failures await the relevant command promise directly. Without this
-     * listener Node would treat the emitted error as unhandled.
+     * listener they would print as process warnings.
      */
   });
 

@@ -434,6 +434,15 @@ describe('lifecycle-edge', () => {
       }
 
       assert.strictEqual(server.acceptedCount, 0);
+
+      for (const client of clients) {
+        client.quit();
+
+        await assert.rejects(client.send([]), {
+          name: 'SolidisClientError',
+          message: 'The client was quit.',
+        });
+      }
     } finally {
       await server.close();
     }

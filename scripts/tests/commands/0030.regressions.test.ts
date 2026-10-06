@@ -689,6 +689,17 @@ describe('regressions', () => {
       assert.strictEqual(hostile.message.length, 4096 + '[GET] '.length);
     });
 
+    it('keeps the end of a message exactly 4096 characters long', () => {
+      const start = "ERR invalid 'hunter2' ";
+      const message = `${start}${'x'.repeat(4096 - start.length)}`;
+
+      assert.strictEqual(message.length, 4096);
+      assert.strictEqual(
+        toCommandError(new RespError(message), ['SET', 'k', 'hunter2']).message,
+        `[SET] ${message.replace('hunter2', '***')}`,
+      );
+    });
+
     it('redacts a string argument with a lone surrogate, which the server echoes as U+FFFD', () => {
       const error = toCommandError(
         new RespError(
@@ -721,6 +732,15 @@ describe('regressions', () => {
           "[NOSUCHCMD] ERR unknown command 'NOSUCHCMD', with args beginning with: '***' ",
         );
       }
+    });
+
+    it('redacts an argument that starts with a space when the server quotes more text after it', () => {
+      const error = toCommandError(
+        new RespError("ERR invalid ' hunter2 extra' value"),
+        ['SET', 'k', ' hunter2'],
+      );
+
+      assert.strictEqual(error.message, "[SET] ERR invalid '***' value");
     });
 
     it('redacts arguments the server joins into one quoted span', () => {
@@ -1056,6 +1076,15 @@ describe('regressions', () => {
         ]).message,
         "[SET] ERR 'aaaaaaab' '***' ",
       );
+    });
+
+    it('searches until the budget is spent below zero', () => {
+      const error = toCommandError(new RespError("'".repeat(2100)), [
+        'SET',
+        'z'.repeat(992),
+      ]);
+
+      assert.strictEqual(error.message, `[SET] ${"'".repeat(2050)}***'`);
     });
 
     it('charges every distinct piece of a quoted span to the search budget', () => {

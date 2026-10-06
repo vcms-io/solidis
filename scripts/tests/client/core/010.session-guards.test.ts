@@ -1325,6 +1325,26 @@ describe('session-guards', () => {
       }
     });
 
+    it('stops the wait timer of a request once the connection is ready', async () => {
+      const client = new SolidisClient(
+        buildClientOptions({ lazyConnect: true, commandTimeout: 60_000 }),
+      );
+      const countTimers = () =>
+        process
+          .getActiveResourcesInfo()
+          .filter((resource) => resource === 'Timeout').length;
+      const timers = countTimers();
+
+      try {
+        assert.deepStrictEqual(await client.send([['ECHO', 'ready']]), [
+          [Buffer.from('ready')],
+        ]);
+        assert.strictEqual(countTimers(), timers);
+      } finally {
+        client.quit();
+      }
+    });
+
     it('refuses a send() argument that is not an array without breaking the handshake', async () => {
       const server = await startServer(answerPong);
       const client = new SolidisFeaturedClient(mockClientOptions(server.port));
@@ -1816,6 +1836,14 @@ describe('session-guards', () => {
         }).uri,
         'redis://:***@127.0.0.1:6379',
       );
+      assert.strictEqual(
+        new SolidisClient({
+          host: '127.0.0.1',
+          lazyConnect: true,
+          authentication: { username: 'app' },
+        }).uri,
+        'redis://app:***@127.0.0.1:6379',
+      );
     });
   });
 
@@ -2243,6 +2271,57 @@ describe('session-guards', () => {
           client.quit();
           await server.close();
         }
+      }
+    });
+
+    it('keeps a WATCH lost while another command was in flight', async () => {
+      const received: string[] = [];
+      const replies: Record<string, string> = {
+        WATCH: '+OK\r\n',
+        MULTI: '+OK\r\n',
+        SET: '+QUEUED\r\n',
+        EXEC: '*1\r\n+OK\r\n',
+        DISCARD: '+OK\r\n',
+      };
+      const server = await startServer((socket, data) => {
+        for (const [, name] of data
+          .toString()
+          .matchAll(/\*\d+\r\n\$\d+\r\n([A-Z]+)\r\n/g)) {
+          received.push(name);
+
+          if (received.length === 2) {
+            socket.destroy();
+
+            return;
+          }
+
+          socket.write(replies[name]);
+        }
+      });
+      const client = new SolidisFeaturedClient(mockClientOptions(server.port));
+
+      try {
+        await client.connect();
+        await client.watch('key');
+        await assert.rejects(client.get('key'), {
+          name: 'SolidisConnectionError',
+        });
+
+        const transaction = client.multi();
+
+        transaction.set('key', 'value');
+
+        assert.strictEqual(await transaction.exec(), null);
+        assert.deepStrictEqual(received, [
+          'WATCH',
+          'GET',
+          'MULTI',
+          'SET',
+          'DISCARD',
+        ]);
+      } finally {
+        client.quit();
+        await server.close();
       }
     });
 

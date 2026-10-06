@@ -277,6 +277,32 @@ describe('type-contracts', () => {
     client.quit();
   });
 
+  it('accepts an extension only when the client satisfies its declared this', () => {
+    async function readAll(this: SolidisFeaturedClient, key: string) {
+      return await this.hgetall(key);
+    }
+
+    async function readName(this: SolidisClient) {
+      return this.uri;
+    }
+
+    const minimal = new SolidisClient({ lazyConnect: true });
+
+    // @ts-expect-error readAll needs a client with hgetall
+    minimal.extend({ readAll });
+
+    const featured = new SolidisFeaturedClient({ lazyConnect: true }).extend({
+      readAll,
+    });
+    const named = minimal.extend({ readName });
+
+    assert.strictEqual(typeof featured.readAll, 'function');
+    assert.strictEqual(typeof named.readName, 'function');
+
+    featured.quit();
+    minimal.quit();
+  });
+
   it('adds only functions to a client with extend()', () => {
     type Extended = SolidisClientExtensions<{
       label: string;

@@ -10,6 +10,11 @@ export type SolidisCommandKind =
   | (typeof SolidisSessionCommandKinds)[number]
   | 'restricted';
 
+export type SolidisTransactionState = [
+  isQueueing: boolean,
+  isWatching: boolean,
+];
+
 export interface SolidisRequest {
   commands: StringOrBuffer[][];
   kinds: (SolidisCommandKind | undefined)[] | undefined;

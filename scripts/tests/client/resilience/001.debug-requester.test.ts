@@ -42,6 +42,7 @@ import type {
   SolidisDebugHandle,
   SolidisDebugLog,
   SolidisSendOptions,
+  StringOrBuffer,
 } from '../../../../sources/index.ts';
 import type { FeaturedClient } from '../../utils/index.ts';
 
@@ -899,6 +900,72 @@ describe('debug-requester', () => {
       ]);
     });
 
+    it('reads HELLO credentials that are themselves the word AUTH', async () => {
+      const { connection, requester } = createRequester();
+
+      for (const [username, password] of [
+        ['auth', 'secret'],
+        ['user', 'AUTH'],
+      ]) {
+        const pending = requester.send([
+          ['HELLO', '2', 'AUTH', username, password, 'SETNAME', 'name'],
+        ]);
+
+        await flushed();
+
+        connection.reply('*0\r\n');
+
+        await pending;
+
+        assert.deepStrictEqual(requester.authentication, {
+          username,
+          password,
+        });
+      }
+    });
+
+    it('keeps its own copy of the Buffers a session command passes', async () => {
+      const { connection, requester } = createRequester();
+      const password = Buffer.from('secret');
+      const helloPassword = Buffer.from('hello-secret');
+      const database = Buffer.from('3');
+
+      async function exchange(commands: StringOrBuffer[][], reply: string) {
+        const pending = requester.send(commands);
+
+        await flushed();
+
+        connection.reply(reply);
+
+        return await pending;
+      }
+
+      await exchange([['AUTH', 'user', password]], '+OK\r\n');
+      password.fill(0);
+
+      assert.deepStrictEqual(requester.authentication, {
+        username: 'user',
+        password: Buffer.from('secret'),
+      });
+
+      await exchange(
+        [['HELLO', '2', 'AUTH', 'other', helloPassword]],
+        '*0\r\n',
+      );
+      helloPassword.fill(0);
+
+      assert.deepStrictEqual(requester.authentication, {
+        username: 'other',
+        password: Buffer.from('hello-secret'),
+      });
+
+      await exchange([['MULTI'], ['SELECT', database]], '+OK\r\n+QUEUED\r\n');
+      database.write('0');
+      await exchange([['EXEC']], '*1\r\n+OK\r\n');
+
+      assert.strictEqual(requester.database, 3);
+    });
+
     it('keeps the transaction and the WATCH when DISCARD fails', async () => {
       const { connection, requester } = createRequester();
 
@@ -1158,6 +1225,178 @@ describe('debug-requester', () => {
       connection.emit('close', new SolidisConnectionError('lost'));
 
       assert.ok((await unwatch) instanceof SolidisConnectionError);
+
+      const transaction = requester.send([
+        ['MULTI'],
+        ['INCR', 'counter'],
+        ['EXEC'],
+      ]);
+
+      await flushed();
+
+      connection.reply('+OK\r\n+QUEUED\r\n*1\r\n:1\r\n');
+
+      assert.deepStrictEqual(await transaction, [['OK'], ['QUEUED'], [[1]]]);
+      assert.deepStrictEqual(
+        connection.writes.at(-1),
+        commandsToBuffer([['MULTI'], ['INCR', 'counter'], ['EXEC']]),
+      );
+    });
+
+    it('forgets the MULTI and the WATCH that RESET ended when the connection is lost later', async () => {
+      const { connection, requester } = createRequester();
+      const session = requester.send([['WATCH', 'k'], ['MULTI'], ['RESET']]);
+
+      await flushed();
+
+      connection.reply('+OK\r\n+OK\r\n+RESET\r\n');
+
+      assert.deepStrictEqual(await session, [['OK'], ['OK'], ['RESET']]);
+
+      connection.emit('close', new SolidisConnectionError('lost'));
+
+      const read = requester.send([['GET', 'k']]);
+
+      await flushed();
+
+      connection.reply('$-1\r\n');
+
+      assert.deepStrictEqual(await read, [[null]]);
+
+      const transaction = requester.send([
+        ['MULTI'],
+        ['INCR', 'counter'],
+        ['EXEC'],
+      ]);
+
+      await flushed();
+
+      connection.reply('+OK\r\n+QUEUED\r\n*1\r\n:1\r\n');
+
+      assert.deepStrictEqual(await transaction, [['OK'], ['QUEUED'], [[1]]]);
+      assert.deepStrictEqual(
+        connection.writes.at(-1),
+        commandsToBuffer([['MULTI'], ['INCR', 'counter'], ['EXEC']]),
+      );
+    });
+
+    it('starts the in-flight queue afresh when a connection is lost behind a completed pipeline', async () => {
+      const { connection, requester } = createRequester();
+      const first = requester.send([['ECHO', 'a']]);
+
+      await flushed();
+
+      const second = settle(requester.send([['ECHO', 'b']]));
+
+      await flushed();
+
+      const third = settle(requester.send([['ECHO', 'c']]));
+
+      await flushed();
+
+      connection.reply('+a\r\n');
+
+      assert.deepStrictEqual(await first, [['a']]);
+
+      connection.emit('close', new SolidisConnectionError('lost'));
+
+      assert.ok((await second) instanceof SolidisConnectionError);
+      assert.ok((await third) instanceof SolidisConnectionError);
+
+      const fresh = requester.send([['ECHO', 'd']]);
+
+      await flushed();
+
+      connection.reply('+d\r\n');
+
+      assert.deepStrictEqual(await fresh, [['d']]);
+    });
+
+    it('forgets a confirmed transaction when the connection is lost', async () => {
+      const { connection, pubSub, requester } = createRequester();
+      const multi = requester.send([['MULTI']]);
+
+      await flushed();
+
+      connection.reply('+OK\r\n');
+
+      assert.deepStrictEqual(await multi, [['OK']]);
+
+      connection.emit('close', new SolidisConnectionError('lost'));
+
+      const discard = requester.send([['DISCARD']]);
+
+      await flushed();
+
+      connection.reply('-ERR DISCARD without MULTI\r\n');
+
+      const [[refusal]] = await discard;
+
+      assert.ok(refusal instanceof RespError);
+
+      const subscribed = requester.send([['SUBSCRIBE', 'news']]);
+
+      await flushed();
+
+      connection.reply(subscribeConfirmation('subscribe', 'news', 1));
+
+      assert.strictEqual((await subscribed)[0].length, 1);
+      assert.deepStrictEqual(pubSub.getSubscriptions('subscribe'), [
+        Buffer.from('news'),
+      ]);
+    });
+
+    it('rejects waiting commands with a refusal a new connection sends before any write', async () => {
+      const { connection, requester } = createRequester();
+      const greeting = requester.send([['PING']]);
+
+      await flushed();
+
+      connection.reply('+PONG\r\n');
+
+      assert.deepStrictEqual(await greeting, [['PONG']]);
+
+      connection.emit('close', new SolidisConnectionError('lost'));
+
+      const waiting = settle(requester.send([['GET', 'k']]));
+
+      connection.reply('-ERR max number of clients reached\r\n');
+
+      await flushed();
+
+      const error = await waiting;
+
+      assert.ok(error instanceof SolidisConnectionError);
+      assert.strictEqual(error.message, 'ERR max number of clients reached');
+      assert.strictEqual(connection.writes.length, 1);
+    });
+
+    it('forgets a lost WATCH once EXEC closes the lost MULTI, even when the server refuses it', async () => {
+      const { connection, requester } = createRequester();
+      const session = requester.send([['WATCH', 'k'], ['MULTI']]);
+
+      await flushed();
+
+      connection.reply('+OK\r\n+OK\r\n');
+
+      assert.deepStrictEqual(await session, [['OK'], ['OK']]);
+
+      connection.emit('close', new SolidisConnectionError('lost'));
+
+      const closing = requester.send([['EXEC']]);
+
+      await flushed();
+
+      assert.deepStrictEqual(
+        connection.writes.at(-1),
+        commandsToBuffer([['DISCARD']]),
+      );
+
+      connection.reply('-ERR DISCARD without MULTI\r\n');
+
+      assert.deepStrictEqual(await closing, [[null]]);
+
+      connection.emit('close', new SolidisConnectionError('lost again'));
 
       const transaction = requester.send([
         ['MULTI'],
@@ -1518,12 +1757,17 @@ describe('debug-requester', () => {
     it('refuses a command whose name cannot become text without stranding its batch', async () => {
       const { connection, requester } = createRequester();
       const nameless = Object.create(null) as string;
+      const zero = 0 as unknown as string;
       const refused = [
         settle(requester.send([[nameless, 'k']])),
         settle(requester.send([['CLIENT', nameless]])),
+        settle(requester.send([[zero, 'k']])),
       ];
       const valid = requester.send([['PING']]);
-      const [unnamed, unknownSubcommand] = await Promise.all(refused);
+      const [unnamed, unknownSubcommand, numbered] = await Promise.all(refused);
+
+      assert.ok(numbered instanceof SolidisRequesterError);
+      assert.strictEqual(numbered.message, '0 takes only strings and Buffers.');
 
       assert.ok(unnamed instanceof SolidisRequesterError);
       assert.strictEqual(unnamed.message, '? takes only strings and Buffers.');
@@ -2043,6 +2287,35 @@ describe('debug-requester', () => {
       assert.ok(error instanceof SolidisRequesterError);
       assert.strictEqual(error.message, 'Command(s) timed out after 100 ms.');
       assert.strictEqual(connection.resets.length, 1);
+    });
+
+    it('still resets a silent connection after a timed-out pipeline completed late', async () => {
+      const { connection, requester } = createRequester({
+        commandTimeout: 100,
+      });
+      const late = settle(requester.send([['ECHO', 'a']], { timeout: 20 }));
+      const patient = requester.send([['ECHO', 'p']], { timeout: 60_000 });
+
+      assert.ok((await late) instanceof SolidisRequesterError);
+
+      connection.reply('+a\r\n+p\r\n');
+
+      assert.deepStrictEqual(await patient, [['p']]);
+
+      const first = settle(requester.send([['ECHO', 'b']]));
+
+      await delay(40);
+
+      const second = settle(requester.send([['ECHO', 'c']]));
+
+      assert.ok((await first) instanceof SolidisRequesterError);
+      assert.strictEqual(connection.resets.length, 0);
+
+      const third = settle(requester.send([['ECHO', 'd']]));
+
+      assert.ok((await second) instanceof SolidisRequesterError);
+      assert.strictEqual(connection.resets.length, 1);
+      assert.strictEqual(await third, connection.resets[0]);
     });
 
     it('keeps the connection while short timeouts expire before the oldest request has waited commandTimeout', async () => {

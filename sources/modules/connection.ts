@@ -133,11 +133,8 @@ export class SolidisConnection extends EventEmitter {
     }
 
     this.#isQuitted = true;
-    this.#isReconnecting = false;
 
     clearTimeout(this.#retryTimer);
-
-    this.#retryTimer = undefined;
 
     this.#destroySocket();
     this.#rejectWaiters(new SolidisClientError(SolidisClientQuitMessage));
@@ -213,7 +210,15 @@ export class SolidisConnection extends EventEmitter {
     }
 
     const timer = resolveTimerDelay(connectionTimeout)
-      ? setTimeout(() => this.#onAttemptTimeout(socket), connectionTimeout)
+      ? setTimeout(
+          () =>
+            socket.destroy(
+              new SolidisConnectionError(
+                `Connection timeout (${connectionTimeout} ms).`,
+              ),
+            ),
+          connectionTimeout,
+        )
       : undefined;
 
     let failure: unknown;
@@ -253,8 +258,6 @@ export class SolidisConnection extends EventEmitter {
 
   #onSocketConnect(socket: SolidisSocket) {
     if (socket !== this.#socket) {
-      socket.destroy();
-
       return;
     }
 
@@ -312,22 +315,6 @@ export class SolidisConnection extends EventEmitter {
 
     this.#lose(
       new SolidisConnectionError(SolidisConnectionClosedMessage, failure),
-    );
-  }
-
-  #onAttemptTimeout(socket: SolidisSocket) {
-    if (socket !== this.#socket) {
-      return;
-    }
-
-    this.#socket = null;
-
-    socket.destroy();
-
-    this.#onAttemptFailed(
-      new SolidisConnectionError(
-        `Connection timeout (${this.#options.connectionTimeout} ms).`,
-      ),
     );
   }
 

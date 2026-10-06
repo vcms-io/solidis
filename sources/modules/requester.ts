@@ -34,9 +34,11 @@ import {
 import { SolidisParser } from './parser.ts';
 
 import type {
+  SolidisCommandKind,
   SolidisPipeline,
   SolidisRequest,
   SolidisSubRequest,
+  SolidisTransactionState,
 } from '../types/internal.ts';
 import type {
   SolidisData,
@@ -64,6 +66,26 @@ function dequeue(queue: unknown[], head: number) {
   queue.splice(0, head + 1);
 
   return 0;
+}
+
+function advanceTransaction(
+  kind: SolidisCommandKind | undefined,
+  isQueueing: boolean,
+  isWatching: boolean,
+): SolidisTransactionState {
+  if (kind === 'multi') {
+    return [true, isWatching];
+  }
+
+  if (kind === 'exec' || kind === 'discard' || kind === 'reset') {
+    return [false, isWatching && !isQueueing && kind !== 'reset'];
+  }
+
+  if (!isQueueing && (kind === 'watch' || kind === 'unwatch')) {
+    return [isQueueing, kind === 'watch'];
+  }
+
+  return [isQueueing, isWatching];
 }
 
 function createPipeline(): SolidisPipeline {
@@ -274,7 +296,7 @@ export class SolidisRequester {
     for (let index = 0; index < commands.length; index += 1) {
       const command = commands[index];
 
-      let kind = inspectCommand(command, isQueueing);
+      const kind = inspectCommand(command, isQueueing);
 
       if (kind instanceof SolidisRequesterError) {
         return kind;
@@ -299,20 +321,26 @@ export class SolidisRequester {
         continue;
       }
 
-      if (kind === 'exec' && isWatchLost && isQueueing) {
-        kind = 'discard';
-        request.commands = [...commands];
-        request.commands[index] = discardedExecCommand;
+      if (kind === 'auth' || kind === 'hello' || kind === 'select') {
+        command.forEach((argument, position) => {
+          if (Buffer.isBuffer(argument)) {
+            command[position] = Buffer.from(argument);
+          }
+        });
       }
 
-      if (kind === 'multi') {
-        isQueueing = true;
-      } else if (kind === 'exec' || kind === 'discard' || kind === 'reset') {
-        isWatchLost &&= !isQueueing && kind !== 'reset';
-        isQueueing = false;
-      } else if (!isQueueing && (kind === 'watch' || kind === 'unwatch')) {
-        isWatchLost &&= kind === 'watch';
+      if (kind === 'exec' && isWatchLost && isQueueing) {
+        commands[index] = discardedExecCommand;
       }
+
+      const [queueing, watching] = advanceTransaction(
+        kind,
+        isQueueing,
+        isWatchLost,
+      );
+
+      isQueueing = queueing;
+      isWatchLost &&= watching;
 
       request.kinds ??= [];
       request.kinds[index] = kind;
@@ -325,26 +353,21 @@ export class SolidisRequester {
     return undefined;
   }
 
-  #settle(): [isQueueing: boolean, isWatching: boolean] {
-    let isQueueing = this.#transaction !== undefined;
-    let isWatching = this.#isWatchingConfirmed;
+  #settle(): SolidisTransactionState {
+    let state: SolidisTransactionState = [
+      this.#transaction !== undefined,
+      this.#isWatchingConfirmed,
+    ];
 
     for (const { subRequests, subRequestIndex } of this.#inflightQueue.slice(
       this.#inflightHead,
     )) {
       for (const { kind } of subRequests.slice(subRequestIndex)) {
-        if (kind === 'multi') {
-          isQueueing = true;
-        } else if (kind === 'exec' || kind === 'discard' || kind === 'reset') {
-          isWatching &&= !isQueueing && kind !== 'reset';
-          isQueueing = false;
-        } else if (!isQueueing && (kind === 'watch' || kind === 'unwatch')) {
-          isWatching = kind === 'watch';
-        }
+        state = advanceTransaction(kind, ...state);
       }
     }
 
-    return [isQueueing, isWatching];
+    return state;
   }
 
   #seal(pipeline: SolidisPipeline) {
