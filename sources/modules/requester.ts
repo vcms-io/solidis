@@ -185,6 +185,8 @@ export class SolidisRequester {
     }
 
     const requests = this.#pendingRequests;
+    const isWatchLost = this.#isWatchLost;
+    const inflightLength = this.#inflightQueue.length;
 
     this.#pendingRequests = [];
 
@@ -247,6 +249,12 @@ export class SolidisRequester {
       }
     } catch (error) {
       const failure = wrapWithSolidisError(SolidisRequesterError, error);
+
+      this.#isWatchLost = isWatchLost;
+
+      for (const pipeline of this.#inflightQueue.splice(inflightLength)) {
+        rejectPipeline(pipeline, failure);
+      }
 
       this.#options.connection.reset(failure);
 

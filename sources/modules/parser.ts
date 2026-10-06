@@ -20,7 +20,6 @@ import {
   SolidisMapReplyByte,
   SolidisMaximumNestingDepth,
   SolidisMinusByte,
-  SolidisNewLine,
   SolidisNullReplyByte,
   SolidisPlusByte,
   SolidisPushReplyByte,
@@ -34,8 +33,6 @@ import { parseDouble } from '../common/utils/number.ts';
 import { RespPush } from '../types/resp.ts';
 
 import type { SolidisData, SolidisParserOptions } from '../types/solidis.ts';
-
-const NEWLINE = Buffer.from(SolidisNewLine);
 
 const NeedsMoreData = Symbol();
 const NoValue = Symbol();
@@ -146,12 +143,11 @@ export class SolidisParser {
 
     if (!length) {
       const lineFeed =
-        previous.at(-1) === SolidisCarriageReturnByte &&
-        chunk[0] === SolidisLineFeedByte
+        previous.at(-1) === SolidisCarriageReturnByte
           ? 0
-          : chunk.indexOf(NEWLINE) + 1 || -1;
+          : chunk.indexOf(SolidisCarriageReturnByte) + 1 || chunk.length;
 
-      if (lineFeed < 0) {
+      if (lineFeed === chunk.length) {
         if (
           availableLength -
             (chunk.at(-1) === SolidisCarriageReturnByte ? 2 : 1) >

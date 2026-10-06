@@ -1033,7 +1033,7 @@ describe('regressions', () => {
         assert.ok(error.message.startsWith(`[${command[0]}] ERR 'aabb'`));
       }
 
-      const huge = Buffer.alloc(67_108_864 + 1024, 'a');
+      const huge = Buffer.alloc(2_097_152 + 1024, 'a');
       const message = "OOM command not allowed when used memory > 'maxmemory'.";
 
       assert.strictEqual(
@@ -1048,6 +1048,44 @@ describe('regressions', () => {
         ]).message,
         "[SET] ERR invalid '***'",
       );
+      assert.strictEqual(
+        toCommandError(new RespError(`ERR ${"'aaaaaaab' ".repeat(300)}`), [
+          'SET',
+          'k',
+          'a'.repeat(1024 * 1024),
+        ]).message,
+        "[SET] ERR 'aaaaaaab' '***' ",
+      );
+    });
+
+    it('charges every distinct piece of a quoted span to the search budget', () => {
+      const letters = 'bcdefghijklmnopqrstuvwxyz';
+      const repeated = Array.from({ length: 1300 }, () => 'ab').join('\uFFFD');
+      const distinct = Array.from(
+        { length: 625 },
+        (_, index) =>
+          `a${letters[index % 25]}${letters[Math.floor(index / 25)]}`,
+      );
+      const filler = 'a'.repeat(1024 * 1024);
+
+      for (const [span, argument] of [
+        [repeated, `${filler}b`],
+        [repeated, Buffer.from(`${filler}b`)],
+        [distinct.join('\uFFFD'), `${filler}${distinct.join('')}`],
+      ] as const) {
+        const startedAt = performance.now();
+        const error = toCommandError(new RespError(`ERR '${span}'`), [
+          'SET',
+          'k',
+          argument,
+        ]);
+
+        assert.ok(
+          performance.now() - startedAt < 500,
+          `took ${Math.round(performance.now() - startedAt)} ms`,
+        );
+        assert.strictEqual(error.message, "[SET] ERR '***'");
+      }
     });
 
     it('redacts a long quoted argument in linear time', () => {
@@ -1070,7 +1108,7 @@ describe('regressions', () => {
     });
 
     it('redacts many quoted arguments in one pass', () => {
-      const values = Array.from({ length: 300 }, (_, index) => `value${index}`);
+      const values = Array.from({ length: 100 }, (_, index) => `value${index}`);
       const quoted = (texts: string[]) =>
         texts.map((text) => `'${text}'`).join(' ');
       const echoed = quoted(values.map((value) => `${value}x`));

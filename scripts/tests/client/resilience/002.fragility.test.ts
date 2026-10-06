@@ -1029,7 +1029,7 @@ describe('fragility', () => {
       const server = await startMockServer();
 
       server.onData((socket) => {
-        socket.write(Buffer.from("-ERR unknown command 'INFO'\r\n", 'latin1'));
+        socket.write(Buffer.from('-ERR internal error\r\n', 'latin1'));
       });
 
       const client = trackMockClient(

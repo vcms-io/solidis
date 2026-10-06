@@ -651,6 +651,28 @@ describe('parser-edge', () => {
       assert.deepStrictEqual(parseOnce(bytes('+OK\r'), bytes('\n')), ['OK']);
     });
 
+    it('refuses a CR that no LF follows as soon as it arrives', () => {
+      for (const chunks of [
+        ['+OK\rX'],
+        ['+OK', '\rX'],
+        ['+OK\r', 'X'],
+        ['+O', 'K\rX'],
+        ['+OK', '\r', 'X'],
+      ]) {
+        const parser = createParser();
+
+        assert.throws(
+          () => {
+            for (const chunk of chunks) {
+              parser.parse(bytes(chunk));
+            }
+          },
+          isParserError('Missing CRLF'),
+          JSON.stringify(chunks),
+        );
+      }
+    });
+
     it('joins the chunks of a bulk string once, when its last byte arrives', (context) => {
       const parser = createParser();
       const payload = Buffer.alloc(1024 * 1024, 0x61);

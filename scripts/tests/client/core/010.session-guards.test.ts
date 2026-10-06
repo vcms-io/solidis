@@ -816,6 +816,64 @@ describe('session-guards', () => {
       }
     });
 
+    it('counts a ready check the server does not know as ready', async () => {
+      const server = await startServer((socket, data) => {
+        if (data.includes('INFO')) {
+          socket.write(
+            "-ERR unknown command 'INFO', with args beginning with: 'persistence'\r\n",
+          );
+        } else {
+          answerPong(socket, data);
+        }
+      });
+      const client = new SolidisFeaturedClient(
+        mockClientOptions(server.port, { enableReadyCheck: true }),
+      );
+
+      client.on('error', () => {});
+
+      try {
+        await client.connect();
+
+        assert.deepStrictEqual(await client.send([['PING']]), [['PONG']]);
+      } finally {
+        client.quit();
+        await server.close();
+      }
+    });
+
+    it('spends one budget of attempts on refused connections and interrupted handshakes', async () => {
+      const server = await startServer((_socket, _data, mock) => {
+        void mock.close();
+      });
+      const client = new SolidisFeaturedClient(
+        mockClientOptions(server.port, {
+          enableReadyCheck: true,
+          maxConnectionRetries: 2,
+          connectionRetryDelay: 10,
+          maxConnectionRetryDelay: 20,
+        }),
+      );
+      const attempts: number[] = [];
+
+      client.on('error', () => {});
+      client.on('reconnecting', (attempt) => {
+        attempts.push(attempt);
+      });
+
+      try {
+        await assert.rejects(client.connect(), {
+          name: 'SolidisConnectionError',
+          message: 'Connection failed after 2 retries.',
+        });
+        assert.strictEqual(server.acceptedCount, 1);
+        assert.deepStrictEqual(attempts, [2, 3]);
+      } finally {
+        client.quit();
+        await server.close();
+      }
+    });
+
     it('stops a ready check that outlives its connection', async () => {
       let readyChecks = 0;
 

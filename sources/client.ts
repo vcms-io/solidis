@@ -8,6 +8,7 @@ import {
   SolidisAuthenticationErrorPattern,
   SolidisAuthenticationFailedMessage,
   SolidisMaximumTimerDelay,
+  SolidisSkippableStepPattern,
 } from './common/internal.ts';
 import {
   RespError,
@@ -85,7 +86,7 @@ export class SolidisClient extends EventEmitter {
         ? `${encodeURIComponent(authentication.username)}:***@`
         : '';
 
-    this.uri = `${tls ? 'rediss' : 'redis'}://${credentials}${host.includes(':') ? `[${host}]` : host}:${port}`;
+    this.uri = `redis${tls ? 's' : ''}://${credentials}${host.includes(':') ? `[${host}]` : host}:${port}`;
     this.#debug = this.#options.debug
       ? (type, message, data) => {
           const entry = { timestamp: Date.now(), type, message, data };
@@ -324,14 +325,14 @@ export class SolidisClient extends EventEmitter {
   }
 
   async #waitForReady() {
-    let attempt = 0;
+    let attempts: number | undefined;
 
     while (true) {
       if (this.#connection.isQuitted) {
         throw new SolidisClientError(SolidisClientQuitMessage);
       }
 
-      await this.#connection.connect();
+      attempts = await this.#connection.connect(attempts);
 
       try {
         await this.#initialization;
@@ -340,16 +341,15 @@ export class SolidisClient extends EventEmitter {
           return;
         }
       } catch (error) {
+        attempts -= 1;
+
         if (
           !this.#connection.isQuitted &&
-          (!(error instanceof SolidisConnectionError) ||
-            attempt >= this.#options.maxConnectionRetries)
+          (!(error instanceof SolidisConnectionError) || attempts <= 0)
         ) {
           throw error;
         }
       }
-
-      attempt += 1;
     }
   }
 
@@ -444,7 +444,7 @@ export class SolidisClient extends EventEmitter {
       await this.#runStep(
         clientSetname.call(handshake, clientName),
         'CLIENT SETNAME failed',
-        /^NOPERM|unknown command/,
+        SolidisSkippableStepPattern,
       );
     }
   }
@@ -485,7 +485,7 @@ export class SolidisClient extends EventEmitter {
       const persistence = await this.#runStep(
         info.call(handshake, 'persistence'),
         'Ready check failed',
-        /^NOPERM/,
+        SolidisSkippableStepPattern,
       );
 
       if (persistence?.loading !== '1') {

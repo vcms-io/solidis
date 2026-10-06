@@ -30,7 +30,7 @@ function createRetryError(maxConnectionRetries: number, cause?: unknown) {
 }
 
 interface SolidisConnectionWaiter {
-  resolve: () => void;
+  resolve: (attempts: number) => void;
   reject: (error: Error) => void;
   remainingAttempts: number;
 }
@@ -68,20 +68,20 @@ export class SolidisConnection extends EventEmitter {
     return this.#isQuitted;
   }
 
-  public connect(): Promise<void> {
+  public connect(
+    attempts = this.#options.maxConnectionRetries + 1,
+  ): Promise<number> {
     if (this.#isQuitted) {
       return Promise.reject(new SolidisClientError(SolidisClientQuitMessage));
     }
 
     if (this.#isConnected) {
-      return Promise.resolve();
+      return Promise.resolve(attempts);
     }
-
-    const attempts = this.#options.maxConnectionRetries + 1;
 
     this.#remainingReconnects = attempts;
 
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<number>((resolve, reject) => {
       this.#waiters.push({ resolve, reject, remainingAttempts: attempts });
 
       this.#startAttempts();
@@ -271,7 +271,7 @@ export class SolidisConnection extends EventEmitter {
     this.#debug?.('info', 'Connection established');
 
     for (const waiter of waiters) {
-      waiter.resolve();
+      waiter.resolve(waiter.remainingAttempts);
     }
 
     this.emit('connect');

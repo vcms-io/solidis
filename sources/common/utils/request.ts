@@ -143,7 +143,7 @@ function redactArguments(
     const span = text.slice(index + 1, closing);
     const pieces = span.trim() && span.split(/[\p{Cs}\uFFFD]+/u);
 
-    searchBudget -= searchCost;
+    searchBudget -= searchCost * (pieces.length || 1);
 
     let isArgument =
       searchBudget < 0 ||

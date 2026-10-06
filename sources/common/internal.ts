@@ -35,7 +35,7 @@ export const SolidisKilobyte = 1024;
 export const SolidisMegabyte = 1048576;
 export const SolidisLinePreviewLength = 32;
 export const SolidisMaximumErrorMessageLength = 4096;
-export const SolidisMaskingSearchLimit = 67108864;
+export const SolidisMaskingSearchLimit = 2097152;
 export const SolidisMaximumTimerDelay = 2147483647;
 export const SolidisIntegerMaximumLength = 20;
 export const SolidisBigNumberMaximumLength = 4096;
@@ -64,3 +64,4 @@ export const SolidisContainerCommandNameSet: ReadonlySet<string> = new Set([
 
 export const SolidisAuthenticationFailedMessage = 'Authentication failed';
 export const SolidisAuthenticationErrorPattern = /^(WRONGPASS|NOAUTH)/;
+export const SolidisSkippableStepPattern = /^NOPERM|unknown command/;

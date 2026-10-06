@@ -979,6 +979,66 @@ describe('debug-requester', () => {
       assert.deepStrictEqual(connection.resets, [errors[1]]);
     });
 
+    it('keeps the session state of a batch it could not serialize', async () => {
+      const { connection, requester } = createRequester({
+        maxCommandsPerPipeline: 1,
+      });
+      const failure = new RangeError('Array buffer allocation failed');
+      const poisoned = Buffer.from('v');
+
+      Object.defineProperty(poisoned, 'copy', {
+        value: () => {
+          throw failure;
+        },
+      });
+
+      const watch = requester.send([['WATCH', 'k']]);
+
+      await flushed();
+      connection.reply('+OK\r\n');
+      await watch;
+      connection.emit('close', new SolidisConnectionError('lost'));
+      connection.isConnected = true;
+
+      const transaction = settle(
+        requester.send([['MULTI'], ['SET', 'k', poisoned], ['EXEC']], {
+          timeout: 50,
+        }),
+      );
+
+      await flushed();
+
+      assert.ok((await transaction) instanceof SolidisRequesterError);
+
+      connection.isConnected = true;
+
+      const read = requester.send([['GET', 'k']]);
+
+      await flushed();
+
+      assert.deepStrictEqual(
+        connection.writes.at(-1),
+        commandsToBuffer([['GET', 'k']]),
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 80));
+
+      assert.strictEqual(connection.resets.length, 1);
+
+      connection.reply('$-1\r\n');
+
+      assert.deepStrictEqual(await read, [[null]]);
+
+      requester.send([['MULTI'], ['SET', 'k', 'v'], ['EXEC']]).catch(() => {});
+
+      await flushed();
+
+      assert.deepStrictEqual(
+        connection.writes.at(-1),
+        commandsToBuffer([['DISCARD']]),
+      );
+    });
+
     it('forgets a refused MULTI or WATCH while another session command is in flight', async () => {
       const { connection, requester } = createRequester();
       const multi = requester.send([['MULTI']]);
@@ -3274,12 +3334,9 @@ describe('debug-requester', () => {
           requester.send([['BLPOP', 'k', '-5']], { blockingTimeout: -5000 }),
         );
 
-        await delay(60);
-
-        assert.strictEqual(connection.resets.length, 1);
-
         const error = await negative;
 
+        assert.strictEqual(connection.resets.length, 1);
         assert.ok(error instanceof SolidisRequesterError);
         assert.strictEqual(error.message, 'Command(s) timed out after 30 ms.');
         for (const pending of [forever, huge]) {
