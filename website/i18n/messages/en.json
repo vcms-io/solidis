@@ -599,7 +599,7 @@
     "description": "Learn how to implement distributed locks to coordinate operations across multiple processes and servers.",
     "whatYoullLearn": "What You'll Learn",
     "learn1": "Simple distributed lock implementation",
-    "learn2": "RedLock algorithm for fault tolerance",
+    "learn2": "RedLock through @vcms-io/solidis-extensions",
     "learn3": "Lock renewal and automatic release",
     "learn4": "Preventing race conditions",
     "simpleLock": "Simple Distributed Lock",

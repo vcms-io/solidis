@@ -599,7 +599,7 @@
     "description": "분산 잠금을 구현해 여러 프로세스와 서버의 작업을 조율해 봅니다.",
     "whatYoullLearn": "배울 내용",
     "learn1": "간단한 분산 잠금 구현",
-    "learn2": "장애에 강한 RedLock 알고리즘",
+    "learn2": "@vcms-io/solidis-extensions의 RedLock 사용",
     "learn3": "잠금 갱신과 자동 해제",
     "learn4": "레이스 컨디션 방지",
     "simpleLock": "간단한 분산 잠금",

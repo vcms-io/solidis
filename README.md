@@ -135,6 +135,7 @@ const job = await worker.blpop(['jobs'], 0); // a timeout of 0 waits forever
 - Deadline: `commandTimeout` plus the blocking timeout; none when it blocks forever.
 - At the deadline the connection resets, so a late reply never reaches another command. A command the server has not run yet may still run and pop a value nobody receives.
 - `send()` handles a raw blocking command the same way when you pass its timeout in milliseconds as `blockingTimeout`; `0` means it blocks forever.
+- `migrate()` adds its `timeout` the same way. `shutdown()` waits for the connection to close without a deadline, unless it aborts.
 
 </details>
 
