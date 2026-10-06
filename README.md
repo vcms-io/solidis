@@ -176,7 +176,7 @@ const images = await client.mget('image', 'logo', { buffer: true }); // (Buffer 
 - A `Buffer` reply is a view of the chunk it arrived in (up to 64 KB). Copy it with `Buffer.from()` to keep it long.
 - `send()` copies command arrays, not the `Buffer`s in them: keep a `Buffer` unchanged until its command settles.
 - Field names (HGETALL, HSCAN, streams) and RESP3 map keys, also from `send()`, decode as UTF-8, so invalid UTF-8 names can collide. Keep binary data in values.
-- Stream reads, HSCAN, HRANDFIELD, GETSET, SORT, SORT_RO and LCS return values as UTF-8 strings; read binary values from them with `send()`.
+- Stream, set and sorted-set reads, HSCAN, HRANDFIELD, GETSET, SORT, SORT_RO and LCS return values as UTF-8 strings; read binary values from them with `send()`.
 - MGET and HMGET read a trailing `undefined` as missing options, not as a key.
 
 </details>

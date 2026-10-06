@@ -392,18 +392,13 @@ await client.subscribe('news');`}
                       code={`import { SolidisClient } from '@vcms-io/solidis';
 import { get, set } from '@vcms-io/solidis/command';
 
-const extensions = {
+const client = new SolidisClient({ host: '127.0.0.1', port: 6379 }).extend({
   get,
   set,
-  fill: async function(this: typeof client, keys: string[], value: string) {
+  async fill(keys: string[], value: string) {
     return await Promise.all(keys.map((key) => this.set(key, value)));
   },
-};
-
-const client = new SolidisClient({
-  host: '127.0.0.1',
-  port: 6379,
-}).extend(extensions);
+});
 
 await client.fill(['key1', 'key2', 'key3'], 'value');`}
                       language="typescript"

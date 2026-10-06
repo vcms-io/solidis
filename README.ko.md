@@ -176,7 +176,7 @@ const images = await client.mget('image', 'logo', { buffer: true }); // (Buffer 
 - `Buffer` 응답은 수신한 청크(최대 64KB)의 뷰입니다. 오래 보관하려면 `Buffer.from()`으로 복사하세요.
 - `send()`는 커맨드 배열을 복사하지만 그 안의 `Buffer`는 복사하지 않습니다. 커맨드가 끝날 때까지 `Buffer`를 바꾸지 마세요.
 - 필드 이름(HGETALL, HSCAN, 스트림)과 RESP3 맵 키는 `send()`에서도 UTF-8로 디코딩합니다. UTF-8이 아닌 이름은 서로 겹칠 수 있으니 바이너리 데이터는 값에 담으세요.
-- 스트림 읽기, HSCAN, HRANDFIELD, GETSET, SORT, SORT_RO, LCS는 값을 UTF-8 문자열로 돌려줍니다. 바이너리 값은 `send()`로 읽으세요.
+- 스트림, 셋, 정렬 셋 읽기와 HSCAN, HRANDFIELD, GETSET, SORT, SORT_RO, LCS는 값을 UTF-8 문자열로 돌려줍니다. 바이너리 값은 `send()`로 읽으세요.
 - MGET과 HMGET은 마지막 인자가 `undefined`이면 키가 아니라 옵션이 없는 것으로 봅니다.
 
 </details>

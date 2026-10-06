@@ -44,7 +44,7 @@ With `debug: true`, entries reach only the `debug` event and are no longer print
 
 `send()` now rejects these with a `SolidisRequesterError` before writing anything:
 
-- `CLIENT REPLY OFF`, `CLIENT REPLY SKIP`, `MONITOR`, `SYNC`, `PSYNC`, `REPLCONF ACK`, `REPLCONF GETACK`, `SCRIPT DEBUG YES`, `SCRIPT DEBUG SYNC`.
+- `CLIENT REPLY OFF`, `CLIENT REPLY SKIP`, `CLUSTER SYNCSLOTS`, `MONITOR`, `SYNC`, `PSYNC`, `REPLCONF ACK`, `REPLCONF GETACK`, `SCRIPT DEBUG YES`, `SCRIPT DEBUG SYNC`.
 - `SUBSCRIBE`, `UNSUBSCRIBE` and their pattern and shard variants inside a transaction.
 - A `commands` argument that is not an array, empty commands, entries that are not arrays, and arguments that are neither strings nor `Buffer`s.
 - Anything but `MULTI`, `EXEC`, `DISCARD` and `RESET` after a reconnect lost a `MULTI` sent with `send()`.
@@ -202,7 +202,7 @@ const total = await client.incrby('counter', 10n, { bigint: true }); // bigint
 
 Option types follow the command grammar through the new `CommandExclusiveOptions` helper, so conflicting options no longer compile. The server rejected most of them anyway.
 
-These option types, plus `CommandGeoSearchOptions`, `CommandGeoSearchStoreOptions` and `RespCommandListFilter`, are type aliases now. Use an intersection instead of `extends`:
+These option types, plus `CommandGeoSearchFromOptions`, `CommandGeoSearchByOptions`, `CommandGeoSearchOptions`, `CommandGeoSearchStoreOptions` and `RespCommandListFilter`, are type aliases now. Use an intersection instead of `extends`:
 
 ```typescript
 // 0.4.x
@@ -451,7 +451,7 @@ Skip this step unless you build the internal classes yourself or write custom co
 - In alternating benchmark runs against 0.4.0, throughput is on par or better across the suite.
 - Replies and timeouts for tens of thousands of pipelines in flight take linear time. Masking bounds how much argument text it searches for quoted spans, so a reply full of quotes cannot stall the event loop.
 - Error replies no longer capture a stack trace they then drop.
-- Measured with each version's `npm run bundle`, the minimal client with `get` and `set` shrinks from 29,494 to 29,385 bytes.
+- Measured with each version's `npm run bundle`, the minimal client with `get` and `set` shrinks from 29,494 to 29,462 bytes.
 
 ## [0.4.0] and earlier
 
