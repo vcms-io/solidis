@@ -80,12 +80,14 @@ function classifyCommand(command: StringOrBuffer[]) {
 }
 
 function isUnsupported(command: StringOrBuffer[]) {
-  const words = command
-    .slice(0, 3)
-    .map((word) => toCommandWord(toTextPrefix(word, 16)));
+  const words = command.map((word) => toCommandWord(toTextPrefix(word, 16)));
 
-  return [1, 2, 3].some((length) =>
-    SolidisUnsupportedCommandNameSet.has(words.slice(0, length).join(' ')),
+  return words.some((word, index) =>
+    SolidisUnsupportedCommandNameSet.has(
+      index % 2
+        ? `${words[0]} ${word}`
+        : words.slice(0, Math.min(index + 1, 3)).join(' '),
+    ),
   );
 }
 

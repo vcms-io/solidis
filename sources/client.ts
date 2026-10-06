@@ -514,10 +514,11 @@ export class SolidisClient extends EventEmitter {
   async #restoreSession(handshake: SolidisHandshake) {
     const { autoRecovery, database } = this.#options;
     const pubSub = this.#pubSub;
-    const selectedDatabase = this.#requester.database;
-    const targetDatabase = autoRecovery.database ? selectedDatabase : database;
+    const targetDatabase = autoRecovery.database
+      ? this.#requester.database
+      : database;
 
-    if (targetDatabase !== 0 || selectedDatabase !== 0) {
+    if (targetDatabase !== 0) {
       await this.#runStep(
         select.call(handshake, targetDatabase),
         'SELECT failed',

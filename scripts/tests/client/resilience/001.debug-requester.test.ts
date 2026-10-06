@@ -24,7 +24,10 @@ import {
   SolidisRequester,
   SolidisRequesterError,
 } from '../../../../sources/index.ts';
-import { SolidisSessionSendOptions } from '../../../../sources/modules/internal.ts';
+import {
+  inspectCommand,
+  SolidisSessionSendOptions,
+} from '../../../../sources/modules/internal.ts';
 import {
   closeClient,
   createClient,
@@ -949,6 +952,40 @@ describe('debug-requester', () => {
       connection.isConnected = true;
 
       assert.deepStrictEqual(await exchange([['EXEC']], '*0\r\n'), [[[]]]);
+    });
+
+    it('ends a subscription at the first reply that is not a confirmation', async () => {
+      const { connection, requester } = createRequester();
+      const multi = requester.send([['MULTI']]);
+
+      await flushed();
+
+      connection.reply('+OK\r\n');
+
+      await multi;
+
+      const replies = Promise.all([
+        requester.send([['DISCARD', 'x']]),
+        requester.send([['SUBSCRIBE', 'a', 'b']]),
+        requester.send([['PING']]),
+        requester.send([['EXEC']]),
+        requester.send([['ECHO', 'after']]),
+      ]);
+
+      await flushed();
+
+      connection.reply(
+        "-ERR wrong number of arguments for 'discard' command\r\n+QUEUED\r\n+QUEUED\r\n-EXECABORT Transaction discarded because of previous errors.\r\n$5\r\nafter\r\n",
+      );
+
+      const [discard, subscribe, ping, exec, echo] = await replies;
+
+      assert.ok(discard[0][0] instanceof RespError);
+      assert.deepStrictEqual(subscribe, [['QUEUED']]);
+      assert.deepStrictEqual(ping, [['QUEUED']]);
+      assert.ok(exec[0][0] instanceof RespError);
+      assert.strictEqual(exec[0][0].code, 'EXECABORT');
+      assert.deepStrictEqual(echo, [[Buffer.from('after')]]);
     });
 
     it('rejects a batch that cannot be serialized and resets the connection', async () => {
@@ -2125,14 +2162,14 @@ describe('debug-requester', () => {
         `${index}`,
       ]);
       const early = settle(requester.send(commands, { timeout: 300 }));
+      const patient = settle(
+        requester.send([['ECHO', 'patient']], { timeout: 60_000 }),
+      );
 
       await flushed();
 
       connection.reply('>2\r\n+push\r\n+between\r\n');
 
-      const patient = settle(
-        requester.send([['ECHO', 'patient']], { timeout: 60_000 }),
-      );
       const late = Promise.all(
         commands.map((command) =>
           settle(requester.send([command], { timeout: 600 })),
@@ -2783,6 +2820,8 @@ describe('debug-requester', () => {
         [['client', 'reply', 'skip'], 'CLIENT REPLY'],
         [['REPLCONF', 'ACK', '0'], 'REPLCONF'],
         [['replconf', 'getack', '*'], 'REPLCONF'],
+        [['REPLCONF', 'listening-port', '1234', 'ACK', '0'], 'REPLCONF'],
+        [['replconf', 'capa', 'eof', 'getack', '*'], 'REPLCONF'],
         [['SCRIPT', 'DEBUG', 'YES'], 'SCRIPT DEBUG'],
         [['script', 'debug', 'sync'], 'SCRIPT DEBUG'],
       ];
@@ -2798,6 +2837,7 @@ describe('debug-requester', () => {
         ['CLIENT', 'REPLY', 'ON'],
         ['SCRIPT', 'DEBUG', 'NO'],
         ['REPLCONF', 'LISTENING-PORT', '6380'],
+        ['REPLCONF', 'IP-ADDRESS', 'ACK'],
         ['CLIENT', 'ID'],
       ]);
 
@@ -2805,9 +2845,26 @@ describe('debug-requester', () => {
 
       assert.strictEqual(connection.writes.length, 1);
 
-      connection.reply('+OK\r\n+OK\r\n+OK\r\n:7\r\n');
+      connection.reply('+OK\r\n+OK\r\n+OK\r\n+OK\r\n:7\r\n');
 
-      assert.deepStrictEqual(await supported, [['OK'], ['OK'], ['OK'], [7]]);
+      assert.deepStrictEqual(await supported, [
+        ['OK'],
+        ['OK'],
+        ['OK'],
+        ['OK'],
+        [7],
+      ]);
+    });
+
+    it('inspects a restricted command with many arguments in linear time', () => {
+      const hashes = Array.from({ length: 200_000 }, (_, index) => `${index}`);
+      const startedAt = performance.now();
+
+      assert.strictEqual(
+        inspectCommand(['SCRIPT', 'EXISTS', ...hashes]),
+        'restricted',
+      );
+      assert.ok(performance.now() - startedAt < 1000);
     });
 
     it('unsubscribes from channels whose SUBSCRIBE is still in flight on an argument-less UNSUBSCRIBE', async () => {

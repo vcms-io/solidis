@@ -474,18 +474,17 @@ export class SolidisRequester {
       pipeline.subReplies.push(reply);
 
       if (
-        !(reply instanceof RespError) &&
+        Array.isArray(reply) &&
         (subRequest.span
           ? pipeline.subReplies.length < subRequest.span
-          : Array.isArray(reply) &&
-            reply[2] !==
-              (subRequest.kind === 'sunsubscribe'
-                ? 0
-                : this.#options.pubSub.countSubscriptions(
-                    subRequest.kind === 'unsubscribe'
-                      ? 'psubscribe'
-                      : 'subscribe',
-                  )))
+          : reply[2] !==
+            (subRequest.kind === 'sunsubscribe'
+              ? 0
+              : this.#options.pubSub.countSubscriptions(
+                  subRequest.kind === 'unsubscribe'
+                    ? 'psubscribe'
+                    : 'subscribe',
+                )))
       ) {
         return;
       }
