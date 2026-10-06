@@ -10,7 +10,7 @@ export function sscan<T>(
   return createScanIterator(
     this,
     ['SSCAN', key],
-    { ...options },
+    options,
     tryReplyToStringArray,
   );
 }

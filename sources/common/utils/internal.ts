@@ -1,5 +1,6 @@
 import { SolidisMaximumTimerDelay } from '../internal.ts';
 
+import type { CommandGeoSearchOptions } from '../../types/command.ts';
 import type { StringOrBuffer } from '../../types/solidis.ts';
 
 export const SolidisSocketNotConnectedMessage = 'Socket is not connected.';
@@ -50,4 +51,12 @@ export function wrapWithSolidisError<T extends Error>(
 
 export function resolveTimerDelay(delay: number) {
   return delay > 0 && delay <= SolidisMaximumTimerDelay ? delay : 0;
+}
+
+export function readGeoReplyOptions(options?: CommandGeoSearchOptions) {
+  return {
+    withDist: options?.withDist,
+    withHash: options?.withHash,
+    withCoord: options?.withCoord,
+  };
 }

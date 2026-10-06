@@ -11,12 +11,12 @@ export function createCommand(
 ) {
   const command = ['JSON.DEBUG', subcommand];
 
-  if (subcommand === 'MEMORY' && key !== undefined) {
+  if (key !== undefined) {
     command.push(key);
+  }
 
-    if (path !== undefined) {
-      command.push(path);
-    }
+  if (path !== undefined) {
+    command.push(path);
   }
 
   return command;

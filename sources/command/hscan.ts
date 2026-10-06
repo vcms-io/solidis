@@ -10,7 +10,7 @@ export function hscan<T>(
   return createScanIterator(
     this,
     ['HSCAN', key],
-    { ...options },
+    options,
     tryReplyToStringRecord,
   );
 }

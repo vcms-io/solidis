@@ -77,6 +77,7 @@ describe('transactions', () => {
     const transaction = client.multi();
 
     transaction.set(discarded, 'no');
+    transaction.set(discarded, 'no', { setIfDigestEquals: 'not a digest' });
     transaction.discard();
     transaction.set(committed, 'yes');
 

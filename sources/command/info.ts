@@ -16,19 +16,16 @@ function parseInfo(reply: string): Record<string, string> {
 
   for (const line of reply.split(SolidisNewLine)) {
     const trimmedLine = line.trim();
+    const separatorIndex = trimmedLine.indexOf(':');
 
-    if (trimmedLine && !trimmedLine.startsWith('#')) {
-      const separatorIndex = trimmedLine.indexOf(':');
-
+    if (separatorIndex > 0 && trimmedLine[0] !== '#') {
       const trimmedKey = trimmedLine.slice(0, separatorIndex).trim();
       const trimmedValue = trimmedLine.slice(separatorIndex + 1).trim();
 
-      if (separatorIndex !== -1 && trimmedKey) {
-        record[trimmedKey] =
-          trimmedKey in record
-            ? `${record[trimmedKey]}\n${trimmedValue}`
-            : trimmedValue;
-      }
+      record[trimmedKey] =
+        trimmedKey in record
+          ? `${record[trimmedKey]}\n${trimmedValue}`
+          : trimmedValue;
     }
   }
 

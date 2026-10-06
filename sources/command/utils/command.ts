@@ -44,12 +44,7 @@ export function assertSender(
   client: unknown,
   command?: StringOrBuffer[],
 ): asserts client is Pick<SolidisClient, 'send'> {
-  if (
-    typeof client !== 'object' ||
-    client === null ||
-    !('send' in client) ||
-    typeof client.send !== 'function'
-  ) {
+  if (typeof Object(client).send !== 'function') {
     throw newCommandError('Send method is not implemented', command);
   }
 }
@@ -85,20 +80,24 @@ export async function executeCommand<T, R, Options extends object | undefined>(
   options: Options,
   sendOptions?: SolidisSendOptions,
 ): Promise<R>;
-export async function executeCommand<T, R, Options extends object | undefined>(
+export async function executeCommand<T, R>(
   client: T,
   command: StringOrBuffer[],
   replyTo?: (
     reply: SolidisData,
     command: StringOrBuffer[],
-    options?: Options,
+    options?: CommandBufferOptions & CommandIntegerOptions,
   ) => R,
-  options?: Options,
+  options?: CommandBufferOptions & CommandIntegerOptions,
   sendOptions?: SolidisSendOptions,
 ): Promise<R | SolidisData> {
   assertSender(client, command);
 
-  const replyOptions = options && { ...options };
+  const replyOptions = options && {
+    ...options,
+    buffer: options.buffer,
+    bigint: options.bigint,
+  };
   const reply = (await client.send([command], sendOptions))[0]?.[0];
 
   if (reply instanceof Error) {
@@ -769,21 +768,25 @@ export function appendValueConditionOptions(
   }
 }
 
-export async function* createScanIterator<T, R>(
+export function createScanIterator<T, R>(
   client: T,
   baseCommand: string[],
-  options: CommandScanOptions,
+  { count, match, type }: CommandScanOptions,
   parseElements: (elements: unknown, commandName: StringOrBuffer[]) => R,
 ): AsyncGenerator<R> {
-  let cursor = '0';
+  const options = { count, match, type };
 
-  do {
-    const command = buildScanCommand(baseCommand, cursor, options);
-    const reply = await executeCommand(client, command);
-    const [newCursor, elements] = tryReplyToScan(reply, command);
+  return (async function* () {
+    let cursor = '0';
 
-    cursor = newCursor;
+    do {
+      const command = buildScanCommand(baseCommand, cursor, options);
+      const reply = await executeCommand(client, command);
+      const [newCursor, elements] = tryReplyToScan(reply, command);
 
-    yield parseElements(elements, command);
-  } while (cursor !== '0');
+      cursor = newCursor;
+
+      yield parseElements(elements, command);
+    } while (cursor !== '0');
+  })();
 }

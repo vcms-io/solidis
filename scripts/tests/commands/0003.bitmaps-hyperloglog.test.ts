@@ -131,10 +131,12 @@ describe('bitmaps-hyperloglog', () => {
 
     const { createCommand } = await import('../../../sources/command/bitop.ts');
 
-    assert.throws(() => createCommand('NOT', 'dest', ['a', 'b']), {
-      name: 'SolidisCommandError',
-      message: '[BITOP] NOT accepts exactly one source key',
-    });
+    for (const keys of [[], ['a', 'b']]) {
+      assert.throws(() => createCommand('NOT', 'dest', keys), {
+        name: 'SolidisCommandError',
+        message: '[BITOP] NOT accepts exactly one source key',
+      });
+    }
   });
 
   it('combines bitmaps with the BITOP operators of Redis 8.2', async (context) => {

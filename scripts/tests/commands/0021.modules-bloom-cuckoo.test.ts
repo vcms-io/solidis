@@ -197,13 +197,13 @@ describe('modules-bloom-cuckoo', () => {
       'OK',
     );
 
-    const added = await client.bfMadd(key, ['a', 'b', 'c', 'd']);
-    const inserted = await client.bfInsert(key, ['e', 'f'], {
+    const added = await client.bfMadd(key, [...'abcdefgh']);
+    const inserted = await client.bfInsert(key, [...'ijklmnop'], {
       nocreate: true,
     });
 
-    assert.strictEqual(added.length, 4);
-    assert.strictEqual(inserted.length, 2);
+    assert.strictEqual(added.length, 8);
+    assert.strictEqual(inserted.length, 8);
 
     for (const results of [added, inserted]) {
       const failureIndex = results.findIndex(

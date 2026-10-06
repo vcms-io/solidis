@@ -61,15 +61,12 @@ export async function zrangebyscore<T>(
   max: CommandScoreBound,
   options?: CommandLimitWithScoresOptions,
 ): Promise<string[] | RespSortedSetMember[]> {
+  const withScores = options?.withScores;
+
   return await executeCommand(
     this,
     createCommand(key, min, max, options),
-    (reply, command, replyOptions) =>
-      tryReplyToStringsOrSortedSetMembers(
-        reply,
-        command,
-        replyOptions?.withScores,
-      ),
-    options,
+    (reply, command) =>
+      tryReplyToStringsOrSortedSetMembers(reply, command, withScores),
   );
 }

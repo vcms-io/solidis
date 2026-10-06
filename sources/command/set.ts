@@ -45,22 +45,22 @@ export async function set<T>(
   value: StringOrBuffer,
   options?: CommandSetOptions,
 ): Promise<StringOrBuffer | RespOK | null> {
+  const returnOldValue = options?.returnOldValue === true;
+  const buffer = options?.returnOldValueAsBuffer;
+
   return await executeCommand(
     this,
     createCommand(key, value, options),
-    (reply, command, replyOptions) => {
+    (reply, command) => {
       if (reply === null) {
         return null;
       }
 
-      if (replyOptions?.returnOldValue === true) {
-        return tryReplyToStringOrBuffer(reply, command, {
-          buffer: replyOptions.returnOldValueAsBuffer,
-        });
+      if (returnOldValue) {
+        return tryReplyToStringOrBuffer(reply, command, { buffer });
       }
 
       return tryReplyOK(reply, command);
     },
-    options,
   );
 }

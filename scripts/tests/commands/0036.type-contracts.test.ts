@@ -5,6 +5,7 @@ import { errorMonitor } from 'node:events';
 import { describe, it } from 'node:test';
 
 import { SolidisFeaturedClient } from '../../../sources/client/featured.ts';
+import * as commands from '../../../sources/command/index.ts';
 import { get, multi, select, set } from '../../../sources/command/index.ts';
 import {
   tryReplyToKeyStringElementsOrNull,
@@ -14,6 +15,7 @@ import { SolidisClient } from '../../../sources/index.ts';
 
 import type {
   CommandBufferOptions,
+  CommandGetExOptions,
   CommandIntegerOptions,
   CommandSortOptions,
   CommandSortStoreOptions,
@@ -317,6 +319,22 @@ describe('type-contracts', () => {
     assert.deepStrictEqual(checks, [false, true]);
   });
 
+  it('gives the featured client every command of the command entry point', () => {
+    const client = new SolidisFeaturedClient({ lazyConnect: true });
+
+    for (const [name, command] of Object.entries(commands)) {
+      const method = client[name];
+
+      if (typeof method !== 'function') {
+        assert.fail(`${name} is missing`);
+      }
+
+      assert.match(method.name, new RegExp(`^(bound )+${command.name}$`));
+    }
+
+    client.quit();
+  });
+
   it('types call sites the way the server answers them', async () => {
     const client = new SolidisFeaturedClient({ lazyConnect: true });
 
@@ -354,6 +372,11 @@ describe('type-contracts', () => {
         expireInSeconds: 60,
       });
       const text: string | null = await client.getex('k', { persist: true });
+      const readWith = (options: CommandGetExOptions) =>
+        client.getex('k', options);
+      const exported: string | Buffer | null = await readWith({
+        persist: true,
+      });
 
       // @ts-expect-error getex options stay exact next to buffer
       await client.getex('k', { buffer: true, expireInSecond: 60 });
@@ -527,6 +550,7 @@ describe('type-contracts', () => {
         single,
         exact,
         text,
+        exported,
         options,
         pipeline,
         pendingSummary,

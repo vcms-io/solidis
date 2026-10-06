@@ -3,6 +3,7 @@ import {
   executeCommand,
   processPairedArray,
   tryReplyArray,
+  tryReplyOK,
   tryReplyToNumber,
   tryReplyToString,
 } from './utils/index.ts';
@@ -25,6 +26,8 @@ export async function aclLog<T>(
 ): Promise<RespAclLogEntry[]> {
   return await executeCommand(this, createCommand(count), (reply, command) => {
     if (count === 'RESET') {
+      tryReplyOK(reply, command);
+
       return [];
     }
 

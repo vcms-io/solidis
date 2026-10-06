@@ -44,15 +44,17 @@ export async function lcs<T>(
   key2: string,
   options?: CommandLCSOptions,
 ): Promise<string | number | RespLCSMatches> {
+  const { len, idx, withmatchlen } = options ?? {};
+
   return await executeCommand(
     this,
     createCommand(key1, key2, options),
-    (reply, command, replyOptions) => {
-      if (replyOptions?.len) {
+    (reply, command) => {
+      if (len) {
         return tryReplyNumber(reply, command);
       }
 
-      if (replyOptions?.idx) {
+      if (idx) {
         /**
          * RESP2 returns a flat `['matches', [...], 'len', N]` array; RESP3
          * returns a map keyed by `matches`/`len`. tryReplyToMap reconciles both.
@@ -78,8 +80,8 @@ export async function lcs<T>(
               ],
             };
 
-            if (replyOptions.withmatchlen && typeof matchLength === 'number') {
-              match.length = matchLength;
+            if (withmatchlen) {
+              match.length = tryReplyNumber(matchLength, command);
             }
 
             return match;
@@ -94,6 +96,5 @@ export async function lcs<T>(
 
       return tryReplyToString(reply, command);
     },
-    options,
   );
 }

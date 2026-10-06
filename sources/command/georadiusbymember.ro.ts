@@ -1,3 +1,4 @@
+import { readGeoReplyOptions } from '../common/utils/internal.ts';
 import {
   buildGeoRadiusCommand,
   executeCommand,
@@ -35,6 +36,6 @@ export async function georadiusbymemberRo<T>(
     this,
     createCommand(key, member, radius, unit, options),
     tryReplyToGeoRadius,
-    options,
+    readGeoReplyOptions(options),
   );
 }

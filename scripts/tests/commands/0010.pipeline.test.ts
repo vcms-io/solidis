@@ -150,6 +150,22 @@ describe('pipeline', () => {
     });
   });
 
+  it('rejects a command called without a client that can send', async () => {
+    const { get } = await import('../../../sources/command/get.ts');
+    const { pipeline } = await import('../../../sources/command/pipeline.ts');
+
+    for (const client of [undefined, null, {}, { send: 'not a function' }]) {
+      await assert.rejects(get.call(client, 'key'), {
+        name: 'SolidisCommandError',
+        message: '[GET] Send method is not implemented',
+      });
+      await assert.rejects(pipeline.call(client, [['PING']]), {
+        name: 'SolidisCommandError',
+        message: 'Send method is not implemented',
+      });
+    }
+  });
+
   it('queues transaction calls through the send() of a client and puts it back', async () => {
     const { guard } = await import('../../../sources/command/utils/command.ts');
     const { set } = await import('../../../sources/command/set.ts');

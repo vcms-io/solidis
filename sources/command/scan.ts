@@ -6,10 +6,5 @@ export function scan<T>(
   this: T,
   options: CommandScanOptions = {},
 ): AsyncGenerator<string[]> {
-  return createScanIterator(
-    this,
-    ['SCAN'],
-    { ...options },
-    tryReplyToStringArray,
-  );
+  return createScanIterator(this, ['SCAN'], options, tryReplyToStringArray);
 }

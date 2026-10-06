@@ -31,17 +31,19 @@ export function createCommand(options?: CommandShutdownOptions) {
 }
 
 export async function shutdown<T>(this: T, options?: CommandShutdownOptions) {
+  const abort = options?.abort;
+
   try {
     return await executeCommand(
       this,
       createCommand(options),
       tryReplyOK,
       undefined,
-      { blockingTimeout: options?.abort ? undefined : 0 },
+      { blockingTimeout: abort ? undefined : 0 },
     );
   } catch (error) {
     if (
-      options?.abort ||
+      abort ||
       !(error instanceof Error) ||
       error.message !== SolidisConnectionClosedMessage
     ) {

@@ -15,12 +15,15 @@ import {
   createCommand as createBloomInsertCommand,
 } from '../../../sources/command/bf.insert.ts';
 import { createCommand as createBloomLoadchunkCommand } from '../../../sources/command/bf.loadchunk.ts';
+import { createCommand as createBgsaveCommand } from '../../../sources/command/bgsave.ts';
 import { createCommand as createBitcountCommand } from '../../../sources/command/bitcount.ts';
 import { cfInfo } from '../../../sources/command/cf.info.ts';
 import { createCommand as createCuckooInsertCommand } from '../../../sources/command/cf.insert.ts';
 import { createCommand as createCuckooLoadchunkCommand } from '../../../sources/command/cf.loadchunk.ts';
 import { createCommand as createClientListCommand } from '../../../sources/command/client.list.ts';
+import { createCommand as createClientPauseCommand } from '../../../sources/command/client.pause.ts';
 import { createCommand as createClientTrackingCommand } from '../../../sources/command/client.tracking.ts';
+import { createCommand as createClientUnblockCommand } from '../../../sources/command/client.unblock.ts';
 import {
   commandDocs,
   createCommand as createCommandDocsCommand,
@@ -39,7 +42,9 @@ import { failover } from '../../../sources/command/failover.ts';
 import { fcallRo } from '../../../sources/command/fcall.ro.ts';
 import { fcall } from '../../../sources/command/fcall.ts';
 import { createCommand as createFunctionFlushCommand } from '../../../sources/command/function.flush.ts';
+import { functionList } from '../../../sources/command/function.list.ts';
 import { functionStats } from '../../../sources/command/function.stats.ts';
+import { geosearch } from '../../../sources/command/geosearch.ts';
 import { get } from '../../../sources/command/get.ts';
 import { createCommand as createGetsetCommand } from '../../../sources/command/getset.ts';
 import { hdel } from '../../../sources/command/hdel.ts';
@@ -50,12 +55,17 @@ import {
 import { createCommand as createHashExpireCommand } from '../../../sources/command/hexpire.ts';
 import { hmget } from '../../../sources/command/hmget.ts';
 import { createCommand as createHmsetCommand } from '../../../sources/command/hmset.ts';
+import { createCommand as createHrandfieldCommand } from '../../../sources/command/hrandfield.ts';
 import {
   createCommand as createHsetCommand,
   hset,
 } from '../../../sources/command/hset.ts';
 import { createCommand as createHsetnxCommand } from '../../../sources/command/hsetnx.ts';
-import { info } from '../../../sources/command/info.ts';
+import { incr } from '../../../sources/command/incr.ts';
+import {
+  createCommand as createInfoCommand,
+  info,
+} from '../../../sources/command/info.ts';
 import { jsonArrappend } from '../../../sources/command/json.arrappend.ts';
 import { jsonArrinsert } from '../../../sources/command/json.arrinsert.ts';
 import { createCommand as createJsonArrpopCommand } from '../../../sources/command/json.arrpop.ts';
@@ -68,7 +78,10 @@ import { createCommand as createLatencyResetCommand } from '../../../sources/com
 import { lcs } from '../../../sources/command/lcs.ts';
 import { createCommand as createLinsertCommand } from '../../../sources/command/linsert.ts';
 import { lolwut } from '../../../sources/command/lolwut.ts';
-import { createCommand as createLposCommand } from '../../../sources/command/lpos.ts';
+import {
+  createCommand as createLposCommand,
+  lpos,
+} from '../../../sources/command/lpos.ts';
 import {
   createCommand as createLpushCommand,
   lpush,
@@ -111,6 +124,8 @@ import {
 } from '../../../sources/command/rpush.ts';
 import { createCommand as createRpushxCommand } from '../../../sources/command/rpushx.ts';
 import { sadd } from '../../../sources/command/sadd.ts';
+import { scan } from '../../../sources/command/scan.ts';
+import { createCommand as createScriptFlushCommand } from '../../../sources/command/script.flush.ts';
 import { sdiff } from '../../../sources/command/sdiff.ts';
 import {
   createCommand as createSetCommand,
@@ -122,6 +137,7 @@ import { createCommand as createSetrangeCommand } from '../../../sources/command
 import { shutdown } from '../../../sources/command/shutdown.ts';
 import { sinter } from '../../../sources/command/sinter.ts';
 import { createCommand as createSmismemberCommand } from '../../../sources/command/smismember.ts';
+import { sort } from '../../../sources/command/sort.ts';
 import { createCommand as createSpublishCommand } from '../../../sources/command/spublish.ts';
 import { srem } from '../../../sources/command/srem.ts';
 import { ssubscribe } from '../../../sources/command/ssubscribe.ts';
@@ -129,6 +145,8 @@ import { subscribe } from '../../../sources/command/subscribe.ts';
 import { sunion } from '../../../sources/command/sunion.ts';
 import { sunsubscribe } from '../../../sources/command/sunsubscribe.ts';
 import { createCommand as createTimeSeriesCreateCommand } from '../../../sources/command/ts.create.ts';
+import { createCommand as createTimeSeriesGetCommand } from '../../../sources/command/ts.get.ts';
+import { createCommand as createTimeSeriesMgetCommand } from '../../../sources/command/ts.mget.ts';
 import { createCommand as createTimeSeriesMrangeCommand } from '../../../sources/command/ts.mrange.ts';
 import { createCommand as createTimeSeriesMrevrangeCommand } from '../../../sources/command/ts.mrevrange.ts';
 import { createCommand as createTimeSeriesRangeCommand } from '../../../sources/command/ts.range.ts';
@@ -141,12 +159,19 @@ import {
 import { watch } from '../../../sources/command/watch.ts';
 import { createCommand as createXaddCommand } from '../../../sources/command/xadd.ts';
 import { xautoclaim } from '../../../sources/command/xautoclaim.ts';
+import {
+  createCommand as createXclaimCommand,
+  xclaim,
+} from '../../../sources/command/xclaim.ts';
 import { xdel } from '../../../sources/command/xdel.ts';
+import { xinfoConsumers } from '../../../sources/command/xinfo.consumers.ts';
+import { xinfoGroups } from '../../../sources/command/xinfo.groups.ts';
 import { xinfoStream } from '../../../sources/command/xinfo.stream.ts';
 import { createCommand as createXpendingCommand } from '../../../sources/command/xpending.ts';
 import { createCommand as createXreadCommand } from '../../../sources/command/xread.ts';
 import { createCommand as createXreadgroupCommand } from '../../../sources/command/xreadgroup.ts';
 import { createCommand as createZinterCommand } from '../../../sources/command/zinter.ts';
+import { createCommand as createZrandmemberCommand } from '../../../sources/command/zrandmember.ts';
 import { zrange } from '../../../sources/command/zrange.ts';
 import { zrem } from '../../../sources/command/zrem.ts';
 import {
@@ -676,6 +701,18 @@ describe('reply-guards', () => {
 
     delete previous.returnOldValue;
 
+    const aborting = { abort: false };
+    const shut = shutdown.call(
+      {
+        send: async () => {
+          throw new SolidisConnectionError('Connection closed.');
+        },
+      },
+      aborting,
+    );
+
+    aborting.abort = true;
+
     const items = ['a', 'b', 'c'];
     const full = new RespError('ERR non scaling filter is full');
     const inserted = bfInsert.call(createRecorder([1, full]), 'bf', items);
@@ -686,6 +723,130 @@ describe('reply-guards', () => {
     assert.deepStrictEqual(await read, bulk('v'));
     assert.strictEqual(await replaced, 'old');
     assert.deepStrictEqual(await inserted, [1, full, full]);
+    assert.strictEqual(await shut, 'OK');
+  });
+
+  it('reads options through getters and prototypes, as the command it builds does', async () => {
+    class Scored {
+      get withScores() {
+        return true as const;
+      }
+    }
+
+    class Previous {
+      get returnOldValue() {
+        return true as const;
+      }
+    }
+
+    class Binary {
+      get buffer() {
+        return true as const;
+      }
+    }
+
+    class Exact {
+      get bigint() {
+        return true as const;
+      }
+    }
+
+    class Matching {
+      get match() {
+        return 'user:*';
+      }
+    }
+
+    const ranged = createRecorder([bulk('a'), bulk('1')]);
+    const scanned = createRecorder([bulk('0'), [bulk('user:1')]]);
+    const pages: string[][] = [];
+
+    assert.deepStrictEqual(
+      await zrange.call(ranged, 'z', '0', '-1', new Scored()),
+      [{ member: 'a', score: 1 }],
+    );
+    assert.deepStrictEqual(ranged.commands, [
+      ['ZRANGE', 'z', '0', '-1', 'WITHSCORES'],
+    ]);
+    assert.strictEqual(
+      await set.call(createRecorder(bulk('old')), 'k', 'v', new Previous()),
+      'old',
+    );
+    assert.deepStrictEqual(
+      await get.call(createRecorder(bulk('v')), 'k', new Binary()),
+      bulk('v'),
+    );
+    assert.strictEqual(
+      await incr.call(createRecorder(5), 'k', new Exact()),
+      5n,
+    );
+    assert.strictEqual(
+      await sort.call(createRecorder(3), 'k', Object.create({ store: 'dest' })),
+      3,
+    );
+    assert.deepStrictEqual(
+      await xclaim.call(
+        createRecorder([bulk('1-1')]),
+        's',
+        'g',
+        'c',
+        0,
+        ['1-1'],
+        Object.create({ justid: true }),
+      ),
+      ['1-1'],
+    );
+    assert.deepStrictEqual(
+      await lcs.call(
+        createRecorder(
+          new Map<string, SolidisData>([
+            ['matches', [[[0, 1], [2, 3], 2]]],
+            ['len', 2],
+          ]),
+        ),
+        'a',
+        'b',
+        Object.create({ idx: true, withmatchlen: true }),
+      ),
+      { matches: [{ a: [0, 1], b: [2, 3], length: 2 }], length: 2 },
+    );
+    assert.deepStrictEqual(
+      await geosearch.call(
+        createRecorder([[bulk('m'), bulk('1.5')]]),
+        'g',
+        { frommember: 'x' },
+        { byradius: { radius: 1, unit: 'KM' } },
+        Object.create({ withDist: true }),
+      ),
+      [{ member: 'm', distance: 1.5 }],
+    );
+    assert.deepStrictEqual(
+      await functionList.call(
+        createRecorder([
+          [
+            bulk('library_name'),
+            bulk('lib'),
+            bulk('engine'),
+            bulk('LUA'),
+            bulk('functions'),
+            [],
+            bulk('library_code'),
+            bulk('code'),
+          ],
+        ]),
+        Object.create({ withCode: true }),
+      ),
+      [{ libraryName: 'lib', engine: 'LUA', functions: [], code: 'code' }],
+    );
+
+    for await (const keys of scan.call(scanned, new Matching())) {
+      pages.push(keys);
+    }
+
+    assert.deepStrictEqual(pages, [['user:1']]);
+    assert.deepStrictEqual(scanned.commands, [
+      ['SCAN', '0', 'MATCH', 'user:*'],
+    ]);
   });
 
   it('sets several hash fields in one HSET', async () => {
@@ -883,6 +1044,24 @@ describe('reply-guards', () => {
     );
 
     for (const matches of [
+      [
+        [
+          [0, 1],
+          [2, 3],
+        ],
+      ],
+      [[[0, 1], [2, 3], bulk('2')]],
+    ]) {
+      await assert.rejects(
+        lcs.call(reply(matches), 'a', 'b', { idx: true, withmatchlen: true }),
+        {
+          name: 'SolidisCommandError',
+          message: /^\[LCS\] Unexpected reply: /,
+        },
+      );
+    }
+
+    for (const matches of [
       [bulk('bad')],
       [[[0, 1], bulk('bad')]],
       [[bulk('bad'), [2, 3]]],
@@ -895,67 +1074,89 @@ describe('reply-guards', () => {
     }
   });
 
-  it('builds the optional parts of BF.INSERT, BITCOUNT, JSON.ARRPOP, XPENDING and FUNCTION FLUSH', () => {
-    assert.deepStrictEqual(createFunctionFlushCommand(), ['FUNCTION', 'FLUSH']);
-    assert.deepStrictEqual(createFunctionFlushCommand(true), [
-      'FUNCTION',
-      'FLUSH',
-      'ASYNC',
-    ]);
-    assert.deepStrictEqual(createFunctionFlushCommand(false), [
-      'FUNCTION',
-      'FLUSH',
-      'SYNC',
-    ]);
-    assert.deepStrictEqual(
-      createBloomInsertCommand('key', ['a'], {
-        expansion: 2,
-        nonScaling: true,
-      }),
-      ['BF.INSERT', 'key', 'EXPANSION', '2', 'NONSCALING', 'ITEMS', 'a'],
+  it('builds the optional parts of each command exactly as given', () => {
+    const cases: [StringOrBuffer[], StringOrBuffer[]][] = [
+      [createFunctionFlushCommand(), ['FUNCTION', 'FLUSH']],
+      [createFunctionFlushCommand(true), ['FUNCTION', 'FLUSH', 'ASYNC']],
+      [createFunctionFlushCommand(false), ['FUNCTION', 'FLUSH', 'SYNC']],
+      [
+        createBloomInsertCommand('key', ['a'], {
+          expansion: 2,
+          nonScaling: true,
+        }),
+        ['BF.INSERT', 'key', 'EXPANSION', '2', 'NONSCALING', 'ITEMS', 'a'],
+      ],
+      [
+        createBloomInsertCommand('key', ['a'], { error: 0.01 }),
+        ['BF.INSERT', 'key', 'ERROR', '0.01', 'ITEMS', 'a'],
+      ],
+      [
+        createBitcountCommand('key', { mode: 'BIT' }),
+        ['BITCOUNT', 'key', '0', '-1', 'BIT'],
+      ],
+      [createBitcountCommand('key', { end: 5 }), ['BITCOUNT', 'key', '0', '5']],
+      [
+        createJsonArrpopCommand('key', '$.items', -1),
+        ['JSON.ARRPOP', 'key', '$.items', '-1'],
+      ],
+      [
+        createJsonArrpopCommand('key', undefined, 0),
+        ['JSON.ARRPOP', 'key', '.', '0'],
+      ],
+      [createJsonArrpopCommand('key', ''), ['JSON.ARRPOP', 'key', '']],
+      [
+        createXpendingCommand('key', 'group', '-', '+', 5),
+        ['XPENDING', 'key', 'group', '-', '+', '5'],
+      ],
+      [
+        createXpendingCommand('key', 'group', '-', '+', 5, 'reader', 1000),
+        ['XPENDING', 'key', 'group', 'IDLE', '1000', '-', '+', '5', 'reader'],
+      ],
+      [createXpendingCommand('key', 'group'), ['XPENDING', 'key', 'group']],
+      [createHrandfieldCommand('key', 0), ['HRANDFIELD', 'key', '0']],
+      [createZrandmemberCommand('key', 0), ['ZRANDMEMBER', 'key', '0']],
+      [createBgsaveCommand(true), ['BGSAVE', 'SCHEDULE']],
+      [
+        createClientListCommand({ type: 'PUBSUB' }),
+        ['CLIENT', 'LIST', 'TYPE', 'PUBSUB'],
+      ],
+      [
+        createClientPauseCommand(100, { mode: 'WRITE' }),
+        ['CLIENT', 'PAUSE', '100', 'WRITE'],
+      ],
+      [
+        createClientUnblockCommand(7, { timeout: true }),
+        ['CLIENT', 'UNBLOCK', '7', 'TIMEOUT'],
+      ],
+      [createInfoCommand('persistence'), ['INFO', 'persistence']],
+      [createScriptFlushCommand({ sync: true }), ['SCRIPT', 'FLUSH', 'SYNC']],
+      [createScriptFlushCommand({ async: true }), ['SCRIPT', 'FLUSH', 'ASYNC']],
+      [createTimeSeriesGetCommand('key', true), ['TS.GET', 'key', 'LATEST']],
+      [
+        createTimeSeriesMgetCommand({ area: 'east' }, { latest: true }),
+        ['TS.MGET', 'LATEST', 'FILTER', 'area=east'],
+      ],
+      [
+        createXclaimCommand('key', 'group', 'consumer', 0, ['0-1'], {
+          force: true,
+        }),
+        ['XCLAIM', 'key', 'group', 'consumer', '0', '0-1', 'FORCE'],
+      ],
+    ];
+
+    for (const [command, expected] of cases) {
+      assert.deepStrictEqual(command, expected);
+    }
+  });
+
+  it('rejects a null among the positions LPOS returns', async () => {
+    await assert.rejects(
+      lpos.call(createRecorder([1, null]), 'list', 'a', { count: 2 }),
+      {
+        name: 'SolidisCommandError',
+        message: '[LPOS] Unexpected reply: null',
+      },
     );
-    assert.deepStrictEqual(createBitcountCommand('key', { mode: 'BIT' }), [
-      'BITCOUNT',
-      'key',
-      '0',
-      '-1',
-      'BIT',
-    ]);
-    assert.deepStrictEqual(createBitcountCommand('key', { end: 5 }), [
-      'BITCOUNT',
-      'key',
-      '0',
-      '5',
-    ]);
-    assert.deepStrictEqual(createJsonArrpopCommand('key', '$.items', -1), [
-      'JSON.ARRPOP',
-      'key',
-      '$.items',
-      '-1',
-    ]);
-    assert.deepStrictEqual(createJsonArrpopCommand('key', undefined, 0), [
-      'JSON.ARRPOP',
-      'key',
-      '.',
-      '0',
-    ]);
-    assert.deepStrictEqual(createXpendingCommand('key', 'group', '-', '+', 5), [
-      'XPENDING',
-      'key',
-      'group',
-      '-',
-      '+',
-      '5',
-    ]);
-    assert.deepStrictEqual(
-      createXpendingCommand('key', 'group', '-', '+', 5, 'reader', 1000),
-      ['XPENDING', 'key', 'group', 'IDLE', '1000', '-', '+', '5', 'reader'],
-    );
-    assert.deepStrictEqual(createXpendingCommand('key', 'group'), [
-      'XPENDING',
-      'key',
-      'group',
-    ]);
   });
 
   it('reads replies of older servers and other module versions', async () => {
@@ -1134,6 +1335,17 @@ describe('reply-guards', () => {
     );
   });
 
+  it('rejects a reply to ACL LOG RESET other than OK', async () => {
+    assert.deepStrictEqual(
+      await aclLog.call(createRecorder('OK'), 'RESET'),
+      [],
+    );
+    await assert.rejects(aclLog.call(createRecorder(1), 'RESET'), {
+      name: 'SolidisCommandError',
+      message: '[ACL LOG] Unexpected reply: number',
+    });
+  });
+
   it('reports the ACL LOG fields that Redis 6.2 leaves out as null', async () => {
     const [entry] = await aclLog.call(
       createRecorder([
@@ -1242,7 +1454,11 @@ describe('reply-guards', () => {
               bulk('summary'),
               bulk('Terminates connections'),
               bulk('doc_flags'),
-              [bulk('deprecated'), bulk('nondeterministic_output')],
+              [
+                bulk('deprecated'),
+                bulk('nondeterministic_output'),
+                bulk('syscmd'),
+              ],
             ],
           ],
         ],
@@ -1251,11 +1467,171 @@ describe('reply-guards', () => {
 
     assert.deepStrictEqual(docs.client.subcommands?.['client|kill'].docFlags, [
       'deprecated',
+      'syscmd',
     ]);
+
+    const resp3 = await commandDocs.call(
+      createRecorder(
+        new Map<string, SolidisData>([
+          [
+            'replconf',
+            new Map<string, SolidisData>([
+              ['doc_flags', new Set([bulk('syscmd')])],
+            ]),
+          ],
+        ]),
+      ),
+    );
+
+    assert.deepStrictEqual(resp3.replconf.docFlags, ['syscmd']);
     assert.strictEqual(
       docs.client.subcommands?.['client|kill'].summary,
       'Terminates connections',
     );
+  });
+
+  it('keeps a zero or NaN a server reports apart from a field it leaves out', async () => {
+    const info = await hello.call(
+      createRecorder([
+        bulk('server'),
+        bulk('redis'),
+        bulk('version'),
+        bulk('8.2.0'),
+        bulk('proto'),
+        3,
+        bulk('id'),
+        0,
+        bulk('mode'),
+        bulk('standalone'),
+        bulk('modules'),
+        [],
+      ]),
+    );
+
+    assert.strictEqual(info.id, 0);
+    assert.ok(
+      Number.isNaN(
+        (
+          await memoryStats.call(
+            createRecorder([bulk('fragmentation'), Number.NaN]),
+          )
+        ).fragmentation,
+      ),
+    );
+    assert.deepStrictEqual(
+      await xinfoGroups.call(
+        createRecorder([
+          [
+            bulk('name'),
+            bulk('g'),
+            bulk('consumers'),
+            0,
+            bulk('pending'),
+            0,
+            bulk('last-delivered-id'),
+            bulk('0-0'),
+            bulk('entries-read'),
+            0,
+            bulk('lag'),
+            0,
+          ],
+        ]),
+        'stream',
+      ),
+      [
+        {
+          name: 'g',
+          consumers: 0,
+          pending: 0,
+          lastDeliveredId: '0-0',
+          entriesRead: 0,
+          lag: 0,
+        },
+      ],
+    );
+    assert.deepStrictEqual(
+      await xinfoConsumers.call(
+        createRecorder([
+          [
+            bulk('name'),
+            bulk('c'),
+            bulk('pending'),
+            0,
+            bulk('idle'),
+            0,
+            bulk('inactive'),
+            0,
+          ],
+        ]),
+        'stream',
+        'g',
+      ),
+      [{ name: 'c', pending: 0, idle: 0, inactive: 0 }],
+    );
+
+    const full = await xinfoStream.call(
+      createRecorder([
+        bulk('length'),
+        0,
+        bulk('radix-tree-keys'),
+        0,
+        bulk('radix-tree-nodes'),
+        1,
+        bulk('last-generated-id'),
+        bulk('0-0'),
+        bulk('max-deleted-entry-id'),
+        bulk('0-0'),
+        bulk('entries-added'),
+        0,
+        bulk('recorded-first-entry-id'),
+        bulk('0-0'),
+        bulk('entries'),
+        [],
+        bulk('groups'),
+        [
+          [
+            bulk('name'),
+            bulk('g'),
+            bulk('last-delivered-id'),
+            bulk('0-0'),
+            bulk('entries-read'),
+            0,
+            bulk('lag'),
+            0,
+            bulk('pel-count'),
+            0,
+            bulk('pending'),
+            [],
+            bulk('consumers'),
+            [
+              [
+                bulk('name'),
+                bulk('c'),
+                bulk('seen-time'),
+                0,
+                bulk('active-time'),
+                0,
+                bulk('pel-count'),
+                0,
+                bulk('pending'),
+                [],
+              ],
+            ],
+          ],
+        ],
+      ]),
+      'stream',
+      true,
+    );
+
+    if (!('entries' in full)) {
+      assert.fail('expected the FULL form');
+    }
+
+    assert.strictEqual(full.entriesAdded, 0);
+    assert.strictEqual(full.groups[0].entriesRead, 0);
+    assert.strictEqual(full.groups[0].lag, 0);
+    assert.strictEqual(full.groups[0].consumers[0].activeTime, 0);
   });
 
   it('reads XINFO STREAM of empty streams and servers without lag tracking', async () => {
@@ -1407,6 +1783,12 @@ describe('reply-guards', () => {
       'JSON.MERGE',
       'key',
       '.a',
+      '{}',
+    ]);
+    assert.deepStrictEqual(createJsonMergeCommand('key', '{}', ''), [
+      'JSON.MERGE',
+      'key',
+      '',
       '{}',
     ]);
   });

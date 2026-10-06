@@ -13,7 +13,7 @@ export function zscan<T>(
   return createScanIterator(
     this,
     ['ZSCAN', key],
-    { ...options },
+    options,
     tryReplyToSortedSetMembers,
   );
 }

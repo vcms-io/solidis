@@ -58,16 +58,9 @@ export async function xclaim<T>(
   ids: string[],
   options?: XclaimOptions,
 ): Promise<RespStreamEntry[] | string[]> {
-  return await executeCommand(
+  return await executeCommand<T, RespStreamEntry[] | string[]>(
     this,
     createCommand(key, group, consumer, minIdleTime, ids, options),
-    (reply, command, replyOptions) => {
-      if (replyOptions?.justid) {
-        return tryReplyToStringArray(reply, command);
-      }
-
-      return tryReplyToStreamEntries(reply, command);
-    },
-    options,
+    options?.justid ? tryReplyToStringArray : tryReplyToStreamEntries,
   );
 }

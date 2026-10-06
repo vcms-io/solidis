@@ -40,16 +40,11 @@ export async function sort<T>(
   key: string,
   options?: CommandSortOptions | CommandSortStoreOptions,
 ): Promise<(string | null)[] | number> {
-  return await executeCommand(
+  return await executeCommand<T, (string | null)[] | number>(
     this,
     createCommand(key, options),
-    (reply, command, replyOptions) => {
-      if (replyOptions?.store !== undefined) {
-        return tryReplyToNumber(reply, command);
-      }
-
-      return tryReplyToNullableStringArray(reply, command);
-    },
-    options,
+    options?.store === undefined
+      ? tryReplyToNullableStringArray
+      : tryReplyToNumber,
   );
 }

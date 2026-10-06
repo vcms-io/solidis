@@ -26,11 +26,13 @@ export function createCommand(key: string, options?: CommandGetExOptions) {
 
 export async function getex<
   T,
-  Options extends CommandGetExOptions | undefined = undefined,
+  Options extends
+    | (CommandGetExOptions & CommandExactOptions<Options, CommandGetExOptions>)
+    | undefined = undefined,
 >(
   this: T,
   key: string,
-  options?: Options & CommandExactOptions<Options, CommandGetExOptions>,
+  options?: Options,
 ): Promise<RespString<Options> | null> {
   return await executeCommand(
     this,
