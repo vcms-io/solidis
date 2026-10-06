@@ -213,7 +213,7 @@ function buildEnvironment(
       labels.cpu,
       describe(
         (environment) =>
-          `${environment.cpuModel} (${environment.cpuCount} threads)`,
+          `${environment.cpuModel} (${locale.cpuThreads(environment.cpuCount)})`,
       ),
     ],
     [

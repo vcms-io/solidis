@@ -67,6 +67,7 @@ export const ko: BenchmarkLocale = {
 
   environmentTitle: `## ${fluentEmoji('Objects', 'Gear')} 환경과 설정`,
   expandEnvironment: '환경과 설정 펼치기',
+  cpuThreads: (count) => `스레드 ${count}개`,
   environmentLabels: {
     parameter: '항목',
     value: '값',

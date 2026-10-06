@@ -55,6 +55,7 @@ export interface BenchmarkLocale {
 
   environmentTitle: string;
   expandEnvironment: string;
+  cpuThreads(count: number): string;
   environmentLabels: {
     parameter: string;
     value: string;

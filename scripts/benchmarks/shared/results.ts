@@ -65,7 +65,11 @@ export function makeResult(
   const latenciesMilliseconds = sortPooledSamples(
     samples.map((sample) => sample.latenciesMilliseconds),
   );
-  const unitsPerSecond = config.iterations / (elapsedMilliseconds / 1000);
+  const unitsPerSecond = median(
+    samplesMilliseconds.map(
+      (milliseconds) => config.iterations / (milliseconds / 1000),
+    ),
+  );
 
   return {
     ...describeCase(

@@ -77,6 +77,7 @@ export const en: BenchmarkLocale = {
 
   environmentTitle: `## ${fluentEmoji('Objects', 'Gear')} Environment and Configuration`,
   expandEnvironment: 'Click to expand the environment and configuration',
+  cpuThreads: (count) => `${count} threads`,
   environmentLabels: {
     parameter: 'Parameter',
     value: 'Value',
