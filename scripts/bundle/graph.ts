@@ -24,12 +24,6 @@ const COLORS = {
   nodeRedis: { bundle: '#8b5cf6', map: '#a78bfa' },
 } as const;
 
-const DISPLAY_NAMES: Record<string, string> = {
-  solidis: 'solidis',
-  ioredis: 'ioredis',
-  'node-redis': 'redis',
-};
-
 type ColorPair = { bundle: string; map: string };
 
 const BAR_COLORS: Record<string, ColorPair> = {
@@ -204,11 +198,7 @@ for (let index = 0; index < results.length; index++) {
   context.font = '24px "Segoe UI", -apple-system, sans-serif';
   context.textAlign = 'center';
   context.textBaseline = 'top';
-  context.fillText(
-    DISPLAY_NAMES[result.name] ?? result.name,
-    groupCenter,
-    chartBottom + 20,
-  );
+  context.fillText(result.name, groupCenter, chartBottom + 20);
 }
 
 const buffer = canvas.toBuffer('image/png');

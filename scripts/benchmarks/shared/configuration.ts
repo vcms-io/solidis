@@ -17,13 +17,12 @@ function readNumber(name: string, fallback: number): number {
 }
 
 function readSizes(): number[] {
-  const rawValue = process.env.SOLIDIS_BENCH_SIZES ?? '1024';
-  const values = rawValue
+  const values = (process.env.SOLIDIS_BENCH_SIZES ?? '')
     .split(',')
     .map((value) => Number.parseInt(value.trim(), 10))
     .filter((value) => Number.isFinite(value) && value > 0);
 
-  return values.length > 0 ? values : [1024, 10240, 65536];
+  return values.length > 0 ? values : [1024];
 }
 
 function readOperations(): Set<string> | undefined {
