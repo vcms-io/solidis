@@ -83,7 +83,7 @@ tx.set('key', 'value');
 tx.incr('counter');
 const results = await tx.exec(); // WATCH한 키가 바뀌었다면 null
 
-// 파이프라인 (raw)
+// 파이프라인 (원시 커맨드)
 const replies = await client.send([
   ['set', 'a', '1'],
   ['incr', 'counter'],
@@ -135,7 +135,7 @@ const job = await worker.blpop(['jobs'], 0); // 타임아웃 0은 무한 대기
 - 기한은 `commandTimeout`에 블로킹 타임아웃을 더한 값이고, 무한 대기면 기한이 없습니다.
 - 기한이 지나면 연결을 리셋하므로 늦게 온 응답이 다른 커맨드로 가지 않습니다. 다만 서버가 아직 실행하지 않은 커맨드는 리셋 뒤에 실행되어, 아무도 받지 않는 값을 꺼낼 수 있습니다.
 - `send()`도 블로킹 타임아웃을 밀리초 단위 `blockingTimeout`으로 넘기면 같은 방식으로 처리합니다. `0`은 무한 대기입니다.
-- `migrate()`도 `timeout`을 같은 방식으로 기한에 더합니다. `shutdown()`은 중단(`abort`)이 아니면 기한 없이 연결이 닫히기를 기다립니다.
+- `migrate()`도 `timeout`을 같은 방식으로 기한에 더하고, `0` 이하는 서버처럼 1,000ms로 계산합니다. `shutdown()`은 중단(`abort`)이 아니면 기한 없이 연결이 닫히기를 기다립니다.
 
 </details>
 
@@ -412,7 +412,7 @@ _작업 100,000회 × 동시 실행 10,000 · 1 KB 페이로드 · 클라이언�
 
 | 항목                 | 값                                                                                                 |
 | :------------------- | :------------------------------------------------------------------------------------------------- |
-| CPU                  | 12th Gen Intel(R) Core(TM) i9-12900K (10 threads)                                                  |
+| CPU                  | 12th Gen Intel(R) Core(TM) i9-12900K (스레드 10개)                                                 |
 | 메모리               | 9.7 GB                                                                                             |
 | 운영체제             | linux x64 (5.15.133.1-microsoft-standard-WSL2)                                                     |
 | Node.js              | v22.23.0                                                                                           |

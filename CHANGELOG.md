@@ -71,7 +71,7 @@ try {
 - **Messages.** 0.4.x put every argument in the message: `[AUTH default <password>] Invalid reply: ...`. An unexpected reply is now described by its shape, such as `[INCR] Unexpected reply: Buffer(12)`. Match on `error.cause.code`.
 - **`getOriginalError()`** is removed. Read `error.cause`.
 - **`RespError`** extends `SolidisError`.
-- **Error replies.** `eval`, `evalRo`, `evalsha`, `evalshaRo`, `fcall`, `fcallRo`, `debug` and `jsonResp` reject an error reply such as `NOSCRIPT` instead of resolving it, so the usual fallback works:
+- **Error replies.** `eval`, `evalRo`, `evalsha`, `evalshaRo`, `fcall`, `fcallRo`, `debug`, `jsonResp`, `aclLog('RESET')` and the subscribe and unsubscribe methods reject an error reply such as `NOSCRIPT` or `NOPERM` instead of resolving it, so the usual fallback works:
 
   ```typescript
   try {
@@ -95,13 +95,14 @@ try {
 | `multi()` … `exec()`                 | `[null]` when `WATCH` aborted; resolved EXECABORT                                 | `null` when aborted; EXECABORT rejects                                                 |
 | empty `exec()`                       | `[]` without contacting the server                                                | Sends `MULTI` and `EXEC`, ending a `WATCH`; `null` when a watched key changed          |
 | `hrandfield(key, count, true)`       | `Record<string, string>`                                                          | `{ field, value }[]`, keeping the duplicates of a negative count                       |
-| `hrandfield(key, undefined, true)`   | One field name                                                                    | One `{ field, value }` entry                                                           |
+| `hrandfield(key, undefined, true)`   | One field name, or `null`                                                         | `[{ field, value }]`, or `[]` for a missing key                                        |
 | `tsInfo(key)`                        | Raw `Record<string, unknown>`                                                     | `RespTimeSeriesInfo`: `labels` as a record, `rules` as entries                         |
 | `tsMadd()`, `bfMadd()`, `bfInsert()` | Rejected the call when one item failed, after storing the others                  | One entry per item; a failed or skipped item is a `RespError`                          |
 | `cfInsert()`, `cfInsertnx()`         | Rejected with `Invalid reply` when the filter was full                            | `null` for each item a full filter could not take                                      |
 | `xreadgroup()`                       | Rejected a batch holding a deleted entry                                          | Deleted entries as `{ id, fields: null }`                                              |
 | `xinfoGroups()`, `xinfoStream()`     | An unknown `entriesRead`, and in `xinfoGroups()` `lag`, became `0`                | `number \| null`                                                                       |
 | `xinfoStream()`, `xinfoConsumers()`  | Fields older servers omit, also in `xinfoGroups()`, became `"undefined"` or `NaN` | `null`                                                                                 |
+| `hello()`                            | `role` was `"undefined"` on a Sentinel                                            | `null`                                                                                 |
 | `xinfoStream(key, true, count)`      | Declared `firstEntry` and `lastEntry`, always `null` with FULL                    | `RespStreamInfoFull` drops them; `count` needs `full: true`                            |
 | `xautoclaim()`, `xclaim()`           | Rejected after claiming a deleted entry on Redis 6.2                              | Skip deleted entries                                                                   |
 | `tsMget()`                           | Rejected a series without samples                                                 | `timestamp` and `value` are `null` for it                                              |
@@ -176,7 +177,7 @@ for (;;) {
 }
 ```
 
-**Integers beyond `Number.MAX_SAFE_INTEGER`.**
+**Integers beyond `Number.MAX_SAFE_INTEGER`**
 
 - 0.4.x rejected them with `Invalid reply`, or rounded them in `bitfield`, `httl` and the time-series commands.
 - Every command now rejects them with `Unexpected reply: integer exceeds Number.MAX_SAFE_INTEGER` and the exact value as `cause`. The command has already run, so do not retry it blindly.
@@ -238,7 +239,7 @@ await client.set('key', 'value', { expireInSeconds: 60, expireInMilliseconds: 50
 | `jsonDebug`                                        | `'HELP'` alone, or `'MEMORY'` with a key                                                                                                                         |
 | `restore`                                          | `idletime` or `freq`                                                                                                                                             |
 | `lcs`                                              | `len` or `idx`                                                                                                                                                   |
-| `tsRange`, `tsRevrange`, `tsMrange`, `tsMrevrange` | `align` only with `aggregation`; `'start'` or `'-'` only after a numeric start, `'end'` or `'+'` only before a numeric end                                       |
+| `tsRange`, `tsRevrange`, `tsMrange`, `tsMrevrange` | `align` only with `aggregation`; `'start'` or `'-'` needs a numeric start, `'end'` or `'+'` a numeric end                                                        |
 
 Other option changes:
 
@@ -273,7 +274,7 @@ Other option changes:
   - A connection that closes before it stays ready for `maxConnectionRetryDelay` counts as a failed attempt. Servers or proxies that drop connections, or refuse a changed password, are retried with growing delays until the retries run out, not in an endless loop.
   - `reconnecting(attempt, delay)` fires before every attempt, including the first after a drop. `attempt` counts from 1 since the connection was last stable.
 - **Handshake.**
-  - The first `connect()` retries a handshake that a closing connection interrupted, within `maxConnectionRetries`.
+  - The first `connect()` retries a handshake that a dropped connection interrupted, within `maxConnectionRetries`. A step that times out or gets a malformed reply fails at once.
   - With `protocol: 'RESP3'`, only a server that lacks `HELLO` or answers `NOPROTO` falls back to RESP2. Other `HELLO` errors, such as an invalid client name, fail with `Protocol negotiation failed`.
   - A ready check denied with `NOPERM` or refused as an unknown command counts as ready, and the check stops waiting when its connection closes.
   - A user chosen at runtime with `auth()` or `hello()`, and a protocol chosen with `hello()`, are restored after a reconnect until `RESET`, after which a reconnect uses the configured user, protocol and database. `SELECT`, `HELLO` and `AUTH` queued in a transaction count once `EXEC` runs them, and a `MULTI` or `WATCH` the server refuses does not count as lost.
@@ -365,10 +366,11 @@ Skip this step unless you build the internal classes yourself or write custom co
 - Bulk replies are views of the received data instead of copies. A held `Buffer` reply keeps the chunk it arrived in, up to 64 KB, in memory, so copy it with `Buffer.from()` to keep it long.
 - `zpopmin`, `zpopmax`, `bitfield`, `jsonNumincrby` and `jsonNummultby` never return `null`. `type()` returns core types upper-cased and module type names, such as `ReJSON-RL`, as the server reports them.
 - `jsonNumincrby` and `jsonNummultby` return the same text on both protocols, exact beyond `Number.MAX_SAFE_INTEGER`; for a legacy path, the last number they updated. Both protocols reject when a legacy path matches no number. `bzpopmin` and `bzpopmax` format scores the same way on both protocols.
-- Commands added with `extend()` keep their generic signatures, so options such as `{ buffer: true }` type their results. `extend()` types only the functions it adds, and `this` inside them as the extended client with the commands of earlier `extend()` calls.
+- Commands added with `extend()` keep their generic signatures, so options such as `{ buffer: true }` type their results. `extend()` types only the functions it adds, and `this` inside them as the extended client with the commands of earlier `extend()` calls. A function whose declared `this` the client does not satisfy no longer compiles.
 - Every overload of a command can be called on a transaction, such as `multi().sort(key)` and `multi().jsonArrpop(key)`.
 - A request timeout or `connectionTimeout` longer than 24.8 days, the limit of Node's timers, disables that deadline instead of expiring after 1 ms. Longer reconnect delays and `readyCheckInterval` values are capped at that limit.
 - TLS connections send the host name for SNI unless it is an IP address; a `servername` in `tls` still wins.
+- `uri` shows `***` whenever a username or password is set; 0.4.x showed credentials only when both were.
 - The `error` for a reply that arrives with no pending request carries the reply as its `cause`.
 - `maxBulkStringLength` also limits simple string and error lines.
 - A transaction from a client extended with `multi` also offers the client's own commands, such as `select` and `info`, the commands of earlier `extend()` calls, and methods a subclass of the client defines.
@@ -389,7 +391,7 @@ Skip this step unless you build the internal classes yourself or write custom co
 
 ### Removed
 
-- The commands, client options, debug helpers and `getOriginalError()` listed in [Upgrading from 0.4.x](#upgrading-from-04x), steps 1, 2, 3 and 8.
+- Everything that [Upgrading from 0.4.x](#upgrading-from-04x), steps 1, 2, 3 and 8, lists as removed.
 
 ### Fixed
 
@@ -414,12 +416,11 @@ Skip this step unless you build the internal classes yourself or write custom co
 - `INFO` dropped fields with empty values, and `REPLICAOF` rejected the reply for an existing primary.
 - `geosearch`, `georadius`, `commandList`, `aclCat`, `pubsubChannels`, `pubsubShardchannels`, `functionList` and the scan iterators dropped empty-string options, so `scan({ match: '' })` returned every key, and `aclGenpass(0)` and a scan `count` of `0` were dropped as well. `sort()` rejected `{ store: undefined }`.
 - A command that is not an array, such as `send([undefined])`, or an argument that is neither a string nor a `Buffer`, such as `undefined` from an optional property passed to `mset`, `hmset`, `mget` or `hmget`, failed every request sent in the same tick. Only that request is rejected now.
-- A command name followed by a NUL byte, such as `SUBSCRIBE\0x`, which Redis 8 can run as `SUBSCRIBE`, was not handled as that command, so its replies could reach other requests.
 - An invalid `port` was retried for about two seconds before `connect()` rejected with `Connection failed after 20 retries.` It now rejects at once with a `SolidisConnectionError`.
 - RESP3 doubles spelled `-nan`, as Redis 6.2 sends them, failed to parse.
 - Text such as `0x10`, `0b11` or a number padded with spaces was read as a number, in RESP3 doubles and big numbers and in replies that commands read as numbers. It is an error reply or an unexpected reply now. Integers with a leading `+`, which RESP3 allows, failed to parse.
 - A negative length other than the RESP2 null array and bulk string was read as `null`, so a malformed push could take the reply of a command. It is a protocol error now.
-- `bitop()` threw a plain `Error`, and an unparsable URI a `TypeError`; both are `SolidisError`s now. `uri` brackets IPv6 hosts, encodes the username, and masks a password that comes without a username.
+- `bitop()` threw a plain `Error`, and an unparsable URI a `TypeError`; both are `SolidisError`s now. `uri` brackets IPv6 hosts and encodes the username.
 - RESP2 infinite scores failed to parse in `zscore`, `zrange` with scores, `zincrby` and `zmpop`, and `bzmpop` failed after the server had already popped the members.
 - `ping` rejected while subscribed on RESP2.
 - Time-series commands placed `IGNORE` after `LABELS`, which created labels from its arguments, and `geosearchstore` did not send `storedist`.
@@ -450,7 +451,7 @@ Skip this step unless you build the internal classes yourself or write custom co
 - In alternating benchmark runs against 0.4.0, throughput is on par or better across the suite.
 - Replies and timeouts for tens of thousands of pipelines in flight take linear time. Masking bounds how much argument text it searches for quoted spans, so a reply full of quotes cannot stall the event loop.
 - Error replies no longer capture a stack trace they then drop.
-- Measured with each version's `npm run bundle`, the minimal client with `get` and `set` shrinks from 29,494 to 29,473 bytes.
+- Measured with each version's `npm run bundle`, the minimal client with `get` and `set` shrinks from 29,494 to 29,385 bytes.
 
 ## [0.4.0] and earlier
 

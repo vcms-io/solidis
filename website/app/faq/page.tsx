@@ -40,6 +40,10 @@ export default function FaqPage() {
           question: t('faq.q3'),
           answer: t('faq.a3'),
         },
+        {
+          question: t('faq.q6'),
+          answer: t('faq.a6'),
+        },
       ],
     },
     {
@@ -53,10 +57,6 @@ export default function FaqPage() {
         {
           question: t('faq.q5'),
           answer: t('faq.a5', claims),
-        },
-        {
-          question: t('faq.q6'),
-          answer: t('faq.a6'),
         },
       ],
     },
