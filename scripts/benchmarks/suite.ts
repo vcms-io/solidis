@@ -179,7 +179,7 @@ class ComparisonSuite extends BenchmarkSuite {
       'Raw commands with Buffer payloads, and Buffer replies from every client',
       'One deterministic payload pool shared by every library',
       'The same explicit pipeline in batch mode',
-      'Command timeouts, ready checks and reconnects off, no pipelining or in-flight limits',
+      'Command timeouts, ready checks and reconnects off where the client allows it, no pipelining or in-flight limits',
     ];
   }
 }

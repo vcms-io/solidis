@@ -20,16 +20,17 @@ function formatRatio(ratio: number | null, digits: number): string {
 
 function getLeadBadge(lead: number | null): string {
   const fire = fluentEmoji('Travel and places', 'Fire', 16);
+  const shownLead = Number(lead?.toFixed(1));
 
-  if (lead === null || lead <= 1.05) {
+  if (!(shownLead > 1.05)) {
     return '';
   }
 
-  if (lead >= 1.6) {
+  if (shownLead >= 1.6) {
     return ` ${fire}${fire}`;
   }
 
-  return lead >= 1.3
+  return shownLead >= 1.3
     ? ` ${fire}`
     : ` ${fluentEmoji('Travel and places', 'High Voltage', 16)}`;
 }
