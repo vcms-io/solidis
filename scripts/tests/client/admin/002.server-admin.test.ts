@@ -17,6 +17,28 @@ import {
 
 import type { FeaturedClient, ServerCapabilities } from '../../utils/index.ts';
 
+async function retryWhileSaving(save: () => Promise<string>) {
+  let lastResult: unknown;
+
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const result = await save().catch((error: Error) => error);
+
+    lastResult = result;
+
+    if (!(result instanceof Error)) {
+      return result;
+    }
+
+    if (!result.message.includes('Background save already in progress')) {
+      assert.fail(`Rejected with an unexpected error: ${result.message}`);
+    }
+
+    await delay(500);
+  }
+
+  assert.fail(`No success after 20 retries; last result: ${lastResult}`);
+}
+
 describe('server-admin', () => {
   let client: FeaturedClient;
   let capabilities: ServerCapabilities;
@@ -225,7 +247,10 @@ describe('server-admin', () => {
   });
 
   it('triggers a background save with BGSAVE', async () => {
-    assert.strictEqual(await client.bgsave(), 'Background saving started');
+    assert.strictEqual(
+      await retryWhileSaving(() => client.bgsave()),
+      'Background saving started',
+    );
   });
 
   it('triggers a scheduled background save with BGSAVE SCHEDULE', async () => {
@@ -689,28 +714,7 @@ describe('server-admin', () => {
   });
 
   it('performs a synchronous save with SAVE', async () => {
-    let lastResult: unknown;
-
-    for (let attempt = 0; attempt < 20; attempt++) {
-      const result = await client.save().catch((error: Error) => error);
-      lastResult = result;
-
-      if (!(result instanceof Error)) {
-        assert.strictEqual(result, 'OK');
-        return;
-      }
-
-      if (result.message.includes('Background save already in progress')) {
-        await delay(500);
-        continue;
-      }
-
-      assert.fail(`SAVE rejected with an unexpected error: ${result.message}`);
-    }
-
-    assert.fail(
-      `SAVE did not succeed after 20 retries; last result: ${lastResult}`,
-    );
+    assert.strictEqual(await retryWhileSaving(() => client.save()), 'OK');
   });
 
   it('reports object access frequency with OBJECT FREQ', async () => {

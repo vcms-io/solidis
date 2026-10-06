@@ -129,7 +129,9 @@ describe('exclusive-options', () => {
         CommandDelExOptions,
         { ifValueEquals: 'a'; ifValueNotEquals: 'b' }
       >,
-    ] = [false, false, false, false, false, false, false, false];
+      Accepts<CommandDelExOptions, { ifValueEquals: 'a'; ifDigestEquals: 'b' }>,
+      Accepts<CommandGetExOptions, { expireInSeconds: 1; expireAtSeconds: 1 }>,
+    ] = [false, false, false, false, false, false, false, false, false, false];
 
     assertChecks(accepted, rejected);
   });
@@ -193,7 +195,17 @@ describe('exclusive-options', () => {
       Accepts<CommandFunctionRestoreOptions, { flush: true; replace: true }>,
       Accepts<CommandMigrateOptions, { auth: 'a'; auth2: Credentials }>,
       Accepts<CommandRestoreOptions, { idletime: 1; freq: 1 }>,
+      Accepts<CommandShutdownOptions, { abort: true; nosave: true }>,
+      Accepts<CommandShutdownOptions, { abort: true; save: true }>,
+      Accepts<CommandShutdownOptions, { abort: true; force: true }>,
+      Accepts<CommandFailoverOptions, { abort: true; to: Target }>,
+      Accepts<CommandFunctionRestoreOptions, { replace: true; append: true }>,
     ] = [
+      false,
+      false,
+      false,
+      false,
+      false,
       false,
       false,
       false,
