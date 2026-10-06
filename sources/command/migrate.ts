@@ -1,3 +1,4 @@
+import { SolidisMigrateDefaultTimeout } from '../common/internal.ts';
 import { formatInteger } from '../common/utils/internal.ts';
 import { RespNoKey } from '../types/resp.ts';
 import { executeCommand, tryReplyOK } from './utils/index.ts';
@@ -73,6 +74,6 @@ export async function migrate<T>(
       return tryReplyOK(reply, command);
     },
     undefined,
-    { blockingTimeout: timeout },
+    { blockingTimeout: timeout > 0 ? timeout : SolidisMigrateDefaultTimeout },
   );
 }

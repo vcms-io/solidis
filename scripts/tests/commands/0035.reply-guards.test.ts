@@ -31,7 +31,13 @@ import {
   delex,
 } from '../../../sources/command/delex.ts';
 import { dump } from '../../../sources/command/dump.ts';
+import { evalRo } from '../../../sources/command/eval.ro.ts';
+import { evaluate } from '../../../sources/command/eval.ts';
+import { evalshaRo } from '../../../sources/command/evalsha.ro.ts';
+import { evalsha } from '../../../sources/command/evalsha.ts';
 import { failover } from '../../../sources/command/failover.ts';
+import { fcallRo } from '../../../sources/command/fcall.ro.ts';
+import { fcall } from '../../../sources/command/fcall.ts';
 import { createCommand as createFunctionFlushCommand } from '../../../sources/command/function.flush.ts';
 import { functionStats } from '../../../sources/command/function.stats.ts';
 import { get } from '../../../sources/command/get.ts';
@@ -55,6 +61,7 @@ import { jsonArrinsert } from '../../../sources/command/json.arrinsert.ts';
 import { createCommand as createJsonArrpopCommand } from '../../../sources/command/json.arrpop.ts';
 import { createCommand as createJsonGetCommand } from '../../../sources/command/json.get.ts';
 import { createCommand as createJsonMergeCommand } from '../../../sources/command/json.merge.ts';
+import { jsonResp } from '../../../sources/command/json.resp.ts';
 import { latencyHistogram } from '../../../sources/command/latency.histogram.ts';
 import { latencyLatest } from '../../../sources/command/latency.latest.ts';
 import { createCommand as createLatencyResetCommand } from '../../../sources/command/latency.reset.ts';
@@ -90,9 +97,11 @@ import { createCommand as createMsetCommand } from '../../../sources/command/mse
 import { createCommand as createMsetnxCommand } from '../../../sources/command/msetnx.ts';
 import { multi } from '../../../sources/command/multi.ts';
 import { createCommand as createPsetexCommand } from '../../../sources/command/psetex.ts';
+import { psubscribe } from '../../../sources/command/psubscribe.ts';
 import { createCommand as createPublishCommand } from '../../../sources/command/publish.ts';
 import { createCommand as createPubsubNumsubCommand } from '../../../sources/command/pubsub.numsub.ts';
 import { createCommand as createPubsubShardnumsubCommand } from '../../../sources/command/pubsub.shardnumsub.ts';
+import { punsubscribe } from '../../../sources/command/punsubscribe.ts';
 import { replconf } from '../../../sources/command/replconf.ts';
 import { replicaof } from '../../../sources/command/replicaof.ts';
 import { createCommand as createRestoreCommand } from '../../../sources/command/restore.ts';
@@ -115,12 +124,16 @@ import { sinter } from '../../../sources/command/sinter.ts';
 import { createCommand as createSmismemberCommand } from '../../../sources/command/smismember.ts';
 import { createCommand as createSpublishCommand } from '../../../sources/command/spublish.ts';
 import { srem } from '../../../sources/command/srem.ts';
+import { ssubscribe } from '../../../sources/command/ssubscribe.ts';
+import { subscribe } from '../../../sources/command/subscribe.ts';
 import { sunion } from '../../../sources/command/sunion.ts';
+import { sunsubscribe } from '../../../sources/command/sunsubscribe.ts';
 import { createCommand as createTimeSeriesCreateCommand } from '../../../sources/command/ts.create.ts';
 import { createCommand as createTimeSeriesMrangeCommand } from '../../../sources/command/ts.mrange.ts';
 import { createCommand as createTimeSeriesMrevrangeCommand } from '../../../sources/command/ts.mrevrange.ts';
 import { createCommand as createTimeSeriesRangeCommand } from '../../../sources/command/ts.range.ts';
 import { createCommand as createTimeSeriesRevrangeCommand } from '../../../sources/command/ts.revrange.ts';
+import { unsubscribe } from '../../../sources/command/unsubscribe.ts';
 import {
   tryReplyToInteger,
   tryReplyToNumber,
@@ -178,14 +191,76 @@ describe('reply-guards', () => {
     };
 
     await migrate.call(sender, '10.0.0.2', 6380, 'key', 0, 20_000);
+    await migrate.call(sender, '10.0.0.2', 6380, 'key', 0, 0);
+    await migrate.call(sender, '10.0.0.2', 6380, 'key', 0, -5);
     await shutdown.call(sender);
     await shutdown.call(sender, { abort: true });
 
     assert.deepStrictEqual(deadlines, [
       { blockingTimeout: 20_000 },
+      { blockingTimeout: 1000 },
+      { blockingTimeout: 1000 },
       { blockingTimeout: 0 },
       { blockingTimeout: undefined },
     ]);
+  });
+
+  it('rejects an error reply to every method that resolved one in 0.4.x', async () => {
+    const refusal = new RespError(
+      'NOPERM this user has no permissions to access one of the channels used as arguments',
+    );
+    const calls: [
+      string,
+      (client: ReturnType<typeof createRecorder>) => Promise<unknown>,
+    ][] = [
+      ['EVAL', (client) => evaluate.call(client, 'return 1', [], [])],
+      ['EVAL_RO', (client) => evalRo.call(client, 'return 1', [], [])],
+      ['EVALSHA', (client) => evalsha.call(client, 'sha', [], [])],
+      ['EVALSHA_RO', (client) => evalshaRo.call(client, 'sha', [], [])],
+      ['FCALL', (client) => fcall.call(client, 'name', [], [])],
+      ['FCALL_RO', (client) => fcallRo.call(client, 'name', [], [])],
+      ['DEBUG OBJECT', (client) => debug.call(client, 'OBJECT', 'key')],
+      ['JSON.RESP', (client) => jsonResp.call(client, 'key')],
+      ['ACL LOG', (client) => aclLog.call(client, 'RESET')],
+      ['SUBSCRIBE', (client) => subscribe.call(client, 'news')],
+      ['PSUBSCRIBE', (client) => psubscribe.call(client, 'news.*')],
+      ['SSUBSCRIBE', (client) => ssubscribe.call(client, 'news')],
+      ['UNSUBSCRIBE', (client) => unsubscribe.call(client, 'news')],
+      ['PUNSUBSCRIBE', (client) => punsubscribe.call(client, 'news.*')],
+      ['SUNSUBSCRIBE', (client) => sunsubscribe.call(client, 'news')],
+    ];
+
+    for (const [name, call] of calls) {
+      await assert.rejects(call(createRecorder(refusal)), {
+        name: 'SolidisCommandError',
+        message: `[${name}] ${refusal.message}`,
+        cause: refusal,
+      });
+    }
+  });
+
+  it('reads a HELLO reply without a role, as a Sentinel sends it, as a null role', async () => {
+    const fields: [string, SolidisData][] = [
+      ['server', bulk('redis')],
+      ['version', bulk('8.2.0')],
+      ['proto', 3],
+      ['id', 7],
+      ['mode', bulk('sentinel')],
+      ['modules', []],
+    ];
+
+    for (const reply of [new Map(fields), fields.flat()]) {
+      const info = await hello.call(createRecorder(reply));
+
+      assert.strictEqual(info.role, null);
+      assert.strictEqual(info.mode, 'sentinel');
+    }
+
+    const master = await hello.call(
+      createRecorder(new Map([...fields, ['role', bulk('master')]])),
+    );
+
+    assert.strictEqual(master.role, 'master');
   });
 
   it('reads time-series labels as a record of names and values', () => {

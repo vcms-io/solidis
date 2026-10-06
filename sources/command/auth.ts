@@ -23,7 +23,5 @@ export async function auth<T>(
     | [password: StringOrBuffer]
     | [username: StringOrBuffer | undefined, password: StringOrBuffer]
 ) {
-  const [first, second] = parameters;
-
-  return await executeCommand(this, createCommand(first, second), tryReplyOK);
+  return await executeCommand(this, createCommand(...parameters), tryReplyOK);
 }

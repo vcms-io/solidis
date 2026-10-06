@@ -208,7 +208,7 @@ export interface RespHelloInfo {
   proto: number;
   id: number;
   mode: string;
-  role: string;
+  role: string | null;
   modules: RespModuleInfo[];
 }
 export interface RespLatencyHistogram {

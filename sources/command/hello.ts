@@ -13,8 +13,9 @@ import type {
   StringOrBuffer,
 } from '../index.ts';
 
-export function createCommand(...parameters: CommandHelloParameters) {
-  const [protocol, username, password, clientName] = parameters;
+export function createCommand(
+  ...[protocol, username, password, clientName]: CommandHelloParameters
+) {
   const command: StringOrBuffer[] = ['HELLO'];
 
   if (protocol !== undefined) {
@@ -51,7 +52,7 @@ export async function hello<T>(
         proto: toNumber('proto'),
         id: toNumber('id'),
         mode: toText('mode'),
-        role: toText('role'),
+        role: map.has('role') ? toText('role') : null,
         modules: tryReplyArray(map.get('modules') ?? [], command).map((item) =>
           tryReplyToModuleInfo(item, command),
         ),

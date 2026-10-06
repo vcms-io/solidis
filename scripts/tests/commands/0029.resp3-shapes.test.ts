@@ -1086,8 +1086,7 @@ describe('resp3-shapes', () => {
     assert.ok(info.id >= 0, 'HELLO id must be a non-negative integer');
     assert.strictEqual(typeof info.mode, 'string');
     assert.ok(info.mode.length > 0, 'HELLO mode must be a non-empty string');
-    assert.strictEqual(typeof info.role, 'string');
-    assert.ok(info.role.length > 0, 'HELLO role must be a non-empty string');
+    assert.strictEqual(info.role, 'master');
   });
 
   it('reads a RESP3 HELLO reply with SETNAME option', async () => {

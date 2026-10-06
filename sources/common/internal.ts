@@ -37,6 +37,7 @@ export const SolidisLinePreviewLength = 32;
 export const SolidisMaximumErrorMessageLength = 4096;
 export const SolidisMaskingSearchLimit = 2097152;
 export const SolidisMaximumTimerDelay = 2147483647;
+export const SolidisMigrateDefaultTimeout = 1000;
 export const SolidisIntegerMaximumLength = 20;
 export const SolidisBigNumberMaximumLength = 4096;
 export const SolidisMaximumNestingDepth = 512;
