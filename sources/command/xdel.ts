@@ -1,3 +1,4 @@
+import { appendItems } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyNumber } from './utils/index.ts';
 
 export function createCommand(key: string, ...ids: string[]) {
@@ -11,7 +12,7 @@ export async function xdel<T>(
 ): Promise<number> {
   return await executeCommand(
     this,
-    createCommand(key).concat(ids),
+    appendItems(createCommand(key), ids),
     tryReplyNumber,
   );
 }

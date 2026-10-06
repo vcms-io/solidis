@@ -1,4 +1,4 @@
-import { formatInteger } from '../common/utils/internal.ts';
+import { appendItems, formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyToJsonNumbers } from './utils/index.ts';
 
 export function createCommand(
@@ -19,7 +19,7 @@ export async function jsonArrinsert<T>(
 ): Promise<(number | null)[]> {
   return await executeCommand(
     this,
-    createCommand(key, path, index).concat(values),
+    appendItems(createCommand(key, path, index), values),
     tryReplyToJsonNumbers,
   );
 }

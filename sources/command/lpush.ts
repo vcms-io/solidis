@@ -1,3 +1,4 @@
+import { appendItems } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyNumber } from './utils/index.ts';
 
 import type { StringOrBuffer } from '../index.ts';
@@ -13,7 +14,7 @@ export async function lpush<T>(
 ): Promise<number> {
   return await executeCommand(
     this,
-    createCommand(key).concat(elements),
+    appendItems(createCommand(key), elements),
     tryReplyNumber,
   );
 }

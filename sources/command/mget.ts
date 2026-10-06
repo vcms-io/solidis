@@ -1,3 +1,4 @@
+import { appendItems } from '../common/utils/internal.ts';
 import {
   executeCommand,
   newCommandError,
@@ -46,7 +47,7 @@ export async function mget<T>(
 
   return await executeCommand(
     this,
-    createCommand().concat(keys),
+    appendItems(createCommand(), keys),
     tryReplyToNullableStringOrBufferArray,
     options,
   );

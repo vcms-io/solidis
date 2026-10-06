@@ -1,3 +1,4 @@
+import { appendItems } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyOK } from './utils/index.ts';
 
 export function createCommand(subcommand: string, ...parameters: string[]) {
@@ -11,7 +12,7 @@ export async function replconf<T>(
 ) {
   return await executeCommand(
     this,
-    createCommand(subcommand).concat(parameters),
+    appendItems(createCommand(subcommand), parameters),
     tryReplyOK,
   );
 }

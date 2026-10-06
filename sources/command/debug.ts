@@ -1,3 +1,4 @@
+import { appendItems } from '../common/utils/internal.ts';
 import { executeCommand } from './utils/index.ts';
 
 import type { SolidisData } from '../index.ts';
@@ -13,6 +14,6 @@ export async function debug<T>(
 ): Promise<SolidisData> {
   return await executeCommand(
     this,
-    createCommand(subcommand).concat(parameters),
+    appendItems(createCommand(subcommand), parameters),
   );
 }

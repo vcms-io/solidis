@@ -1,3 +1,4 @@
+import { appendItems } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyToStringArray } from './utils/index.ts';
 
 export function createCommand(...keys: string[]) {
@@ -7,7 +8,7 @@ export function createCommand(...keys: string[]) {
 export async function sinter<T>(this: T, ...keys: string[]): Promise<string[]> {
   return await executeCommand(
     this,
-    createCommand().concat(keys),
+    appendItems(createCommand(), keys),
     tryReplyToStringArray,
   );
 }

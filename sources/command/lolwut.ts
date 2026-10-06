@@ -1,4 +1,4 @@
-import { formatInteger } from '../common/utils/internal.ts';
+import { appendItems, formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyToString } from './utils/index.ts';
 
 export function createCommand(
@@ -21,7 +21,7 @@ export async function lolwut<T>(
 ): Promise<string> {
   return await executeCommand(
     this,
-    createCommand(version).concat(optionalArguments),
+    appendItems(createCommand(version), optionalArguments),
     tryReplyToString,
   );
 }

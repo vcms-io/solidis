@@ -18,6 +18,14 @@ export function formatInteger(value: number | bigint | string) {
   return `${Number.isSafeInteger(value) || !Number.isInteger(value) ? value : BigInt(value)}`;
 }
 
+export function appendItems<Item>(command: Item[], items: readonly Item[]) {
+  for (const item of items) {
+    command.push(item);
+  }
+
+  return command;
+}
+
 export function toTextPrefix(argument: string | Buffer, length: number) {
   return typeof argument === 'string'
     ? argument.slice(0, length)

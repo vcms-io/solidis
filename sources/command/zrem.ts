@@ -1,3 +1,4 @@
+import { appendItems } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyNumber } from './utils/index.ts';
 
 export function createCommand(key: string, ...members: string[]) {
@@ -11,7 +12,7 @@ export async function zrem<T>(
 ): Promise<number> {
   return await executeCommand(
     this,
-    createCommand(key).concat(members),
+    appendItems(createCommand(key), members),
     tryReplyNumber,
   );
 }

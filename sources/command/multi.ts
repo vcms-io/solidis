@@ -1,6 +1,7 @@
 import { SolidisClient } from '../client.ts';
 import { SolidisTransactionBannedCommandNames } from '../common/constants.ts';
 import { SolidisRequesterError } from '../common/utils/error.ts';
+import { appendItems } from '../common/utils/internal.ts';
 import { copyCommands, inspectCommand } from '../modules/internal.ts';
 import {
   assertSender,
@@ -70,9 +71,7 @@ export function multi<T extends object>(this: T): SolidisTransactionClient<T> {
   const queue = (commands: StringOrBuffer[][]) => {
     const batch = copyCommands(commands);
 
-    for (const command of batch) {
-      transactionQueue.push(command);
-    }
+    appendItems(transactionQueue, batch);
 
     return batch.length > 0
       ? new Promise<never>(() => {})

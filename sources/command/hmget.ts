@@ -1,3 +1,4 @@
+import { appendItems } from '../common/utils/internal.ts';
 import {
   executeCommand,
   newCommandError,
@@ -50,7 +51,7 @@ export async function hmget<T>(
 
   return await executeCommand(
     this,
-    createCommand(key).concat(fields),
+    appendItems(createCommand(key), fields),
     tryReplyToNullableStringOrBufferArray,
     options,
   );

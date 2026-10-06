@@ -1,3 +1,4 @@
+import { appendItems } from '../common/utils/internal.ts';
 import {
   executeCommand,
   processPairedArray,
@@ -39,7 +40,7 @@ export async function latencyHistogram<T>(
 ): Promise<Record<string, RespLatencyHistogram>> {
   return await executeCommand(
     this,
-    createCommand().concat(events),
+    appendItems(createCommand(), events),
     (reply, command) => {
       const result: Record<string, RespLatencyHistogram> = {};
 
