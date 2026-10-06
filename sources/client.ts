@@ -84,7 +84,7 @@ export class SolidisClient extends EventEmitter {
     const { host, port, tls, authentication } = this.#options;
     const credentials =
       authentication.username || authentication.password
-        ? `${encodeURIComponent(authentication.username)}:***@`
+        ? `${encodeURIComponent(`${Buffer.from(authentication.username)}`)}:***@`
         : '';
 
     this.uri = `redis${tls ? 's' : ''}://${credentials}${host.includes(':') ? `[${host}]` : host}:${port}`;
@@ -129,7 +129,7 @@ export class SolidisClient extends EventEmitter {
     }
 
     const batch = copyCommands(commands);
-    const requestOptions = options && { ...options };
+    const blockingTimeout = options?.blockingTimeout;
 
     return new Promise((resolve, reject) => {
       for (const command of batch) {
@@ -157,7 +157,7 @@ export class SolidisClient extends EventEmitter {
         this.#waitingRequests.delete(settle);
 
         if (cause === undefined) {
-          resolve(this.#requester.send(batch, requestOptions));
+          resolve(this.#requester.send(batch, { timeout, blockingTimeout }));
         } else {
           reject(
             this.#connection.isQuitted
@@ -321,14 +321,19 @@ export class SolidisClient extends EventEmitter {
 
   #awaitReadiness() {
     if (!this.#readyLock) {
-      this.#readyLock = this.#waitForReady().finally(() => {
-        this.#readyLock = null;
-      });
-      this.#readyLock.catch((error: unknown) => {
-        for (const settle of this.#waitingRequests) {
-          settle(error);
-        }
-      });
+      this.#readyLock = this.#waitForReady();
+      this.#readyLock.then(
+        () => {
+          this.#readyLock = null;
+        },
+        (error: unknown) => {
+          this.#readyLock = null;
+
+          for (const settle of this.#waitingRequests) {
+            settle(error);
+          }
+        },
+      );
     }
 
     return this.#readyLock;

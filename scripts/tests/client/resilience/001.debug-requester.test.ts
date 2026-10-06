@@ -704,6 +704,13 @@ describe('debug-requester', () => {
         message:
           'CLIENT REPLY is not supported: it breaks the pairing of requests and replies.',
       });
+      await assert.rejects(
+        requester.send([['cluster', 'syncslots', 'capa', 'x']]),
+        {
+          message:
+            'CLUSTER SYNCSLOTS is not supported: it breaks the pairing of requests and replies.',
+        },
+      );
 
       await flushed();
 

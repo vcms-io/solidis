@@ -89,11 +89,7 @@ export class SolidisConnection extends EventEmitter {
   }
 
   public reconnect() {
-    if (
-      this.#isQuitted ||
-      this.#isConnected ||
-      this.#remainingReconnects <= 0
-    ) {
+    if (this.#isConnected || this.#remainingReconnects <= 0) {
       return;
     }
 
@@ -142,7 +138,7 @@ export class SolidisConnection extends EventEmitter {
   }
 
   #startAttempts() {
-    if (this.#socket || this.#retryTimer) {
+    if (this.#isQuitted || this.#socket || this.#retryTimer) {
       return;
     }
 
@@ -319,8 +315,6 @@ export class SolidisConnection extends EventEmitter {
   }
 
   #onAttemptFailed(error: SolidisConnectionError) {
-    this.#failedAttempts += 1;
-
     this.#waiters = this.#waiters.filter((waiter) => {
       waiter.remainingAttempts -= 1;
 
@@ -335,12 +329,15 @@ export class SolidisConnection extends EventEmitter {
       return false;
     });
 
-    this.emit('error', this.#spendReconnect(error) ?? error);
+    const failure = this.#spendReconnect(error) ?? error;
+    const isRetrying = this.#waiters.length > 0 || this.#isReconnecting;
 
-    if (this.#waiters.length > 0 || this.#isReconnecting) {
+    this.#failedAttempts = isRetrying ? this.#failedAttempts + 1 : 0;
+
+    this.emit('error', failure);
+
+    if (isRetrying) {
       this.#startAttempts();
-    } else {
-      this.#failedAttempts = 0;
     }
   }
 

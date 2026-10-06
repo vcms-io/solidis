@@ -230,6 +230,44 @@ describe('session-guards', () => {
       }
     });
 
+    it('starts over from the first attempt when the listener of a refused reconnect that gave up sends a command', async () => {
+      const server = await startServer(answerPong);
+      const client = new SolidisFeaturedClient(
+        mockClientOptions(server.port, {
+          autoReconnect: true,
+          maxConnectionRetries: 2,
+          connectionRetryDelay: 20,
+          maxConnectionRetryDelay: 40,
+        }),
+      );
+      const attempts: number[][] = [];
+      const pings: Promise<unknown>[] = [];
+
+      client.on('error', (error) => {
+        if (
+          pings.length === 0 &&
+          error.message === 'Connection failed after 2 retries.'
+        ) {
+          attempts.length = 0;
+          pings.push(client.ping().catch(() => 'rejected'));
+        }
+      });
+      client.on('reconnecting', (attempt, delay) =>
+        attempts.push([attempt, delay]),
+      );
+
+      await client.connect();
+      await server.close();
+      await waitFor(() => pings.length > 0 && attempts.length > 0, {
+        timeout: 5000,
+      });
+
+      client.quit();
+
+      assert.deepStrictEqual(attempts[0], [1, 0]);
+      assert.deepStrictEqual(await Promise.all(pings), ['rejected']);
+    });
+
     it('announces every reconnect attempt, including the first one after a drop', async () => {
       const server = await startServer(answerPong);
       const client = new SolidisFeaturedClient(
@@ -332,6 +370,99 @@ describe('session-guards', () => {
         await assert.rejects(client.ping(), SolidisClientError);
       } finally {
         await server.close();
+      }
+    });
+
+    it('stops reconnecting when quit() runs inside the error listener of a refused attempt', async () => {
+      const server = await startServer(answerPong);
+      const { port } = server;
+      const client = new SolidisFeaturedClient(
+        mockClientOptions(port, {
+          autoReconnect: true,
+          maxConnectionRetries: 5,
+          connectionRetryDelay: 10,
+          maxConnectionRetryDelay: 10,
+        }),
+      );
+      const events: string[] = [];
+
+      for (const event of ['connect', 'ready', 'close', 'end'] as const) {
+        client.on(event, () => events.push(event));
+      }
+
+      client.on('reconnecting', () => events.push('reconnecting'));
+      client.on('error', () => {
+        if (events.includes('reconnecting')) {
+          client.quit();
+        }
+      });
+
+      await client.connect();
+      await server.close();
+      await waitFor(() => events.includes('end'));
+
+      const replacement = new MockRedisServer();
+
+      replacement.onData(answerPong);
+
+      await replacement.listen(port);
+
+      try {
+        await delay(100);
+
+        assert.deepStrictEqual(events, [
+          'connect',
+          'ready',
+          'close',
+          'reconnecting',
+          'end',
+        ]);
+        assert.strictEqual(replacement.acceptedCount, 0);
+      } finally {
+        client.quit();
+        await replacement.close();
+      }
+    });
+
+    it('rejects only the requests sent before a refused attempt settled them', async () => {
+      const server = await startServer(answerPong);
+      const { port } = server;
+      const client = new SolidisFeaturedClient(mockClientOptions(port));
+      const replacement = new MockRedisServer();
+      const sends: Promise<unknown>[] = [];
+
+      replacement.onData(answerPong);
+
+      await server.close();
+
+      client.once('error', () => {
+        replacement.listen(port);
+
+        const send = (depth: number) => {
+          sends.push(client.ping().catch((error: Error) => error.message));
+
+          if (depth < 6) {
+            queueMicrotask(() => send(depth + 1));
+          }
+        };
+
+        queueMicrotask(() => send(1));
+      });
+
+      try {
+        await assert.rejects(client.connect(), {
+          message: 'Connection failed after 0 retries.',
+        });
+        await waitFor(() => sends.length === 6);
+
+        const replies = await Promise.all(sends);
+
+        assert.strictEqual(replies[0], 'Not connected with redis server.');
+        assert.deepStrictEqual(replies.slice(1), Array(5).fill('PONG'));
+        assert.strictEqual(replacement.acceptedCount, 1);
+      } finally {
+        client.quit();
+        await replacement.close();
       }
     });
 
@@ -1147,29 +1278,45 @@ describe('session-guards', () => {
 
       client.on('error', () => {});
 
+      class Deadline {
+        get timeout() {
+          return 100;
+        }
+      }
+
       try {
-        const blocked = client.send(
-          [['BLPOP', `solidis:test:late-options:${Date.now()}`, '0']],
-          options,
+        const blocked = [options, new Deadline()].map((sendOptions, index) =>
+          client.send(
+            [
+              [
+                'BLPOP',
+                `solidis:test:late-options:${index}:${Date.now()}`,
+                '0',
+              ],
+            ],
+            sendOptions,
+          ),
         );
 
         options.timeout = 0;
 
         await client.connect();
 
-        const outcome = await Promise.race([
-          blocked.then(
-            () => 'resolved',
-            (error: unknown) => error,
-          ),
-          delay(2000).then(() => 'still pending'),
-        ]);
+        for (const request of blocked) {
+          const outcome = await Promise.race([
+            request.then(
+              () => 'resolved',
+              (error: unknown) => error,
+            ),
+            delay(2000).then(() => 'still pending'),
+          ]);
 
-        assert.ok(outcome instanceof SolidisRequesterError, String(outcome));
-        assert.strictEqual(
-          outcome.message,
-          'Command(s) timed out after 100 ms.',
-        );
+          assert.ok(outcome instanceof SolidisRequesterError, String(outcome));
+          assert.strictEqual(
+            outcome.message,
+            'Command(s) timed out after 100 ms.',
+          );
+        }
       } finally {
         client.quit();
       }
@@ -1843,6 +1990,14 @@ describe('session-guards', () => {
           authentication: { username: 'app' },
         }).uri,
         'redis://app:***@127.0.0.1:6379',
+      );
+      assert.strictEqual(
+        new SolidisClient({
+          host: '127.0.0.1',
+          lazyConnect: true,
+          authentication: { username: 'app\uD800' },
+        }).uri,
+        'redis://app%EF%BF%BD:***@127.0.0.1:6379',
       );
     });
   });

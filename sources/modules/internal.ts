@@ -42,6 +42,7 @@ export const SolidisUnsupportedCommandNameSet: ReadonlySet<string> = new Set([
   'SCRIPT DEBUG SYNC',
   'REPLCONF ACK',
   'REPLCONF GETACK',
+  'CLUSTER SYNCSLOTS',
 ]);
 
 export const SolidisCommandKinds: ReadonlyMap<string, SolidisCommandKind> =

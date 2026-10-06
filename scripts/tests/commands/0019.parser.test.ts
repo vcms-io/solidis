@@ -385,10 +385,13 @@ describe('parser', () => {
   });
 
   it('rejects a bulk payload that is not terminated by CRLF', () => {
-    assert.throws(() => parseOnce(bytes('$3\r\nabcXY')), {
-      name: 'SolidisParserError',
-      message: 'Missing CRLF',
-    });
+    for (const reply of ['$3\r\nabcXY', '$3\r\nabc\rX', '$3\r\nabcX\n']) {
+      assert.throws(
+        () => parseOnce(bytes(reply)),
+        { name: 'SolidisParserError', message: 'Missing CRLF' },
+        JSON.stringify(reply),
+      );
+    }
   });
 
   it('rejects an aggregate length that is not a number', () => {
