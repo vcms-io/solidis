@@ -32,7 +32,13 @@ export function createCommand(options?: CommandShutdownOptions) {
 
 export async function shutdown<T>(this: T, options?: CommandShutdownOptions) {
   try {
-    return await executeCommand(this, createCommand(options), tryReplyOK);
+    return await executeCommand(
+      this,
+      createCommand(options),
+      tryReplyOK,
+      undefined,
+      { blockingTimeout: options?.abort ? undefined : 0 },
+    );
   } catch (error) {
     if (
       options?.abort ||

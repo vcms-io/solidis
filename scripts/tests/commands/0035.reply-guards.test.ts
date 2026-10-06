@@ -143,7 +143,11 @@ import {
   SolidisRequesterError,
 } from '../../../sources/index.ts';
 
-import type { SolidisData, StringOrBuffer } from '../../../sources/index.ts';
+import type {
+  SolidisData,
+  SolidisSendOptions,
+  StringOrBuffer,
+} from '../../../sources/index.ts';
 
 function createRecorder(reply: SolidisData) {
   const commands: StringOrBuffer[][] = [];
@@ -163,6 +167,27 @@ function bulk(text: string) {
 }
 
 describe('reply-guards', () => {
+  it('gives MIGRATE and SHUTDOWN the deadline their waits need', async () => {
+    const deadlines: (SolidisSendOptions | undefined)[] = [];
+    const sender = {
+      send: async (_: StringOrBuffer[][], options?: SolidisSendOptions) => {
+        deadlines.push(options);
+
+        return [['OK']];
+      },
+    };
+
+    await migrate.call(sender, '10.0.0.2', 6380, 'key', 0, 20_000);
+    await shutdown.call(sender);
+    await shutdown.call(sender, { abort: true });
+
+    assert.deepStrictEqual(deadlines, [
+      { blockingTimeout: 20_000 },
+      { blockingTimeout: 0 },
+      { blockingTimeout: undefined },
+    ]);
+  });
+
   it('reads time-series labels as a record of names and values', () => {
     assert.deepStrictEqual(
       createTimeSeriesCreateCommand('k', { labels: { area: 'north' } }),
@@ -411,6 +436,51 @@ describe('reply-guards', () => {
 
     assert.strictEqual(Object.hasOwn(client, 'send'), true);
     assert.strictEqual(client.send, send);
+  });
+
+  it('restores the send of the client when a queued call overflows the stack', () => {
+    const recorder = createRecorder(null);
+    const client: {
+      send: typeof recorder.send;
+      sadd: typeof sadd;
+      multi: typeof multi;
+    } = Object.assign(Object.create(recorder), { sadd, multi });
+    const pool = Array.from({ length: 150_000 }, (_, index) => `${index}`);
+    const queue = (count: number, depth: number): boolean => {
+      if (depth > 0) {
+        return queue(count, depth - 1);
+      }
+
+      try {
+        client.multi().sadd('key', ...pool.slice(0, count));
+
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    for (const depth of [1, 2, 5]) {
+      let low = 50_000;
+      let high = pool.length;
+
+      while (low < high) {
+        const middle = Math.ceil((low + high) / 2);
+
+        if (queue(middle, depth)) {
+          low = middle;
+        } else {
+          high = middle - 1;
+        }
+      }
+
+      for (let count = low - 10; count < low + 40; count += 1) {
+        queue(count, depth);
+
+        assert.strictEqual(Object.hasOwn(client, 'send'), false, `${count}`);
+        assert.strictEqual(client.send, recorder.send);
+      }
+    }
   });
 
   it('keeps server field names such as __proto__ and constructor as data', async () => {

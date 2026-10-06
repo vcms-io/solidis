@@ -72,5 +72,7 @@ export async function migrate<T>(
 
       return tryReplyOK(reply, command);
     },
+    undefined,
+    { blockingTimeout: timeout },
   );
 }
