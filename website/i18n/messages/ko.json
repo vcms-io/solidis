@@ -278,7 +278,7 @@
     "binaryValues": "바이너리 값",
     "binaryValuesDesc": "set, mset, hset, lpush, xadd 같은 쓰기 커맨드는 Buffer 값을 바이트 그대로 저장하고, publish와 spublish는 Buffer 메시지를, send()는 모든 인자에 Buffer를 받습니다. 읽기는 기본적으로 UTF-8로 디코딩하며, get, mget, hget, hgetall, lrange, blpop 같은 읽기 커맨드에 { buffer: true }를 넘기면 Buffer로 받습니다.",
     "bigIntegers": "큰 정수",
-    "bigIntegersDesc": "커맨드는 정수를 number로 돌려주고, TTL처럼 Number.MAX_SAFE_INTEGER를 넘는 값은 정확한 bigint를 cause에 담아 에러로 돌려줍니다. INCR, INCRBY, DECR, DECRBY, HINCRBY, BITFIELD, BITFIELD_RO는 { bigint: true }를 넘기면 항상 bigint를 돌려줍니다.",
+    "bigIntegersDesc": "커맨드는 정수를 number로 돌려주고, TTL처럼 Number.MAX_SAFE_INTEGER를 넘는 값은 정확한 bigint를 cause에 담아 에러로 돌려줍니다. INCR, INCRBY, DECR, DECRBY, HINCRBY, BITFIELD, BITFIELD_RO는 { bigint: true }를 넘기면 정수를 모두 bigint로 돌려줍니다.",
     "debuggingDesc": "디버그 항목으로 연결 상태, 커맨드, 에러를 추적할 수 있습니다.",
     "errorTypes": "에러 타입",
     "errorBase": "모든 Solidis 에러의 기본 클래스",

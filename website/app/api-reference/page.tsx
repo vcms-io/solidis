@@ -581,7 +581,7 @@ client.on('error', (err) => console.error('Error:', err));
 client.on('message', (channel, message) => console.log(\`\${channel}: \${message}\`));
 client.on('smessage', (channel, message) => console.log(\`\${channel}: \${message}\`));
 client.on('pmessage', (pattern, channel, message) => console.log(\`\${pattern} \${channel}: \${message}\`));
-client.on('push', (reply) => console.log('RESP3 push:', reply));
+client.on('push', (reply) => console.log('push:', reply));
 
 client.on('debug', (entry) => console.log(\`[\${entry.type}] \${entry.message}\`));`}
                   language="typescript"

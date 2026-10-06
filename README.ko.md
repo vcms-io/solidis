@@ -98,6 +98,7 @@ const job = await client.send([['BLPOP', 'jobs', '30']], { blockingTimeout: 30_0
 - `exec()`는 `MULTI`, 쌓인 커맨드, `EXEC`를 `send()` 한 번으로 보내고 원시 응답을 돌려줍니다. 쌓인 호출의 `{ buffer: true }` 같은 옵션은 적용되지 않습니다.
 - 커맨드를 하나도 쌓지 못한 호출이 있거나 `send()`가 거부하는 커맨드가 있으면 `exec()`는 실패합니다. 이때 `discard()`처럼 `UNWATCH`를 보냅니다.
 - 쌓인 호출은 동기 구간만 트랜잭션에 들어갑니다. 자기가 쌓은 커맨드의 응답을 `await`하면 그 자리에서 멈추고, 다른 것을 `await`하면 나머지는 트랜잭션 밖에서 실행됩니다. 인자는 쌓기 전에 검사하세요.
+- 트랜잭션에 쌓는 호출은 인자를 한 번 더 넘기므로, 펼쳐 넘길 수 있는 항목 수가 직접 호출의 절반쯤입니다. 더 큰 커맨드는 `send()`로 보내세요.
 - 서버가 `MULTI`를 거부하면(`@transaction` 권한 없음) 쌓인 커맨드는 따로 실행되고 `exec()`는 `[MULTI]` 에러로 실패합니다.
 - 재연결로 `WATCH`가 풀리면 다음 `EXEC`는 `DISCARD`로 바뀌어 `null`을 돌려줍니다. 직접 보낸 `MULTI`가 풀리면 `MULTI`, `EXEC`, `DISCARD`, `RESET` 말고는 모두 거부합니다.
 
@@ -147,7 +148,7 @@ const views = await client.incr('views', { bigint: true }); // bigint
 ```
 
 - 커맨드는 정수를 `number`로 돌려주고, TTL이나 타임시리즈 타임스탬프처럼 `Number.MAX_SAFE_INTEGER`를 넘는 값은 에러로 처리합니다. 커맨드는 이미 실행된 상태이며, 정확한 값은 `cause`에 `bigint`로 담깁니다.
-- INCR, INCRBY, DECR, DECRBY, HINCRBY, BITFIELD, BITFIELD_RO는 `{ bigint: true }`를 넘기면 항상 `bigint`를 돌려주고, 반환 타입도 그에 맞게 바뀝니다.
+- INCR, INCRBY, DECR, DECRBY, HINCRBY, BITFIELD, BITFIELD_RO는 `{ bigint: true }`를 넘기면 정수를 모두 `bigint`로 돌려주고, 반환 타입도 그에 맞게 바뀝니다.
 - INCRBYFLOAT는 반올림된 `number`를, HINCRBYFLOAT는 서버가 보낸 텍스트를 그대로 돌려줍니다.
 
 </details>
@@ -262,7 +263,7 @@ _작업 100,000회 × 동시 실행 10,000 · 1 KB 페이로드 · 클라이언�
 |                                                                                                                                                                                    14. | **List 범위**<br/><sup><kbd>LPUSH</kbd> <kbd>RPUSH</kbd> <kbd>LRANGE</kbd></sup>                               |  **129.0K** |              54.6K |              56.3K |      92.3K |  57.7K<sup>3</sup> |  71.9K<sup>3</sup> |                                                                                    **1.4x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" />                                                                                     |
 |                                                                                                                                                                                    15. | **Hash 왕복**<br/><sup><kbd>HSET</kbd> <kbd>HGET</kbd> <kbd>HGETALL</kbd></sup>                                |  **144.4K** |              66.4K |              69.0K |     104.0K |  61.1K<sup>3</sup> |  66.9K<sup>3</sup> |                                                                                    **1.4x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" />                                                                                     |
 |                                                                                                                                                                                    16. | **Stream**<br/><sup><kbd>XADD</kbd> <kbd>XRANGE</kbd> <kbd>XLEN</kbd></sup>                                    |  **140.8K** |              58.8K |              59.3K |     106.6K |  54.0K<sup>3</sup> |  55.5K<sup>3</sup> |                                                                                    **1.3x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" />                                                                                     |
-|                                                                                                                                                                                    17. | **Info / Config**<br/><sup><kbd>INFO</kbd> <kbd>CONFIG GET</kbd></sup>                                         |  **224.1K** | 111.8K<sup>4</sup> | 115.3K<sup>4</sup> |     176.2K |  91.0K<sup>3</sup> |  97.0K<sup>3</sup> |                                                                           **1.3x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/High%20Voltage.png?raw=true" alt="High Voltage" width="16" height="16" />                                                                            |
+|                                                                                                                                                                                    17. | **Info / Config**<br/><sup><kbd>INFO</kbd> <kbd>CONFIG GET</kbd></sup>                                         |  **224.1K** | 111.8K<sup>4</sup> | 115.3K<sup>4</sup> |     176.2K |  91.0K<sup>3</sup> |  97.0K<sup>3</sup> |                                                                                    **1.3x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Fire.png?raw=true" alt="Fire" width="16" height="16" />                                                                                     |
 |                                                                                                                                                                                    18. | **List 변경**<br/><sup><kbd>LPUSH</kbd> <kbd>RPUSH</kbd> <kbd>LPOP</kbd> <kbd>RPOP</kbd> <kbd>LLEN</kbd></sup> |  **107.3K** |              40.1K |              40.7K |      88.2K |  48.6K<sup>3</sup> |  57.0K<sup>3</sup> |                                                                           **1.2x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/High%20Voltage.png?raw=true" alt="High Voltage" width="16" height="16" />                                                                            |
 |                                                                                                                                                                                    19. | **Get**<br/><sup><kbd>GET</kbd></sup>                                                                          |  **350.1K** |             192.0K |             189.2K |     322.8K |             112.0K |             177.6K |                                                                           **1.1x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/High%20Voltage.png?raw=true" alt="High Voltage" width="16" height="16" />                                                                            |
 
@@ -438,7 +439,7 @@ _작업 100,000회 × 동시 실행 10,000 · 1 KB 페이로드 · 클라이언�
 - 지연 시간은 설정한 동시 실행 수에서 **작업마다** 재고, 모든 반복을 합쳐 계산합니다.
 - 작업당 CPU는 측정 구간의 **프로세스 CPU 시간**(user + system)을 작업 수로 나눈 값으로, GC와 네이티브 스레드를 포함합니다. 작업당 GC는 GC 일시정지 시간을 같은 방식으로 나눈 값입니다.
 - 메모리는 측정 구간 동안 워커의 힙과 `ArrayBuffer` 메모리(모든 `Buffer` 포함)가 가장 많이 늘어난 양이며, 20ms마다 잽니다. 네이티브 코드가 쓰는 메모리는 포함하지 않습니다. 실제 애플리케이션처럼 응답은 검사할 때까지 보관합니다.
-- 모든 클라이언트는 **타임아웃, 레디 체크, 재연결을 끄고** 파이프라이닝 제한 없이 실행합니다. ioredis와 iovalkey는 오토 파이프라이닝을 쓰고, Valkey GLIDE와 speedkey는 RESP2에서 응답을 바이트로 디코딩합니다.
+- 클라이언트는 **타임아웃, 레디 체크, 재연결을 끄고** 파이프라이닝 제한 없이 실행합니다. Valkey GLIDE와 speedkey는 재연결을 끌 수 없고, 요청마다 최대 10분을 기다립니다. ioredis와 iovalkey는 오토 파이프라이닝을 쓰고, Valkey GLIDE와 speedkey는 RESP2에서 응답을 바이트로 디코딩합니다.
 - 같은 방식으로 실행할 수 없었던 결과에는 **번호를 붙이고** 표 아래에 이유를 적습니다.
 - 비교 대상: npm 주간 다운로드가 1,000회 이상이고, 컴파일 없이 설치되며, 바이너리 값을 그대로 다루는 Node.js TCP 클라이언트 전부입니다. 제외: redis-fast-driver(네이티브 빌드 필요), tedis(값을 문자열로 반환), @upstash/redis 같은 HTTP 클라이언트, 포크와 래퍼. Valkey GLIDE는 Windows 빌드가 없습니다.
 
@@ -662,14 +663,14 @@ try {
 }
 ```
 
-| 에러 클래스              | 발생 조건                                                                          |
-| :----------------------- | :--------------------------------------------------------------------------------- |
-| `SolidisCommandError`    | 서버 에러(`cause`는 `RespError`), 예상과 다른 응답, 거부된 옵션                    |
-| `SolidisClientError`     | 제한 시간 안에 준비되지 않음, 핸드셰이크 거부, quit, 예외를 던진 리스너            |
-| `SolidisConnectionError` | 연결 실패와 타임아웃, 잘못된 포트, 연결 끊김, 재시도 소진, 연결 거부               |
-| `SolidisRequesterError`  | 커맨드 타임아웃, 연결이 끊겨 보내지 못한 커맨드, 잘못되거나 거부된 `send()` 커맨드 |
-| `SolidisParserError`     | 잘못된 RESP, 너무 큰 bulk string이나 줄, 512단계를 넘는 중첩                       |
-| `SolidisPubSubError`     | 잘못된 Pub/Sub 이벤트, 예외를 던진 Pub/Sub·push 리스너                             |
+| 에러 클래스              | 발생 조건                                                                             |
+| :----------------------- | :------------------------------------------------------------------------------------ |
+| `SolidisCommandError`    | 서버 에러(`cause`는 `RespError`), 예상과 다른 응답, 거부된 옵션                       |
+| `SolidisClientError`     | 잘못된 `uri`, 제한 시간 안에 준비되지 않음, 핸드셰이크 거부, quit, 예외를 던진 리스너 |
+| `SolidisConnectionError` | 연결 실패와 타임아웃, 잘못된 포트, 연결 끊김, 재시도 소진, 연결 거부                  |
+| `SolidisRequesterError`  | 커맨드 타임아웃, 연결이 끊겨 보내지 못한 커맨드, 잘못되거나 거부된 `send()` 커맨드    |
+| `SolidisParserError`     | 잘못된 RESP, 너무 큰 bulk string이나 줄, 512단계를 넘는 중첩                          |
+| `SolidisPubSubError`     | 잘못된 Pub/Sub 이벤트, 예외를 던진 Pub/Sub·push 리스너                                |
 
 > [!NOTE]
 >

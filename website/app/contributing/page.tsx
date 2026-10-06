@@ -343,7 +343,7 @@ SOLIDIS_TEST_PORT=6380 npm test # a disposable server: the tests flush it`}
 fix: resolve bug in parser
 docs: update API reference
 test: add integration tests
-perf: improve connection pooling`}
+perf: speed up reply parsing`}
                 language="bash"
               />
             </div>

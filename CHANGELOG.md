@@ -111,7 +111,7 @@ try {
 | `aclLog()`                           | Missing `entryId` and timestamps were `0`                                         | `number \| null`                                                              |
 | `aclGetuser()`                       | On Redis 6.2, `keys` and `channels` joined patterns with commas                   | Patterns with their `~` or `&` prefix, space-separated                        |
 | `info()`                             | Kept the last of repeated fields, such as `module`                                | Repeated fields joined with `\n`                                              |
-| `shutdown()`                         | Rejected with `Connection closed.`                                                | `'OK'` when the connection closes after it was sent                           |
+| `shutdown()`                         | Rejected with `SolidisConnectionError: Connection closed.`                        | `'OK'` when the connection closes after it was sent                           |
 | `bgsave()`, `bgrewriteaof()`         | Typed `'OK'`; rejected the actual reply                                           | The server's status, such as `'Background saving started'`                    |
 | `reset()`                            | Typed `'OK'`; rejected the actual reply                                           | `'RESET'`                                                                     |
 | `commandDocs()`                      | Rejected every command with subcommands                                           | `subcommands` is a record of `RespCommandDoc`                                 |
@@ -176,7 +176,7 @@ for (;;) {
 }
 ```
 
-**Integers beyond `Number.MAX_SAFE_INTEGER`.** Commands that read an integer rejected one past it with `Invalid reply` or, like `bitfield`, `httl` and the time-series commands, rounded it. All now reject with `Unexpected reply: integer exceeds Number.MAX_SAFE_INTEGER` and the exact value as `cause`. The command has already run, so do not retry it blindly. `incr`, `incrby`, `decr`, `decrby`, `hincrby`, `bitfield` and `bitfieldRo` take `{ bigint: true }` for a `bigint`:
+**Integers beyond `Number.MAX_SAFE_INTEGER`.** Commands that read an integer rejected one past it with `Invalid reply` or, like `bitfield`, `httl` and the time-series commands, rounded it. All now reject with `Unexpected reply: integer exceeds Number.MAX_SAFE_INTEGER` and the exact value as `cause`. The command has already run, so do not retry it blindly. `incr`, `incrby`, `decr`, `decrby`, `hincrby`, `bitfield` and `bitfieldRo` take `{ bigint: true }` to return their integers as `bigint`:
 
 ```typescript
 const total = await client.incrby('counter', 10n, { bigint: true }); // bigint
@@ -271,7 +271,7 @@ Other option changes:
 - **Handshake.**
   - The first `connect()` retries a handshake that a closing connection interrupted, within `maxConnectionRetries`.
   - With `protocol: 'RESP3'`, only a server that lacks `HELLO` or answers `NOPROTO` falls back to RESP2. Other `HELLO` errors, such as an invalid client name, fail with `Protocol negotiation failed`.
-  - A ready check denied with `NOPERM` counts as ready, and the check stops waiting when its connection closes.
+  - A ready check denied with `NOPERM` or refused as an unknown command counts as ready, and the check stops waiting when its connection closes.
   - A user chosen at runtime with `auth()` or `hello()`, and a protocol chosen with `hello()`, are restored after a reconnect until `RESET`, after which a reconnect uses the configured user, protocol and database. `SELECT`, `HELLO` and `AUTH` queued in a transaction count once `EXEC` runs them, and a `MULTI` or `WATCH` the server refuses does not count as lost.
   - A `CLIENT SETNAME` error other than `NOPERM` or an unknown command fails with `CLIENT SETNAME failed`.
   - An error sent before any request, as from a server in protected mode or at `maxclients`, fails the first handshake step with that step's error, such as `CLIENT SETNAME failed`, whose `cause` holds the server's reply. When the handshake sends nothing, `connect()` resolves first, and the refusal rejects the waiting commands with a `SolidisConnectionError` that carries the reply, or reaches a command already sent or the `error` listeners.
@@ -288,7 +288,7 @@ Other option changes:
 Skip this step unless you build the internal classes yourself or write custom commands.
 
 - **`SolidisConnection`:**
-  - `socket` and `cleanup()` are removed; `reconnect()`, `write(buffer)` and `resetBackoff()` are added.
+  - `socket` and `cleanup()` are removed; `reconnect()`, `write(buffer)` and `resetBackoff()` are added. `connect(attempts)` spends at most the attempts it is given and resolves with those left.
   - `reset(error)` takes the error to report with `close` and no longer reconnects. `reconnect()` does nothing once its retries are spent, until the next `connect()`.
   - `resetBackoff()` marks the connection ready, and the backoff and retries reset once it stays up for `maxConnectionRetryDelay`.
   - `close(error)` and `reconnecting(attempt, delay)` replace `closed` and `reconnected`; `data` and `drain` are new.
@@ -321,7 +321,7 @@ Skip this step unless you build the internal classes yourself or write custom co
 - `{ buffer: true }` returns the exact bytes as a `Buffer` from `get`, `getdel`, `getex`, `getrange`, `mget`, `hget`, `hmget`, `hgetall`, `hvals`, `lindex`, `lrange`, `lpop`, `rpop`, `lmove`, `blmove`, `rpoplpush`, `brpoplpush`, `blpop`, `brpop`, `lmpop` and `blmpop`.
   - `mget` and `hmget` take it after their keys or fields, as in `mget('a', 'b', { buffer: true })`, and read a trailing `undefined` as missing options.
   - Result types follow `{ buffer: true }` and `{ bigint: true }` whatever else is passed.
-- `{ bigint: true }` returns a `bigint` from `incr`, `incrby`, `decr`, `decrby`, `hincrby`, `bitfield` and `bitfieldRo`. Increments and bitfield values accept `bigint`.
+- `{ bigint: true }` makes `incr`, `incrby`, `decr`, `decrby`, `hincrby`, `bitfield` and `bitfieldRo` return their integers as `bigint`. Increments and bitfield values accept `bigint`.
 - `Buffer` values for `append`, `msetnx`, `lpush`, `rpush`, `lpushx`, `lset`, `linsert`, `lrem` and `lpos`, and `Buffer` messages for `publish` and `spublish`.
 - `'-inf'`, `'+inf'` and exclusive bounds such as `'(1'` for `zcount`, `zrangebyscore`, `zrevrangebyscore` and `zremrangebyscore` (`CommandScoreBound`).
 - `send(commands, { timeout })` gives one request its own timeout, applied while it waits for the connection and again while it waits for the reply. Like `commandTimeout`, it resets the connection once every command in flight has timed out, also when `commandTimeout` is `0`. `send(commands, { blockingTimeout })` handles a raw blocking command like `blpop()`.
@@ -349,7 +349,7 @@ Skip this step unless you build the internal classes yourself or write custom co
 ### Changed
 
 - Commands wait for the handshake (authentication, `HELLO`, `SELECT`, client name and ready check), bounded by `commandTimeout` or the request's `timeout`, and then run in the order they were sent.
-- RESP3 connections authenticate with one `HELLO 3 AUTH`, and `WRONGPASS` or `NOAUTH` fails the connection instead of continuing unauthenticated.
+- RESP3 connections authenticate with one `HELLO 3 AUTH`, also with a password alone. `NOAUTH` fails the connection with `Authentication failed`, where 0.4.x reported `Ready check failed` or, with the ready check off, connected unauthenticated.
 - After a reconnect, the client restores the database selected at runtime and every subscription, one command per channel, so a cluster node accepts shard channels of several slots. When the server refuses any channel of a kind, the client unsubscribes from the channels it restored, forgets the others and emits an `error`. If the server refuses that too, the handshake fails and the client reconnects.
 - Blocking commands (`blpop`, `brpop`, `blmove`, `blmpop`, `brpoplpush`, `bzpopmin`, `bzpopmax`, `bzmpop`, `xread` and `xreadgroup` with `block`, `wait` and `waitaof`) run in a pipeline of their own. Their deadline is `commandTimeout` plus their own timeout, and none when they block forever, so an element popped after `commandTimeout` is no longer lost.
 - The connection also resets when a blocking pipeline times out, or, unless `commandTimeout` is `0`, when a second pipeline in a row times out with nothing received since it was written and the oldest pipeline has waited at least `commandTimeout`. A late reply never reaches a later command, and a silent server is dropped even under constant traffic with shorter per-request timeouts.
@@ -407,6 +407,7 @@ See [Upgrading from 0.4.x](#upgrading-from-04x) for replacements.
 - `jsonArrpop(key, undefined, index)` ignored the index and popped the last element.
 - Changing, clearing or reusing a command array after `send()` changed or dropped the commands sent, or left the promise pending. `send()` copies the arrays now.
 - Commands built from more than about 125,000 items, such as `bfInsert`, `cfInsert`, `hexpire`, `migrate` with `keys`, `pubsubNumsub`, `xread`, `xreadgroup` and the weights of `zinter`, threw a `RangeError` instead of being sent.
+- `sadd`, `lpush`, `mget` and the other commands that take items as separate arguments threw a `RangeError` at about half as many items as a call can pass.
 - A subscription to a channel name that is not valid UTF-8 was unsubscribed and restored with different bytes.
 - An argument-less `UNSUBSCRIBE`, `PUNSUBSCRIBE` or `SUNSUBSCRIBE` listed the channels the client knew, so it missed subscriptions still being confirmed, and a Redis 7 cluster node refused `SUNSUBSCRIBE` with `CROSSSLOT` when its shard channels hash to several slots. They are sent without arguments now.
 - Connecting to a host name with several addresses, such as `localhost`, when every address refused, failed with `SolidisConnectionError: AggregateError`. The `error` event of each attempt and the `cause` of the final rejection now list the refused addresses.
@@ -422,7 +423,7 @@ See [Upgrading from 0.4.x](#upgrading-from-04x) for replacements.
 - RESP2 infinite scores failed to parse in `zscore`, `zrange` with scores, `zincrby` and `zmpop`, and `bzmpop` failed after the server had already popped the members.
 - `ping` rejected while subscribed on RESP2.
 - Time-series commands placed `IGNORE` after `LABELS`, which created labels from its arguments, and `geosearchstore` did not send `storedist`.
-- `__proto__` fields disappeared from returned records, RESP3 verbatim strings kept their `txt:` prefix, and `INFO` values containing `:` were cut short.
+- `__proto__` fields disappeared from returned records, and `bfInfo()` and `cfInfo()` turned fields named like `constructor` into keys. RESP3 verbatim strings kept their `txt:` prefix, and `INFO` values containing `:` were cut short.
 - `jsonType` did not return `null` for a missing key with a JSONPath on RESP3, and `commandDocs` could not read the RESP3 set of history entries, never marked an argument optional or multiple, and left `docFlags` empty on RESP3.
 - `jsonMerge(key, value)` sent no path, which the server refuses, and `jsonArrindex()` dropped `stop` without `start`. They now send `$` and a start of `0`.
 - Integer arguments, such as increments, TTLs, timestamps and counts, were sent as JavaScript prints numbers, so one past `Number.MAX_SAFE_INTEGER` reached the server as another integer: `2 ** 60` as `1152921504606847000`. They are sent exactly now.
@@ -434,7 +435,11 @@ See [Upgrading from 0.4.x](#upgrading-from-04x) for replacements.
 ### Security
 
 - Error messages, stack traces and debug entries no longer list command arguments; a failed `AUTH` used to show the password, and a failed `SET` the value. Error replies in the raw results of `send()`, `pipeline()` and `exec()` keep the server's text.
-- Text the server quotes back with `'` or `` ` ``, such as an ACL rule or the arguments of an unknown command, is masked from there to the last quote when an argument contains it: `ERR Error in ACL SETUSER modifier '***'`. This holds also when the server joins several arguments into one quoted span, cuts the message short or quotes a token from inside one. A Lua error is masked from its first quote, since it can quote text the script decoded from an argument. Unquoted echoes stay, such as `GEOADD` coordinates, `redis.error_reply()` text or a function name in `FUNCTION LOAD`. Messages over 4,096 characters are cut, and a cut message that masks anything is masked to its end.
+- Text the server quotes back with `'` or `` ` ``, such as an ACL rule or the arguments of an unknown command, is masked from there to the last quote when an argument contains it: `ERR Error in ACL SETUSER modifier '***': Syntax error`.
+  - This holds also when the server joins several arguments into one quoted span, cuts the message short or quotes a token from inside one.
+  - A Lua error is masked from its first quote, since it can quote text the script decoded from an argument.
+  - Unquoted echoes stay, such as `GEOADD` coordinates, `redis.error_reply()` text or a function name in `FUNCTION LOAD`.
+  - Messages over 4,096 characters are cut, and a cut message that masks anything is masked to its end.
 - User data shaped like a Pub/Sub message, as in a reply read while a `SUBSCRIBE` is pending, is never dispatched as a `message` event on RESP2, and later replies no longer shift.
 - An integer reply longer than 20 characters or a big number longer than 4,096 characters is returned as an error reply, and a length line longer than 20 characters or nesting deeper than 512 levels is a protocol error, so one reply can no longer stall the event loop. Errors about a malformed line quote at most 32 characters.
 
@@ -445,7 +450,7 @@ See [Upgrading from 0.4.x](#upgrading-from-04x) for replacements.
 - In alternating benchmark runs against 0.4.0, throughput is on par or better across the suite.
 - Replies and timeouts for tens of thousands of pipelines in flight take linear time. Masking bounds how much argument text it searches for quoted spans, so a reply full of quotes cannot stall the event loop.
 - Error replies no longer capture a stack trace they then drop.
-- Measured with each version's `npm run bundle`, the minimal client with `get` and `set` shrinks from 29,494 to 29,441 bytes.
+- Measured with each version's `npm run bundle`, the minimal client with `get` and `set` shrinks from 29,494 to 29,484 bytes.
 
 ## [0.4.0] and earlier
 

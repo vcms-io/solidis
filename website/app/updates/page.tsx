@@ -188,7 +188,14 @@ export default function UpdatesPage() {
                           className="flex items-start gap-2 text-xs text-muted-foreground"
                         >
                           <span className="text-emerald-600 mt-0.5">·</span>
-                          {change}
+                          <span>
+                            <ReactMarkdown
+                              allowedElements={['code', 'em', 'strong']}
+                              unwrapDisallowed
+                            >
+                              {change}
+                            </ReactMarkdown>
+                          </span>
                         </li>
                       ))}
                     </ul>
