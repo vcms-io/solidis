@@ -399,7 +399,7 @@ describe('lifecycle-edge', () => {
       ],
       [
         [['SET', 'k', 'v', 'IFDEQ', 'xyz', 'GET']],
-        'SET with GET needs digests of 16 hexadecimal digits: it breaks the pairing of requests and replies.',
+        'SET with GET needs 16-byte digests: it breaks the pairing of requests and replies.',
       ],
       [[[]], 'Cannot send an empty or non-array command.'],
       [notArray, 'Cannot send an empty or non-array command.'],
@@ -601,6 +601,9 @@ describe('lifecycle-edge', () => {
 
       Reflect.apply(bare.extend, bare, [StaticExtensions]);
       Reflect.apply(bare.extend, bare, [hidden]);
+
+      assert.strictEqual(Object.hasOwn(bare, 'call'), false);
+      assert.strictEqual(Object.hasOwn(bare, 'bind'), false);
 
       for (const [name, result] of [
         ['ping', 'PONG'],

@@ -232,15 +232,24 @@ export class SolidisClient extends EventEmitter {
       },
   ): this & SolidisClientExtensions<T, this>;
   public extend(extensions: Record<string, unknown>) {
-    for (const method of Object.getOwnPropertyNames(extensions)) {
-      const extension = extensions[method];
+    for (
+      let source: object | null = extensions;
+      source &&
+      source !== Object.prototype &&
+      source !== Function.prototype &&
+      source !== Object.getPrototypeOf(this);
+      source = Object.getPrototypeOf(source)
+    ) {
+      for (const method of Object.getOwnPropertyNames(source)) {
+        const extension = extensions[method];
 
-      if (
-        method !== 'constructor' &&
-        method !== '__proto__' &&
-        typeof extension === 'function'
-      ) {
-        this[method] = extension.bind(this);
+        if (
+          method !== 'constructor' &&
+          method !== '__proto__' &&
+          typeof extension === 'function'
+        ) {
+          this[method] = extension.bind(this);
+        }
       }
     }
 

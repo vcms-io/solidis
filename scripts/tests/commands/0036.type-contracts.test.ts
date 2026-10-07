@@ -403,6 +403,45 @@ describe('type-contracts', () => {
     client.quit();
   });
 
+  it('adds the methods of a class instance that extend() types', () => {
+    class Base {
+      readName(this: SolidisClient) {
+        return this.uri;
+      }
+    }
+
+    class Commands extends Base {
+      get = get;
+
+      greet(this: SolidisClient) {
+        return `hello from ${this.uri}`;
+      }
+    }
+
+    const client = new SolidisClient({ port: 1, lazyConnect: true }).extend(
+      new Commands(),
+    );
+    const checks: [
+      Is<ReturnType<typeof client.greet>, string>,
+      Is<ReturnType<typeof client.readName>, string>,
+    ] = [true, true];
+
+    assert.deepStrictEqual(checks, [true, true]);
+    assert.strictEqual(client.greet(), `hello from ${client.uri}`);
+    assert.strictEqual(client.readName(), client.uri);
+    assert.strictEqual(typeof client.get, 'function');
+    assert.strictEqual(Object.hasOwn(client, 'send'), false);
+    assert.strictEqual(Object.hasOwn(client, 'toString'), false);
+
+    const featured = new SolidisFeaturedClient({ port: 1, lazyConnect: true });
+
+    assert.strictEqual(Object.hasOwn(featured, 'send'), false);
+    assert.strictEqual(Object.hasOwn(featured, 'emit'), false);
+
+    featured.quit();
+    client.quit();
+  });
+
   it('takes read-only command lists wherever a list of commands is only read', async () => {
     const commands = [
       ['SET', 'k', 'v'],

@@ -92,7 +92,7 @@ function isUnsupported(command: StringOrBuffer[]) {
   );
 }
 
-function hasInvalidDigest(command: StringOrBuffer[]) {
+function hasWrongDigestLength(command: StringOrBuffer[]) {
   if (
     command.length < 6 ||
     toCommandWord(toTextPrefix(command[0], 4)) !== 'SET'
@@ -106,7 +106,7 @@ function hasInvalidDigest(command: StringOrBuffer[]) {
   return (
     index > 0 &&
     words.includes('GET', 3) &&
-    !/^[\da-f]{16}$/i.test(toTextPrefix(command[index] ?? '', 17))
+    Buffer.byteLength(command[index] ?? '') !== 16
   );
 }
 
@@ -137,10 +137,10 @@ export function inspectCommand(
     return createRefusal(command, `is not supported: ${SolidisPairingReason}`);
   }
 
-  if (hasInvalidDigest(command)) {
+  if (hasWrongDigestLength(command)) {
     return createRefusal(
       command,
-      `with GET needs digests of 16 hexadecimal digits: ${SolidisPairingReason}`,
+      `with GET needs 16-byte digests: ${SolidisPairingReason}`,
     );
   }
 

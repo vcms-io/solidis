@@ -3553,14 +3553,15 @@ describe('debug-requester', () => {
       assert.strictEqual(requester.authentication, undefined);
     });
 
-    it('refuses a SET with GET and a digest that is not 16 hexadecimal digits, which Redis 8.4 answers twice', async () => {
+    it('refuses a SET with GET and a digest that is not 16 bytes, which Redis 8.4 answers twice', async () => {
       const { connection, requester } = createRequester();
       const refusals = await Promise.all(
         [
           ['SET', 'k', 'v', 'IFDEQ', 'xyz', 'GET'],
           ['set', 'k', 'v', 'get', 'ifdne', '0123456789abcdef0'],
           ['SET', 'k', 'v', 'GET', 'EX', '10', 'IFDEQ'],
-          ['SET', 'k', 'v', 'IFDEQ\0x', Buffer.from('0123456789abcdeg'), 'GET'],
+          ['SET', 'k', 'v', 'IFDEQ\0x', Buffer.from('0123456789abcde'), 'GET'],
+          ['SET', 'k', 'v', 'IFDEQ', 'é'.repeat(16), 'GET'],
           ['SET', 'k', 'v', 'NX', 'IFDNE', '0123456789abcde', 'GET\0'],
         ].map((command) => settle(requester.send([['PING'], command]))),
       );
@@ -3569,7 +3570,7 @@ describe('debug-requester', () => {
         assert.ok(refusal instanceof SolidisRequesterError);
         assert.strictEqual(
           refusal.message,
-          'SET with GET needs digests of 16 hexadecimal digits: it breaks the pairing of requests and replies.',
+          'SET with GET needs 16-byte digests: it breaks the pairing of requests and replies.',
         );
       }
 
@@ -3580,6 +3581,8 @@ describe('debug-requester', () => {
         ['SETEX', 'k', '10', 'IFDEQ', 'xyz', 'GET'],
         ['GETSET', 'k', 'v', 'IFDEQ', 'xyz', 'GET'],
         ['SET', 'IFDEQ', 'xyz', 'GET', 'EX', '10'],
+        ['SET', 'k', 'v', 'IFDEQ', 'z'.repeat(16), 'GET'],
+        ['SET', 'k', 'v', 'IFDNE', Buffer.from('é'.repeat(8)), 'GET'],
       ];
       const pending = requester.send(sent);
 
@@ -3588,10 +3591,10 @@ describe('debug-requester', () => {
       assert.deepStrictEqual(connection.writes, [commandsToBuffer(sent)]);
 
       connection.reply(
-        '$-1\r\n+OK\r\n+OK\r\n-ERR syntax error\r\n$1\r\nv\r\n$-1\r\n',
+        '$-1\r\n+OK\r\n+OK\r\n-ERR syntax error\r\n$1\r\nv\r\n$-1\r\n$1\r\nv\r\n$1\r\nv\r\n',
       );
 
-      assert.strictEqual((await pending).length, 6);
+      assert.strictEqual((await pending).length, 8);
     });
 
     it('refuses AUTH and HELLO inside a transaction', async () => {
