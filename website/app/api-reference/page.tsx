@@ -159,7 +159,9 @@ export default function ApiReferencePage() {
                       {t('apiReference.connectDesc')}
                     </p>
                     <CodeBlock
-                      code={`const client = new SolidisClient();
+                      code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
+
+const client = new SolidisFeaturedClient();
 await client.connect();`}
                       language="typescript"
                     />
@@ -478,13 +480,9 @@ client.on('debug', (entry) => {
               <CardContent>
                 <CodeBlock
                   code={`import {
-  SolidisError,
-  SolidisClientError,
   SolidisCommandError,
   SolidisConnectionError,
   SolidisParserError,
-  SolidisPubSubError,
-  SolidisRequesterError,
   unwrapSolidisError,
 } from '@vcms-io/solidis';
 

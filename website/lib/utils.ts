@@ -8,9 +8,11 @@ export function classNames(...inputs: ClassValue[]) {
 }
 
 export function formatOperations(operationsPerSecond: number) {
-  return operationsPerSecond >= 1_000_000
+  const thousands = Math.round(operationsPerSecond / 1_000);
+
+  return thousands >= 1_000
     ? `${(operationsPerSecond / 1_000_000).toFixed(2)}M`
-    : `${Math.round(operationsPerSecond / 1_000)}K`;
+    : `${thousands}K`;
 }
 
 function listNames(names: string[], conjunction: string) {

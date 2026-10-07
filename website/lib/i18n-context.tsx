@@ -32,11 +32,13 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>('en');
 
   useEffect(() => {
-    // Load saved locale from localStorage
-    const saved = localStorage.getItem('locale') as Locale;
-    if (saved && (saved === 'en' || saved === 'ko')) {
-      setLocaleState(saved);
-    }
+    try {
+      const saved = localStorage.getItem('locale');
+
+      if (saved === 'en' || saved === 'ko') {
+        setLocaleState(saved);
+      }
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -45,7 +47,10 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   const setLocale = (newLocale: Locale) => {
     setLocaleState(newLocale);
-    localStorage.setItem('locale', newLocale);
+
+    try {
+      localStorage.setItem('locale', newLocale);
+    } catch {}
   };
 
   const t = (key: string, values?: Record<string, string | number>): string => {

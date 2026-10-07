@@ -10,7 +10,7 @@
   <a href="https://www.npmjs.com/package/@vcms-io/solidis"><img src="https://img.shields.io/npm/v/@vcms-io/solidis.svg?style=flat-square&labelColor=000&color=f5a623" alt="npm"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/coverage-100%25-brightgreen?style=flat-square&labelColor=000" alt="coverage"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square&labelColor=000" alt="deps"></a>
-  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/min_bundle-<29KB-blue?style=flat-square&labelColor=000" alt="bundle"></a>
+  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/min_bundle-<30KB-blue?style=flat-square&labelColor=000" alt="bundle"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/RESP2%2FRESP3-supported-orange?style=flat-square&labelColor=000" alt="RESP"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/ESM%2FCJS-dual-yellow?style=flat-square&labelColor=000" alt="modules"></a>
 </p>
@@ -30,7 +30,7 @@
 <td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Rocket.png?raw=true" alt="Rocket" width="32" height="32" /><br/><strong>0 deps</strong><br/><sub>의존성 없음</sub></td>
 <td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Package.png?raw=true" alt="Package" width="32" height="32" /><br/><strong>384</strong><br/><sub>커맨드</sub></td>
 <td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Test%20Tube.png?raw=true" alt="Test Tube" width="32" height="32" /><br/><strong>35K+</strong><br/><sub>테스트 코드 줄 수</sub></td>
-<td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Animals/Feather.png?raw=true" alt="Feather" width="32" height="32" /><br/><strong>&lt; 29KB</strong><br/><sub>최소 번들</sub></td>
+<td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Animals/Feather.png?raw=true" alt="Feather" width="32" height="32" /><br/><strong>&lt; 30KB</strong><br/><sub>최소 번들</sub></td>
 </tr>
 </table>
 
@@ -52,7 +52,7 @@ const value = await client.get('key');
 ```
 
 > [!TIP]
-> **번들을 더 줄이려면** `SolidisClient`와 `.extend()`로 쓰는 커맨드만 가져오세요. 트리 셰이킹하면 **29KB 미만**입니다.
+> **번들을 더 줄이려면** `SolidisClient`와 `.extend()`로 쓰는 커맨드만 가져오세요. 트리 셰이킹하면 **30KB 미만**입니다.
 
 <details>
 <summary>&nbsp;&nbsp;<b>트리 셰이킹 클라이언트</b></summary>
@@ -102,7 +102,7 @@ const job = await client.send([['BLPOP', 'jobs', '30']], { blockingTimeout: 30_0
 - 서버가 `MULTI`를 거부하면(`@transaction` 권한 없음) 쌓인 커맨드는 따로 실행되고 `exec()`는 `[MULTI]` 에러로 실패합니다.
 - 재연결로 `WATCH`가 풀리면 다음 `EXEC`는 `DISCARD`로 바뀌어 `null`을 돌려줍니다. 직접 보낸 `MULTI`가 풀리면 `MULTI`, `EXEC`, `DISCARD`, `RESET` 말고는 모두 거부합니다.
 - Redis 7.2 이상은 다른 응답이 남아 있으면 실패한 `AUTH`의 에러를 보내지 않습니다. 그래서 `AUTH`와 `HELLO`는 블로킹 커맨드를 포함해 앞선 응답이 모두 온 뒤에 보냅니다. 뒤의 커맨드는 그 응답을 기다리고, 타임아웃은 커맨드를 보낼 때부터 잽니다.
-- `send()`로 여러 커맨드를 보낼 때는 `AUTH`와 `HELLO`를 맨 앞에 두세요. 트랜잭션 안에서는 `send()`가 거부합니다. 그 순간 서버에 RESP3 push가 남아 있으면 에러는 여전히 빠지고, `AUTH`는 타임아웃됩니다.
+- `send()`는 같은 배치에서 다른 커맨드 뒤에 오거나 트랜잭션 안에 있는 `AUTH`와 `HELLO`를 거부합니다. 그 순간 서버에 RESP3 push가 남아 있으면 에러는 여전히 빠지고, `AUTH`는 타임아웃됩니다.
 
 </details>
 
@@ -172,13 +172,14 @@ const images = await client.mget('image', 'logo', { buffer: true }); // (Buffer 
 | :------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 그대로 저장               | SET, SETNX, SETEX, PSETEX, GETSET, SETRANGE, APPEND, MSET, MSETNX, HSET, HSETNX, HMSET, LPUSH, RPUSH, LPUSHX, RPUSHX, LSET, LINSERT, XADD, RESTORE             |
 | 비교할 값                 | LINSERT, LREM, LPOS, SMISMEMBER, DELEX, SET                                                                                                                    |
-| 그 밖의 인자              | PUBLISH, SPUBLISH(메시지) · BF.LOADCHUNK, CF.LOADCHUNK(청크) · AUTH, HELLO(자격 증명) · `send()`(모든 인자)                                                    |
+| 그 밖의 인자              | PUBLISH, SPUBLISH(메시지) · FUNCTION RESTORE(덤프) · BF.LOADCHUNK, CF.LOADCHUNK(청크) · AUTH, HELLO(자격 증명) · `send()`(모든 인자)                           |
 | `{ buffer: true }`로 읽기 | GET, GETDEL, GETEX, GETRANGE, MGET, HGET, HMGET, HGETALL, HVALS, LINDEX, LRANGE, LPOP, RPOP, LMOVE, BLMOVE, RPOPLPUSH, BRPOPLPUSH, BLPOP, BRPOP, LMPOP, BLMPOP |
 
 - `Buffer` 응답은 수신한 청크(최대 64KB)의 뷰입니다. 오래 보관하려면 `Buffer.from()`으로 복사하세요.
 - `send()`는 커맨드 배열을 복사하지만 그 안의 `Buffer`는 복사하지 않습니다. 커맨드가 끝날 때까지 `Buffer`를 바꾸지 마세요.
 - 필드 이름(HGETALL, HSCAN, 스트림)과 RESP3 맵 키는 `send()`에서도 UTF-8로 디코딩합니다. UTF-8이 아닌 이름은 서로 겹칠 수 있으니 바이너리 데이터는 값에 담으세요.
 - 스트림, 셋, 정렬 셋 읽기와 HSCAN, HRANDFIELD, GETSET, SORT, SORT_RO, LCS는 값을 UTF-8 문자열로 돌려줍니다. 바이너리 값은 `send()`로 읽으세요.
+- DUMP와 FUNCTION DUMP는 페이로드를 latin1 문자열로 돌려줍니다. `restore()`나 `functionRestore()`에 그대로 넘기거나, `Buffer.from(value, 'latin1')`로 바이트를 읽으세요.
 - MGET과 HMGET은 마지막 인자가 `undefined`이면 키가 아니라 옵션이 없는 것으로 봅니다.
 
 </details>

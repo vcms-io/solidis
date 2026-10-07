@@ -10,7 +10,7 @@
   <a href="https://www.npmjs.com/package/@vcms-io/solidis"><img src="https://img.shields.io/npm/v/@vcms-io/solidis.svg?style=flat-square&labelColor=000&color=f5a623" alt="npm"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/coverage-100%25-brightgreen?style=flat-square&labelColor=000" alt="coverage"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square&labelColor=000" alt="deps"></a>
-  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/min_bundle-<29KB-blue?style=flat-square&labelColor=000" alt="bundle"></a>
+  <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/min_bundle-<30KB-blue?style=flat-square&labelColor=000" alt="bundle"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/RESP2%2FRESP3-supported-orange?style=flat-square&labelColor=000" alt="RESP"></a>
   <a href="https://github.com/vcms-io/solidis"><img src="https://img.shields.io/badge/ESM%2FCJS-dual-yellow?style=flat-square&labelColor=000" alt="modules"></a>
 </p>
@@ -30,7 +30,7 @@
 <td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Rocket.png?raw=true" alt="Rocket" width="32" height="32" /><br/><strong>0 deps</strong><br/><sub>zero dependencies</sub></td>
 <td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Package.png?raw=true" alt="Package" width="32" height="32" /><br/><strong>384</strong><br/><sub>commands</sub></td>
 <td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Test%20Tube.png?raw=true" alt="Test Tube" width="32" height="32" /><br/><strong>35K+</strong><br/><sub>lines of tests</sub></td>
-<td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Animals/Feather.png?raw=true" alt="Feather" width="32" height="32" /><br/><strong>&lt; 29KB</strong><br/><sub>min bundle</sub></td>
+<td align="center"><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Animals/Feather.png?raw=true" alt="Feather" width="32" height="32" /><br/><strong>&lt; 30KB</strong><br/><sub>min bundle</sub></td>
 </tr>
 </table>
 
@@ -52,7 +52,7 @@ const value = await client.get('key');
 ```
 
 > [!TIP]
-> **Need a smaller bundle?** Use `SolidisClient` with `.extend()` to import only the commands you use: **< 29KB** with tree-shaking.
+> **Need a smaller bundle?** Use `SolidisClient` with `.extend()` to import only the commands you use: **< 30KB** with tree-shaking.
 
 <details>
 <summary>&nbsp;&nbsp;<b>Tree-shakable client</b></summary>
@@ -102,7 +102,7 @@ const job = await client.send([['BLPOP', 'jobs', '30']], { blockingTimeout: 30_0
 - A refused `MULTI` (no `@transaction`) leaves the queue to run alone, and `exec()` rejects with `[MULTI]`.
 - After a reconnect loses a `WATCH`, the next `EXEC` becomes `DISCARD` and returns `null`. After it loses a raw `MULTI`, only `MULTI`, `EXEC`, `DISCARD` and `RESET` pass.
 - `AUTH` and `HELLO` go out only after every earlier reply, a blocking command's included, since Redis 7.2 and later drop the error of a failed `AUTH` while other replies are pending. Later commands wait for their reply, and a command's timeout starts when it goes out.
-- Put `AUTH` and `HELLO` first in a `send()` batch; inside a transaction `send()` refuses them. A RESP3 push pending on the server at that moment still drops the error, and the `AUTH` times out.
+- `send()` refuses `AUTH` and `HELLO` after another command of the same batch or inside a transaction. A RESP3 push pending on the server at that moment still drops the error, and the `AUTH` times out.
 
 </details>
 
@@ -172,13 +172,14 @@ const images = await client.mget('image', 'logo', { buffer: true }); // (Buffer 
 | :--------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Stored as is                 | SET, SETNX, SETEX, PSETEX, GETSET, SETRANGE, APPEND, MSET, MSETNX, HSET, HSETNX, HMSET, LPUSH, RPUSH, LPUSHX, RPUSHX, LSET, LINSERT, XADD, RESTORE             |
 | Compared values              | LINSERT, LREM, LPOS, SMISMEMBER, DELEX, SET                                                                                                                    |
-| Other arguments              | PUBLISH, SPUBLISH (message) · BF.LOADCHUNK, CF.LOADCHUNK (chunk) · AUTH, HELLO (credentials) · `send()` (any argument)                                         |
+| Other arguments              | PUBLISH, SPUBLISH (message) · FUNCTION RESTORE (dump) · BF.LOADCHUNK, CF.LOADCHUNK (chunk) · AUTH, HELLO (credentials) · `send()` (any argument)               |
 | Read with `{ buffer: true }` | GET, GETDEL, GETEX, GETRANGE, MGET, HGET, HMGET, HGETALL, HVALS, LINDEX, LRANGE, LPOP, RPOP, LMOVE, BLMOVE, RPOPLPUSH, BRPOPLPUSH, BLPOP, BRPOP, LMPOP, BLMPOP |
 
 - A `Buffer` reply is a view of the chunk it arrived in (up to 64 KB). Copy it with `Buffer.from()` to keep it long.
 - `send()` copies command arrays, not the `Buffer`s in them: keep a `Buffer` unchanged until its command settles.
 - Field names (HGETALL, HSCAN, streams) and RESP3 map keys, also from `send()`, decode as UTF-8, so invalid UTF-8 names can collide. Keep binary data in values.
 - Stream, set and sorted-set reads, HSCAN, HRANDFIELD, GETSET, SORT, SORT_RO and LCS return values as UTF-8 strings; read binary values from them with `send()`.
+- DUMP and FUNCTION DUMP return the payload as a latin1 string. Pass it to `restore()` or `functionRestore()` as it is, or read its bytes with `Buffer.from(value, 'latin1')`.
 - MGET and HMGET read a trailing `undefined` as missing options, not as a key.
 
 </details>
