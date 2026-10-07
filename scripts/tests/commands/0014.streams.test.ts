@@ -8,6 +8,7 @@ import {
   createClient,
   createKeyspace,
   detectServerCapabilities,
+  readServerTime,
 } from '../utils/index.ts';
 
 import type { FeaturedClient, ServerCapabilities } from '../utils/client.ts';
@@ -502,22 +503,27 @@ describe('streams', () => {
 
     await client.xadd(key, '1-1', { task: 'a' });
     await client.xgroupCreate(key, group, '0');
-    await client.xreadgroup(group, 'worker-1', [key], ['>']);
+
+    assert.deepStrictEqual(
+      await client.xclaim(key, group, 'worker-2', 0, ['1-1']),
+      [],
+      'an entry nobody read is claimed only with FORCE',
+    );
 
     const claimed = await client.xclaim(key, group, 'worker-2', 0, ['1-1'], {
-      idle: 0,
+      idle: 60_000,
       force: true,
     });
 
-    assert.strictEqual(claimed.length, 1);
+    assert.deepStrictEqual(claimed, [{ id: '1-1', fields: { task: 'a' } }]);
 
-    const entry = claimed[0];
+    const [pending] = await client.xpending(key, group, '-', '+', 10);
 
-    if (typeof entry === 'string') {
-      assert.fail('expected stream entry object, not id string');
-    }
-    assert.strictEqual(entry.id, '1-1');
-    assert.deepStrictEqual(entry.fields, { task: 'a' });
+    assert.strictEqual(pending.consumer, 'worker-2');
+    assert.ok(
+      pending.deliveryTime >= 60_000,
+      `IDLE sets the idle time, got ${pending.deliveryTime}`,
+    );
   });
 
   it('auto-claims entries with COUNT option', async () => {
@@ -632,7 +638,7 @@ describe('streams', () => {
     await client.xreadgroup(group, 'worker-1', [key], ['>']);
 
     const claimed = await client.xclaim(key, group, 'worker-2', 0, ['1-1'], {
-      time: Date.now(),
+      time: (await readServerTime(client)) - 60_000,
       retrycount: 5,
     });
 
@@ -650,6 +656,10 @@ describe('streams', () => {
     }
     assert.strictEqual(pending[0].consumer, 'worker-2');
     assert.strictEqual(pending[0].deliveryCount, 5);
+    assert.ok(
+      pending[0].deliveryTime >= 60_000,
+      `TIME sets the last delivery, got an idle time of ${pending[0].deliveryTime}`,
+    );
   });
 
   it('reads from group with BLOCK timeout', async () => {

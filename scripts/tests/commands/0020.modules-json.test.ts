@@ -654,7 +654,7 @@ describe('modules-json', () => {
     assert.deepStrictEqual([...keys].sort(), ['alpha', 'beta']);
   });
 
-  it('returns null from JSON.OBJKEYS on non-object path', async (context) => {
+  it('returns [null] (Valkey: [[]]) from JSON.OBJKEYS on a non-object path', async (context) => {
     if (!available) {
       context.skip('RedisJSON not loaded');
       return;
@@ -690,7 +690,7 @@ describe('modules-json', () => {
     assert.strictEqual(result, 'object');
   });
 
-  it('returns null from JSON.TYPE on missing path', async (context) => {
+  it('returns an empty array from JSON.TYPE for a JSONPath that matches nothing, and null for a missing key', async (context) => {
     if (!available) {
       context.skip('RedisJSON not loaded');
       return;
@@ -704,5 +704,9 @@ describe('modules-json', () => {
 
     /** A JSONPath that matches nothing yields an empty array, not null. */
     assert.deepStrictEqual(result, []);
+    assert.strictEqual(
+      await client.jsonType(keyspace.key('type-absent'), '$'),
+      null,
+    );
   });
 });

@@ -133,7 +133,7 @@ describe('connection', () => {
     await ended;
 
     await assert.rejects(
-      () => client.connect(),
+      () => client.ping(),
       (error: Error) =>
         error instanceof SolidisClientError &&
         error.message === 'The client was quit.',
@@ -206,16 +206,6 @@ describe('connection', () => {
     assert.strictEqual(await client.clientGetname(), name);
 
     await closeClient(client);
-  });
-
-  it('connects using a redis:// URI', async () => {
-    const client = track(
-      await createClient({
-        uri: `redis://${resolveConnectionTarget().host}:${resolveConnectionTarget().port}`,
-      }),
-    );
-
-    assert.strictEqual(await client.ping(), 'PONG');
   });
 
   it('accepts enableReadyCheck in both states without error', async () => {

@@ -3,10 +3,13 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
+import { SolidisFeaturedClient } from '../../../../sources/client/featured.ts';
 import {
+  buildClientOptions,
   closeClient,
   createClient,
   createKeyspace,
+  delay,
   detectServerCapabilities,
 } from '../../utils/index.ts';
 
@@ -24,6 +27,35 @@ describe('blocking', () => {
 
   after(async () => {
     await closeClient(client);
+  });
+
+  it('keeps the blocking deadline of commands sent before the client is ready', async () => {
+    const key = keyspace.key('before-ready');
+    const rawKey = keyspace.key('before-ready-raw');
+    const waiting = new SolidisFeaturedClient(
+      buildClientOptions({ lazyConnect: true, commandTimeout: 200 }),
+    );
+
+    waiting.on('error', () => {});
+
+    try {
+      const popped = waiting.blpop([key], 0);
+      const raw = waiting.send([['BLPOP', rawKey, '0']], {
+        blockingTimeout: 0,
+      });
+
+      await waiting.connect();
+      await delay(400);
+      await client.rpush(key, 'element');
+      await client.rpush(rawKey, 'raw');
+
+      assert.deepStrictEqual(await popped, [key, 'element']);
+      assert.deepStrictEqual(await raw, [
+        [[Buffer.from(rawKey), Buffer.from('raw')]],
+      ]);
+    } finally {
+      waiting.quit();
+    }
   });
 
   it('pops from the left with BLPOP', async () => {

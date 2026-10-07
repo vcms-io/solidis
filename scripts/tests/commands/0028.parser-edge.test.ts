@@ -10,6 +10,7 @@ import {
   SolidisParser,
   SolidisParserError,
 } from '../../../sources/index.ts';
+import { assertGrowth, measureTime } from '../utils/index.ts';
 
 import type { SolidisData } from '../../../sources/index.ts';
 
@@ -499,84 +500,103 @@ describe('parser-edge', () => {
       }
     });
 
-    it('parses a line split across thousands of chunks in linear time', () => {
-      const parser = createParser();
-      const size = 8 * 1024 * 1024;
-      const stream = Buffer.concat([
-        bytes('+'),
-        Buffer.alloc(size, 0x61),
-        bytes('\r\n-ERR '),
-        Buffer.alloc(size, 0x62),
-        bytes('\r'),
-        bytes('\n:1\r\n'),
-      ]);
-      const replies: SolidisData[] = [];
-      const startedAt = performance.now();
+    it('parses a line split across thousands of chunks in linear time', async () => {
+      await assertGrowth(
+        (size) => {
+          const parser = createParser();
+          const stream = Buffer.concat([
+            bytes('+'),
+            Buffer.alloc(size, 0x61),
+            bytes('\r\n-ERR '),
+            Buffer.alloc(size, 0x62),
+            bytes('\r'),
+            bytes('\n:1\r\n'),
+          ]);
+          const replies: SolidisData[] = [];
 
-      for (let offset = 0; offset < stream.length; offset += 16384) {
-        replies.push(...parser.parse(stream.subarray(offset, offset + 16384)));
-      }
+          return measureTime(() => {
+            for (let offset = 0; offset < stream.length; offset += 16384) {
+              replies.push(
+                ...parser.parse(stream.subarray(offset, offset + 16384)),
+              );
+            }
 
-      const elapsed = performance.now() - startedAt;
-      const [line, error, integer] = replies;
+            const [line, error, integer] = replies;
 
-      assert.strictEqual(replies.length, 3);
-      assert.strictEqual(typeof line === 'string' && line.length, size);
-      assert.ok(error instanceof RespError);
-      assert.strictEqual(error.message.length, size + 4);
-      assert.strictEqual(integer, 1);
-      assert.ok(elapsed < 500, `took ${Math.round(elapsed)} ms`);
-    });
-
-    it('parses a bulk string full of carriage returns split across thousands of chunks in linear time', () => {
-      const parser = createParser();
-      const size = 8 * 1024 * 1024;
-      const payload = Buffer.alloc(size, 0x0d);
-      const stream = Buffer.concat([
-        bytes(`$${size}\r\n`),
-        payload,
-        bytes('\r\n'),
-      ]);
-      const replies: SolidisData[] = [];
-      const startedAt = performance.now();
-
-      for (let offset = 0; offset < stream.length; offset += 4096) {
-        replies.push(...parser.parse(stream.subarray(offset, offset + 4096)));
-      }
-
-      const elapsed = performance.now() - startedAt;
-      const [bulk] = replies;
-
-      assert.strictEqual(replies.length, 1);
-      assert.ok(Buffer.isBuffer(bulk) && bulk.equals(payload));
-      assert.ok(elapsed < 500, `took ${Math.round(elapsed)} ms`);
-    });
-
-    it('parses a line that grows by one byte per chunk in linear time', () => {
-      const parser = createParser();
-      const head = Buffer.concat([bytes('+'), Buffer.alloc(262143, 0x61)]);
-      const byte = bytes('a');
-      const count = 20000;
-      const replies: SolidisData[] = [];
-      const startedAt = performance.now();
-
-      replies.push(...parser.parse(head));
-
-      for (let index = 0; index < count; index += 1) {
-        replies.push(...parser.parse(byte));
-      }
-
-      replies.push(...parser.parse(bytes('\r\n')));
-
-      const elapsed = performance.now() - startedAt;
-      const [line] = replies;
-
-      assert.strictEqual(replies.length, 1);
-      assert.strictEqual(
-        typeof line === 'string' && line.length,
-        262143 + count,
+            assert.strictEqual(replies.length, 3);
+            assert.strictEqual(typeof line === 'string' && line.length, size);
+            assert.ok(error instanceof RespError);
+            assert.strictEqual(error.message.length, size + 4);
+            assert.strictEqual(integer, 1);
+          });
+        },
+        [2 * 1024 * 1024, 8 * 1024 * 1024],
+        8,
       );
-      assert.ok(elapsed < 500, `took ${Math.round(elapsed)} ms`);
+    });
+
+    it('parses a bulk string full of carriage returns split across thousands of chunks in linear time', async () => {
+      await assertGrowth(
+        (size) => {
+          const parser = createParser();
+          const payload = Buffer.alloc(size, 0x0d);
+          const stream = Buffer.concat([
+            bytes(`$${size}\r\n`),
+            payload,
+            bytes('\r\n'),
+          ]);
+          const replies: SolidisData[] = [];
+
+          return measureTime(() => {
+            for (let offset = 0; offset < stream.length; offset += 4096) {
+              replies.push(
+                ...parser.parse(stream.subarray(offset, offset + 4096)),
+              );
+            }
+
+            const [bulk] = replies;
+
+            assert.strictEqual(replies.length, 1);
+            assert.ok(Buffer.isBuffer(bulk) && bulk.equals(payload));
+          });
+        },
+        [4 * 1024 * 1024, 16 * 1024 * 1024],
+        8,
+      );
+    });
+
+    it('parses a line that grows by one byte per chunk in linear time', async () => {
+      await assertGrowth(
+        (count) => {
+          const parser = createParser();
+          const head = Buffer.concat([
+            bytes('+'),
+            Buffer.alloc(count * 13, 0x61),
+          ]);
+          const byte = bytes('a');
+          const replies: SolidisData[] = [];
+
+          return measureTime(() => {
+            replies.push(...parser.parse(head));
+
+            for (let index = 0; index < count; index += 1) {
+              replies.push(...parser.parse(byte));
+            }
+
+            replies.push(...parser.parse(bytes('\r\n')));
+
+            const [line] = replies;
+
+            assert.strictEqual(replies.length, 1);
+            assert.strictEqual(
+              typeof line === 'string' && line.length,
+              count * 14,
+            );
+          });
+        },
+        [5_000, 20_000],
+        8,
+      );
     });
 
     it('merges the small chunks of an incomplete reply', (context) => {

@@ -790,7 +790,14 @@ describe('session-recovery', () => {
         });
         assert.ok(Date.now() - startedAt >= 140);
 
-        const quickStartedAt = Date.now();
+        let isDefaultSettled = false;
+
+        const waiting = client
+          .ping()
+          .catch((error: unknown) => error)
+          .finally(() => {
+            isDefaultSettled = true;
+          });
 
         await assert.rejects(
           client.send([['PING']], { timeout: 40 }),
@@ -805,7 +812,8 @@ describe('session-recovery', () => {
             return true;
           },
         );
-        assert.ok(Date.now() - quickStartedAt < 140);
+        assert.strictEqual(isDefaultSettled, false);
+        assert.ok((await waiting) instanceof SolidisClientError);
       } finally {
         client.quit();
       }

@@ -32,7 +32,7 @@ function runNode(type: 'commonjs' | 'module', script: string) {
   return execFileSync(
     process.execPath,
     [`--input-type=${type}`, '--eval', script],
-    { cwd: outputDirectory, encoding: 'utf8' },
+    { cwd: outputDirectory, encoding: 'utf8', timeout: 30_000 },
   );
 }
 
@@ -165,7 +165,7 @@ describe('distributions', () => {
   it('exposes the same client API through CommonJS and ES modules', () => {
     const script = (load: string) =>
       `${load}
-      const client = new SolidisFeaturedClient({ lazyConnect: true });
+      const client = new SolidisFeaturedClient({ port: 1, lazyConnect: true });
       const methods = Object.keys(client).filter((key) => typeof client[key] === 'function');
       process.stdout.write(JSON.stringify([typeof SolidisClient, methods.length]));`;
     const commonjs = runNode(

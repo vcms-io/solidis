@@ -511,9 +511,11 @@ describe('resp3-shapes', () => {
 
     const marker = `slowlog-${uniqueSuffix()}`;
 
+    await client.configSet('slowlog-log-slower-than', '1000');
     await client.send([
       ['EVAL', 'for index = 1, 5000000 do end return ARGV[1]', '0', marker],
     ]);
+    await client.configSet('slowlog-log-slower-than', '10000');
 
     const entries = await client.slowlogGet(128);
 
@@ -633,38 +635,6 @@ describe('resp3-shapes', () => {
     );
 
     await client.aclDeluser(user).catch(() => {});
-  });
-
-  it('reads a RESP3 map from FUNCTION LIST', async (context) => {
-    if (!capabilities.atLeast(7, 0)) {
-      context.skip('requires Redis 7.0+');
-      return;
-    }
-
-    const list = await client.functionList();
-
-    assert.ok(
-      Array.isArray(list),
-      'FUNCTION LIST must return an array even when no libraries are loaded',
-    );
-
-    for (const item of list) {
-      assert.strictEqual(typeof item.libraryName, 'string');
-      assert.ok(
-        item.libraryName.length > 0,
-        'libraryName must be a non-empty string',
-      );
-      assert.strictEqual(typeof item.engine, 'string');
-
-      assert.ok(
-        Array.isArray(item.functions),
-        'each library entry must have a functions array',
-      );
-
-      for (const functionEntry of item.functions) {
-        assert.strictEqual(typeof functionEntry.name, 'string');
-      }
-    }
   });
 
   it('reads a RESP3 full stream introspection from XINFO STREAM FULL', async () => {

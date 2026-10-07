@@ -347,27 +347,24 @@ describe('lifecycle-edge', () => {
       }),
     );
 
-    let readyAfterQuit = false;
-
-    client.on('ready', () => {
-      readyAfterQuit = true;
-    });
+    const events: string[] = [];
 
     await client.ping();
+
+    client.on('reconnecting', () => events.push('reconnecting'));
+    client.on('connect', () => events.push('connect'));
+    client.on('ready', () => events.push('ready'));
 
     const ended = new Promise<void>((resolve) => client.once('end', resolve));
 
     client.quit();
 
     await ended;
+    await delay(500);
 
-    for (let tick = 0; tick < 20; tick += 1) {
-      await new Promise<void>((resolve) => setImmediate(resolve));
-    }
-
-    assert.strictEqual(
-      readyAfterQuit,
-      false,
+    assert.deepStrictEqual(
+      events,
+      [],
       'quit must set isQuitted so the socket close handler skips reconnect',
     );
   });

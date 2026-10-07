@@ -16,7 +16,9 @@ describe('scan', () => {
   const keyspace = createKeyspace('scan');
 
   before(async () => {
-    client = await createClient();
+    client = await createClient({ database: 13 });
+
+    await client.flushdb();
   });
 
   after(async () => {

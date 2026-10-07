@@ -11,19 +11,7 @@ import type { SolidisClientOptions } from '../../../sources/index.ts';
 export interface TestConnectionTarget {
   host: string;
   port: number;
-  username?: string;
-  password?: string;
   protocol?: SolidisProtocols;
-}
-
-function readNumber(value: string | undefined, fallback: number): number {
-  if (value === undefined || value.trim() === '') {
-    return fallback;
-  }
-
-  const parsed = Number.parseInt(value, 10);
-
-  return Number.isNaN(parsed) ? fallback : parsed;
 }
 
 function readProtocol(value: string | undefined) {
@@ -46,9 +34,10 @@ function readProtocol(value: string | undefined) {
 }
 
 function readPort(value: string | undefined) {
-  const port = readNumber(value, Number.NaN);
+  const text = value?.trim() ?? '';
+  const port = Number(text);
 
-  if (!Number.isInteger(port)) {
+  if (!/^\d+$/.test(text) || port < 1 || port > 65_535) {
     throw new Error(
       'Set SOLIDIS_TEST_PORT to the port of a disposable server: the suites flush its data.',
     );
@@ -60,14 +49,10 @@ function readPort(value: string | undefined) {
 export function resolveConnectionTarget(): TestConnectionTarget {
   const host = process.env.SOLIDIS_TEST_HOST ?? '127.0.0.1';
   const port = readPort(process.env.SOLIDIS_TEST_PORT);
-  const username = process.env.SOLIDIS_TEST_USERNAME;
-  const password = process.env.SOLIDIS_TEST_PASSWORD;
 
   return {
     host,
     port,
-    username: username && username.length > 0 ? username : undefined,
-    password: password && password.length > 0 ? password : undefined,
     protocol: readProtocol(process.env.SOLIDIS_TEST_PROTOCOL),
   };
 }
@@ -77,15 +62,9 @@ export function buildClientOptions(
 ): SolidisClientOptions {
   const target = resolveConnectionTarget();
 
-  const authentication =
-    target.username || target.password
-      ? { username: target.username, password: target.password }
-      : undefined;
-
   return {
     host: target.host,
     port: target.port,
-    authentication,
     protocol: target.protocol,
     ...overrides,
   };

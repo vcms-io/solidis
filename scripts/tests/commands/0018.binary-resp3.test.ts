@@ -50,7 +50,7 @@ describe('binary-resp3', () => {
 
   it('preserves multi-byte UTF-8 strings', async () => {
     const key = keyspace.key('utf8');
-    const value = '?�녕?�세???�� ?�ん?�ち??Ω';
+    const value = '안녕하세요 세계 こんにちは Ω 😀';
 
     await client.set(key, value);
 

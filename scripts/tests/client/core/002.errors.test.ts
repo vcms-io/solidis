@@ -296,25 +296,22 @@ describe('errors', () => {
     );
   });
 
-  it('does not produce duplicate entries when unwrapping deeply nested errors', () => {
+  it('unwraps a nested chain from the outermost error, and a cause cycle once', () => {
     const root = new Error('root cause');
     const middle = new SolidisClientError('middle layer', root);
     const outer = new SolidisClientError('outer layer', middle);
 
-    const chain = unwrapSolidisError(outer);
-
     assert.deepStrictEqual(
-      chain.map((entry) => entry.message),
+      unwrapSolidisError(outer).map((entry) => entry.message),
       ['outer layer', 'middle layer', 'root cause'],
     );
 
-    const uniqueMessages = new Set(chain.map((entry) => entry.message));
+    const first = new SolidisClientError('first');
+    const second = new SolidisClientError('second', first);
 
-    assert.strictEqual(
-      uniqueMessages.size,
-      chain.length,
-      'unwrapped chain must not contain duplicate entries',
-    );
+    first.cause = second;
+
+    assert.deepStrictEqual(unwrapSolidisError(first), [first, second]);
   });
 
   it('annotates command errors with the command name', async () => {

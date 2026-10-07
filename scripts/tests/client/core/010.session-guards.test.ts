@@ -1005,6 +1005,51 @@ describe('session-guards', () => {
       }
     });
 
+    it('spends one budget of attempts on refused connections before an interrupted handshake', async (context) => {
+      context.mock.method(Math, 'random', () => 1);
+
+      const server = await startServer((socket) => {
+        socket.destroy();
+      });
+      const port = server.port;
+
+      await server.close();
+
+      const client = new SolidisFeaturedClient(
+        mockClientOptions(port, {
+          enableReadyCheck: true,
+          maxConnectionRetries: 2,
+          connectionRetryDelay: 200,
+          maxConnectionRetryDelay: 200,
+        }),
+      );
+      const attempts: number[] = [];
+
+      let listening: Promise<number> | undefined;
+
+      client.on('error', () => {});
+      client.on('reconnecting', (attempt) => {
+        attempts.push(attempt);
+
+        if (attempt === 3) {
+          listening = server.listen(port);
+        }
+      });
+
+      try {
+        await assert.rejects(client.connect(), {
+          name: 'SolidisConnectionError',
+          message: 'Connection closed during the handshake.',
+        });
+        assert.strictEqual(await listening, port);
+        assert.strictEqual(server.acceptedCount, 1);
+        assert.deepStrictEqual(attempts, [2, 3]);
+      } finally {
+        client.quit();
+        await server.close();
+      }
+    });
+
     it('stops a ready check that outlives its connection', async () => {
       let readyChecks = 0;
 
@@ -1377,7 +1422,6 @@ describe('session-guards', () => {
           maxConnectionRetries: 20,
         }),
       );
-      const startedAt = Date.now();
 
       client.on('error', () => {});
 
@@ -1391,7 +1435,6 @@ describe('session-guards', () => {
           return true;
         });
 
-        assert.ok(Date.now() - startedAt < 1000);
         assert.strictEqual(server.acceptedCount, 1);
       } finally {
         client.quit();
@@ -1529,9 +1572,11 @@ describe('session-guards', () => {
     it('settles waiting requests at once when a ready listener calls quit()', async () => {
       const server = await startServer(answerPong);
       const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, { commandTimeout: 0 }),
+        mockClientOptions(server.port, {
+          commandTimeout: 0,
+          connectionTimeout: 600_000,
+        }),
       );
-      const startedAt = Date.now();
 
       client.on('error', () => {});
       client.once('ready', () => client.quit());
@@ -1545,8 +1590,6 @@ describe('session-guards', () => {
           name: 'SolidisClientError',
           message: 'The client was quit.',
         });
-
-        assert.ok(Date.now() - startedAt < 1000);
       } finally {
         await server.close();
       }
@@ -1610,8 +1653,9 @@ describe('session-guards', () => {
       const client = new SolidisFeaturedClient(
         mockClientOptions(server.port, {
           enableReadyCheck: true,
-          readyCheckInterval: 60_000,
+          readyCheckInterval: 600_000,
           commandTimeout: 0,
+          connectionTimeout: 600_000,
         }),
       );
 
@@ -1625,8 +1669,6 @@ describe('session-guards', () => {
 
         await waitFor(() => server.received.length > 0);
 
-        const startedAt = Date.now();
-
         client.quit();
 
         const [connectError, sendError] = await Promise.all([
@@ -1634,7 +1676,6 @@ describe('session-guards', () => {
           waiting,
         ]);
 
-        assert.ok(Date.now() - startedAt < 1000);
         assert.ok(connectError instanceof SolidisClientError);
         assert.strictEqual(connectError.message, 'The client was quit.');
         assert.ok(sendError instanceof SolidisClientError);
@@ -1654,6 +1695,7 @@ describe('session-guards', () => {
         [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY],
       ] as const) {
         const client = new SolidisClient({
+          port: 1,
           lazyConnect: true,
           debug: true,
           maxEventListenersForClient: value,
@@ -1972,32 +2014,32 @@ describe('session-guards', () => {
       assert.strictEqual(parsed.port, '6390');
       assert.strictEqual(decodeURIComponent(parsed.username), 'app user');
       assert.strictEqual(
-        new SolidisClient({ host: '127.0.0.1', lazyConnect: true }).uri,
-        'redis://127.0.0.1:6379',
+        new SolidisClient({ host: 'cache', lazyConnect: true }).uri,
+        'redis://cache:6379',
       );
       assert.strictEqual(
         new SolidisClient({
-          host: '127.0.0.1',
+          host: 'cache',
           lazyConnect: true,
           authentication: { password: 'secret' },
         }).uri,
-        'redis://:***@127.0.0.1:6379',
+        'redis://:***@cache:6379',
       );
       assert.strictEqual(
         new SolidisClient({
-          host: '127.0.0.1',
+          host: 'cache',
           lazyConnect: true,
           authentication: { username: 'app' },
         }).uri,
-        'redis://app:***@127.0.0.1:6379',
+        'redis://app:***@cache:6379',
       );
       assert.strictEqual(
         new SolidisClient({
-          host: '127.0.0.1',
+          host: 'cache',
           lazyConnect: true,
           authentication: { username: 'app\uD800' },
         }).uri,
-        'redis://app%EF%BF%BD:***@127.0.0.1:6379',
+        'redis://app%EF%BF%BD:***@cache:6379',
       );
     });
   });

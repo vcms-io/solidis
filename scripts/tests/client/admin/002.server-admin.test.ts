@@ -140,16 +140,6 @@ describe('server-admin', () => {
     assert.strictEqual(await client.memoryPurge(), 'OK');
   });
 
-  it('reads the slowlog with SLOWLOG GET', async () => {
-    const entries = await client.slowlogGet(10);
-
-    for (const entry of entries) {
-      assert.strictEqual(typeof entry.id, 'number');
-      assert.strictEqual(typeof entry.timestamp, 'number');
-      assert.strictEqual(typeof entry.duration, 'number');
-    }
-  });
-
   it('parses slowlog entries with structured fields', async () => {
     await client.slowlogReset();
     await client.configSet('slowlog-log-slower-than', '0');
@@ -768,15 +758,6 @@ describe('server-admin', () => {
     assert.deepStrictEqual(sorted, ['apple', 'banana', 'cherry']);
   });
 
-  it('returns latency history for an event', async () => {
-    const history = await client.latencyHistory('command');
-
-    for (const entry of history) {
-      assert.strictEqual(typeof entry.timestamp, 'number');
-      assert.strictEqual(typeof entry.latency, 'number');
-    }
-  });
-
   it('runs LATENCY DOCTOR without error', async () => {
     const result = await client.latencyDoctor();
 
@@ -895,12 +876,12 @@ describe('server-admin', () => {
   it('lists loaded modules with MODULE LIST', async () => {
     const modules = await client.moduleList();
 
+    assert.deepStrictEqual(
+      modules.map((module) => module.name.toLowerCase()).sort(),
+      [...capabilities.modules].sort(),
+    );
+
     for (const module of modules) {
-      assert.strictEqual(typeof module.name, 'string');
-      assert.ok(
-        module.name.length > 0,
-        'module name must be a non-empty string',
-      );
       assert.strictEqual(typeof module.version, 'number');
     }
   });

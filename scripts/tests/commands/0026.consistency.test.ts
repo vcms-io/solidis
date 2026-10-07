@@ -1,7 +1,7 @@
 /** Reply-correlation consistency. */
 
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { after, before, describe, it } from 'node:test';
 
 import { RespError } from '../../../sources/index.ts';
@@ -271,15 +271,20 @@ describe('consistency', () => {
   });
 
   it('correlates pure ECHO traffic with unique binary payloads', async () => {
-    const tokens = range(2000).map(
-      (index) => `${index}:${randomUUID()}:${'x'.repeat(index % 32)}`,
+    const payloads = range(2000).map((index) =>
+      Buffer.concat([Buffer.from(`${index}:`), randomBytes(index % 64)]),
     );
 
     const replies = await Promise.all(
-      tokens.map((token) => client.echo(token)),
+      payloads.map((payload) => client.send([['ECHO', payload]])),
     );
 
-    assert.deepStrictEqual(replies, tokens);
+    for (const [index, [[reply]]] of replies.entries()) {
+      assert.ok(
+        Buffer.isBuffer(reply) && reply.equals(payloads[index]),
+        `payload #${index}`,
+      );
+    }
   });
 
   it('keeps every client correlated under 16-way concurrent load', async () => {
@@ -303,21 +308,17 @@ describe('consistency', () => {
 
     try {
       const blocked = blockingClient.blpop([blockKey], 2);
-
-      const fast = await Promise.all(
-        range(50).map((index) => client.echo(`fast-${index}`)),
-      );
-
-      assert.deepStrictEqual(
-        fast,
-        range(50).map((index) => `fast-${index}`),
+      const fast = Promise.all(
+        range(50).map((index) => blockingClient.echo(`fast-${index}`)),
       );
 
       await pusher.rpush(blockKey, 'released');
 
-      const popped = await blocked;
-
-      assert.deepStrictEqual(popped, [blockKey, 'released']);
+      assert.deepStrictEqual(await blocked, [blockKey, 'released']);
+      assert.deepStrictEqual(
+        await fast,
+        range(50).map((index) => `fast-${index}`),
+      );
     } finally {
       await closeClient(blockingClient);
       await closeClient(pusher);

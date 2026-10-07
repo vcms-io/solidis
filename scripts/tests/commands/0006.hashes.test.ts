@@ -8,6 +8,7 @@ import {
   createClient,
   createKeyspace,
   detectServerCapabilities,
+  readServerTime,
 } from '../utils/index.ts';
 
 import type { FeaturedClient } from '../utils/index.ts';
@@ -272,7 +273,7 @@ describe('hashes', () => {
     }
 
     const key = keyspace.key('hexpireat');
-    const future = Math.floor(Date.now() / 1000) + 1000;
+    const future = Math.floor((await readServerTime(client)) / 1000) + 1000;
 
     await client.hset(key, 'field', 'value');
 
@@ -337,7 +338,7 @@ describe('hashes', () => {
     }
 
     const key = keyspace.key('hpexpireat');
-    const futureMs = Date.now() + 600_000;
+    const futureMs = (await readServerTime(client)) + 600_000;
 
     await client.hset(key, 'field', 'value');
 
@@ -358,8 +359,9 @@ describe('hashes', () => {
     }
 
     const key = keyspace.key('hexpireat-gt');
-    const farFuture = Math.floor(Date.now() / 1000) + 120;
-    const nearFuture = Math.floor(Date.now() / 1000) + 60;
+    const now = Math.floor((await readServerTime(client)) / 1000);
+    const farFuture = now + 120;
+    const nearFuture = now + 60;
 
     await client.hset(key, 'field', 'value');
     await client.hexpireat(key, farFuture, ['field']);
@@ -379,8 +381,9 @@ describe('hashes', () => {
     }
 
     const key = keyspace.key('hexpireat-lt');
-    const farFuture = Math.floor(Date.now() / 1000) + 120;
-    const nearFuture = Math.floor(Date.now() / 1000) + 60;
+    const now = Math.floor((await readServerTime(client)) / 1000);
+    const farFuture = now + 120;
+    const nearFuture = now + 60;
 
     await client.hset(key, 'field', 'value');
     await client.hexpireat(key, farFuture, ['field']);
@@ -446,8 +449,9 @@ describe('hashes', () => {
     }
 
     const key = keyspace.key('hpexpireat-gt');
-    const farFuture = Date.now() + 120000;
-    const nearFuture = Date.now() + 60000;
+    const now = await readServerTime(client);
+    const farFuture = now + 120000;
+    const nearFuture = now + 60000;
 
     await client.hset(key, 'field', 'value');
     await client.hpexpireat(key, farFuture, ['field']);
@@ -467,8 +471,9 @@ describe('hashes', () => {
     }
 
     const key = keyspace.key('hpexpireat-lt');
-    const farFuture = Date.now() + 120000;
-    const nearFuture = Date.now() + 60000;
+    const now = await readServerTime(client);
+    const farFuture = now + 120000;
+    const nearFuture = now + 60000;
 
     await client.hset(key, 'field', 'value');
     await client.hpexpireat(key, farFuture, ['field']);

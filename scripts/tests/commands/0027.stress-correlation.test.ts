@@ -24,10 +24,18 @@ interface BurstResult {
 }
 
 function relay(from: net.Socket, to: net.Socket, chunkSize: number) {
+  let written = Promise.resolve();
+
   from.on('data', (data: Buffer) => {
-    for (let offset = 0; offset < data.length; offset += chunkSize) {
-      to.write(data.subarray(offset, offset + chunkSize));
-    }
+    written = written.then(async () => {
+      for (let offset = 0; offset < data.length; offset += chunkSize) {
+        await new Promise<void>((resolve) => {
+          to.write(data.subarray(offset, offset + chunkSize), () =>
+            setImmediate(resolve),
+          );
+        });
+      }
+    });
   });
 }
 

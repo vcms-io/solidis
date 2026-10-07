@@ -384,13 +384,35 @@ describe('client-commands', () => {
     }
   });
 
-  it('toggles client caching mode', async () => {
+  it('rejects CLIENT CACHING while tracking is off', async () => {
     await assert.rejects(
       () => client.clientCaching('YES'),
       (error: Error) =>
         error.message ===
         '[CLIENT CACHING] ERR CLIENT CACHING can be called only when the client is in tracking mode with OPTIN or OPTOUT mode enabled',
     );
+  });
+
+  it('sends the CLIENT CACHING mode that OPTIN and OPTOUT tracking take', async () => {
+    const tracked = await createClient();
+
+    try {
+      assert.strictEqual(
+        await tracked.clientTracking('ON', { optin: true }),
+        'OK',
+      );
+      assert.strictEqual(await tracked.clientCaching('YES'), 'OK');
+      await assert.rejects(tracked.clientCaching('NO'), /OPTOUT/);
+      assert.strictEqual(await tracked.clientTracking('OFF'), 'OK');
+      assert.strictEqual(
+        await tracked.clientTracking('ON', { optout: true }),
+        'OK',
+      );
+      assert.strictEqual(await tracked.clientCaching('NO'), 'OK');
+      await assert.rejects(tracked.clientCaching('YES'), /OPTIN/);
+    } finally {
+      await closeClient(tracked);
+    }
   });
 
   it('enables client tracking with BCAST and prefixes', async (context) => {

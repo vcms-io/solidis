@@ -10,6 +10,7 @@ import {
   SolidisParserError,
 } from '../../../sources/index.ts';
 import { RespPush } from '../../../sources/types/resp.ts';
+import { assertGrowth, measureTime } from '../utils/index.ts';
 
 import type { SolidisData } from '../../../sources/index.ts';
 
@@ -336,31 +337,37 @@ describe('parser', () => {
     }
   });
 
-  it('keeps parsing time linear in the size of a chunked aggregate', () => {
-    const elementCount = 400000;
-    const parts = [bytes(`*${elementCount}\r\n`)];
+  it('keeps parsing time linear in the size of a chunked aggregate', async () => {
+    await assertGrowth(
+      (elementCount) => {
+        const parts = [bytes(`*${elementCount}\r\n`)];
 
-    for (let index = 0; index < elementCount; index += 1) {
-      parts.push(bytes(`$8\r\n${`${index}`.padStart(8, '0')}\r\n`));
-    }
+        for (let index = 0; index < elementCount; index += 1) {
+          parts.push(bytes(`$8\r\n${`${index}`.padStart(8, '0')}\r\n`));
+        }
 
-    const frame = Buffer.concat(parts);
-    const parser = createParser();
-    const startedAt = performance.now();
+        const frame = Buffer.concat(parts);
+        const parser = createParser();
 
-    let replies: SolidisData[] = [];
+        let replies: SolidisData[] = [];
 
-    for (let offset = 0; offset < frame.length; offset += 65536) {
-      replies = replies.concat(
-        parser.parse(frame.subarray(offset, offset + 65536)),
-      );
-    }
+        return measureTime(() => {
+          for (let offset = 0; offset < frame.length; offset += 65536) {
+            replies = replies.concat(
+              parser.parse(frame.subarray(offset, offset + 65536)),
+            );
+          }
 
-    const elapsed = performance.now() - startedAt;
-
-    assert.strictEqual(replies.length, 1);
-    assert.strictEqual((replies[0] as SolidisData[]).length, elementCount);
-    assert.ok(elapsed < 2000, `chunked parse took ${elapsed.toFixed(0)} ms`);
+          assert.strictEqual(replies.length, 1);
+          assert.strictEqual(
+            (replies[0] as SolidisData[]).length,
+            elementCount,
+          );
+        });
+      },
+      [100_000, 400_000],
+      8,
+    );
   });
 
   it('rejects an unknown type prefix', () => {
@@ -403,10 +410,14 @@ describe('parser', () => {
     );
   });
 
-  it('discards a valid reply when a later frame is corrupt', () => {
-    assert.throws(() => parseOnce(bytes('+good\r\n@evil\r\n')), {
-      message: "Unknown prefix '@'",
-    });
+  it('keeps the replies before a corrupt frame and then throws', () => {
+    const replies: SolidisData[] = [];
+
+    assert.throws(
+      () => createParser().parse(bytes('+good\r\n@evil\r\n'), replies),
+      { message: "Unknown prefix '@'" },
+    );
+    assert.deepStrictEqual(replies, ['good']);
   });
 
   it('waits for more data on an incomplete frame', () => {

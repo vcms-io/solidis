@@ -33,11 +33,13 @@ import {
   toCommandError,
 } from '../../../sources/index.ts';
 import {
+  assertGrowth,
   closeClient,
   createClient,
   createKeyspace,
   detectServerCapabilities,
   isCommandSupported,
+  measureTime,
   readServerTime,
 } from '../utils/index.ts';
 
@@ -550,7 +552,7 @@ describe('regressions', () => {
       }
     });
 
-    it('reads no argument when the message quotes nothing', () => {
+    it('reads no argument when the message quotes nothing', async () => {
       const guarded = Buffer.from('payload');
 
       let reads = 0;
@@ -587,27 +589,32 @@ describe('regressions', () => {
       );
       assert.strictEqual(quoted.message, "[APPEND] ERR invalid '***'");
 
-      const values = Array.from(
-        { length: 1_000_000 },
-        (_, index) => `v${index}`,
-      );
-      const command = ['MSET', ...values];
-      const startedAt = performance.now();
-      const arity = toCommandError(
-        new RespError("ERR wrong number of arguments for 'mset' command"),
-        command,
+      const arity = new RespError(
+        "ERR wrong number of arguments for 'mset' command",
       );
 
-      assert.ok(performance.now() - startedAt < 5000);
-      assert.strictEqual(
-        arity.message,
-        "[MSET] ERR wrong number of arguments for 'mset' command",
+      await assertGrowth(
+        (count) => {
+          const command = [
+            'MSET',
+            ...Array.from({ length: count }, (_, index) => `v${index}`),
+          ];
+
+          return measureTime(() => {
+            assert.strictEqual(
+              toCommandError(arity, command).message,
+              `[MSET] ${arity.message}`,
+            );
+          });
+        },
+        [250_000, 1_000_000],
+        8,
       );
 
-      const prefixed = toCommandError(
-        new RespError("ERR invalid 'v0'"),
-        command.slice(0, 1001),
-      );
+      const prefixed = toCommandError(new RespError("ERR invalid 'v0'"), [
+        'MSET',
+        ...Array.from({ length: 1000 }, (_, index) => `v${index}`),
+      ]);
 
       assert.strictEqual(prefixed.message, "[MSET] ERR invalid '***'");
     });
@@ -626,27 +633,34 @@ describe('regressions', () => {
       );
     });
 
-    it('strips replacement characters in linear time', () => {
+    it('strips replacement characters in linear time', async () => {
       const run = '\uFFFD'.repeat(4000);
       const kept = toCommandError(new RespError(`ERR ${run}x`), ['GET', 'k']);
 
       assert.strictEqual(kept.message, `[GET] ERR ${run}x`);
 
-      const invalid = Array.from({ length: 50 }, () =>
-        Buffer.alloc(100_000, 0xff),
-      );
-      const startedAt = performance.now();
-      const message = `ERR invalid 'x' ${'.'.repeat(4000)}`;
-      const error = toCommandError(new RespError(message), [
+      const command = [
         'MSET',
-        ...invalid,
-      ]);
+        ...Array.from({ length: 50 }, () => Buffer.alloc(100_000, 0xff)),
+      ];
 
-      assert.ok(performance.now() - startedAt < 2000);
-      assert.strictEqual(error.message, `[MSET] ${message}`);
+      await assertGrowth(
+        (length) => {
+          const message = `ERR invalid 'x' ${'.'.repeat(length)}`;
+
+          return measureTime(() => {
+            assert.strictEqual(
+              toCommandError(new RespError(message), command).message,
+              `[MSET] ${message}`,
+            );
+          });
+        },
+        [1000, 4000],
+        8,
+      );
     });
 
-    it('cuts an error message to 4096 characters and masks an argument the cut leaves open', () => {
+    it('cuts an error message to 4096 characters and masks an argument the cut leaves open', async () => {
       const long = toCommandError(new RespError(`ERR ${'a'.repeat(10_000)}`), [
         'GET',
         'k',
@@ -678,15 +692,22 @@ describe('regressions', () => {
 
       assert.strictEqual(prose.message, `[EVAL] ERR can't ${'p'.repeat(4086)}`);
 
-      const quotes = "'ac".repeat(10_000_000);
-      const startedAt = performance.now();
-      const hostile = toCommandError(new RespError(`ERR ${quotes}`), [
-        'GET',
-        'ab',
-      ]);
+      await assertGrowth(
+        (count) => {
+          const hostile = new RespError(
+            Buffer.from(`ERR ${"'ac".repeat(count)}`).toString('latin1'),
+          );
 
-      assert.ok(performance.now() - startedAt < 2000);
-      assert.strictEqual(hostile.message.length, 4096 + '[GET] '.length);
+          return measureTime(() => {
+            assert.strictEqual(
+              toCommandError(hostile, ['GET', 'ab']).message.length,
+              4096 + '[GET] '.length,
+            );
+          }, 20);
+        },
+        [1_400, 10_000_000],
+        3,
+      );
     });
 
     it('keeps the end of a message exactly 4096 characters long', () => {
@@ -1031,13 +1052,13 @@ describe('regressions', () => {
       );
     });
 
-    it('bounds the search for quoted text inside arguments', () => {
+    it('bounds the search for quoted text inside arguments', async () => {
       const letters = 'bcdefghijklmnopqrstuvwxyz';
       const quoted = Array.from(
         { length: 500 },
         (_, index) =>
           `'aa${letters[index % 25]}${letters[Math.floor(index / 25)]}'`,
-      ).join(' ');
+      );
       const large = Buffer.alloc(8 * 1024 * 1024, 'a');
       const empty = Array.from({ length: 1_000_000 }, () => '');
 
@@ -1045,12 +1066,25 @@ describe('regressions', () => {
         ['SET', 'k', large],
         ['MSET', ...empty],
       ]) {
-        const startedAt = performance.now();
-        const error = toCommandError(new RespError(`ERR ${quoted}`), command);
+        await assertGrowth(
+          (count) => {
+            const reply = new RespError(
+              `ERR ${quoted.slice(0, count).join(' ')}`,
+            );
 
-        assert.ok(performance.now() - startedAt < 2000);
-        assert.ok(error.message.endsWith("'***'"), error.message.slice(-40));
-        assert.ok(error.message.startsWith(`[${command[0]}] ERR 'aabb'`));
+            return measureTime(() => {
+              const error = toCommandError(reply, command);
+
+              assert.ok(
+                error.message.endsWith("'***'"),
+                error.message.slice(-40),
+              );
+              assert.ok(error.message.startsWith(`[${command[0]}] ERR 'aabb'`));
+            });
+          },
+          [2, 500],
+          3,
+        );
       }
 
       const huge = Buffer.alloc(2_097_152 + 1024, 'a');
@@ -1087,9 +1121,9 @@ describe('regressions', () => {
       assert.strictEqual(error.message, `[SET] ${"'".repeat(2050)}***'`);
     });
 
-    it('charges every distinct piece of a quoted span to the search budget', () => {
+    it('charges every distinct piece of a quoted span to the search budget', async () => {
       const letters = 'bcdefghijklmnopqrstuvwxyz';
-      const repeated = Array.from({ length: 1300 }, () => 'ab').join('\uFFFD');
+      const repeated = Array.from({ length: 1300 }, () => 'ab');
       const distinct = Array.from(
         { length: 625 },
         (_, index) =>
@@ -1097,36 +1131,50 @@ describe('regressions', () => {
       );
       const filler = 'a'.repeat(1024 * 1024);
 
-      for (const [span, argument] of [
+      for (const [pieces, argument] of [
         [repeated, `${filler}b`],
         [repeated, Buffer.from(`${filler}b`)],
-        [distinct.join('\uFFFD'), `${filler}${distinct.join('')}`],
+        [distinct, `${filler}${distinct.join('')}`],
       ] as const) {
-        const startedAt = performance.now();
-        const error = toCommandError(new RespError(`ERR '${span}'`), [
-          'SET',
-          'k',
-          argument,
-        ]);
+        await assertGrowth(
+          (count) => {
+            const reply = new RespError(
+              `ERR '${pieces.slice(0, count).join('\uFFFD')}'`,
+            );
 
-        assert.ok(
-          performance.now() - startedAt < 500,
-          `took ${Math.round(performance.now() - startedAt)} ms`,
+            return measureTime(() => {
+              assert.strictEqual(
+                toCommandError(reply, ['SET', 'k', argument]).message,
+                "[SET] ERR '***'",
+              );
+            });
+          },
+          [2, pieces.length],
+          3,
         );
-        assert.strictEqual(error.message, "[SET] ERR '***'");
       }
     });
 
-    it('redacts a long quoted argument in linear time', () => {
-      const argument = 'x'.repeat(200_000);
-      const startedAt = performance.now();
-      const error = toCommandError(
-        new RespError(`ERR invalid argument '${argument.slice(0, 100_000)}'`),
-        ['SET', 'key', argument],
+    it('redacts a long quoted argument in linear time', async () => {
+      await assertGrowth(
+        (length) => {
+          const value = 'x'.repeat(length);
+          const reply = new RespError(
+            `ERR invalid argument '${value.slice(0, length / 2)}'`,
+          );
+
+          return measureTime(() => {
+            assert.strictEqual(
+              toCommandError(reply, ['SET', 'key', value]).message,
+              "[SET] ERR invalid argument '***",
+            );
+          }, 50);
+        },
+        [50_000, 200_000],
+        8,
       );
 
-      assert.ok(performance.now() - startedAt < 2000);
-      assert.strictEqual(error.message, "[SET] ERR invalid argument '***");
+      const argument = 'x'.repeat(200_000);
 
       const fitting = toCommandError(
         new RespError(`ERR invalid argument '${argument.slice(0, 4000)}'`),

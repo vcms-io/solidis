@@ -6,6 +6,7 @@ import net from 'node:net';
 import { describe, it } from 'node:test';
 
 import {
+  formatDebugLog,
   SolidisClient,
   SolidisClientError,
   SolidisConnection,
@@ -174,6 +175,60 @@ describe('diagnostics', () => {
     }
   });
 
+  it('keeps arguments and credentials out of every debug entry, data included', async () => {
+    const secrets = ['Secret-pass-xyz', 'Runtime-pass-xyz', 'value-xyz'];
+    const server = await startServer((command) =>
+      command.includes('HELLO')
+        ? '%1\r\n+proto\r\n:3\r\n'
+        : command.includes('Runtime-pass-xyz')
+          ? "-ERR invalid password 'Runtime-pass-xyz'\r\n"
+          : '+OK\r\n',
+    );
+
+    try {
+      for (const protocol of ['RESP2', 'RESP3'] as const) {
+        const client = new SolidisClient(
+          mockClientOptions(server.port, {
+            protocol,
+            debug: true,
+            autoReconnect: true,
+            maxConnectionRetries: 3,
+            authentication: { username: 'user', password: 'Secret-pass-xyz' },
+          }),
+        );
+        const lines: string[] = [];
+
+        client.on('debug', (entry: SolidisDebugLog) => {
+          lines.push(formatDebugLog(entry));
+        });
+        client.on('error', () => {});
+
+        await client.connect();
+        await client.send([['SET', 'key', 'value-xyz']]);
+        await client.auth('user', 'Runtime-pass-xyz').catch(() => undefined);
+
+        const ready = new Promise<void>((resolve) =>
+          client.once('ready', resolve),
+        );
+
+        server.destroySockets();
+        await ready;
+        client.quit();
+        await new Promise((resolve) => setImmediate(resolve));
+
+        assert.ok(lines.length >= 8, `${protocol}: ${lines.length} entries`);
+
+        for (const line of lines) {
+          for (const secret of secrets) {
+            assert.ok(!line.includes(secret), `${protocol}: ${line}`);
+          }
+        }
+      }
+    } finally {
+      await server.close();
+    }
+  });
+
   it('logs the established connection and the completed handshake', async () => {
     const server = await startServer(() => '+OK\r\n');
     const client = new SolidisClient(
@@ -265,6 +320,7 @@ describe('diagnostics', () => {
 
     const connection = new SolidisConnection({
       ...SolidisDefaultOptions,
+      port: 1,
       maxConnectionRetries: 0,
     });
     const errors: unknown[] = [];
