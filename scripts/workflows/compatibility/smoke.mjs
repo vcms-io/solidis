@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
-const port = Number(process.env.SOLIDIS_TEST_PORT);
+const portText = process.env.SOLIDIS_TEST_PORT?.trim() ?? '';
+const port = Number(portText);
 
-if (!port) {
+if (!/^\d+$/.test(portText) || port < 1 || port > 65_535) {
   throw new Error('Set SOLIDIS_TEST_PORT to a disposable server.');
 }
 

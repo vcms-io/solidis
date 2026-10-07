@@ -125,13 +125,9 @@ const websiteFiles: Array<{
 ];
 
 for (const { path, replacements } of websiteFiles) {
-  try {
-    if (await replaceInFile(resolve(projectRoot, path), replacements)) {
-      updatedCount += 1;
-      console.log(`Updated: ${path}`);
-    }
-  } catch {
-    console.log(`Skipped: ${path} (not found)`);
+  if (await replaceInFile(resolve(projectRoot, path), replacements)) {
+    updatedCount += 1;
+    console.log(`Updated: ${path}`);
   }
 }
 

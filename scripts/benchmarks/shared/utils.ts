@@ -74,11 +74,9 @@ function formatTimestamp(): string {
 }
 
 export function formatPayloadSize(bytes: number): string {
-  if (bytes >= 1024) {
-    return `${(bytes / 1024).toFixed(0)} KB`;
-  }
-
-  return `${bytes} B`;
+  return bytes >= 1024 && bytes % 1024 === 0
+    ? `${bytes / 1024} KB`
+    : `${bytes} B`;
 }
 
 export function formatMemory(bytes: number): string {
@@ -86,11 +84,11 @@ export function formatMemory(bytes: number): string {
 }
 
 export function formatLargeNumber(value: number): string {
-  if (value >= 1_000_000) {
+  if (value >= 999_950) {
     return `${(value / 1_000_000).toFixed(2)}M`;
   }
 
-  if (value >= 1_000) {
+  if (value >= 999.95) {
     return `${(value / 1_000).toFixed(1)}K`;
   }
 

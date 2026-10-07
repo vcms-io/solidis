@@ -87,6 +87,7 @@ for (const readmeFile of readmeFiles) {
 
   if (closingIndex === -1) {
     console.error(`No matching </div> found in ${readmeFile}`);
+    process.exitCode = 1;
     continue;
   }
 

@@ -161,7 +161,6 @@ class ComparisonSuite extends BenchmarkSuite {
       }),
       this.commandCase({
         name: 'zset:ZADD+ZRANGE+ZREM',
-        payloadSlotsPerUnit: 2,
         unit: buildSortedSet,
         verify: verifySortedSet,
       }),

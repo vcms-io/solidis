@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { build } from 'esbuild';
 
 import { buildDistributions } from '../build/distributions.ts';
+import { formatKilobytes } from './format.ts';
 
 const OUTPUT_DIRECTORY = resolve('.bundle');
 
@@ -115,14 +116,6 @@ for (const target of targets) {
 const snapshotPath = resolve(OUTPUT_DIRECTORY, 'snapshot.json');
 await writeFile(snapshotPath, JSON.stringify(results, null, 2), 'utf-8');
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) {
-    return `${bytes} B`;
-  }
-
-  return `${(bytes / 1024).toFixed(1)} KB`;
-}
-
 console.log('\nBundle Size Comparison:');
 console.log('─'.repeat(56));
 console.log(
@@ -132,7 +125,7 @@ console.log('─'.repeat(56));
 
 for (const result of results) {
   console.log(
-    `${result.name.padEnd(16)} ${formatBytes(result.bundleBytes).padStart(12)} ${formatBytes(result.sourceMapBytes).padStart(12)}`,
+    `${result.name.padEnd(16)} ${formatKilobytes(result.bundleBytes).padStart(12)} ${formatKilobytes(result.sourceMapBytes).padStart(12)}`,
   );
 }
 

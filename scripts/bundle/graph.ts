@@ -3,6 +3,8 @@ import { resolve } from 'node:path';
 
 import { createCanvas } from '@napi-rs/canvas';
 
+import { formatKilobytes } from './format.ts';
+
 const SNAPSHOT_PATH = resolve('.bundle', 'snapshot.json');
 const OUTPUT_PATH = resolve('assets', 'bundle.png');
 
@@ -31,10 +33,6 @@ const BAR_COLORS: Record<string, ColorPair> = {
   ioredis: COLORS.ioredis,
   'node-redis': COLORS.nodeRedis,
 };
-
-function formatKilobytes(bytes: number): string {
-  return `${(Math.floor(bytes / 102.4) / 10).toFixed(1)} KB`;
-}
 
 function drawRoundedTop(
   context: CanvasRenderingContext2D,

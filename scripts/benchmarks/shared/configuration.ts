@@ -10,19 +10,40 @@ function readInteger(value: string | undefined): number {
   return /^\d+$/.test(text) ? Number(text) : Number.NaN;
 }
 
-function readNumber(name: string, fallback: number): number {
-  const value = readInteger(process.env[name]);
+function readNumber(name: string, fallback: number, minimum = 0): number {
+  const text = process.env[name]?.trim() ?? '';
 
-  return Number.isNaN(value) ? fallback : value;
+  if (!text) {
+    return fallback;
+  }
+
+  const value = readInteger(text);
+
+  if (!(value >= minimum)) {
+    throw new Error(
+      `${name} must be an integer of at least ${minimum}, not '${text}'.`,
+    );
+  }
+
+  return value;
 }
 
 function readSizes(): number[] {
-  const values = (process.env.SOLIDIS_BENCH_SIZES ?? '')
-    .split(',')
-    .map(readInteger)
-    .filter((value) => value > 0);
+  const text = process.env.SOLIDIS_BENCH_SIZES?.trim() ?? '';
 
-  return values.length > 0 ? values : [1024];
+  if (!text) {
+    return [1024];
+  }
+
+  const values = text.split(',').map(readInteger);
+
+  if (!values.every((value) => value > 0)) {
+    throw new Error(
+      `SOLIDIS_BENCH_SIZES must list byte counts above 0, not '${text}'.`,
+    );
+  }
+
+  return values;
 }
 
 function readOperations(): Set<string> | undefined {
@@ -64,19 +85,22 @@ function readLibraries(): Set<string> | undefined {
 }
 
 function readMode(): BenchmarkMode {
-  const rawValue = process.env.SOLIDIS_BENCH_MODE?.trim().toLowerCase();
+  const value =
+    process.env.SOLIDIS_BENCH_MODE?.trim().toLowerCase() || 'autopipeline';
 
-  if (rawValue === 'batch') {
-    return 'batch';
+  if (value !== 'autopipeline' && value !== 'batch') {
+    throw new Error(
+      `SOLIDIS_BENCH_MODE must be autopipeline or batch, not '${value}'.`,
+    );
   }
 
-  return 'autopipeline';
+  return value;
 }
 
 export function readConfig(): BenchConfig {
-  const port = readNumber('SOLIDIS_TEST_PORT', 0);
+  const port = readInteger(process.env.SOLIDIS_TEST_PORT);
 
-  if (port < 1 || port > 65_535) {
+  if (!(port >= 1 && port <= 65_535)) {
     throw new Error(
       'Set SOLIDIS_TEST_PORT to the port of a disposable server: the benchmarks flush its data.',
     );
@@ -89,12 +113,12 @@ export function readConfig(): BenchConfig {
     },
     mode: readMode(),
     sizes: readSizes(),
-    iterations: Math.max(1, readNumber('SOLIDIS_BENCH_ITERATIONS', 100000)),
-    warmup: Math.max(0, readNumber('SOLIDIS_BENCH_WARMUP', 1000)),
-    clients: Math.max(1, readNumber('SOLIDIS_BENCH_CLIENTS', 1)),
-    concurrency: Math.max(1, readNumber('SOLIDIS_BENCH_CONCURRENCY', 10000)),
-    repeats: Math.max(1, readNumber('SOLIDIS_BENCH_REPEATS', 10)),
-    cooldownMs: Math.max(0, readNumber('SOLIDIS_BENCH_COOLDOWN_MS', 2500)),
+    iterations: readNumber('SOLIDIS_BENCH_ITERATIONS', 100000, 1),
+    warmup: readNumber('SOLIDIS_BENCH_WARMUP', 1000),
+    clients: readNumber('SOLIDIS_BENCH_CLIENTS', 1, 1),
+    concurrency: readNumber('SOLIDIS_BENCH_CONCURRENCY', 10000, 1),
+    repeats: readNumber('SOLIDIS_BENCH_REPEATS', 10, 1),
+    cooldownMs: readNumber('SOLIDIS_BENCH_COOLDOWN_MS', 2500),
     operations: readOperations(),
     libraries: readLibraries(),
   };

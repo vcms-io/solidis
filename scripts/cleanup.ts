@@ -26,29 +26,24 @@ async function hasSource(declaration: string) {
 
 async function collectDts(directory: string) {
   const dtsMap: DtsMap = new Map();
+  const files = await readdir(directory, { recursive: true });
 
-  try {
-    const files = await readdir(directory, { recursive: true });
+  for (const file of files) {
+    const fullPath = join(directory, file);
+    const fileStatus = await stat(fullPath);
 
-    for (const file of files) {
-      const fullPath = join(directory, file);
-      const fileStatus = await stat(fullPath);
+    if (
+      fileStatus.isFile() &&
+      file.endsWith('.d.ts') &&
+      (await hasSource(file))
+    ) {
+      const content = await readFile(fullPath);
 
-      if (
-        fileStatus.isFile() &&
-        file.endsWith('.d.ts') &&
-        (await hasSource(file))
-      ) {
-        const content = await readFile(fullPath);
-
-        dtsMap.set(fullPath, content);
-      }
+      dtsMap.set(fullPath, content);
     }
-
-    return dtsMap;
-  } catch {
-    return dtsMap;
   }
+
+  return dtsMap;
 }
 
 async function restoreDts(dtsMap: DtsMap) {
@@ -68,9 +63,21 @@ async function cleanup() {
   }
 
   try {
-    const distributionsStatus = await stat(distributionsPath);
+    const distributionsStatus = await stat(distributionsPath).catch(
+      (error: unknown) => {
+        if (
+          error instanceof Error &&
+          'code' in error &&
+          error.code === 'ENOENT'
+        ) {
+          return undefined;
+        }
 
-    if (distributionsStatus.isDirectory()) {
+        throw error;
+      },
+    );
+
+    if (distributionsStatus?.isDirectory()) {
       const dtsMap = await collectDts(distributionsPath);
 
       await rm(distributionsPath, {
@@ -93,11 +100,8 @@ async function cleanup() {
 
     process.stdout.write('✅ Cleaned up distributions\n');
   } catch (error) {
-    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-      return;
-    }
-
     process.stderr.write(`❌ Failed to clean up distributions: ${error}\n`);
+    process.exitCode = 1;
   }
 }
 
