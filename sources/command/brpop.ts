@@ -1,8 +1,5 @@
-import {
-  executeCommand,
-  formatBlockingTimeout,
-  tryReplyToKeyValuePairOrNull,
-} from './utils/index.ts';
+import { formatBlockingTimeout } from '../common/utils/internal.ts';
+import { executeCommand, tryReplyToKeyValuePairOrNull } from './utils/index.ts';
 
 import type { CommandBufferOptions, RespString } from '../index.ts';
 

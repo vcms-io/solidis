@@ -40,10 +40,6 @@ import type {
   StringOrBuffer,
 } from '../../types/solidis.ts';
 
-export function formatBlockingTimeout(timeout: number) {
-  return timeout > 0 && timeout <= 0.001 ? '0.0011' : `${timeout}`;
-}
-
 export function assertSender(
   client: unknown,
   command?: StringOrBuffer[],

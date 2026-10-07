@@ -7,6 +7,10 @@ export const SolidisSocketNotConnectedMessage = 'Socket is not connected.';
 export const SolidisConnectionClosedMessage = 'Connection closed.';
 export const SolidisClientQuitMessage = 'The client was quit.';
 
+export function formatBlockingTimeout(timeout: number) {
+  return timeout > 0 && timeout <= 0.001 ? '0.0011' : `${timeout}`;
+}
+
 export function isStringOrBuffer(value: unknown): value is StringOrBuffer {
   return typeof value === 'string' || Buffer.isBuffer(value);
 }

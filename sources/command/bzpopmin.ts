@@ -1,6 +1,6 @@
+import { formatBlockingTimeout } from '../common/utils/internal.ts';
 import {
   executeCommand,
-  formatBlockingTimeout,
   tryReplyToKeyMemberScoreOrNull,
 } from './utils/index.ts';
 
