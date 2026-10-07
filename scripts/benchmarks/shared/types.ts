@@ -24,8 +24,6 @@ export type Command = CommandArgument[];
 export interface ConnectionTarget {
   host: string;
   port: number;
-  username?: string;
-  password?: string;
 }
 
 export interface BenchConfig {

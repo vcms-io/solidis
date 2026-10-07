@@ -26,14 +26,12 @@ async function connect(target: ConnectionTarget) {
     },
     disableClientInfo: true,
     disableOfflineQueue: false,
-    password: target.password,
     socket: {
       connectTimeout: 10000,
       host: target.host,
       port: target.port,
       reconnectStrategy: false,
     },
-    username: target.username,
   });
 
   client.on('error', () => {});

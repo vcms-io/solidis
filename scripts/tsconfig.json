@@ -5,7 +5,6 @@
     "declaration": false,
     "emitDeclarationOnly": false,
     "incremental": false,
-    "sourceMap": false,
     "noEmit": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false

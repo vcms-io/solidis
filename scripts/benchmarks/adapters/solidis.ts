@@ -20,10 +20,6 @@ async function connect(target: ConnectionTarget) {
   const client = new SolidisFeaturedClient({
     host: target.host,
     port: target.port,
-    authentication:
-      target.username || target.password
-        ? { username: target.username, password: target.password }
-        : undefined,
     lazyConnect: true,
     enableReadyCheck: false,
     autoReconnect: false,

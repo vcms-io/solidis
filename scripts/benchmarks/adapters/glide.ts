@@ -109,9 +109,6 @@ class GlideFamilyAdapter extends BenchmarkClientAdapter {
     return await retry(`${this.name} connect`, () =>
       GlideClient.createClient({
         addresses: [{ host: target.host, port: target.port }],
-        credentials: target.password
-          ? { username: target.username, password: target.password }
-          : undefined,
         protocol: subscription ? ProtocolVersion.RESP3 : ProtocolVersion.RESP2,
         defaultDecoder: Decoder.Bytes,
         requestTimeout: 600_000,

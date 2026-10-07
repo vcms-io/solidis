@@ -4,23 +4,23 @@ import type {
   SerializedBenchConfig,
 } from './types.ts';
 
+function readInteger(value: string | undefined): number {
+  const text = value?.trim() ?? '';
+
+  return /^\d+$/.test(text) ? Number(text) : Number.NaN;
+}
+
 function readNumber(name: string, fallback: number): number {
-  const rawValue = process.env[name];
+  const value = readInteger(process.env[name]);
 
-  if (!rawValue || rawValue.trim() === '') {
-    return fallback;
-  }
-
-  const parsed = Number.parseInt(rawValue, 10);
-
-  return Number.isNaN(parsed) ? fallback : parsed;
+  return Number.isNaN(value) ? fallback : value;
 }
 
 function readSizes(): number[] {
   const values = (process.env.SOLIDIS_BENCH_SIZES ?? '')
     .split(',')
-    .map((value) => Number.parseInt(value.trim(), 10))
-    .filter((value) => Number.isFinite(value) && value > 0);
+    .map(readInteger)
+    .filter((value) => value > 0);
 
   return values.length > 0 ? values : [1024];
 }
@@ -74,11 +74,9 @@ function readMode(): BenchmarkMode {
 }
 
 export function readConfig(): BenchConfig {
-  const username = process.env.SOLIDIS_TEST_USERNAME;
-  const password = process.env.SOLIDIS_TEST_PASSWORD;
-  const port = readNumber('SOLIDIS_TEST_PORT', Number.NaN);
+  const port = readNumber('SOLIDIS_TEST_PORT', 0);
 
-  if (!Number.isInteger(port)) {
+  if (port < 1 || port > 65_535) {
     throw new Error(
       'Set SOLIDIS_TEST_PORT to the port of a disposable server: the benchmarks flush its data.',
     );
@@ -88,8 +86,6 @@ export function readConfig(): BenchConfig {
     target: {
       host: process.env.SOLIDIS_TEST_HOST ?? '127.0.0.1',
       port,
-      username: username && username.length > 0 ? username : undefined,
-      password: password && password.length > 0 ? password : undefined,
     },
     mode: readMode(),
     sizes: readSizes(),

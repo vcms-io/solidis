@@ -82,8 +82,6 @@ class IORedisFamilyAdapter extends BenchmarkClientAdapter {
     const client = new this.#Redis({
       host: target.host,
       port: target.port,
-      username: target.username,
-      password: target.password,
       lazyConnect: true,
       enableReadyCheck: false,
       enableAutoPipelining,
