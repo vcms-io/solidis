@@ -134,7 +134,7 @@ const worker = new SolidisFeaturedClient({ host: '127.0.0.1', port: 6379 });
 const job = await worker.blpop(['jobs'], 0); // 타임아웃 0은 무한 대기
 ```
 
-- 기한은 `commandTimeout`에 블로킹 타임아웃을 더한 값이고, 무한 대기면 기한이 없습니다.
+- 기한은 `commandTimeout`에 블로킹 타임아웃을 더한 값이고, 무한 대기이거나 `commandTimeout`이 `0`이면 기한이 없습니다.
 - 기한이 지나면 연결을 리셋하므로 늦게 온 응답이 다른 커맨드로 가지 않습니다. 다만 서버가 아직 실행하지 않은 커맨드는 리셋 뒤에 실행되어, 아무도 받지 않는 값을 꺼낼 수 있습니다.
 - `send()`도 블로킹 타임아웃을 밀리초 단위 `blockingTimeout`으로 넘기면 같은 방식으로 처리합니다. `0`은 무한 대기입니다.
 - `migrate()`도 `timeout`을 같은 방식으로 기한에 더하고, `0` 이하는 서버처럼 1,000ms로 계산합니다. `shutdown()`은 중단(`abort`)이 아니면 기한 없이 연결이 닫히기를 기다립니다.
@@ -350,7 +350,7 @@ _작업 100,000회 × 동시 실행 10,000 · 1 KB 페이로드 · 클라이언�
 |                                                                                                                                    | node-redis               | 102.3K | 204.6K |  94.45ms | 113.72ms | 151.61ms | 174.21ms |  16.68µs |  2.88µs |             307.2 MB | ±5.9% |
 |                                                                                                                                    | valkey-glide<sup>3</sup> |  62.5K | 125.0K | 156.23ms | 176.67ms | 181.75ms | 191.26ms |  36.39µs |  4.86µs | 280.7 MB<sup>†</sup> | ±2.7% |
 |                                                                                                                                    | speedkey<sup>3</sup>     |  72.2K | 144.4K | 133.65ms | 159.67ms | 167.13ms | 172.51ms |  28.04µs |  2.18µs | 169.9 MB<sup>†</sup> | ±1.8% |
-| **Counter**<br/><sup><kbd>INCR</kbd> <kbd>DECR</kbd></sup><br/><sub>1 KB</sub>                                                     | **solidis**              | 265.7K | 531.3K |  33.75ms |  53.21ms |  60.98ms |  72.59ms |   9.27µs |  1.52µs |             253.6 MB | ±2.3% |
+| **Counter**<br/><sup><kbd>INCR</kbd> <kbd>DECR</kbd></sup>                                                                         | **solidis**              | 265.7K | 531.3K |  33.75ms |  53.21ms |  60.98ms |  72.59ms |   9.27µs |  1.52µs |             253.6 MB | ±2.3% |
 |                                                                                                                                    | ioredis                  | 124.2K | 248.3K |  73.75ms | 113.98ms | 122.37ms | 128.37ms |  16.98µs |  2.97µs |             350.1 MB | ±3.5% |
 |                                                                                                                                    | iovalkey                 | 129.7K | 259.4K |  71.02ms | 106.11ms | 115.05ms | 123.70ms |  16.75µs |  3.02µs |             329.2 MB | ±4.0% |
 |                                                                                                                                    | node-redis               | 187.6K | 375.3K |  50.13ms |  62.31ms |  68.19ms |  73.07ms |   9.31µs |  2.43µs |             224.5 MB | ±2.7% |
@@ -386,7 +386,7 @@ _작업 100,000회 × 동시 실행 10,000 · 1 KB 페이로드 · 클라이언�
 |                                                                                                                                    | node-redis               | 106.6K | 319.9K |  90.20ms | 101.36ms | 108.10ms | 116.93ms |  15.21µs |  3.39µs |             330.5 MB | ±2.1% |
 |                                                                                                                                    | valkey-glide<sup>3</sup> |  54.0K | 162.0K | 172.55ms | 211.16ms | 222.84ms | 239.99ms |  38.90µs |  6.24µs | 392.9 MB<sup>†</sup> | ±1.3% |
 |                                                                                                                                    | speedkey<sup>3</sup>     |  55.5K | 166.4K | 173.53ms | 204.52ms | 214.02ms | 218.42ms |  34.92µs |  2.88µs | 205.7 MB<sup>†</sup> | ±1.1% |
-| **Info / Config**<br/><sup><kbd>INFO</kbd> <kbd>CONFIG GET</kbd></sup><br/><sub>1 KB</sub>                                         | **solidis**              | 224.1K | 448.2K |  39.09ms |  71.97ms |  82.95ms |  95.84ms |  10.59µs |  1.66µs |             287.4 MB | ±2.3% |
+| **Info / Config**<br/><sup><kbd>INFO</kbd> <kbd>CONFIG GET</kbd></sup>                                                             | **solidis**              | 224.1K | 448.2K |  39.09ms |  71.97ms |  82.95ms |  95.84ms |  10.59µs |  1.66µs |             287.4 MB | ±2.3% |
 |                                                                                                                                    | ioredis<sup>4</sup>      | 111.8K | 223.7K |  82.88ms | 124.81ms | 133.86ms | 138.06ms |  17.14µs |  2.35µs |             275.8 MB | ±1.8% |
 |                                                                                                                                    | iovalkey<sup>4</sup>     | 115.3K | 230.6K |  78.61ms | 117.28ms | 122.82ms | 127.81ms |  17.09µs |  2.48µs |             308.0 MB | ±1.9% |
 |                                                                                                                                    | node-redis               | 176.2K | 352.3K |  52.97ms |  72.09ms |  81.40ms |  90.86ms |  10.44µs |  2.37µs |             243.2 MB | ±3.5% |

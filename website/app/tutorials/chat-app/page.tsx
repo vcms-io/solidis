@@ -252,7 +252,7 @@ export class ChatManager {
             <CodeBlock
               code={`import { WebSocketServer, WebSocket } from 'ws';
 import { ChatManager, Message } from './chat-manager';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 
 interface ClientData {
   userId: string;
@@ -279,7 +279,7 @@ export class ChatServer {
 
       // Initialize client data
       this.clients.set(ws, {
-        userId: uuidv4(),
+        userId: randomUUID(),
         username: 'Anonymous',
         roomId: null,
       });
@@ -395,7 +395,7 @@ export class ChatServer {
     }
 
     const message: Message = {
-      id: uuidv4(),
+      id: randomUUID(),
       roomId: client.roomId,
       userId: client.userId,
       username: client.username,

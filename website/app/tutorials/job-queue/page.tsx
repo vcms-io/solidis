@@ -82,7 +82,7 @@ export default function JobQueueTutorial() {
           <div className="rounded-lg text-sm overflow-x-auto">
             <CodeBlock
               code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 
 export interface Job<T = any> {
   id: string;
@@ -124,7 +124,7 @@ export class JobQueue {
     options: { priority?: number; maxAttempts?: number } = {}
   ): Promise<string> {
     const job: Job<T> = {
-      id: uuidv4(),
+      id: randomUUID(),
       type,
       data,
       priority: options.priority || 0,
@@ -335,6 +335,10 @@ export class JobWorker {
             <CodeBlock
               code={`import { JobQueue } from './job-queue';
 import { JobWorker } from './job-worker';
+
+declare function sendEmail(to: string, subject: string): Promise<void>;
+declare function processImage(url: string): Promise<void>;
+declare function generateReport(userId: string): Promise<void>;
 
 // Create queue
 const queue = new JobQueue({

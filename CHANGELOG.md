@@ -363,7 +363,7 @@ Skip this step unless you build the internal classes yourself or write custom co
 - Commands wait for the handshake (authentication, `HELLO`, `SELECT`, client name and ready check), bounded by `commandTimeout` or the request's `timeout`, and then run in the order they were sent.
 - RESP3 connections authenticate with one `HELLO 3 AUTH`, also with a password alone. `NOAUTH` fails the connection with `Authentication failed`, where 0.4.x reported `Ready check failed` or, with the ready check off, connected unauthenticated.
 - After a reconnect, the client restores the database selected at runtime and every subscription, one command per channel, so a cluster node accepts shard channels of several slots. When the server refuses any channel of a kind, the client unsubscribes from the channels it restored, forgets the others and emits an `error`. If the server refuses that too, the handshake fails and the client reconnects.
-- Blocking commands (`blpop`, `brpop`, `blmove`, `blmpop`, `brpoplpush`, `bzpopmin`, `bzpopmax`, `bzmpop`, `xread` and `xreadgroup` with `block`, `wait`, `waitaof` and `migrate`) run in a pipeline of their own. Their deadline is `commandTimeout` plus their own timeout, and none when they block forever, so an element popped after `commandTimeout` is no longer lost. A timeout of 1 ms or less goes out as 1.1 ms, which Redis 6.2 would read as 0 and block forever.
+- Blocking commands (`blpop`, `brpop`, `blmove`, `blmpop`, `brpoplpush`, `bzpopmin`, `bzpopmax`, `bzmpop`, `xread` and `xreadgroup` with `block`, `wait`, `waitaof` and `migrate`) run in a pipeline of their own. Their deadline is `commandTimeout` plus their own timeout, and none when they block forever or `commandTimeout` is `0`, so an element popped after `commandTimeout` is no longer lost. `blpop`, `brpop`, `blmove`, `brpoplpush`, `bzpopmin` and `bzpopmax` send a timeout of 1 ms or less as 1.1 ms, which Redis 6.2 would read as 0 and block forever.
 - The connection also resets when a blocking pipeline times out, or, unless `commandTimeout` is `0`, when a second pipeline in a row times out with nothing received since it was written and the oldest pipeline has waited at least `commandTimeout`. A late reply never reaches a later command, and a silent server is dropped even under constant traffic with shorter per-request timeouts.
 - `quit()` rejects pending commands and `connect()` calls at once with a `SolidisClientError` (`The client was quit.`), also from a `ready` listener or during the ready check. Later calls reject the same way.
 - Pipelines go to the socket as soon as they are sealed instead of waiting for `drain` after each write.
@@ -463,7 +463,7 @@ Skip this step unless you build the internal classes yourself or write custom co
 - In alternating benchmark runs against 0.4.0, throughput is on par or better across the suite.
 - Replies and timeouts for tens of thousands of pipelines in flight take linear time. Masking bounds how much argument text it searches for quoted spans, so a reply full of quotes cannot stall the event loop.
 - Error replies no longer capture a stack trace they then drop.
-- Measured with each version's `npm run bundle`, the minimal client with `get` and `set` grows from 29,494 to 30,122 bytes.
+- Measured with each version's `npm run bundle`, the minimal client with `get` and `set` grows from 29,494 to 30,177 bytes.
 
 ## [0.4.0] and earlier
 
