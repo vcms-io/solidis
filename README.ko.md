@@ -101,6 +101,8 @@ const job = await client.send([['BLPOP', 'jobs', '30']], { blockingTimeout: 30_0
 - 트랜잭션에 쌓는 호출은 인자를 한 번 더 넘기므로, 펼쳐 넘길 수 있는 항목 수가 직접 호출의 절반쯤입니다. 더 큰 커맨드는 `send()`로 보내세요.
 - 서버가 `MULTI`를 거부하면(`@transaction` 권한 없음) 쌓인 커맨드는 따로 실행되고 `exec()`는 `[MULTI]` 에러로 실패합니다.
 - 재연결로 `WATCH`가 풀리면 다음 `EXEC`는 `DISCARD`로 바뀌어 `null`을 돌려줍니다. 직접 보낸 `MULTI`가 풀리면 `MULTI`, `EXEC`, `DISCARD`, `RESET` 말고는 모두 거부합니다.
+- Redis 7.2 이상은 다른 응답이 남아 있으면 실패한 `AUTH`의 에러를 보내지 않습니다. 그래서 `AUTH`와 `HELLO`는 블로킹 커맨드를 포함해 앞선 응답이 모두 온 뒤에 보냅니다. 뒤의 커맨드는 그 응답을 기다리고, 타임아웃은 커맨드를 보낼 때부터 잽니다.
+- `send()`로 여러 커맨드를 보낼 때는 `AUTH`와 `HELLO`를 맨 앞에 두세요. 트랜잭션 안에서는 `send()`가 거부합니다. 그 순간 서버에 RESP3 push가 남아 있으면 에러는 여전히 빠지고, `AUTH`는 타임아웃됩니다.
 
 </details>
 
@@ -116,7 +118,7 @@ client.on('message', (channel, message) => {
 await client.subscribe('events');
 ```
 
-- 클러스터 노드가 어떤 슬롯을 더 이상 맡지 않게 되면, 그 슬롯의 샤드 채널 구독을 `SUNSUBSCRIBE` 응답과 똑같은 메시지로 해지합니다. 그때 보낸 `SUNSUBSCRIBE`는 이 메시지를 자기 응답으로 받을 수 있고, 실제 응답은 다음 커맨드로 넘어갈 수 있습니다.
+- 클러스터 노드는 더 이상 맡지 않는 슬롯의 샤드 채널 구독을 `SUNSUBSCRIBE` 응답과 똑같은 메시지로 해지합니다. 이때 보낸 `SUNSUBSCRIBE`가 이 메시지를 응답으로 받으면 실제 응답은 다음 커맨드로 넘어갑니다.
 
 </details>
 
@@ -140,7 +142,7 @@ const job = await worker.blpop(['jobs'], 0); // 타임아웃 0은 무한 대기
 </details>
 
 <details>
-<summary>&nbsp;&nbsp;<b>2^53을 넘는 정수</b></summary>
+<summary>&nbsp;&nbsp;<b>큰 정수</b></summary>
 
 <br/>
 
@@ -210,6 +212,7 @@ const pending = await client.xpending('jobs', 'workers', '-', '+', 10);
 - 엔트리 필드는 레코드에 담깁니다. 같은 이름이 반복되면 마지막 값만 남고, 정수 형태의 이름은 오름차순으로 앞에 옵니다. `xadd()`도 레코드를 받고, `send()`는 필드와 값 쌍을 그대로 돌려줍니다.
 - RESP3에서 `xread()`나 `xreadgroup()`에 같은 키를 두 번 넘기면, 맵에는 키가 하나만 들어가므로 마지막 결과만 남습니다.
 - `deliveryTime`은 `xpending()`에서는 유휴 시간, `xinfoStream(key, true)`에서는 마지막 전달 시각(Unix 시간)이며, 단위는 모두 밀리초입니다.
+- `justid`를 준 `xautoclaim()`은 ID를 `fields`가 빈 엔트리로 돌려주고, `justid`를 준 `xclaim()`은 ID만 돌려줍니다.
 
 </details>
 
@@ -440,9 +443,9 @@ _작업 100,000회 × 동시 실행 10,000 · 1 KB 페이로드 · 클라이언�
 - 지연 시간은 설정한 동시 실행 수에서 **작업마다** 재고, 모든 반복을 합쳐 계산합니다.
 - 작업당 CPU는 측정 구간의 **프로세스 CPU 시간**(user + system)을 작업 수로 나눈 값으로, GC와 네이티브 스레드를 포함합니다. 작업당 GC는 GC 일시정지 시간을 같은 방식으로 나눈 값입니다.
 - 메모리는 측정 구간 동안 워커의 힙과 `ArrayBuffer` 메모리(모든 `Buffer` 포함)가 가장 많이 늘어난 양이며, 20ms마다 잽니다. 네이티브 코드가 쓰는 메모리는 포함하지 않습니다. 실제 애플리케이션처럼 응답은 검사할 때까지 보관합니다.
-- 클라이언트는 **타임아웃, 레디 체크, 재연결을 끄고** 파이프라이닝 제한 없이 실행합니다. Valkey GLIDE와 speedkey는 재연결을 끌 수 없고, 요청마다 최대 10분을 기다립니다. ioredis와 iovalkey는 오토 파이프라이닝을 쓰고, Valkey GLIDE와 speedkey는 RESP2에서 응답을 바이트로 디코딩합니다.
+- 클라이언트는 **커맨드 타임아웃, 레디 체크, 재연결을 끄고** 파이프라이닝 제한 없이 실행합니다. Valkey GLIDE와 speedkey는 재연결을 끌 수 없고, 요청마다 최대 10분을 기다립니다. ioredis와 iovalkey는 오토 파이프라이닝을 쓰고, Valkey GLIDE와 speedkey는 RESP2에서 응답을 바이트로 디코딩합니다.
 - 같은 방식으로 실행할 수 없었던 결과에는 **번호를 붙이고** 표 아래에 이유를 적습니다.
-- 비교 대상: npm 주간 다운로드가 1,000회 이상이고, 컴파일 없이 설치되며, 바이너리 값을 그대로 다루는 Node.js TCP 클라이언트 전부입니다. 제외: redis-fast-driver(네이티브 빌드 필요), tedis(값을 문자열로 반환), @upstash/redis 같은 HTTP 클라이언트, 포크와 래퍼. Valkey GLIDE는 Windows 빌드가 없습니다.
+- 비교 대상: npm 주간 다운로드가 1,000회 이상이고, 컴파일 없이 설치되며, 바이너리 값을 그대로 다루는 Node.js TCP 클라이언트 전부입니다. 제외: redis-fast-driver(네이티브 빌드 필요), tedis(값을 문자열로 반환), @upstash/redis 같은 HTTP 클라이언트. Valkey GLIDE는 Windows 빌드가 없습니다.
 
 </div>
 
@@ -467,7 +470,7 @@ _작업 100,000회 × 동시 실행 10,000 · 1 KB 페이로드 · 클라이언�
 - RESP2, RESP3 지원 (Redis와 Valkey가 보내지 않는 스트리밍 응답 제외)
 - RESP3 응답 타입 15가지 전부 (Map, Set, Push, Attribute, BigNumber, ...)
 - 추적 무효화 같은 push가 커맨드 응답을 가로채지 않음
-- 2^53을 넘는 정수는 `bigint`로: 원시 응답은 자동, INCR, INCRBY, DECR, DECRBY, HINCRBY, BITFIELD, BITFIELD_RO는 `{ bigint: true }`
+- `Number.MAX_SAFE_INTEGER`를 넘는 정수는 `bigint`로: 원시 응답은 자동, INCR, INCRBY, DECR, DECRBY, HINCRBY, BITFIELD, BITFIELD_RO는 `{ bigint: true }`
 - 바이너리 세이프: `Buffer` 값 쓰기, `{ buffer: true }`로 바이트 그대로 읽기
 
 </td>

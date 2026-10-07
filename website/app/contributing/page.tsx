@@ -87,7 +87,6 @@ export default function ContributingPage() {
       step: 3,
       title: t('contributing.step3Title'),
       description: t('contributing.step3Desc'),
-      code: 'npm run lint:check # lint, formatting and the type tests\nSOLIDIS_TEST_PORT=6380 npm test # a disposable server: the tests flush it',
     },
     {
       step: 4,

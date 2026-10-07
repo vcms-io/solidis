@@ -55,7 +55,7 @@ export function Navbar() {
         >
           <img
             src="https://resources.vcms.io/assets/solidis.png"
-            alt="Solidis Logo"
+            alt={t('nav.logo')}
             className="h-5 w-5"
           />
           <span className="text-[15px] font-semibold tracking-tight text-foreground">

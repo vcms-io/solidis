@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-This release rebuilds the core around one rule: every reply reaches the request that asked for it. Sessions survive reconnects, commands return one shape across RESP2, RESP3 and module versions, and reads can return `Buffer`s or `bigint`s.
+This release rebuilds the core around one rule: every reply reaches the request that asked for it. Sessions survive reconnects, and reads can return `Buffer`s or `bigint`s. Commands return one shape across RESP2, RESP3 and module versions; scripts, functions, `debug`, `jsonResp` and `send()` return the server's reply as it is.
 
 > [!IMPORTANT]
 > This release has breaking changes. Follow [Upgrading from 0.4.x](#upgrading-from-04x) before you update.
@@ -46,6 +46,7 @@ With `debug: true`, entries reach only the `debug` event and are no longer print
 
 - `CLIENT REPLY OFF`, `CLIENT REPLY SKIP`, `CLUSTER SYNCSLOTS`, `MONITOR`, `SYNC`, `PSYNC`, `REPLCONF ACK`, `REPLCONF GETACK`, `SCRIPT DEBUG YES`, `SCRIPT DEBUG SYNC`.
 - `SUBSCRIBE`, `UNSUBSCRIBE` and their pattern and shard variants inside a transaction.
+- `AUTH` and `HELLO` inside a transaction. Redis 7.2 and later leave a failed one out of the `EXEC` reply.
 - A `commands` argument that is not an array, empty commands, entries that are not arrays, and arguments that are neither strings nor `Buffer`s.
 - Anything but `MULTI`, `EXEC`, `DISCARD` and `RESET` after a reconnect lost a `MULTI` sent with `send()`.
 
@@ -156,7 +157,7 @@ for (const { stream, entries } of (await client.xreadgroup('group', 'consumer', 
 
 **Transactions**
 
-- `multi()` exposes only commands. Client methods such as `send`, `quit` and the event methods, non-functions such as `uri`, and the commands in `SolidisTransactionBannedCommandNames` are gone from its type and return `undefined`: `multi`, `pipeline`, `watch`, `unwatch`, the subscribe and unsubscribe methods, `auth`, `hello`, `reset` and the scan iterators. Call `watch()` on the client before `multi()`.
+- `multi()` exposes only commands. Client methods such as `send`, `quit` and the event methods, non-functions such as `uri`, and the commands in `SolidisTransactionBannedCommandNames` are gone from its type and return `undefined`: `multi`, `pipeline`, `watch`, `unwatch`, the subscribe and unsubscribe methods, `auth`, `hello`, `reset`, `save`, `shutdown` and the scan iterators. Call `watch()` on the client before `multi()`.
 - When a dropped connection loses a `WATCH`, the next `exec()` sends `DISCARD` and resolves `null`, as for a changed key, even if `WATCH` was sent again. An `EXEC` sent with `send()` gets `null` the same way, so the usual retry loop covers it.
 - `exec()` still resolves the raw replies.
 - `discard()`, and an `exec()` that rejects because a call failed or `send()` refuses a queued command, send `UNWATCH`.
@@ -197,6 +198,7 @@ const total = await client.incrby('counter', 10n, { bigint: true }); // bigint
 - `hello()` takes credentials or a client name only after a protocol, and a username only with a password (`CommandHelloParameters`). `HELLO` ignored them otherwise and resolved without authenticating.
 - `xpending()` takes `start`, `end` and `count` together (`CommandXpendingRange`) and no longer sends a count of 10 when `count` is missing. The summary and range forms have their own return types.
 - `zrange()`, `zrangebyscore()`, `zdiff()`, `zinter()`, `zunion()` and `zrandmember()` return `RespSortedSetMember[]` with scores and `string[]` without, instead of a union.
+- `srandmember()` with a count, `lpos()` with `count`, `lcs()` with `len` or `idx`, `xclaim()` with `justid`, and `georadius()` and `georadiusbymember()` with `store` or `storedist` return one type each, instead of a union.
 
 #### 6. Fix option combinations the types now reject
 
@@ -277,7 +279,7 @@ Other option changes:
   - The first `connect()` retries a handshake that a dropped connection interrupted, within `maxConnectionRetries`. A step that times out or gets a malformed reply fails at once.
   - With `protocol: 'RESP3'`, only a server that lacks `HELLO` or answers `NOPROTO` falls back to RESP2. Other `HELLO` errors, such as an invalid client name, fail with `Protocol negotiation failed`.
   - A ready check denied with `NOPERM` or refused as an unknown command counts as ready, and the check stops waiting when its connection closes.
-  - A user chosen at runtime with `auth()` or `hello()`, and a protocol chosen with `hello()`, are restored after a reconnect until `RESET`, after which a reconnect uses the configured user, protocol and database. `SELECT`, `HELLO` and `AUTH` queued in a transaction count once `EXEC` runs them, and a `MULTI` or `WATCH` the server refuses does not count as lost.
+  - A user chosen at runtime with `auth()` or `hello()`, and a protocol chosen with `hello()`, are restored after a reconnect until `RESET`, after which a reconnect uses the configured user, protocol and database. A `SELECT` queued in a transaction counts once `EXEC` runs it, and a `MULTI` or `WATCH` the server refuses does not count as lost.
   - A `CLIENT SETNAME` error other than `NOPERM` or an unknown command fails with `CLIENT SETNAME failed`.
   - An error the server sends before any request, as in protected mode or at `maxclients`, fails the first handshake step with that step's error, such as `CLIENT SETNAME failed`; `cause` holds the reply.
   - When the handshake sends nothing, `connect()` resolves first. The refusal then rejects waiting commands with a `SolidisConnectionError` that carries the reply, or reaches a command already sent or the `error` listeners.
@@ -308,14 +310,14 @@ Skip this step unless you build the internal classes yourself or write custom co
   - A pipeline entry names its commands and size instead of the serialized bytes, so no entry contains an argument.
 - **Command helpers** in `@vcms-io/solidis/command/utils/*`:
   - `guard()` only requires `send()` and always returns `true`, since a call on a transaction queues what it sends; `assertSender()` is new.
-  - `executeCommand(client, command, replyTo, options, sendOptions)` passes `replyTo` a copy of `options` taken at call time, takes request options last and rejects error replies.
+  - `executeCommand(client, command, replyTo, options, sendOptions)` passes `replyTo` a copy of `options` taken at call time: its own properties, and `buffer` and `bigint` read through getters and prototypes. It takes request options last and rejects error replies.
   - `newCommandError(message, commandName, cause)` replaces the `prefix` parameter with a command name and an optional cause.
   - `tryReplyArray()` is no longer generic: it returns `SolidisData[]` for a `SolidisData` reply and `unknown[]` otherwise, and reads a RESP3 set as an array. `tryReplyToStringArray()` drops its `nullable` overload; use `tryReplyToNullableStringArray()`.
   - Removed: `InvalidReplyPrefix`, `escapeReply()`, `tryReplyToConfigInfo()` (use `tryReplyToStringRecord()`), `tryReplyToStringRecordRecursively()` and `tryReplyToSortedSetMembersOrNull()`, and from `common/utils`, `checkReplyIsArray()` and `checkReplyIsMessageEvent()`.
   - Added reply readers: `tryReplyTuple()`, `tryReplyToInteger()`, `tryReplyToStringOrBuffer()` with its nullable, array and record variants, `tryReplyToCuckooFilterInsertResults()`, `tryReplyToJsonNumberText()`, `tryReplyToJsonNumbers()`, `tryReplyToNumberOrErrorArray()`, `tryReplyToStreamEntryOrDeleted()` and `tryReplyToStreamGroupReadResultsOrNull()`.
   - Added executors: `executeIntegerCommand()`, `buildKeyIntegerExecutor()`, `buildKeyPopExecutor()` and `buildKeyStringOrBufferExecutor()`.
   - Added helpers: `newUnexpectedReplyError()`, `describeReply()`, `setRecordEntry()`, `appendRecordEntries()` and `buildKeyExpireCommand()`.
-  - `tryReplyToKeyValuePairOrNull()` and `tryReplyToKeyStringElementsOrNull()` take an optional `options` argument, and `tryReplyToModuleInfo()` an optional command name.
+  - `tryReplyToKeyValuePairOrNull()` and `tryReplyToKeyStringElementsOrNull()` take an optional `options` argument, and `tryReplyToModuleInfo()`, `tryReplyToScan()` and `tryReplyToStreamEntry()` an optional command name.
 - **Removed types:**
   - `SolidisRecursiveStringRecord`, `RespClientReplyMode`, `RespAclLogKey`, `RespAclLogNumberKey` and `SolidisClientRecoveryStep`.
   - Pub/Sub: `SolidisSubscribeMethod`, `SolidisSSubscribeMethod`, `SolidisPSubscribeMethod` and `SolidisTranslatedPubSubReplies`.
@@ -365,7 +367,7 @@ Skip this step unless you build the internal classes yourself or write custom co
 - When the connection closes, requests in flight reject with the error that closed it, and requests not yet written with a `SolidisRequesterError` (`Socket is not connected.`) whose `cause` is that error.
 - Bulk replies are views of the received data instead of copies. A held `Buffer` reply keeps the chunk it arrived in, up to 64 KB, in memory, so copy it with `Buffer.from()` to keep it long.
 - `zpopmin`, `zpopmax`, `bitfield`, `jsonNumincrby` and `jsonNummultby` never return `null`. `type()` returns core types upper-cased and module type names, such as `ReJSON-RL`, as the server reports them.
-- `jsonNumincrby` and `jsonNummultby` return the same text on both protocols, exact beyond `Number.MAX_SAFE_INTEGER`; for a legacy path, the last number they updated. Both protocols reject when a legacy path matches no number. `bzpopmin` and `bzpopmax` format scores the same way on both protocols.
+- `jsonNumincrby` and `jsonNummultby` return the same text on both protocols, exact beyond `Number.MAX_SAFE_INTEGER`; for a legacy path, the last number they updated. Both protocols reject when a legacy path matches no number, RESP3 with the text RedisJSON 8 sends on RESP2. `bzpopmin` and `bzpopmax` format scores the same way on both protocols.
 - Commands added with `extend()` keep their generic signatures, so options such as `{ buffer: true }` type their results. `extend()` types only the functions it adds, and `this` inside them as the extended client with the commands of earlier `extend()` calls. A function whose declared `this` the client does not satisfy no longer compiles.
 - Every overload of a command can be called on a transaction, such as `multi().sort(key)` and `multi().jsonArrpop(key)`.
 - A request timeout or `connectionTimeout` longer than 24.8 days, the limit of Node's timers, disables that deadline instead of expiring after 1 ms. Longer reconnect delays and `readyCheckInterval` values are capped at that limit.
@@ -400,6 +402,7 @@ Skip this step unless you build the internal classes yourself or write custom co
 - The CommonJS build failed to load because of a circular import. Every entry point now loads through both `require()` and `import()`, and releases verify the packed tarball.
 - A connection timeout could crash the process when the abandoned socket failed later. Timed-out sockets are destroyed, and events from replaced sockets are ignored.
 - With RESP3 and `CLIENT TRACKING`, invalidation pushes were taken as command replies, so a `GET` could return another key's value.
+- Redis 7.2 and later send no error for a failed `AUTH` or `HELLO` with `AUTH` while earlier replies are pending, so the next reply took its place: `auth()` could resolve with another command's `OK`. `AUTH` and `HELLO` now go out after every earlier reply, and later commands wait for theirs.
 - Commands issued during a reconnect ran before `SELECT` and wrote to database 0.
 - `close` was declared but never emitted, so a lost connection showed only as a later `reconnected`.
 - A handshake interrupted by a lost connection could continue on the next connection or report `ready` while disconnected or after `quit()`.
@@ -425,12 +428,15 @@ Skip this step unless you build the internal classes yourself or write custom co
 - `ping` rejected while subscribed on RESP2.
 - Time-series commands placed `IGNORE` after `LABELS`, which created labels from its arguments, and `geosearchstore` did not send `storedist`.
 - `__proto__` fields disappeared from returned records, and `bfInfo()` and `cfInfo()` turned fields named like `constructor` into keys. RESP3 verbatim strings kept their `txt:` prefix, and `INFO` values containing `:` were cut short.
-- `jsonType` did not return `null` for a missing key with a JSONPath on RESP3, and `commandDocs` could not read the RESP3 set of history entries, never marked an argument optional or multiple, and left `docFlags` empty on RESP3.
+- `jsonType` did not return `null` for a missing key with a JSONPath on RESP3, and `commandDocs` could not read the RESP3 set of history entries, never marked an argument optional or multiple, left `docFlags` empty on RESP3 and listed absent fields as `undefined`.
 - `jsonMerge(key, value)` sent no path, which the server refuses, and `jsonArrindex()` dropped `stop` without `start`. They now send `$` and a start of `0`.
 - Integer arguments, such as increments, TTLs, timestamps and counts, were sent as JavaScript prints numbers, so one past `Number.MAX_SAFE_INTEGER` reached the server as another integer: `2 ** 60` as `1152921504606847000`. They are sent exactly now.
-- `extend()` typed a transaction only under the name `multi`, and typed any `multi` function as one.
+- `extend()` typed a transaction only under the name `multi`, and typed any `multi` function as one. It now types exactly the functions that return a `multi()` transaction as transactions.
 - `zrandmember(key, undefined, true)` sent `WITHSCORES` without a count, which the server refuses.
 - `findErrorInReplies()` missed errors inside RESP3 maps and sets.
+- `extend()` with an own `__proto__` key replaced the client's prototype, so `send()` and the other methods disappeared. That key is skipped now.
+- Client options given through getters or a prototype were ignored, except `uri` and the nested objects, so an inherited `host` lost to the `uri` it should override. Every option is read by name now.
+- A URI without `//`, such as `redis:6380`, was read as one without a host, minus the first character of its path. It throws `Invalid URI` now.
 - Reply conversions for time-series `NaN` samples, JSON legacy paths, `CF.INFO`, `BITPOS`, `BITCOUNT` and `SORT` were corrected.
 
 ### Security
@@ -451,7 +457,7 @@ Skip this step unless you build the internal classes yourself or write custom co
 - In alternating benchmark runs against 0.4.0, throughput is on par or better across the suite.
 - Replies and timeouts for tens of thousands of pipelines in flight take linear time. Masking bounds how much argument text it searches for quoted spans, so a reply full of quotes cannot stall the event loop.
 - Error replies no longer capture a stack trace they then drop.
-- Measured with each version's `npm run bundle`, the minimal client with `get` and `set` shrinks from 29,494 to 29,462 bytes.
+- Measured with each version's `npm run bundle`, the minimal client with `get` and `set` grows from 29,494 to 29,676 bytes.
 
 ## [0.4.0] and earlier
 

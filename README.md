@@ -101,6 +101,8 @@ const job = await client.send([['BLPOP', 'jobs', '30']], { blockingTimeout: 30_0
 - A queued call passes its arguments on once more, so it takes about half as many spread items as a direct call. Send larger commands with `send()`.
 - A refused `MULTI` (no `@transaction`) leaves the queue to run alone, and `exec()` rejects with `[MULTI]`.
 - After a reconnect loses a `WATCH`, the next `EXEC` becomes `DISCARD` and returns `null`. After it loses a raw `MULTI`, only `MULTI`, `EXEC`, `DISCARD` and `RESET` pass.
+- `AUTH` and `HELLO` go out only after every earlier reply, a blocking command's included, since Redis 7.2 and later drop the error of a failed `AUTH` while other replies are pending. Later commands wait for their reply, and a command's timeout starts when it goes out.
+- Put `AUTH` and `HELLO` first in a `send()` batch; inside a transaction `send()` refuses them. A RESP3 push pending on the server at that moment still drops the error, and the `AUTH` times out.
 
 </details>
 
@@ -140,7 +142,7 @@ const job = await worker.blpop(['jobs'], 0); // a timeout of 0 waits forever
 </details>
 
 <details>
-<summary>&nbsp;&nbsp;<b>Integers beyond 2^53</b></summary>
+<summary>&nbsp;&nbsp;<b>Large integers</b></summary>
 
 <br/>
 
@@ -210,6 +212,7 @@ const pending = await client.xpending('jobs', 'workers', '-', '+', 10);
 - Entry fields form a record: a repeated name keeps its last value, and integer-like names come first in ascending order. `xadd()` takes a record; `send()` returns the raw pairs.
 - On RESP3, `xread()` and `xreadgroup()` given one key twice keep only its last result, since a map holds each key once.
 - `deliveryTime` is the idle time in `xpending()`, and the Unix time of the last delivery in `xinfoStream(key, true)`, both in milliseconds.
+- `xautoclaim()` with `justid` returns its IDs as entries with empty `fields`; `xclaim()` with `justid` returns the IDs alone.
 
 </details>
 
@@ -440,9 +443,9 @@ _100,000 operations × 10,000 concurrency · 1 KB payload · 10 repeats per clie
 - Latency is timed **per operation** at the configured concurrency, over all repeats.
 - CPU/op is the **process CPU time** (user + system) of the measured phase per operation, so it includes garbage collection and native threads. GC/op is the garbage-collection pause time, divided the same way.
 - Memory is the largest growth of the worker's heap plus `ArrayBuffer` memory (all `Buffer`s) during the measured phase, sampled every 20 ms; memory held by native code is not counted. Replies are kept until checked, as an application would.
-- Clients run with **timeouts, ready checks and reconnects off** and no pipelining limit. Valkey GLIDE and speedkey cannot turn reconnects off and wait up to 10 minutes per request. ioredis and iovalkey auto-pipeline; Valkey GLIDE and speedkey decode replies as bytes over RESP2.
+- Clients run with **command timeouts, ready checks and reconnects off** and no pipelining limit. Valkey GLIDE and speedkey cannot turn reconnects off and wait up to 10 minutes per request. ioredis and iovalkey auto-pipeline; Valkey GLIDE and speedkey decode replies as bytes over RESP2.
 - A result whose client could not run a benchmark the same way is **numbered** and explained below the table.
-- Compared: every Node.js TCP client with 1,000+ weekly npm downloads that installs without compiling and keeps binary values. Left out: redis-fast-driver (native build), tedis (string values), HTTP clients such as @upstash/redis, and forks or wrappers. Valkey GLIDE has no Windows build.
+- Compared: every Node.js TCP client with 1,000+ weekly npm downloads that installs without compiling and keeps binary values. Left out: redis-fast-driver (native build), tedis (string values) and HTTP clients such as @upstash/redis. Valkey GLIDE has no Windows build.
 
 </div>
 
@@ -467,7 +470,7 @@ _100,000 operations × 10,000 concurrency · 1 KB payload · 10 repeats per clie
 - RESP2 and RESP3, except streamed replies, which Redis and Valkey never send
 - All 15 RESP3 reply types (Map, Set, Push, Attribute, BigNumber, ...)
 - Pushes such as tracking invalidations never take a command's reply
-- `bigint` past 2^53: automatic in raw replies, `{ bigint: true }` for INCR, INCRBY, DECR, DECRBY, HINCRBY, BITFIELD and BITFIELD_RO
+- `bigint` past `Number.MAX_SAFE_INTEGER`: automatic in raw replies, `{ bigint: true }` for INCR, INCRBY, DECR, DECRBY, HINCRBY, BITFIELD and BITFIELD_RO
 - Binary-safe: `Buffer` values in, `{ buffer: true }` bytes out
 
 </td>

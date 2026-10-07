@@ -203,7 +203,7 @@ export class ChatManager {
     // Get last N messages
     const messages = await this.publisher.zrange(key, \`\${-limit}\`, '-1');
 
-    return (messages as string[]).map((msg) => JSON.parse(msg) as Message);
+    return messages.map((message) => JSON.parse(message) as Message);
   }
 
   /**

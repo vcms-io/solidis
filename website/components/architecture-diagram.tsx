@@ -1,5 +1,7 @@
 'use client';
 
+import { useI18n } from '@/lib/i18n-context';
+
 const NODE_STYLES = {
   primary: {
     fill: '#f7f7f4',
@@ -111,6 +113,7 @@ interface ArchitectureDiagramProps {
 export function ArchitectureDiagram({
   compact = false,
 }: ArchitectureDiagramProps) {
+  const { t } = useI18n();
   const viewBoxWidth = 600;
   const viewBoxHeight = compact ? 280 : 340;
 
@@ -146,7 +149,7 @@ export function ArchitectureDiagram({
       viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`}
       className="w-full h-auto"
       role="img"
-      aria-label="Solidis architecture diagram"
+      aria-label={t('architecture.diagramLabel')}
     >
       <defs>
         <marker
@@ -223,7 +226,7 @@ export function ArchitectureDiagram({
         width={connectionWidth}
         height={connectionHeight}
         title="Connection"
-        subtitle="TCP · TLS · Reconnect"
+        subtitle={t('architecture.diagramConnection')}
       />
       <DiagramNode
         x={requesterX}
@@ -231,7 +234,7 @@ export function ArchitectureDiagram({
         width={requesterWidth}
         height={requesterHeight}
         title="Requester"
-        subtitle="Queue · Pipeline · Timeout"
+        subtitle={t('architecture.diagramRequester')}
       />
       <DiagramNode
         x={parserX}
@@ -239,7 +242,7 @@ export function ArchitectureDiagram({
         width={parserWidth}
         height={parserHeight}
         title="Parser"
-        subtitle="RESP2 · RESP3 · Binary-safe"
+        subtitle={t('architecture.diagramParser')}
       />
       <DiagramNode
         x={pubsubX}
@@ -247,7 +250,7 @@ export function ArchitectureDiagram({
         width={pubsubWidth}
         height={pubsubHeight}
         title="PubSub"
-        subtitle="Channel · Pattern · Shard"
+        subtitle={t('architecture.diagramPubSub')}
       />
       <DiagramNode
         x={debugX}
@@ -255,7 +258,7 @@ export function ArchitectureDiagram({
         width={debugWidth}
         height={debugHeight}
         title="Debug"
-        subtitle="debug event · No arguments"
+        subtitle={t('architecture.diagramDebug')}
         variant="secondary"
       />
 
@@ -297,7 +300,7 @@ export function ArchitectureDiagram({
             fontSize="8"
             fontFamily="inherit"
           >
-            tree-shakable
+            {t('architecture.diagramTreeShakable')}
           </text>
           <text
             x={centerX + 80}
@@ -307,7 +310,7 @@ export function ArchitectureDiagram({
             fontSize="8"
             fontFamily="inherit"
           >
-            384 commands
+            {t('home.statCommands')}
           </text>
         </g>
       )}

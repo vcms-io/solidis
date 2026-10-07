@@ -57,11 +57,10 @@ export default function UpdatesPage() {
     const changes: string[] = [];
 
     for (const line of lines) {
-      if (line.trim().startsWith('*') || line.trim().startsWith('-')) {
-        const change = line.trim().replace(/^[*-]\s*/, '');
-        if (change && !change.startsWith('**Full Changelog**')) {
-          changes.push(change);
-        }
+      const item = /^[*-]\s+(.+)$/.exec(line.trim());
+
+      if (item && !item[1].startsWith('**Full Changelog**')) {
+        changes.push(item[1]);
       }
     }
 
