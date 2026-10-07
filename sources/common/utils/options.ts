@@ -39,10 +39,14 @@ function resolveLayers<T extends object>(
 
 export function parseConnectionUri(uri: string | URL): SolidisClientOptions {
   let url: URL | undefined;
+  let host: string | undefined;
 
   try {
-    url = typeof uri === 'string' ? new URL(uri) : uri;
-  } catch {}
+    url = new URL(uri);
+    host = url.hostname && new URL(`http://${url.host}`).hostname;
+  } catch {
+    url = undefined;
+  }
 
   if (url && !/^rediss?:$/.test(url.protocol)) {
     throw new SolidisClientError(
@@ -55,13 +59,12 @@ export function parseConnectionUri(uri: string | URL): SolidisClientOptions {
   }
 
   const options: SolidisClientOptions = {};
-  const host = url.hostname.replace(/^\[(.*)\]$/, '$1');
   const username = decodeUriComponent(url.username);
   const password = decodeUriComponent(url.password);
   const database = url.pathname.slice(1);
 
   if (host) {
-    options.host = host;
+    options.host = host.replace(/[[\]]/g, '');
   }
 
   if (url.port) {
@@ -76,7 +79,7 @@ export function parseConnectionUri(uri: string | URL): SolidisClientOptions {
     const index = Number(database);
 
     if (!/^\d+$/.test(database) || !Number.isSafeInteger(index)) {
-      throw new SolidisClientError(`Invalid database '${database}' in URI`);
+      throw new SolidisClientError('Invalid database in URI');
     }
 
     options.database = index;

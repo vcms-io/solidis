@@ -81,14 +81,22 @@ export class SolidisClient extends EventEmitter {
 
     this.#options = resolveClientOptions(options);
 
-    const { host, port, tls, authentication } = this.#options;
+    const {
+      host,
+      port,
+      tls,
+      authentication,
+      debug,
+      lazyConnect,
+      maxEventListenersForClient,
+    } = this.#options;
     const credentials =
       authentication.username || authentication.password
         ? `${encodeURIComponent(`${Buffer.from(authentication.username)}`)}:***@`
         : '';
 
     this.uri = `redis${tls ? 's' : ''}://${credentials}${host.includes(':') ? `[${host}]` : host}:${port}`;
-    this.#debug = this.#options.debug
+    this.#debug = debug
       ? (type, message, data) => {
           const entry = { timestamp: Date.now(), type, message, data };
 
@@ -107,11 +115,9 @@ export class SolidisClient extends EventEmitter {
     });
 
     this.#setupListeners();
-    this.setMaxListeners(
-      Math.max(0, this.#options.maxEventListenersForClient) || 0,
-    );
+    this.setMaxListeners(Math.max(0, maxEventListenersForClient) || 0);
 
-    if (!this.#options.lazyConnect) {
+    if (!lazyConnect) {
       this.connect().catch((error: unknown) => {
         if (!this.#connection.isQuitted) {
           this.emit('error', wrapWithSolidisError(Error, error));

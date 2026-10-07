@@ -64,11 +64,9 @@ export class SolidisPubSub {
       channel === '__redis__:invalidate' &&
       (message === null || Array.isArray(message))
     ) {
-      const push = new RespPush();
-
-      push.push(Buffer.from('invalidate'), message);
-
-      this.dispatchPush(push);
+      this.dispatchPush(
+        RespPush.of<SolidisData>(Buffer.from('invalidate'), message),
+      );
 
       return;
     }

@@ -13,7 +13,8 @@ import {
   closeClient,
   createClient,
   createKeyspace,
-  resolveConnectionTarget,
+  formatTargetAddress,
+  track,
 } from '../../utils/index.ts';
 
 describe('options', () => {
@@ -66,6 +67,25 @@ describe('options', () => {
         host: '::1',
         port: 6379,
       });
+    });
+
+    it('reads the host as an http URL does, and rejects one it would not accept', () => {
+      for (const [uri, host] of [
+        ['redis://loc%61lhost:6379', 'localhost'],
+        ['redis://LOCALHOST', 'localhost'],
+        ['redis://bücher.example', 'xn--bcher-kva.example'],
+        ['rediss://b%C3%BCcher.example', 'xn--bcher-kva.example'],
+        ['redis://[0:0::1]', '::1'],
+      ]) {
+        assert.strictEqual(parseConnectionUri(uri).host, host, uri);
+      }
+
+      for (const uri of ['redis://a%00b', 'redis://a%2Fb:6379']) {
+        assert.throws(() => parseConnectionUri(uri), {
+          name: 'SolidisClientError',
+          message: 'Invalid URI',
+        });
+      }
     });
 
     it('enables TLS for rediss', () => {
@@ -135,7 +155,7 @@ describe('options', () => {
       ]) {
         assert.throws(() => parseConnectionUri(`redis://host/${database}`), {
           name: 'SolidisClientError',
-          message: `Invalid database '${database}' in URI`,
+          message: 'Invalid database in URI',
         });
       }
     });
@@ -277,12 +297,13 @@ describe('options', () => {
   });
 
   it('connects through a URI and selects its database', async () => {
-    const target = resolveConnectionTarget();
     const key = keyspace.key('uri-database');
-    const client = new SolidisFeaturedClient({
-      uri: `redis://${target.host}:${target.port}/5`,
-      lazyConnect: true,
-    });
+    const client = track(
+      new SolidisFeaturedClient({
+        uri: `redis://${formatTargetAddress()}/5`,
+        lazyConnect: true,
+      }),
+    );
 
     client.on('error', () => {});
 
