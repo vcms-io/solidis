@@ -4,13 +4,14 @@
  */
 
 import assert from 'node:assert/strict';
-import { after, before, describe, it } from 'node:test';
+import { after, before, beforeEach, describe, it } from 'node:test';
 
 import {
   closeClient,
   createClient,
   createKeyspace,
   detectServerCapabilities,
+  readLoggedCommands,
 } from '../utils/index.ts';
 
 import type { FeaturedClient, ServerCapabilities } from '../utils/index.ts';
@@ -57,13 +58,11 @@ describe('function', () => {
     client = await createClient();
     capabilities = await detectServerCapabilities(client);
     supported = capabilities.atLeast(7, 0);
+  });
 
+  beforeEach(async () => {
     if (supported) {
-      try {
-        await client.functionDelete('solidistest');
-      } catch {
-        /* library may not exist yet */
-      }
+      await client.functionFlush();
     }
   });
 
@@ -232,6 +231,27 @@ describe('function', () => {
     );
   });
 
+  it('restores functions from the Buffer FUNCTION DUMP replies with', async (context) => {
+    if (!supported) {
+      context.skip('Functions require Redis 7.0+');
+      return;
+    }
+
+    await client.functionLoad(libraryCode);
+
+    const [[dump]] = await client.send([['FUNCTION', 'DUMP']]);
+
+    assert.ok(Buffer.isBuffer(dump));
+
+    await client.functionFlush();
+
+    assert.strictEqual(await client.functionRestore(dump), 'OK');
+    assert.deepStrictEqual(
+      (await client.functionList()).map((library) => library.libraryName),
+      ['solidistest'],
+    );
+  });
+
   it('restores functions with FLUSH policy', async (context) => {
     if (!supported) {
       context.skip('Functions require Redis 7.0+');
@@ -299,11 +319,12 @@ describe('function', () => {
 
     await client.functionLoad(libraryCode, true);
 
-    assert.strictEqual(await client.functionFlush(true), 'OK');
+    const sent = await readLoggedCommands(client, 'FUNCTION', async () => {
+      assert.strictEqual(await client.functionFlush(true), 'OK');
+    });
 
-    const list = await client.functionList();
-
-    assert.deepStrictEqual(list, []);
+    assert.deepStrictEqual(sent, [['FUNCTION', 'FLUSH', 'ASYNC']]);
+    assert.deepStrictEqual(await client.functionList(), []);
   });
 
   it('reflects zero libraries in function stats after a flush', async (context) => {

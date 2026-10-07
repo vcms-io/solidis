@@ -1,4 +1,4 @@
-import { formatInteger } from '../common/utils/internal.ts';
+import { formatInteger, toBinaryBuffer } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyOK } from './utils/index.ts';
 
 import type { CommandRestoreOptions, StringOrBuffer } from '../index.ts';
@@ -9,16 +9,11 @@ export function createCommand(
   serializedValue: StringOrBuffer,
   options?: CommandRestoreOptions,
 ) {
-  const payload =
-    typeof serializedValue === 'string'
-      ? Buffer.from(serializedValue, 'latin1')
-      : serializedValue;
-
   const command: StringOrBuffer[] = [
     'RESTORE',
     key,
     formatInteger(ttl),
-    payload,
+    toBinaryBuffer(serializedValue),
   ];
 
   if (options) {

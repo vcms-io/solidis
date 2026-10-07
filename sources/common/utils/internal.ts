@@ -15,6 +15,10 @@ export function readText(value: unknown) {
   return isStringOrBuffer(value) ? value.toString() : undefined;
 }
 
+export function toBinaryBuffer(value: StringOrBuffer) {
+  return typeof value === 'string' ? Buffer.from(value, 'latin1') : value;
+}
+
 export function formatInteger(value: number | bigint | string) {
   return `${Number.isSafeInteger(value) || !Number.isInteger(value) ? value : BigInt(value)}`;
 }
