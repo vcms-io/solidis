@@ -768,7 +768,7 @@ describe('reply-guards', () => {
     assert.deepStrictEqual(await ranged, [{ member: 'a', score: 1 }]);
     assert.deepStrictEqual(await read, bulk('v'));
     assert.strictEqual(await replaced, 'old');
-    assert.deepStrictEqual(await inserted, [1, full, full]);
+    assert.deepStrictEqual(await inserted, [true, full, full]);
     assert.strictEqual(await shut, 'OK');
   });
 

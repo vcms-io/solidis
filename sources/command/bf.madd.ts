@@ -1,4 +1,8 @@
-import { executeCommand, tryReplyToNumberOrErrorArray } from './utils/index.ts';
+import {
+  executeCommand,
+  tryReplyToBoolean,
+  tryReplyToValueOrErrorArray,
+} from './utils/index.ts';
 
 import type { RespError } from '../index.ts';
 
@@ -10,12 +14,13 @@ export async function bfMadd<T>(
   this: T,
   key: string,
   items: string[],
-): Promise<(number | RespError)[]> {
+): Promise<(boolean | RespError)[]> {
   const count = items.length;
 
   return await executeCommand(
     this,
     createCommand(key, items),
-    (reply, command) => tryReplyToNumberOrErrorArray(reply, command, count),
+    (reply, command) =>
+      tryReplyToValueOrErrorArray(reply, command, count, tryReplyToBoolean),
   );
 }

@@ -1,5 +1,6 @@
 import {
   executeCommand,
+  formatBlockingTimeout,
   tryReplyToStringOrBufferOrNull,
 } from './utils/index.ts';
 
@@ -16,7 +17,14 @@ export function createCommand(
   whereTo: CommandLeftOrRightOption,
   timeout: number,
 ) {
-  return ['BLMOVE', source, destination, whereFrom, whereTo, `${timeout}`];
+  return [
+    'BLMOVE',
+    source,
+    destination,
+    whereFrom,
+    whereTo,
+    formatBlockingTimeout(timeout),
+  ];
 }
 
 export async function blmove<

@@ -1,5 +1,9 @@
 import { formatInteger } from '../common/utils/internal.ts';
-import { executeCommand, tryReplyToNumberOrErrorArray } from './utils/index.ts';
+import {
+  executeCommand,
+  tryReplyToNumber,
+  tryReplyToValueOrErrorArray,
+} from './utils/index.ts';
 
 import type { CommandTimeSeriesSampleTimestamp, RespError } from '../index.ts';
 
@@ -32,6 +36,7 @@ export async function tsMadd<T>(
   return await executeCommand(
     this,
     createCommand(key, samples),
-    (reply, command) => tryReplyToNumberOrErrorArray(reply, command, count),
+    (reply, command) =>
+      tryReplyToValueOrErrorArray(reply, command, count, tryReplyToNumber),
   );
 }

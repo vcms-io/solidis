@@ -32,6 +32,10 @@ redis.register_function{
 }
 `;
 
+const otherLibraryCode = `#!lua name=solidisother
+redis.register_function('solidisother_ping', function() return 'pong' end)
+`;
+
 const expectedSolidistestFunctions = [
   { name: 'solidistest_echo', description: null, flags: [] },
   { name: 'solidistest_get', description: null, flags: ['no-writes'] },
@@ -117,6 +121,7 @@ describe('function', () => {
       return;
     }
 
+    await client.functionLoad(otherLibraryCode);
     await client.functionLoad(libraryCode, true);
 
     const list = await client.functionList({
@@ -229,6 +234,10 @@ describe('function', () => {
       sortFunctionsByName(restored[0].functions),
       expectedSolidistestFunctions,
     );
+    assert.strictEqual(
+      await client.functionRestore(dump, { replace: true }),
+      'OK',
+    );
   });
 
   it('restores functions from the Buffer FUNCTION DUMP replies with', async (context) => {
@@ -262,6 +271,7 @@ describe('function', () => {
 
     const dump = await client.functionDump();
 
+    await client.functionLoad(otherLibraryCode);
     await client.functionRestore(dump, { flush: true });
 
     const list = await client.functionList();

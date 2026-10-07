@@ -374,11 +374,11 @@ describe('normalized-replies', () => {
           'c',
           'd',
         ]),
-        [1, 0, full, full],
+        [true, false, full, full],
       );
       assert.deepStrictEqual(
         await bfMadd.call(createSender([true, false]), 'key', ['a', 'b', 'c']),
-        [1, 0],
+        [true, false],
       );
 
       await assert.rejects(
@@ -553,7 +553,7 @@ describe('normalized-replies', () => {
       }
     });
 
-    it('formats BZPOPMIN scores the same way on both protocols', async () => {
+    it('reads BZPOPMIN scores as numbers on both protocols', async () => {
       for (const score of [bulk('1.5e-6'), 0.0000015]) {
         assert.deepStrictEqual(
           await bzpopmin.call(
@@ -561,7 +561,7 @@ describe('normalized-replies', () => {
             ['key'],
             0,
           ),
-          ['key', 'member', '0.0000015'],
+          ['key', 'member', 0.0000015],
         );
       }
 
@@ -571,7 +571,7 @@ describe('normalized-replies', () => {
           ['key'],
           0,
         ),
-        ['key', 'member', '-inf'],
+        ['key', 'member', Number.NEGATIVE_INFINITY],
       );
     });
 

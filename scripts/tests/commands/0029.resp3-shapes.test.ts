@@ -330,7 +330,7 @@ describe('resp3-shapes', () => {
 
     const popped = await client.bzpopmin([key], 1);
 
-    assert.deepStrictEqual(popped, [key, 'first', '3']);
+    assert.deepStrictEqual(popped, [key, 'first', 3]);
   });
 
   it('reads RESP3 nested field/value pairs from HRANDFIELD WITHVALUES', async () => {
@@ -930,7 +930,7 @@ describe('resp3-shapes', () => {
 
     const popped = await client.bzpopmax([key], 1);
 
-    assert.deepStrictEqual(popped, [key, 'last', '5']);
+    assert.deepStrictEqual(popped, [key, 'last', 5]);
   });
 
   it('reads a RESP3 reply from LMPOP', async (context) => {
@@ -1041,7 +1041,7 @@ describe('resp3-shapes', () => {
 
     const histograms = await client.latencyHistogram('ping');
 
-    assert.ok('ping' in histograms);
+    assert.deepStrictEqual(Object.keys(histograms), ['ping']);
     assert.ok(histograms.ping.calls >= callsBefore + 10);
     assert.ok(Object.keys(histograms.ping.histogramUsec).length >= 1);
 
@@ -1354,11 +1354,17 @@ describe('resp3-shapes', () => {
     }
 
     const libraryName = 'solidisresp3test';
+    const otherName = 'solidisresp3other';
     const code = `#!lua name=${libraryName}\nredis.register_function('solidisresp3fn', function() return 'ok' end)`;
 
     await client.functionDelete(libraryName).catch(() => undefined);
+    await client.functionDelete(otherName).catch(() => undefined);
 
     try {
+      await client.functionLoad(
+        `#!lua name=${otherName}\nredis.register_function('solidisresp3otherfn', function() return 'ok' end)`,
+      );
+
       const loadResult = await client.functionLoad(code);
 
       assert.strictEqual(
@@ -1384,10 +1390,13 @@ describe('resp3-shapes', () => {
         libraryNamePattern: libraryName,
       });
 
-      assert.strictEqual(filtered.length, 1);
-      assert.strictEqual(filtered[0].libraryName, libraryName);
+      assert.deepStrictEqual(
+        filtered.map((library) => library.libraryName),
+        [libraryName],
+      );
     } finally {
       await client.functionDelete(libraryName).catch(() => undefined);
+      await client.functionDelete(otherName).catch(() => undefined);
     }
   });
 

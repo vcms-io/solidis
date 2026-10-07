@@ -415,13 +415,14 @@ export function tryReplyToNumberArray(
   );
 }
 
-export function tryReplyToNumberOrErrorArray(
+export function tryReplyToValueOrErrorArray<T>(
   reply: SolidisData,
   commandName: CommandName | undefined,
   length: number,
-): (number | RespError)[] {
+  tryReplyToValue: (value: unknown, commandName?: CommandName) => T,
+): (T | RespError)[] {
   const results = tryReplyArray(reply, commandName).map((item) =>
-    item instanceof Error ? item : tryReplyToNumber(item, commandName),
+    item instanceof Error ? item : tryReplyToValue(item, commandName),
   );
   const last = results.at(-1);
 
@@ -488,7 +489,7 @@ export function tryReplyToKeyValuePairOrNull<
 export function tryReplyToKeyMemberScoreOrNull(
   reply: unknown,
   commandName?: CommandName,
-): [string, string, string] | null {
+): [string, string, number] | null {
   if (reply === null) {
     return null;
   }
@@ -498,7 +499,7 @@ export function tryReplyToKeyMemberScoreOrNull(
   return [
     tryReplyToString(key, commandName),
     tryReplyToString(member, commandName),
-    formatDouble(tryReplyToNumber(score, commandName)),
+    tryReplyToNumber(score, commandName),
   ];
 }
 

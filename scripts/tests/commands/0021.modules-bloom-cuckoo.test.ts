@@ -59,14 +59,15 @@ describe('modules-bloom-cuckoo', () => {
 
     const key = keyspace.key('bloom-bulk');
 
-    assert.deepStrictEqual(
-      await client.bfMadd(key, ['a', 'b', 'c']),
-      [1, 1, 1],
-    );
+    assert.deepStrictEqual(await client.bfMadd(key, ['a', 'b', 'c']), [
+      true,
+      true,
+      true,
+    ]);
 
     const exists = await client.bfMexists(key, ['a', 'b', 'absent']);
 
-    assert.deepStrictEqual(exists, [1, 1, 0]);
+    assert.deepStrictEqual(exists, [true, true, false]);
   });
 
   it('reserves a Bloom filter with a target error rate', async (context) => {
@@ -107,7 +108,7 @@ describe('modules-bloom-cuckoo', () => {
 
     assert.deepStrictEqual(
       checks,
-      Array.from({ length: 2000 }, () => 1),
+      Array.from({ length: 2000 }, () => true),
     );
   });
 
@@ -178,7 +179,7 @@ describe('modules-bloom-cuckoo', () => {
       error: 0.01,
     });
 
-    assert.deepStrictEqual(results, [1, 1, 1]);
+    assert.deepStrictEqual(results, [true, true, true]);
     assert.strictEqual(await client.bfExists(key, 'x'), true);
     assert.strictEqual(await client.bfExists(key, 'y'), true);
     assert.strictEqual(await client.bfExists(key, 'z'), true);
@@ -216,7 +217,7 @@ describe('modules-bloom-cuckoo', () => {
       assert.ok(
         results
           .slice(0, failureIndex)
-          .every((result) => result === 0 || result === 1),
+          .every((result) => typeof result === 'boolean'),
       );
       assert.ok(
         results.slice(failureIndex).every((result) => result === failure),
@@ -487,7 +488,7 @@ describe('modules-bloom-cuckoo', () => {
       expansion: 4,
     });
 
-    assert.deepStrictEqual(results, [1, 1]);
+    assert.deepStrictEqual(results, [true, true]);
     assert.strictEqual((await client.bfInfo(key)).expansionRate, 4);
 
     const nocreateKey = keyspace.key('bloom-nocreate-missing');

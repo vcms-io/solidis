@@ -1,9 +1,13 @@
-import { executeCommand, tryReplyToKeyValuePairOrNull } from './utils/index.ts';
+import {
+  executeCommand,
+  formatBlockingTimeout,
+  tryReplyToKeyValuePairOrNull,
+} from './utils/index.ts';
 
 import type { CommandBufferOptions, RespString } from '../index.ts';
 
 export function createCommand(keys: string[], timeout: number) {
-  return ['BLPOP', ...keys, `${timeout}`];
+  return ['BLPOP', ...keys, formatBlockingTimeout(timeout)];
 }
 
 export async function blpop<

@@ -126,12 +126,12 @@ describe('regressions', () => {
         assert.deepStrictEqual(await client.bzpopmin([key], 1), [
           key,
           'bottom',
-          '-inf',
+          Number.NEGATIVE_INFINITY,
         ]);
         assert.deepStrictEqual(await client.bzpopmax([key], 1), [
           key,
           'top',
-          'inf',
+          Number.POSITIVE_INFINITY,
         ]);
       });
 

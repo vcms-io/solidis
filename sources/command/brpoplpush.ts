@@ -1,5 +1,6 @@
 import {
   executeCommand,
+  formatBlockingTimeout,
   tryReplyToStringOrBufferOrNull,
 } from './utils/index.ts';
 
@@ -10,7 +11,7 @@ export function createCommand(
   destination: string,
   timeout: number,
 ) {
-  return ['BRPOPLPUSH', source, destination, `${timeout}`];
+  return ['BRPOPLPUSH', source, destination, formatBlockingTimeout(timeout)];
 }
 
 export async function brpoplpush<
