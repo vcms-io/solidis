@@ -44,12 +44,12 @@ async function load(url, context, defaultLoad) {
   const chalkedUrl = chalk.gray(`"${url}"`);
   const chalkedTook = chalk.yellow.bold(`${took} ms`);
 
-  process.stdout.write(
+  process.stderr.write(
     `${loaderBadge} Load ${chalkedUrl} Took ${chalkedTook} ✨\n\n`,
   );
 
-  process.stdout.write(result.errors.map((error) => error.text).join('\n'));
-  process.stdout.write(
+  process.stderr.write(result.errors.map((error) => error.text).join('\n'));
+  process.stderr.write(
     result.warnings.map((warning) => warning.text).join('\n'),
   );
 

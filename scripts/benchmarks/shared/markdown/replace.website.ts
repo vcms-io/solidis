@@ -2,7 +2,7 @@ import { writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import { formatPayloadSize } from '../utils.ts';
-import { analyze, findNoteNumber } from './analysis.ts';
+import { analyze, findNoteNumber, hasSeveralSizes } from './analysis.ts';
 import { en, ko } from './locales/index.ts';
 import { loadSnapshot, mergeSnapshots } from './snapshot.ts';
 
@@ -57,21 +57,25 @@ const data = {
     platform: environment ? `${environment.platform} ${environment.arch}` : '',
     server: environment?.server ?? '',
   },
-  benchmarkCases: cases.map((comparison) => ({
-    name: {
-      en:
-        en.operationDisplayNames[comparison.operation] ?? comparison.operation,
-      ko:
-        ko.operationDisplayNames[comparison.operation] ?? comparison.operation,
-    },
-    commands: describeCommands(comparison.operation),
-    lead: round(comparison.lead),
-    clients: comparison.results.map((result) => ({
-      name: result.library,
-      operationsPerSecond: Math.round(result.unitsPerSecond ?? 0),
-      note: findNoteNumber(analysis, result.nonComparableReason),
-    })),
-  })),
+  benchmarkCases: cases.map((comparison) => {
+    const size = hasSeveralSizes(analysis, comparison)
+      ? ` (${formatPayloadSize(comparison.payloadBytes)})`
+      : '';
+
+    return {
+      name: {
+        en: `${en.operationDisplayNames[comparison.operation] ?? comparison.operation}${size}`,
+        ko: `${ko.operationDisplayNames[comparison.operation] ?? comparison.operation}${size}`,
+      },
+      commands: describeCommands(comparison.operation),
+      lead: round(comparison.lead),
+      clients: comparison.results.map((result) => ({
+        name: result.library,
+        operationsPerSecond: Math.round(result.unitsPerSecond ?? 0),
+        note: findNoteNumber(analysis, result.nonComparableReason),
+      })),
+    };
+  }),
   benchmarkNotes: analysis.notes.map((note) => ({
     en: en.note(note),
     ko: ko.note(note),

@@ -55,6 +55,17 @@ function fastestOf(results: BenchResult[]): BenchResult | undefined {
   );
 }
 
+export function hasSeveralSizes(
+  analysis: BenchmarkAnalysis,
+  comparison: CaseComparison,
+): boolean {
+  return analysis.cases.some(
+    (other) =>
+      other.operation === comparison.operation &&
+      other.payloadBytes !== comparison.payloadBytes,
+  );
+}
+
 function compareCase(
   group: BenchResult[],
   libraries: LibraryInfo[],

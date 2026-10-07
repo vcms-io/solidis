@@ -6,7 +6,7 @@ import {
   formatMemory,
   formatPayloadSize,
 } from '../utils.ts';
-import { analyze, findNoteNumber } from './analysis.ts';
+import { analyze, findNoteNumber, hasSeveralSizes } from './analysis.ts';
 import { fluentEmoji } from './emoji.ts';
 import { en } from './locales/index.ts';
 
@@ -161,8 +161,11 @@ function buildResultsTable(
   };
   const rows = analysis.cases.map((comparison, index) => {
     const lead = formatRatio(comparison.lead, 1);
+    const size = hasSeveralSizes(analysis, comparison)
+      ? `<br/><sub>${formatPayloadSize(comparison.payloadBytes)}</sub>`
+      : '';
 
-    return `| ${getRankMedal(index + 1)} | ${formatOperation(comparison.operation, locale)} | ${libraries.map((library) => formatCell(comparison, library)).join(' | ')} | ${comparison.lead !== null && comparison.lead > 1 ? `**${lead}**` : lead}${getLeadBadge(comparison.lead)} |`;
+    return `| ${getRankMedal(index + 1)} | ${formatOperation(comparison.operation, locale)}${size} | ${libraries.map((library) => formatCell(comparison, library)).join(' | ')} | ${comparison.lead !== null && comparison.lead > 1 ? `**${lead}**` : lead}${getLeadBadge(comparison.lead)} |`;
   });
 
   return [
@@ -184,7 +187,7 @@ function buildDetailedMetrics(
     comparison.results.map((result, index) => {
       const label =
         index === 0
-          ? `${formatOperation(comparison.operation, locale)}<br/><sub>${formatPayloadSize(comparison.payloadBytes)}</sub>`
+          ? `${formatOperation(comparison.operation, locale)}${comparison.payloadBytes ? `<br/><sub>${formatPayloadSize(comparison.payloadBytes)}</sub>` : ''}`
           : '';
       const library = `${result.library === analysis.subjectLibrary ? `**${result.library}**` : result.library}${formatNoteMarker(result, analysis)}`;
 

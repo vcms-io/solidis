@@ -360,9 +360,14 @@ export function createBenchmarkRunner(
 
     let caseIndex = 0;
 
-    for (const payloadBytes of config.sizes) {
+    for (const size of config.sizes) {
       for (const benchmarkCase of suite.benchmarkCases) {
-        if (getSkipReason(config, benchmarkCase)) {
+        const payloadBytes = benchmarkCase.payloadSlotsPerUnit ? size : 0;
+
+        if (
+          getSkipReason(config, benchmarkCase) ||
+          (!payloadBytes && size !== config.sizes[0])
+        ) {
           continue;
         }
 

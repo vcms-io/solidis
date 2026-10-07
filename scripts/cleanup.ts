@@ -98,7 +98,7 @@ async function cleanup() {
       await restoreDts(dtsMap);
     }
 
-    process.stdout.write('✅ Cleaned up distributions\n');
+    process.stderr.write('✅ Cleaned up distributions\n');
   } catch (error) {
     process.stderr.write(`❌ Failed to clean up distributions: ${error}\n`);
     process.exitCode = 1;

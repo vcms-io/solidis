@@ -162,7 +162,12 @@ export function createCommandCase(
   suite: BenchmarkSuite,
   options: CommandCaseOptions,
 ): BenchmarkCase {
-  const samplePayloadAt = () => Buffer.alloc(0);
+  let readsPayload = false;
+  const samplePayloadAt = () => {
+    readsPayload = true;
+
+    return Buffer.alloc(0);
+  };
   const samplePrefix = 'solidis:bench:command-count';
   const sampleSetup = options.setup?.(samplePrefix, samplePayloadAt, 1) ?? [];
   const sampleUnit = options.unit(samplePrefix, 0, samplePayloadAt);
@@ -171,7 +176,7 @@ export function createCommandCase(
   return {
     name: options.name,
     commandsPerUnit,
-    payloadSlotsPerUnit: options.payloadSlotsPerUnit ?? 1,
+    payloadSlotsPerUnit: readsPayload ? (options.payloadSlotsPerUnit ?? 1) : 0,
     executionMode: options.executionMode,
     sampleCommands: [...sampleSetup, ...sampleUnit],
     async run(context) {
