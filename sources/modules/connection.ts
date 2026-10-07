@@ -31,6 +31,7 @@ interface SolidisConnectionWaiter {
 export class SolidisConnection extends EventEmitter {
   readonly #options: SolidisConnectionOptions;
   readonly #debug?: SolidisDebugHandle;
+  readonly #retries: number;
 
   #socket: SolidisSocket | null = null;
   #isConnected = false;
@@ -51,6 +52,7 @@ export class SolidisConnection extends EventEmitter {
 
     this.#options = options;
     this.#debug = options.debugHandle;
+    this.#retries = Math.max(options.maxConnectionRetries, 0) || 0;
   }
 
   public get isConnected() {
@@ -61,9 +63,7 @@ export class SolidisConnection extends EventEmitter {
     return this.#isQuitted;
   }
 
-  public connect(
-    attempts = this.#options.maxConnectionRetries + 1,
-  ): Promise<number> {
+  public connect(attempts = this.#retries + 1): Promise<number> {
     if (this.#isQuitted) {
       return Promise.reject(new SolidisClientError(SolidisClientQuitMessage));
     }
@@ -82,7 +82,7 @@ export class SolidisConnection extends EventEmitter {
   }
 
   public reconnect() {
-    if (this.#isConnected || this.#remainingReconnects <= 0) {
+    if (this.#isConnected || !(this.#remainingReconnects > 0)) {
       return;
     }
 
@@ -333,13 +333,13 @@ export class SolidisConnection extends EventEmitter {
   }
 
   #lose(error: Error) {
-    const { maxConnectionRetries, maxConnectionRetryDelay } = this.#options;
+    const { maxConnectionRetryDelay } = this.#options;
 
     let exhaustion: SolidisConnectionError | undefined;
 
-    if (performance.now() - this.#readyAt >= maxConnectionRetryDelay) {
+    if (performance.now() - this.#readyAt >= (maxConnectionRetryDelay || 0)) {
       this.#failedAttempts = 0;
-      this.#remainingReconnects = maxConnectionRetries + 1;
+      this.#remainingReconnects = this.#retries + 1;
     } else {
       exhaustion = this.#spendReconnect(error);
 
@@ -371,7 +371,7 @@ export class SolidisConnection extends EventEmitter {
 
   #createRetryError(cause: unknown) {
     return new SolidisConnectionError(
-      `Connection failed after ${this.#options.maxConnectionRetries} retries.`,
+      `Connection failed after ${this.#retries} retries.`,
       cause,
     );
   }

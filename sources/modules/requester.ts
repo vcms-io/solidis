@@ -165,7 +165,7 @@ export class SolidisRequester {
   }
 
   public send(
-    commands: StringOrBuffer[][],
+    commands: readonly (readonly StringOrBuffer[])[],
     options?: SolidisSendOptions,
   ): Promise<SolidisData[][]> {
     const batch = copyCommands(commands);
@@ -305,7 +305,7 @@ export class SolidisRequester {
     for (let index = 0; index < commands.length; index += 1) {
       const command = commands[index];
 
-      const kind = inspectCommand(command, isQueueing);
+      const kind = inspectCommand(command, isQueueing, index);
 
       if (kind instanceof SolidisRequesterError) {
         return kind;
@@ -332,7 +332,7 @@ export class SolidisRequester {
 
       const isAuthentication = kind === 'auth' || kind === 'hello';
 
-      if (index === 0 && isAuthentication) {
+      if (isAuthentication) {
         if (
           pipeline.commands.length ||
           this.#inflightHead < this.#inflightQueue.length

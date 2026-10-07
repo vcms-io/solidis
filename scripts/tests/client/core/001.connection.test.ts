@@ -21,8 +21,10 @@ import {
   formatTargetAddress,
   MockRedisServer,
   mockClientOptions,
+  nextEvent,
   track,
   waitFor,
+  withTimeout,
 } from '../../utils/index.ts';
 
 import type {
@@ -117,7 +119,7 @@ describe('connection', () => {
     await client.connect();
     await client.ping();
 
-    const ended = new Promise<void>((resolve) => client.once('end', resolve));
+    const ended = nextEvent(client, 'end');
 
     client.quit();
 
@@ -405,29 +407,33 @@ describe('connection', () => {
     assert.strictEqual(await raceClient.ping(), 'PONG');
   });
 
-  it('rejects with a connection error when host is unreachable', async () => {
-    const unreachableClient = track(
+  it('rejects with the connection timeout when the host does not answer', async () => {
+    const server = new MockRedisServer();
+
+    await server.listen();
+
+    const silentClient = track(
       new SolidisFeaturedClient(
-        buildClientOptions({
-          lazyConnect: true,
-          host: '127.0.0.1',
-          port: 1,
-          connectionTimeout: 100,
-          maxConnectionRetries: 0,
-        }),
+        mockClientOptions(server.port, { tls: {}, connectionTimeout: 100 }),
       ),
     );
 
-    unreachableClient.on('error', () => {});
+    silentClient.on('error', () => {});
 
-    await assert.rejects(
-      () => unreachableClient.connect(),
-      (error: Error) =>
-        error instanceof SolidisConnectionError &&
-        error.message === 'Connection failed after 0 retries.',
-    );
-
-    unreachableClient.quit();
+    try {
+      await assert.rejects(
+        () => withTimeout(silentClient.connect(), 'connect()'),
+        (error: Error) =>
+          error instanceof SolidisConnectionError &&
+          error.message === 'Connection failed after 0 retries.' &&
+          error.cause instanceof SolidisConnectionError &&
+          error.cause.message === 'Connection timeout (100 ms).',
+      );
+      assert.strictEqual(server.acceptedCount, 1);
+    } finally {
+      silentClient.quit();
+      await server.close();
+    }
   });
 
   it('rejects connect after quit via client quit method', async () => {
@@ -463,25 +469,17 @@ describe('connection', () => {
 
     const clientId = await reconnectClient.clientId();
     const killer = await createClient();
+    const reconnected = nextEvent(reconnectClient, 'reconnected');
 
-    await killer.clientKill(clientId);
+    try {
+      await killer.clientKill(clientId);
+      await reconnected;
 
-    await waitFor(
-      async () => {
-        try {
-          return (await reconnectClient.ping()) === 'PONG';
-        } catch {
-          return false;
-        }
-      },
-      { timeout: 3000, interval: 25, description: 'reconnect after kill' },
-    );
-
-    const value = await reconnectClient.get(key);
-
-    assert.strictEqual(value, 'before-kill');
-
-    await closeClient(reconnectClient);
+      assert.strictEqual(await reconnectClient.get(key), 'before-kill');
+    } finally {
+      await closeClient(killer);
+      await closeClient(reconnectClient);
+    }
   });
 
   it('completes a large write', async () => {
@@ -908,7 +906,11 @@ describe('connection', () => {
         const sockets: ScriptedSocket[] = [];
         const originalConnect = net.connect;
 
-        net.connect = (() => {
+        net.connect = ((options: net.NetConnectOpts) => {
+          if (!('port' in options) || options.port !== 1) {
+            return originalConnect(options);
+          }
+
           const socket = new ScriptedSocket();
 
           sockets.push(socket);
@@ -995,6 +997,71 @@ describe('connection', () => {
           await delay(40);
 
           assert.strictEqual(sockets.length, 5);
+
+          connection.quit();
+        });
+      });
+
+      it('leaves no background reconnect after connect(NaN), as after connect(0)', async () => {
+        await withScriptedSockets(async (sockets) => {
+          for (const attempts of [0, Number.NaN]) {
+            const connection = createConnection({
+              connectionTimeout: 0,
+              connectionRetryDelay: 1,
+              maxConnectionRetryDelay: 30,
+            });
+            const first = sockets.length;
+
+            connection.on('close', () => connection.reconnect());
+
+            const connecting = connection.connect(attempts);
+
+            sockets[first].emit('connect');
+
+            assert.strictEqual(await connecting, attempts);
+
+            sockets[first].emit('close');
+
+            await delay(40);
+
+            assert.strictEqual(sockets.length, first + 1);
+
+            connection.quit();
+          }
+        });
+      });
+
+      it('refills the reconnect budget after every ready period when maxConnectionRetryDelay is NaN', async () => {
+        await withScriptedSockets(async (sockets) => {
+          const connection = createConnection({
+            connectionTimeout: 0,
+            connectionRetryDelay: 1,
+            maxConnectionRetryDelay: Number.NaN,
+            maxConnectionRetries: 1,
+          });
+          const errors: Error[] = [];
+
+          connection.on('error', (error) => errors.push(error));
+          connection.on('close', () => connection.reconnect());
+
+          const connecting = connection.connect();
+
+          sockets[0].emit('connect');
+
+          await connecting;
+
+          for (let index = 1; index <= 4; index += 1) {
+            connection.resetBackoff();
+            sockets[index - 1].emit('close');
+
+            await waitFor(() => sockets.length === index + 1, {
+              description: `attempt ${index + 1}`,
+            });
+
+            sockets[index].emit('connect');
+          }
+
+          assert.deepStrictEqual(errors, []);
 
           connection.quit();
         });

@@ -221,7 +221,7 @@ export type SolidisTransactionClient<T> = {
 };
 
 export type SolidisClientExtensions<
-  T extends Record<string, unknown> = Record<string, unknown>,
+  T extends object = Record<string, unknown>,
   C = unknown,
 > = {
   [K in keyof T as K extends symbol | 'constructor' | '__proto__'

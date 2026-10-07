@@ -5,13 +5,24 @@ import { errorMonitor } from 'node:events';
 import { describe, it } from 'node:test';
 
 import { SolidisFeaturedClient } from '../../../sources/client/featured.ts';
+import * as basic from '../../../sources/command/basic.ts';
 import * as commands from '../../../sources/command/index.ts';
-import { get, multi, select, set } from '../../../sources/command/index.ts';
+import {
+  get,
+  multi,
+  pipeline,
+  select,
+  set,
+} from '../../../sources/command/index.ts';
 import {
   tryReplyToKeyStringElementsOrNull,
   tryReplyToKeyValuePairOrNull,
 } from '../../../sources/command/utils/index.ts';
-import { SolidisClient } from '../../../sources/index.ts';
+import {
+  commandsToBuffer,
+  SolidisClient,
+  type SolidisRequester,
+} from '../../../sources/index.ts';
 
 import type {
   CommandBufferOptions,
@@ -369,6 +380,72 @@ describe('type-contracts', () => {
     ] = [false, true];
 
     assert.deepStrictEqual(checks, [false, true]);
+  });
+
+  it('accepts an extension typed by an interface', () => {
+    interface Commands {
+      readName(this: SolidisClient): string;
+    }
+
+    const commands: Commands = {
+      readName() {
+        return this.uri;
+      },
+    };
+    const client = new SolidisClient({ port: 1, lazyConnect: true }).extend(
+      commands,
+    );
+    const checks: [Is<ReturnType<typeof client.readName>, string>] = [true];
+
+    assert.deepStrictEqual(checks, [true]);
+    assert.strictEqual(client.readName(), client.uri);
+
+    client.quit();
+  });
+
+  it('takes read-only command lists wherever a list of commands is only read', async () => {
+    const commands = [
+      ['SET', 'k', 'v'],
+      ['GET', 'k'],
+    ] as const;
+    const frozen: readonly (readonly string[])[] = Object.freeze([
+      Object.freeze(['PING']),
+    ]);
+    const checks: [
+      Accepts<Parameters<SolidisClient['send']>[0], typeof commands>,
+      Accepts<Parameters<SolidisRequester['send']>[0], typeof frozen>,
+      Accepts<Parameters<typeof pipeline>[0], typeof frozen>,
+      Accepts<Parameters<typeof commandsToBuffer>[0], typeof commands>,
+    ] = [true, true, true, true];
+    const sender = {
+      async send(list: readonly (readonly string[])[]) {
+        return list.map((command) => [command.join(' ')]);
+      },
+    };
+
+    assert.deepStrictEqual(checks, [true, true, true, true]);
+    assert.deepStrictEqual(
+      commandsToBuffer(frozen),
+      commandsToBuffer([['PING']]),
+    );
+    assert.deepStrictEqual(await pipeline.call(sender, commands), [
+      'SET k v',
+      'GET k',
+    ]);
+  });
+
+  it('offers the handshake commands from the basic entry point', () => {
+    assert.deepStrictEqual(Object.keys(basic).sort(), [
+      'auth',
+      'clientSetname',
+      'hello',
+      'info',
+      'select',
+    ]);
+
+    for (const [name, command] of Object.entries(basic)) {
+      assert.strictEqual(command, Reflect.get(commands, name));
+    }
   });
 
   it('gives the featured client every command of the command entry point', () => {

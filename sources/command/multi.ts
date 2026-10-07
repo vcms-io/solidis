@@ -68,7 +68,7 @@ export function multi<T extends object>(this: T): SolidisTransactionClient<T> {
 
   assertSender(client, ['MULTI']);
 
-  const queue = (commands: StringOrBuffer[][]) => {
+  const queue = (commands: readonly (readonly StringOrBuffer[])[]) => {
     const batch = copyCommands(commands);
 
     appendItems(transactionQueue, batch);

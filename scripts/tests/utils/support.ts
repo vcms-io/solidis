@@ -9,6 +9,8 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { setFlagsFromString } from 'node:v8';
 import { runInNewContext } from 'node:vm';
 
+import type { EventEmitter } from 'node:events';
+
 export function assertCloseTo(
   actual: number,
   expected: number,
@@ -28,6 +30,49 @@ export function withoutSanitizePayload(flags: string[]): string[] {
 
 export function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+/**
+ * Waits for `promise` and fails with `description` when it does not settle
+ * within `timeout` milliseconds, so a missing event fails its own test
+ * instead of the whole file.
+ */
+export async function withTimeout<T>(
+  promise: Promise<T>,
+  description: string,
+  timeout = 10_000,
+): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(
+            new Error(`${description} did not happen within ${timeout} ms`),
+          );
+        }, timeout).unref();
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** The arguments of the next `name` event, within `timeout` milliseconds. */
+export function nextEvent(
+  emitter: Pick<EventEmitter, 'once'>,
+  name: string,
+  timeout?: number,
+): Promise<unknown[]> {
+  return withTimeout(
+    new Promise((resolve) => {
+      emitter.once(name, (...values: unknown[]) => resolve(values));
+    }),
+    `The '${name}' event`,
+    timeout,
+  );
 }
 
 export interface WaitForOptions {
@@ -88,20 +133,18 @@ export async function measureTime(
 }
 
 /**
- * Milliseconds of CPU time that `run` takes after a full garbage collection:
- * the time the process spends waiting, for a timer or for other processes,
- * does not count.
+ * Milliseconds the event loop spends running `run` after a full garbage
+ * collection, read from the high-resolution clock: the time it waits for
+ * timers or I/O does not count.
  */
-export async function measureCpuTime(run: () => unknown): Promise<number> {
+export async function measureBusyTime(run: () => unknown): Promise<number> {
   collectGarbage();
 
-  const usage = process.cpuUsage();
+  const start = performance.eventLoopUtilization();
 
   await run();
 
-  const { user, system } = process.cpuUsage(usage);
-
-  return (user + system) / 1000;
+  return performance.eventLoopUtilization(start).active;
 }
 
 /**

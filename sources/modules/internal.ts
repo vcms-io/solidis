@@ -12,7 +12,7 @@ export { EventEmitter, errorMonitor } from 'node:events';
 
 export const SolidisSessionSendOptions: SolidisSendOptions = {};
 
-export function copyCommands(commands: StringOrBuffer[][]) {
+export function copyCommands(commands: readonly (readonly StringOrBuffer[])[]) {
   return Array.isArray(commands)
     ? commands.map((command) =>
         Array.isArray(command) ? command.slice() : command,
@@ -92,6 +92,24 @@ function isUnsupported(command: StringOrBuffer[]) {
   );
 }
 
+function hasInvalidDigest(command: StringOrBuffer[]) {
+  if (
+    command.length < 6 ||
+    toCommandWord(toTextPrefix(command[0], 4)) !== 'SET'
+  ) {
+    return false;
+  }
+
+  const words = command.map((word) => toCommandWord(toTextPrefix(word, 16)));
+  const index = words.indexOf('IFDEQ', 3) + 1 || words.indexOf('IFDNE', 3) + 1;
+
+  return (
+    index > 0 &&
+    words.includes('GET', 3) &&
+    !/^[\da-f]{16}$/i.test(toTextPrefix(command[index] ?? '', 17))
+  );
+}
+
 export function createRefusal(command: StringOrBuffer[], reason: string) {
   return new SolidisRequesterError(`${getCommandName(command)} ${reason}`);
 }
@@ -99,6 +117,7 @@ export function createRefusal(command: StringOrBuffer[], reason: string) {
 export function inspectCommand(
   command: StringOrBuffer[],
   isQueueing?: boolean,
+  index = 0,
 ) {
   if (!Array.isArray(command) || !command.length) {
     return new SolidisRequesterError(
@@ -118,11 +137,26 @@ export function inspectCommand(
     return createRefusal(command, `is not supported: ${SolidisPairingReason}`);
   }
 
-  return isQueueing &&
-    (isSubscriptionEventName(kind) || kind === 'auth' || kind === 'hello')
+  if (hasInvalidDigest(command)) {
+    return createRefusal(
+      command,
+      `with GET needs digests of 16 hexadecimal digits: ${SolidisPairingReason}`,
+    );
+  }
+
+  const isAuthentication = kind === 'auth' || kind === 'hello';
+
+  if (isQueueing && (isSubscriptionEventName(kind) || isAuthentication)) {
+    return createRefusal(
+      command,
+      `is not supported inside a transaction: ${SolidisPairingReason}`,
+    );
+  }
+
+  return index && isAuthentication
     ? createRefusal(
         command,
-        `is not supported inside a transaction: ${SolidisPairingReason}`,
+        `must come first in a batch: ${SolidisPairingReason}`,
       )
     : kind;
 }

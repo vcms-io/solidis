@@ -22,6 +22,7 @@ import {
   detectServerCapabilities,
   MockRedisServer,
   mockClientOptions,
+  nextEvent,
   randomBuffer,
   range,
   waitFor,
@@ -36,6 +37,7 @@ const connectCapturingSocket = async (
   client: FeaturedClient,
 ): Promise<net.Socket> => {
   const originalConnect = Reflect.get(net, 'connect');
+  const port = Number(new URL(client.uri).port);
   let capturedSocket: net.Socket | undefined;
 
   Reflect.set(
@@ -45,7 +47,11 @@ const connectCapturingSocket = async (
       ...connectArguments: Parameters<typeof net.connect>
     ) {
       const socket = originalConnect.apply(net, connectArguments);
-      capturedSocket = socket;
+
+      if (Reflect.get(Object(connectArguments[0]), 'port') === port) {
+        capturedSocket = socket;
+      }
+
       return socket;
     },
   );
@@ -602,6 +608,7 @@ describe('fragility', () => {
 
       const clientId = await client.clientId();
       const killer = await createClient();
+      const reconnected = nextEvent(client, 'reconnected');
 
       const blocked = client
         .blpop([blockKey], 0)
@@ -637,16 +644,7 @@ describe('fragility', () => {
 
       assert.strictEqual(blockOutcome.error.message, 'Connection closed.');
 
-      await waitFor(
-        async () => {
-          try {
-            return (await client.ping()) === 'PONG';
-          } catch {
-            return false;
-          }
-        },
-        { timeout: 2000, interval: 30, description: 'auto-reconnect' },
-      );
+      await reconnected;
 
       assert.strictEqual(await client.get(liveKey), 'before');
       assert.strictEqual(await client.set(liveKey, 'after'), 'OK');
@@ -700,9 +698,7 @@ describe('fragility', () => {
       await client.connect();
       await client.subscribe('channel-a');
 
-      const reconnectedReady = new Promise<void>((resolve) => {
-        client.once('ready', resolve);
-      });
+      const reconnectedReady = nextEvent(client, 'ready');
 
       phase = 'reconnected';
       server.destroySockets();
@@ -829,84 +825,90 @@ describe('fragility', () => {
   });
 
   describe('ready check', () => {
-    it('rejects connect when the server stays loading beyond maxReadyCheckRetries', async () => {
-      const server = await startMockServer();
+    it('rejects connect when the server stays loading beyond maxReadyCheckRetries, counting NaN or a negative limit as 0', async () => {
+      for (const [maxReadyCheckRetries, retries] of [
+        [10, 10],
+        [Number.NaN, 0],
+        [-1, 0],
+      ]) {
+        const server = await startMockServer();
 
-      let readyChecks = 0;
+        let readyChecks = 0;
 
-      server.onData((socket, data) => {
-        const text = data.toString();
+        server.onData((socket, data) => {
+          const text = data.toString();
 
-        if (text.includes('INFO')) {
-          readyChecks += 1;
+          if (text.includes('INFO')) {
+            readyChecks += 1;
 
-          const infoPayload =
-            'loading:1\r\nloading_start_time:1000000\r\nloading_total_bytes:100000000\r\n';
+            const infoPayload =
+              'loading:1\r\nloading_start_time:1000000\r\nloading_total_bytes:100000000\r\n';
 
-          socket.write(
-            Buffer.from(
-              `$${infoPayload.length}\r\n${infoPayload}\r\n`,
-              'latin1',
-            ),
-          );
+            socket.write(
+              Buffer.from(
+                `$${infoPayload.length}\r\n${infoPayload}\r\n`,
+                'latin1',
+              ),
+            );
 
-          return;
-        }
+            return;
+          }
 
-        socket.write(Buffer.from('+OK\r\n', 'latin1'));
-      });
+          socket.write(Buffer.from('+OK\r\n', 'latin1'));
+        });
 
-      const connectDeadline = 2000;
+        const connectDeadline = 2000;
 
-      const client = trackMockClient(
-        new SolidisFeaturedClient(
-          mockClientOptions(server.port, {
-            enableReadyCheck: true,
-            maxReadyCheckRetries: 10,
-            readyCheckInterval: 50,
-            commandTimeout: 30000,
-            connectionTimeout: 30000,
-            autoReconnect: false,
-          }),
-        ),
-      );
+        const client = trackMockClient(
+          new SolidisFeaturedClient(
+            mockClientOptions(server.port, {
+              enableReadyCheck: true,
+              maxReadyCheckRetries,
+              readyCheckInterval: 50,
+              commandTimeout: 30000,
+              connectionTimeout: 30000,
+              autoReconnect: false,
+            }),
+          ),
+        );
 
-      const connectOutcome = await Promise.race([
-        client
-          .connect()
-          .then(() => 'connected' as const)
-          .catch((error: Error) => ({
-            status: 'rejected' as const,
-            error,
-          })),
-        delay(connectDeadline).then(() => 'timed-out' as const),
-      ]);
+        const connectOutcome = await Promise.race([
+          client
+            .connect()
+            .then(() => 'connected' as const)
+            .catch((error: Error) => ({
+              status: 'rejected' as const,
+              error,
+            })),
+          delay(connectDeadline).then(() => 'timed-out' as const),
+        ]);
 
-      assert.notStrictEqual(
-        connectOutcome,
-        'connected',
-        'connect() must not succeed while the server keeps reporting loading:1',
-      );
-      assert.notStrictEqual(
-        connectOutcome,
-        'timed-out',
-        'connect() must reject within ' +
-          `${connectDeadline}ms once maxReadyCheckRetries is exhausted ` +
-          'while the server keeps reporting loading:1',
-      );
-      assert.ok(
-        typeof connectOutcome === 'object' &&
-          connectOutcome !== null &&
-          connectOutcome.status === 'rejected' &&
-          connectOutcome.error instanceof SolidisClientError,
-        'connect() must reject once maxReadyCheckRetries is exhausted ' +
-          'while the server keeps reporting loading:1',
-      );
-      assert.strictEqual(
-        connectOutcome.error.message,
-        'Ready check failed: still loading after 10 retries',
-      );
-      assert.strictEqual(readyChecks, 11);
+        assert.notStrictEqual(
+          connectOutcome,
+          'connected',
+          'connect() must not succeed while the server keeps reporting loading:1',
+        );
+        assert.notStrictEqual(
+          connectOutcome,
+          'timed-out',
+          'connect() must reject within ' +
+            `${connectDeadline}ms once maxReadyCheckRetries is exhausted ` +
+            'while the server keeps reporting loading:1',
+        );
+        assert.ok(
+          typeof connectOutcome === 'object' &&
+            connectOutcome !== null &&
+            connectOutcome.status === 'rejected' &&
+            connectOutcome.error instanceof SolidisClientError,
+          'connect() must reject once maxReadyCheckRetries is exhausted ' +
+            'while the server keeps reporting loading:1',
+        );
+        assert.strictEqual(
+          connectOutcome.error.message,
+          `Ready check failed: still loading after ${retries} retries`,
+        );
+        assert.strictEqual(readyChecks, retries + 1);
+      }
     });
 
     it('does not emit ready when the ready check encounters an error', async () => {

@@ -23,7 +23,9 @@ function writeAsciiNumber(buffer: Buffer, value: number, offset: number) {
   return offset + buffer.write(`${value}`, offset, 'ascii');
 }
 
-export function commandsToBuffer(commands: StringOrBuffer[][]): Buffer {
+export function commandsToBuffer(
+  commands: readonly (readonly StringOrBuffer[])[],
+): Buffer {
   const argumentLengths: number[] = [];
 
   let totalLength = 0;

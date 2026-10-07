@@ -127,7 +127,7 @@ export class SolidisClient extends EventEmitter {
   }
 
   public send(
-    commands: StringOrBuffer[][],
+    commands: readonly (readonly StringOrBuffer[])[],
     options?: SolidisSendOptions,
   ): Promise<SolidisData[][]> {
     if (this.#isReady) {
@@ -138,8 +138,8 @@ export class SolidisClient extends EventEmitter {
     const blockingTimeout = options?.blockingTimeout;
 
     return new Promise((resolve, reject) => {
-      for (const command of batch) {
-        const kind = inspectCommand(command);
+      for (const [index, command] of batch.entries()) {
+        const kind = inspectCommand(command, false, index);
 
         if (kind instanceof SolidisRequesterError) {
           reject(kind);
@@ -218,7 +218,7 @@ export class SolidisClient extends EventEmitter {
   public info = info.bind(this);
   public select = select.bind(this);
 
-  public extend<T extends Record<string, unknown>>(
+  public extend<T extends object>(
     extensions: T &
       ThisType<this & SolidisClientExtensions<T, this>> & {
         [K in keyof T]: T[K] extends (
@@ -230,7 +230,8 @@ export class SolidisClient extends EventEmitter {
             : never
           : T[K];
       },
-  ): this & SolidisClientExtensions<T, this> {
+  ): this & SolidisClientExtensions<T, this>;
+  public extend(extensions: Record<string, unknown>) {
     for (const method of Object.getOwnPropertyNames(extensions)) {
       const extension = extensions[method];
 
@@ -243,7 +244,7 @@ export class SolidisClient extends EventEmitter {
       }
     }
 
-    return this as this & SolidisClientExtensions<T, this>;
+    return this;
   }
 
   public override emit<E extends keyof SolidisClientEvents>(
@@ -521,9 +522,9 @@ export class SolidisClient extends EventEmitter {
         return;
       }
 
-      if (attempt >= maxReadyCheckRetries) {
+      if (!(attempt < maxReadyCheckRetries)) {
         throw new SolidisClientError(
-          `Ready check failed: still loading after ${maxReadyCheckRetries} retries`,
+          `Ready check failed: still loading after ${attempt} retries`,
         );
       }
 

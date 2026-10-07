@@ -4,7 +4,7 @@ import type { SolidisData, StringOrBuffer } from '../index.ts';
 
 export async function pipeline<T>(
   this: T,
-  commands: StringOrBuffer[][],
+  commands: readonly (readonly StringOrBuffer[])[],
 ): Promise<SolidisData[]> {
   assertSender(this);
 

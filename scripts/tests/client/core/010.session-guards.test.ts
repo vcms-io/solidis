@@ -23,8 +23,10 @@ import {
   delay,
   MockRedisServer,
   mockClientOptions,
+  nextEvent,
   track,
   waitFor,
+  withTimeout,
 } from '../../utils/index.ts';
 
 import type { FeaturedClient, MockDataHandler } from '../../utils/index.ts';
@@ -63,9 +65,7 @@ describe('session-guards', () => {
 
   async function forceReconnect(client: FeaturedClient) {
     const id = await client.clientId();
-    const reconnected = new Promise<void>((resolve) => {
-      client.once('reconnected', () => resolve());
-    });
+    const reconnected = nextEvent(client, 'reconnected');
 
     await killer.clientKill(id);
     await reconnected;
@@ -114,83 +114,93 @@ describe('session-guards', () => {
       }
     });
 
-    it('gives up a background reconnect after maxConnectionRetries and reports it', async () => {
-      const server = await startServer();
-      const client = track(
-        new SolidisFeaturedClient(
-          mockClientOptions(server.port, {
-            autoReconnect: true,
-            maxConnectionRetries: 2,
-            connectionRetryDelay: 5,
-            maxConnectionRetryDelay: 10,
-          }),
-        ),
-      );
-      const errors: Error[] = [];
-      const attempts: number[] = [];
-
-      client.on('error', (error) => errors.push(error));
-      client.on('reconnecting', (attempt) => attempts.push(attempt));
-
-      try {
-        await client.connect();
-        await server.close();
-        await waitFor(() =>
-          errors.some(
-            (error) => error.message === 'Connection failed after 2 retries.',
+    it('gives up a background reconnect after maxConnectionRetries and reports it, counting NaN or a negative limit as 0', async () => {
+      for (const [maxConnectionRetries, retries] of [
+        [2, 2],
+        [Number.NaN, 0],
+        [-1, 0],
+      ]) {
+        const server = await startServer();
+        const client = track(
+          new SolidisFeaturedClient(
+            mockClientOptions(server.port, {
+              autoReconnect: true,
+              maxConnectionRetries,
+              connectionRetryDelay: 5,
+              maxConnectionRetryDelay: 10,
+            }),
           ),
         );
-        await delay(100);
+        const errors: Error[] = [];
+        const attempts: number[] = [];
+        const message = `Connection failed after ${retries} retries.`;
 
-        assert.strictEqual(attempts.length, 3);
+        client.on('error', (error) => errors.push(error));
+        client.on('reconnecting', (attempt) => attempts.push(attempt));
 
-        const giveUp = errors.at(-1);
+        try {
+          await client.connect();
+          await server.close();
+          await waitFor(() =>
+            errors.some((error) => error.message === message),
+          );
+          await delay(100);
 
-        assert.ok(giveUp instanceof SolidisConnectionError);
-        assert.strictEqual(
-          giveUp.message,
-          'Connection failed after 2 retries.',
-        );
-      } finally {
-        client.quit();
+          assert.strictEqual(attempts.length, retries + 1);
+
+          const giveUp = errors.at(-1);
+
+          assert.ok(giveUp instanceof SolidisConnectionError);
+          assert.strictEqual(giveUp.message, message);
+        } finally {
+          client.quit();
+          await server.close();
+        }
       }
     });
 
-    it('gives up on a server that drops every connection right after accepting it', async () => {
-      const server = await startServer();
-      const client = track(
-        new SolidisFeaturedClient(
-          mockClientOptions(server.port, {
-            autoReconnect: true,
-            maxConnectionRetries: 2,
-            connectionRetryDelay: 5,
-            maxConnectionRetryDelay: 10,
-          }),
-        ),
-      );
-      const errors: Error[] = [];
-
-      client.on('error', (error) => errors.push(error));
-
-      try {
-        await client.connect();
-
-        const accepted = server.acceptedCount;
-
-        server.closesOnAccept = true;
-        server.destroySockets();
-
-        await waitFor(() =>
-          errors.some(
-            (error) => error.message === 'Connection failed after 2 retries.',
+    it('gives up on a server that drops every connection right after accepting it, counting NaN or a negative limit as 0', async () => {
+      for (const [maxConnectionRetries, retries] of [
+        [2, 2],
+        [Number.NaN, 0],
+        [-1, 0],
+      ]) {
+        const server = await startServer();
+        const client = track(
+          new SolidisFeaturedClient(
+            mockClientOptions(server.port, {
+              autoReconnect: true,
+              maxConnectionRetries,
+              connectionRetryDelay: 5,
+              maxConnectionRetryDelay: 10,
+            }),
           ),
         );
-        await delay(100);
+        const errors: Error[] = [];
 
-        assert.strictEqual(server.acceptedCount - accepted, 3);
-      } finally {
-        client.quit();
-        await server.close();
+        client.on('error', (error) => errors.push(error));
+
+        try {
+          await client.connect();
+
+          const accepted = server.acceptedCount;
+
+          server.closesOnAccept = true;
+          server.destroySockets();
+
+          await waitFor(() =>
+            errors.some(
+              (error) =>
+                error.message === `Connection failed after ${retries} retries.`,
+            ),
+          );
+          await delay(100);
+
+          assert.strictEqual(server.acceptedCount - accepted, retries + 1);
+        } finally {
+          client.quit();
+          await server.close();
+        }
       }
     });
 
@@ -689,7 +699,9 @@ describe('session-guards', () => {
       context.mock.method(net, 'connect', (options: net.NetConnectOpts) => {
         const socket = connect(options);
 
-        sockets.push(socket);
+        if ('port' in options && options.port === server.port) {
+          sockets.push(socket);
+        }
 
         return socket;
       });
@@ -929,28 +941,33 @@ describe('session-guards', () => {
       }
     });
 
-    it('rejects with the lost handshake connection once no retries are left', async () => {
-      const server = await startSetnameServer(5);
-      const client = track(
-        new SolidisFeaturedClient(
-          mockClientOptions(server.port, { clientName: 'app' }),
-        ),
-      );
-      const events: string[] = [];
+    it('rejects with the lost handshake connection once no retries are left, counting NaN or a negative limit as 0', async () => {
+      for (const maxConnectionRetries of [0, Number.NaN, -1]) {
+        const server = await startSetnameServer(5);
+        const client = track(
+          new SolidisFeaturedClient(
+            mockClientOptions(server.port, {
+              clientName: 'app',
+              maxConnectionRetries,
+            }),
+          ),
+        );
+        const events: string[] = [];
 
-      client.on('error', () => {});
-      client.on('ready', () => events.push('ready'));
+        client.on('error', () => {});
+        client.on('ready', () => events.push('ready'));
 
-      try {
-        await assert.rejects(client.connect(), {
-          name: 'SolidisConnectionError',
-          message: 'Connection closed during the handshake.',
-        });
-        assert.deepStrictEqual(events, []);
-        assert.strictEqual(server.acceptedCount, 1);
-      } finally {
-        client.quit();
-        await server.close();
+        try {
+          await assert.rejects(withTimeout(client.connect(), 'connect()'), {
+            name: 'SolidisConnectionError',
+            message: 'Connection closed during the handshake.',
+          });
+          assert.deepStrictEqual(events, []);
+          assert.strictEqual(server.acceptedCount, 1);
+        } finally {
+          client.quit();
+          await server.close();
+        }
       }
     });
 
@@ -1207,7 +1224,7 @@ describe('session-guards', () => {
         await client.connect();
         await delay(10);
 
-        const closed = new Promise((resolve) => client.once('close', resolve));
+        const closed = nextEvent(client, 'close');
 
         server.destroySockets();
         await closed;
@@ -1879,7 +1896,7 @@ describe('session-guards', () => {
 
       try {
         const id = await client.clientId();
-        const closed = new Promise((resolve) => client.once('close', resolve));
+        const closed = nextEvent(client, 'close');
         const fromReady = new Promise<unknown>((resolve) => {
           client.once('ready', () => {
             resolve(client.rpush(key, 'from ready'));
@@ -1892,7 +1909,7 @@ describe('session-guards', () => {
         const duringOutage = client.rpush(key, 'during outage');
 
         await duringOutage;
-        await fromReady;
+        await withTimeout(fromReady, 'The command from the ready listener');
 
         assert.deepStrictEqual(await killer.lrange(key, 0, -1), [
           'during outage',
@@ -2274,9 +2291,7 @@ describe('session-guards', () => {
 
       try {
         const id = await client.clientId();
-        const reconnected = new Promise<void>((resolve) => {
-          client.once('reconnected', () => resolve());
-        });
+        const reconnected = nextEvent(client, 'reconnected');
 
         await client.subscribe(channel);
         await killer.send([['ACL', 'SETUSER', user, '-@pubsub']]);
@@ -2385,9 +2400,7 @@ describe('session-guards', () => {
 
       try {
         const id = await client.clientId();
-        const reconnected = new Promise<void>((resolve) => {
-          client.once('reconnected', () => resolve());
-        });
+        const reconnected = nextEvent(client, 'reconnected');
 
         assert.deepStrictEqual(await client.send([['MULTI']]), [['OK']]);
 

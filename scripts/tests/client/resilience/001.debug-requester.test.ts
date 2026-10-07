@@ -5,7 +5,7 @@
  */
 
 import assert from 'node:assert/strict';
-import { EventEmitter, once } from 'node:events';
+import { EventEmitter } from 'node:events';
 import { after, before, describe, it } from 'node:test';
 
 import {
@@ -34,8 +34,9 @@ import {
   createClient,
   createKeyspace,
   delay,
-  measureCpuTime,
+  measureBusyTime,
   measureTime,
+  nextEvent,
   waitFor,
 } from '../../utils/index.ts';
 
@@ -203,9 +204,7 @@ describe('debug-requester', () => {
       const clientId = await recoveryClient.clientId();
       const killer = await createClient();
 
-      const reconnected = new Promise<void>((resolve) =>
-        recoveryClient.once('ready', resolve),
-      );
+      const reconnected = nextEvent(recoveryClient, 'ready');
 
       await killer.clientKill(clientId);
       await reconnected;
@@ -784,8 +783,8 @@ describe('debug-requester', () => {
       });
 
       const tracked = requester.send([
-        ['SELECT\0', '2'],
         ['HELLO', '3', 'AUTH\0x', 'user', 'secret'],
+        ['SELECT\0', '2'],
         ['SUBSCRIBE\0x', 'news'],
         ['MULTI\0'],
       ]);
@@ -793,7 +792,7 @@ describe('debug-requester', () => {
       await flushed();
 
       connection.reply(
-        `+OK\r\n%1\r\n+proto\r\n:3\r\n${subscribeConfirmation('subscribe', 'news', 1)}+OK\r\n`,
+        `%1\r\n+proto\r\n:3\r\n+OK\r\n${subscribeConfirmation('subscribe', 'news', 1)}+OK\r\n`,
       );
 
       assert.strictEqual((await tracked).length, 4);
@@ -2442,8 +2441,8 @@ describe('debug-requester', () => {
             'ECHO',
             `${index}`,
           ]);
-          const reset = once(connection, 'close');
-          const elapsed = await measureCpuTime(async () => {
+          const reset = nextEvent(connection, 'close');
+          const elapsed = await measureBusyTime(async () => {
             const pending = settle(requester.send(commands, { timeout: 50 }));
 
             assert.ok((await pending) instanceof SolidisRequesterError);
@@ -2532,7 +2531,7 @@ describe('debug-requester', () => {
 
             assert.ok((await early) instanceof SolidisRequesterError);
 
-            elapsed = await measureCpuTime(async () => {
+            elapsed = await measureBusyTime(async () => {
               for (const error of await late) {
                 assert.ok(error instanceof SolidisRequesterError);
               }
@@ -2759,8 +2758,8 @@ describe('debug-requester', () => {
       });
 
       const pending = requester.send([
-        ['SELECT', '5'],
         ['HELLO', '3'],
+        ['SELECT', '5'],
         ['RESET'],
       ]);
 
@@ -2768,7 +2767,7 @@ describe('debug-requester', () => {
 
       await flushed();
 
-      connection.reply('+OK\r\n%1\r\n+proto\r\n:3\r\n+RESET\r\n');
+      connection.reply('%1\r\n+proto\r\n:3\r\n+OK\r\n+RESET\r\n');
 
       await pending;
 
@@ -3517,6 +3516,82 @@ describe('debug-requester', () => {
         username: 'default',
         password: 'secret',
       });
+    });
+
+    it('refuses AUTH and HELLO after another command of a batch, before writing anything', async () => {
+      const { connection, requester } = createRequester();
+      const refusals = await Promise.all([
+        settle(requester.send([['PING'], ['AUTH', 'secret']])),
+        settle(
+          requester.send([
+            ['AUTH', 'user', 'first'],
+            ['AUTH', 'user', 'second'],
+          ]),
+        ),
+        settle(
+          requester.send([
+            ['GET', 'k'],
+            ['HELLO', '3', 'AUTH', 'user', 'pw'],
+          ]),
+        ),
+        settle(requester.send([['PING'], ['hello', '2']])),
+      ]);
+
+      assert.deepStrictEqual(
+        refusals.map((refusal) =>
+          refusal instanceof SolidisRequesterError ? refusal.message : refusal,
+        ),
+        ['AUTH', 'AUTH', 'HELLO', 'HELLO'].map(
+          (name) =>
+            `${name} must come first in a batch: it breaks the pairing of requests and replies.`,
+        ),
+      );
+
+      await flushed();
+
+      assert.deepStrictEqual(connection.writes, []);
+      assert.strictEqual(requester.authentication, undefined);
+    });
+
+    it('refuses a SET with GET and a digest that is not 16 hexadecimal digits, which Redis 8.4 answers twice', async () => {
+      const { connection, requester } = createRequester();
+      const refusals = await Promise.all(
+        [
+          ['SET', 'k', 'v', 'IFDEQ', 'xyz', 'GET'],
+          ['set', 'k', 'v', 'get', 'ifdne', '0123456789abcdef0'],
+          ['SET', 'k', 'v', 'GET', 'EX', '10', 'IFDEQ'],
+          ['SET', 'k', 'v', 'IFDEQ\0x', Buffer.from('0123456789abcdeg'), 'GET'],
+          ['SET', 'k', 'v', 'NX', 'IFDNE', '0123456789abcde', 'GET\0'],
+        ].map((command) => settle(requester.send([['PING'], command]))),
+      );
+
+      for (const refusal of refusals) {
+        assert.ok(refusal instanceof SolidisRequesterError);
+        assert.strictEqual(
+          refusal.message,
+          'SET with GET needs digests of 16 hexadecimal digits: it breaks the pairing of requests and replies.',
+        );
+      }
+
+      const sent = [
+        ['SET', 'k', 'v', 'IFDEQ', '0123456789ABCDEF', 'GET'],
+        ['SET', 'k', 'v', 'IFDNE', 'xyz', 'EX', '10'],
+        ['SET', 'GET', 'v', 'IFDEQ', 'xyz', 'NX'],
+        ['SETEX', 'k', '10', 'IFDEQ', 'xyz', 'GET'],
+        ['GETSET', 'k', 'v', 'IFDEQ', 'xyz', 'GET'],
+        ['SET', 'IFDEQ', 'xyz', 'GET', 'EX', '10'],
+      ];
+      const pending = requester.send(sent);
+
+      await flushed();
+
+      assert.deepStrictEqual(connection.writes, [commandsToBuffer(sent)]);
+
+      connection.reply(
+        '$-1\r\n+OK\r\n+OK\r\n-ERR syntax error\r\n$1\r\nv\r\n$-1\r\n',
+      );
+
+      assert.strictEqual((await pending).length, 6);
     });
 
     it('refuses AUTH and HELLO inside a transaction', async () => {
