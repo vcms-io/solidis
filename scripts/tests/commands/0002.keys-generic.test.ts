@@ -51,7 +51,9 @@ describe('keys-generic', () => {
     await client.mset({ [first]: '1', [second]: '2', [third]: '3' });
 
     assert.strictEqual(await client.del(first, second), 2);
+    assert.strictEqual(await client.exists(first, second, third), 1);
     assert.strictEqual(await client.unlink([third]), 1);
+    assert.strictEqual(await client.exists(first, second, third), 0);
   });
 
   it('reports the data type of each value', async () => {
@@ -182,7 +184,11 @@ describe('keys-generic', () => {
 
     await client.mset({ [first]: '1', [second]: '2' });
 
-    assert.strictEqual(await client.touch([first, second]), 2);
+    const sent = await readLoggedCommands(client, 'TOUCH', async () => {
+      assert.strictEqual(await client.touch([first, second]), 2);
+    });
+
+    assert.deepStrictEqual(sent, [['TOUCH', first, second]]);
     assert.strictEqual(await client.get(first), '1');
     assert.strictEqual(await client.get(second), '2');
   });

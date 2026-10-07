@@ -90,6 +90,8 @@ describe('function', () => {
     const name = await client.functionLoad(libraryCode);
 
     assert.strictEqual(name, 'solidistest');
+    await assert.rejects(client.functionLoad(libraryCode), /already exists/);
+    assert.strictEqual(await client.functionLoad(libraryCode, true), name);
   });
 
   it('lists loaded libraries with FUNCTION LIST', async (context) => {

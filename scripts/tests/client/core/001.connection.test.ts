@@ -1163,10 +1163,20 @@ describe('connection', () => {
           await connected;
 
           const errors: Error[] = [];
+          let drains = 0;
 
           connection.on('error', (error) => errors.push(error));
+          connection.on('drain', () => {
+            drains += 1;
+          });
           stale.emit('data', Buffer.from('+STALE\r\n'));
           stale.emit('drain');
+
+          assert.strictEqual(drains, 0);
+
+          current.emit('drain');
+
+          assert.strictEqual(drains, 1);
           stale.emit('error', new Error('stale failure'));
           stale.emit('close', true);
           current.emit('data', Buffer.from('+FRESH\r\n'));

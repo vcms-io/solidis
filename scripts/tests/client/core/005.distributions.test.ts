@@ -262,7 +262,7 @@ describe('distributions', () => {
     }
   });
 
-  it('points every package.json export at a file that exists', async () => {
+  it('points every package.json export at a built module, and every types target at the source of its declaration', async () => {
     const packageJson = JSON.parse(
       await readFile(join(process.cwd(), 'package.json'), 'utf8'),
     ) as { exports: Record<string, PackageExportTarget> };

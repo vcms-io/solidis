@@ -1968,6 +1968,80 @@ describe('session-guards', () => {
       await server.close();
     });
 
+    it('stays disconnected once its first connect() failed, with autoReconnect on', async () => {
+      const server = await startServer((socket) => {
+        socket.write('-WRONGPASS invalid username-password pair\r\n');
+      });
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            autoReconnect: true,
+            connectionRetryDelay: 5,
+            maxConnectionRetries: 3,
+            authentication: { password: 'wrong' },
+          }),
+        ),
+      );
+      const events: string[] = [];
+
+      client.on('error', () => events.push('error'));
+      client.on('reconnecting', () => events.push('reconnecting'));
+
+      try {
+        await assert.rejects(client.connect(), {
+          message: 'Authentication failed',
+        });
+
+        const accepted = server.acceptedCount;
+
+        events.length = 0;
+
+        await delay(200);
+
+        assert.strictEqual(server.acceptedCount, accepted);
+        assert.deepStrictEqual(events, []);
+      } finally {
+        client.quit();
+        await server.close();
+      }
+    });
+
+    it('fails with Authentication failed on an AUTH error other than WRONGPASS or NOAUTH', async () => {
+      const server = await startServer((socket, data) => {
+        socket.write(
+          data.includes('AUTH')
+            ? "-ERR wrong number of arguments for 'auth' command\r\n"
+            : '+OK\r\n',
+        );
+      });
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            authentication: { password: 'secret' },
+          }),
+        ),
+      );
+
+      client.on('error', () => {});
+
+      try {
+        await assert.rejects(client.connect(), (error: unknown) => {
+          assert.ok(error instanceof SolidisClientError);
+          assert.strictEqual(error.message, 'Authentication failed');
+          assert.ok(error.cause instanceof SolidisCommandError);
+          assert.match(
+            error.cause.message,
+            /^\[AUTH\] ERR wrong number of arguments/,
+          );
+
+          return true;
+        });
+      } finally {
+        client.quit();
+        await server.close();
+      }
+    });
+
     it('reports a handshake failure that arrives after send() stopped waiting', async () => {
       const server = await startServer((socket, data) => {
         if (data.includes('AUTH')) {

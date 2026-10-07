@@ -350,6 +350,46 @@ describe('session-recovery', () => {
       });
     }
 
+    for (const protocol of [SolidisProtocols.RESP2, SolidisProtocols.RESP3]) {
+      it(`restores the selected database before the subscriptions over ${protocol}`, async () => {
+        const name = `restore-order-${protocol}-${Date.now()}`;
+        const subscriber = await createClient({
+          protocol,
+          database: 2,
+          clientName: name,
+          connectionRetryDelay: 10,
+        });
+        const channel = keyspace.key(protocol, 'ordered');
+        const received: string[] = [];
+
+        subscriber.on('message', (_channel, message) => {
+          received.push(`${message}`);
+        });
+
+        try {
+          const id = await subscriber.clientId();
+
+          assert.strictEqual(await subscriber.select(3), 'OK');
+
+          await subscriber.subscribe(channel);
+          await forceReconnect(subscriber, id);
+
+          const line = (await killer.clientList())
+            .split('\n')
+            .find((entry) => entry.includes(` name=${name} `));
+
+          assert.match(line ?? '', / db=3 /);
+          assert.strictEqual(await killer.publish(channel, 'after'), 1);
+
+          await waitFor(() => received.length === 1);
+
+          assert.deepStrictEqual(received, ['after']);
+        } finally {
+          await closeClient(subscriber);
+        }
+      });
+    }
+
     it('restores a channel whose name is not valid UTF-8', async () => {
       const subscriber = await createClient({ connectionRetryDelay: 10 });
       const channel = Buffer.concat([
@@ -594,6 +634,65 @@ describe('session-recovery', () => {
 
     const refusal = (channel: string) =>
       `-NOPERM this user has no permissions to access the '${channel}' channel\r\n`;
+
+    it('restores the kinds the server accepts and unsubscribes a partly refused kind with its own command', async () => {
+      const { server, commands } = await startRestoreServer(
+        ([name, channel], connection) =>
+          connection === 2 && (name === 'SUBSCRIBE' || channel === 'p2')
+            ? refusal(channel)
+            : undefined,
+      );
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            autoReconnect: true,
+            connectionRetryDelay: 10,
+            maxConnectionRetries: 5,
+          }),
+        ),
+      );
+      const errors: Error[] = [];
+
+      client.on('error', (error) => errors.push(error));
+
+      try {
+        await client.connect();
+        await client.subscribe('c');
+        await client.ssubscribe('s');
+        await client.psubscribe('p1', 'p2');
+
+        const reconnected = nextEvent(client, 'reconnected');
+
+        server.destroySockets();
+
+        await reconnected;
+
+        assert.deepStrictEqual(commands[2], [
+          ['SUBSCRIBE', 'c'],
+          ['SSUBSCRIBE', 's'],
+          ['PSUBSCRIBE', 'p1'],
+          ['PSUBSCRIBE', 'p2'],
+          ['PUNSUBSCRIBE', 'p1'],
+        ]);
+        assert.strictEqual(
+          errors.filter(
+            (error) => error.message === 'Failed to restore subscriptions',
+          ).length,
+          2,
+        );
+
+        const again = nextEvent(client, 'reconnected');
+
+        server.destroySockets();
+
+        await again;
+
+        assert.deepStrictEqual(commands[3], [['SSUBSCRIBE', 's']]);
+      } finally {
+        client.quit();
+        await server.close();
+      }
+    });
 
     it('fails the handshake when the server refuses to unsubscribe a restored channel', async () => {
       const { server, commands } = await startRestoreServer(

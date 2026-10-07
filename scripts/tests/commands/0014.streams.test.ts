@@ -240,10 +240,17 @@ describe('streams', () => {
       await client.xgroupCreateconsumer(key, group, 'new-consumer'),
       1,
     );
+    assert.deepStrictEqual(
+      (await client.xinfoConsumers(key, group)).map(({ name }) => name),
+      ['new-consumer'],
+    );
+
+    await client.xreadgroup(group, 'new-consumer', [key], ['>']);
 
     const deleted = await client.xgroupDelconsumer(key, group, 'new-consumer');
 
-    assert.strictEqual(deleted, 0);
+    assert.strictEqual(deleted, 1);
+    assert.deepStrictEqual(await client.xinfoConsumers(key, group), []);
   });
 
   it('destroys a group with XGROUP DESTROY', async () => {
@@ -311,6 +318,7 @@ describe('streams', () => {
     await client.xadd(key, '5-0', { value: 'a' });
 
     assert.strictEqual(await client.xsetid(key, '10-0'), 'OK');
+    assert.strictEqual((await client.xinfoStream(key)).lastGeneratedId, '10-0');
 
     const id = await client.xadd(key, '*', { value: 'b' });
 
