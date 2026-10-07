@@ -16,6 +16,7 @@ import {
 import {
   MockRedisServer,
   mockClientOptions,
+  nextEvent,
   track,
 } from '../../utils/index.ts';
 
@@ -175,9 +176,7 @@ describe('diagnostics', () => {
     try {
       await client.connect();
 
-      const closed = new Promise<void>((resolve) => {
-        client.once('close', () => resolve());
-      });
+      const closed = nextEvent(client, 'close');
 
       server.destroySockets();
       await closed;
@@ -223,9 +222,7 @@ describe('diagnostics', () => {
         await client.send([['SET', 'key', 'value-xyz']]);
         await client.auth('user', 'Runtime-pass-xyz').catch(() => undefined);
 
-        const ready = new Promise<void>((resolve) =>
-          client.once('ready', resolve),
-        );
+        const ready = nextEvent(client, 'ready');
 
         server.destroySockets();
         await ready;

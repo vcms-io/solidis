@@ -12,6 +12,7 @@ import {
   createClient,
   createKeyspace,
   detectServerCapabilities,
+  isBlocked,
   waitFor,
 } from '../../utils/index.ts';
 
@@ -56,6 +57,10 @@ describe('client-commands', () => {
   after(async () => {
     await closeClient(client);
   });
+
+  async function readFlags() {
+    return parseClientFields(await client.clientInfo()).flags ?? '';
+  }
 
   it('returns connection info with CLIENT INFO', async () => {
     const info = await client.clientInfo();
@@ -116,6 +121,11 @@ describe('client-commands', () => {
       'OK',
     );
     assert.strictEqual(await client.clientSetinfo('LIB-VER', '1.0.0'), 'OK');
+
+    const fields = parseClientFields(await client.clientInfo());
+
+    assert.strictEqual(fields['lib-name'], 'solidis-test');
+    assert.strictEqual(fields['lib-ver'], '1.0.0');
   });
 
   it('pauses and unpauses clients', async () => {
@@ -129,8 +139,14 @@ describe('client-commands', () => {
       return;
     }
 
-    assert.strictEqual(await client.clientNoEvict('ON'), 'OK');
-    assert.strictEqual(await client.clientNoEvict('OFF'), 'OK');
+    try {
+      assert.strictEqual(await client.clientNoEvict('ON'), 'OK');
+      assert.match(await readFlags(), /e/);
+      assert.strictEqual(await client.clientNoEvict('OFF'), 'OK');
+      assert.doesNotMatch(await readFlags(), /e/);
+    } finally {
+      await client.clientNoEvict('OFF');
+    }
   });
 
   it('toggles LRU touch with CLIENT NO-TOUCH', async (context) => {
@@ -139,8 +155,14 @@ describe('client-commands', () => {
       return;
     }
 
-    assert.strictEqual(await client.clientNoTouch('ON'), 'OK');
-    assert.strictEqual(await client.clientNoTouch('OFF'), 'OK');
+    try {
+      assert.strictEqual(await client.clientNoTouch('ON'), 'OK');
+      assert.match(await readFlags(), /T/);
+      assert.strictEqual(await client.clientNoTouch('OFF'), 'OK');
+      assert.doesNotMatch(await readFlags(), /T/);
+    } finally {
+      await client.clientNoTouch('OFF');
+    }
   });
 
   it('returns redirect target with CLIENT GETREDIR', async () => {
@@ -589,6 +611,7 @@ describe('client-commands', () => {
     const key = keyspace.key('pause-write');
     const writer = await createClient({ commandTimeout: 0 });
     const reader = await createClient({ commandTimeout: 2000 });
+    const writerId = await writer.clientId();
 
     let isWritten = false;
 
@@ -604,10 +627,15 @@ describe('client-commands', () => {
         return reply;
       });
 
+      await waitFor(() => isBlocked(client, writerId), {
+        description: 'the paused SET',
+      });
+
       assert.strictEqual(await reader.get(key), null);
       assert.strictEqual(isWritten, false);
       assert.strictEqual(await client.clientUnpause(), 'OK');
       assert.strictEqual(await write, 'OK');
+      assert.strictEqual(await reader.get(key), 'held');
     } finally {
       await client.clientUnpause();
       await closeClient(writer);

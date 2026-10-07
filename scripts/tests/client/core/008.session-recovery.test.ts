@@ -24,6 +24,7 @@ import {
   detectServerCapabilities,
   MockRedisServer,
   mockClientOptions,
+  nextEvent,
   range,
   track,
   waitFor,
@@ -42,12 +43,6 @@ async function listenPong(port = 0) {
   await server.listen(port);
 
   return server;
-}
-
-function nextEvent(client: FeaturedClient, eventName: 'close' | 'reconnected') {
-  return new Promise<void>((resolve) => {
-    client.once(eventName, () => resolve());
-  });
 }
 
 describe('session-recovery', () => {

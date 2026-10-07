@@ -68,9 +68,11 @@ describe('server-admin', () => {
 
     assert.ok(usage > 0, `expected positive MEMORY USAGE, got ${usage}`);
 
-    const usageWithSamples = await client.memoryUsage(key, 0);
+    const sent = await readLoggedCommands(client, 'MEMORY', async () => {
+      assert.strictEqual(await client.memoryUsage(key, 0), usage);
+    });
 
-    assert.strictEqual(usageWithSamples, usage);
+    assert.deepStrictEqual(sent, [['MEMORY', 'USAGE', key, 'SAMPLES', '0']]);
   });
 
   it('returns null for MEMORY USAGE of a non-existent key', async () => {
@@ -826,8 +828,9 @@ describe('server-admin', () => {
     const after = await client.latencyHistogram('ping');
     const all = await client.latencyHistogram();
 
-    assert.ok('ping' in after, 'expected a ping histogram entry');
+    assert.deepStrictEqual(Object.keys(after), ['ping']);
     assert.ok('ping' in all, 'expected every command without arguments');
+    assert.ok(Object.keys(all).length > 1, 'expected more than ping');
     const additionalPingCalls = after.ping.calls - callsBefore;
 
     assert.ok(

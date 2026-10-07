@@ -8,6 +8,7 @@ import { RespPush } from '../../../../sources/index.ts';
 import {
   createClient,
   createKeyspace,
+  isBlocked,
   MockRedisServer,
   mockClientOptions,
   range,
@@ -35,7 +36,20 @@ describe('stream-integrity', () => {
     ]);
     assert.strictEqual(await tracked.get(key), 'first');
 
+    const list = keyspace.key('tracked', 'list');
+    const trackedId = await tracked.clientId();
+    const popped = tracked.blpop([list], 5);
+
+    await waitFor(() => isBlocked(writer, trackedId), {
+      description: 'the pending BLPOP',
+    });
     await writer.set(key, 'second');
+    await waitFor(() => pushes.length === 1, {
+      description: 'invalidation push while BLPOP is pending',
+    });
+    await writer.lpush(list, 'item');
+
+    assert.deepStrictEqual(await popped, [list, 'item']);
 
     const values = await Promise.all(range(100).map(() => tracked.get(key)));
 
@@ -43,11 +57,6 @@ describe('stream-integrity', () => {
       values,
       range(100).map(() => 'second'),
     );
-
-    await waitFor(() => pushes.length === 1, {
-      description: 'invalidation push',
-    });
-
     assert.deepStrictEqual(pushes, [
       RespPush.from([Buffer.from('invalidate'), [Buffer.from(key)]]),
     ]);

@@ -18,8 +18,10 @@ import {
   formatTargetAddress,
   MockRedisServer,
   mockClientOptions,
+  nextEvent,
   track,
   waitFor,
+  withTimeout,
 } from '../../utils/index.ts';
 
 import type { StringOrBuffer } from '../../../../sources/index.ts';
@@ -244,9 +246,7 @@ describe('lifecycle-edge', () => {
     const killer = await createClient();
     const clientId = await client.clientId();
 
-    const readyPromise = new Promise<void>((resolve) => {
-      client.once('ready', resolve);
-    });
+    const readyPromise = nextEvent(client, 'ready');
 
     await killer.clientKill(clientId);
 
@@ -335,7 +335,7 @@ describe('lifecycle-edge', () => {
     client.on('connect', () => events.push('connect'));
     client.on('ready', () => events.push('ready'));
 
-    const ended = new Promise<void>((resolve) => client.once('end', resolve));
+    const ended = nextEvent(client, 'end');
 
     client.quit();
 
@@ -349,7 +349,7 @@ describe('lifecycle-edge', () => {
     );
   });
 
-  it('emits an error when non-lazy connect targets an unreachable port', async () => {
+  it('emits an error when a non-lazy connect is refused', async () => {
     const errorPromise = new Promise<Error>((resolve) => {
       const client = track(
         new SolidisFeaturedClient(
@@ -369,7 +369,7 @@ describe('lifecycle-edge', () => {
       });
     });
 
-    const error = await errorPromise;
+    const error = await withTimeout(errorPromise, 'The first error');
 
     if (!(error instanceof SolidisConnectionError)) {
       assert.fail('expected SolidisConnectionError for connection refusal');
@@ -392,6 +392,14 @@ describe('lifecycle-edge', () => {
       [
         [['MONITOR']],
         'MONITOR is not supported: it breaks the pairing of requests and replies.',
+      ],
+      [
+        [['PING'], ['AUTH', 'secret']],
+        'AUTH must come first in a batch: it breaks the pairing of requests and replies.',
+      ],
+      [
+        [['SET', 'k', 'v', 'IFDEQ', 'xyz', 'GET']],
+        'SET with GET needs digests of 16 hexadecimal digits: it breaks the pairing of requests and replies.',
       ],
       [[[]], 'Cannot send an empty or non-array command.'],
       [notArray, 'Cannot send an empty or non-array command.'],
