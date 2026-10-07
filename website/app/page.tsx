@@ -474,7 +474,7 @@ await client.set('key', 'value');`}
               <RevealSection key={card.href} delay={index * 100}>
                 <Link
                   href={card.href}
-                  className="card-base card-interactive p-5 block h-full"
+                  className="group card-base card-interactive p-5 block h-full"
                 >
                   <h3 className="text-sm font-semibold text-foreground mb-1.5">
                     {card.title}

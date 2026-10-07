@@ -46,7 +46,7 @@ With `debug: true`, entries reach only the `debug` event and are no longer print
 
 - `CLIENT REPLY OFF`, `CLIENT REPLY SKIP`, `CLUSTER SYNCSLOTS`, `MONITOR`, `SYNC`, `PSYNC`, `REPLCONF ACK`, `REPLCONF GETACK`, `SCRIPT DEBUG YES`, `SCRIPT DEBUG SYNC`.
 - `SUBSCRIBE`, `UNSUBSCRIBE` and their pattern and shard variants inside a transaction.
-- `SET` with `GET` and an `IFDEQ` or `IFDNE` digest that is not 16 hexadecimal digits, which Redis 8.4 and later answer twice.
+- `SET` with `GET` and an `IFDEQ` or `IFDNE` digest that is not 16 bytes, which Redis 8.4 and later answer twice.
 - `AUTH` and `HELLO` after another command of the same call or inside a transaction. Redis 7.2 and later drop the error of a failed one while other replies are pending, also from the `EXEC` reply.
 - A `commands` argument that is not an array, empty commands, entries that are not arrays, and arguments that are neither strings nor `Buffer`s.
 - Anything but `MULTI`, `EXEC`, `DISCARD` and `RESET` after a reconnect lost a `MULTI` sent with `send()`.
@@ -390,7 +390,7 @@ Skip this step unless you build the internal classes yourself or write custom co
   - `migrate()` with `keys: []` sends an empty `KEYS` list, which migrates nothing, instead of migrating the `key` argument.
   - `zinter()`, `zinterstore()`, `zunion()` and `zunionstore()` with `weights: []` send an empty `WEIGHTS` list, which the server refuses, instead of using the default weights.
   - `latencyReset([])`, `commandDocs([])` and `clientTracking()` with `prefixes: []` reject instead of acting on every event, command or key.
-- `send()`, `pipeline()`, `SolidisRequester.send()` and `commandsToBuffer()` take read-only command lists, and `extend()` takes extensions typed by an interface.
+- `send()`, `pipeline()`, `SolidisRequester.send()` and `commandsToBuffer()` take read-only command lists, and `extend()` takes extensions typed by an interface and adds the methods of a class instance.
 - `cfMexists()` is typed as returning `boolean[]`, and `set()` as returning `'OK'` or `null`, the old string, or with `returnOldValueAsBuffer` the old `Buffer`.
 - `hmset()`, `mset()`, `msetnx()` and `xadd()` reject fields that are not an object of names and values, such as separate field and value arguments or the flat array ioredis takes, instead of writing every character or array index as a field. `hset()` rejects field and value pairs after the first, which 0.4.x dropped, and `lcs()` with `idx` rejects a malformed match instead of dropping it.
 - `maxEventListenersForClient` accepts any number; a negative value or `NaN` sets no listener limit. `maxConnectionRetries` and `maxReadyCheckRetries` count a negative value or `NaN` as `0`, where `NaN` retried a dropped connection or a loading server forever.
@@ -402,7 +402,7 @@ Skip this step unless you build the internal classes yourself or write custom co
 
 ### Fixed
 
-- `set()` and `delex()` sent any digest. With `returnOldValue`, a digest that is not 16 characters made Redis 8.4 and later answer one `SET` twice, and every later reply reached the wrong request. A digest that is not 16 hexadecimal digits now rejects before anything is sent, and `send()` refuses such a raw `SET` with `GET`.
+- `set()` and `delex()` sent any digest. With `returnOldValue`, a digest that is not 16 characters made Redis 8.4 and later answer one `SET` twice, and every later reply reached the wrong request. A digest that is not 16 hexadecimal digits now rejects before anything is sent, and `send()` refuses a raw `SET` with `GET` and a digest that is not 16 bytes.
 - `zrange()` and the other commands that take `withScores` read it when the reply arrived, and the scan iterators read their options again for every page, so changing an options object after the call changed the result. Options are read when the command is called.
 - The CommonJS build failed to load because of a circular import. Every entry point now loads through both `require()` and `import()`, and releases verify the packed tarball.
 - A connection timeout could crash the process when the abandoned socket failed later. Timed-out sockets are destroyed, and events from replaced sockets are ignored.
@@ -463,7 +463,7 @@ Skip this step unless you build the internal classes yourself or write custom co
 - In alternating benchmark runs against 0.4.0, throughput is on par or better across the suite.
 - Replies and timeouts for tens of thousands of pipelines in flight take linear time. Masking bounds how much argument text it searches for quoted spans, so a reply full of quotes cannot stall the event loop.
 - Error replies no longer capture a stack trace they then drop.
-- Measured with each version's `npm run bundle`, the minimal client with `get` and `set` grows from 29,494 to 30,025 bytes.
+- Measured with each version's `npm run bundle`, the minimal client with `get` and `set` grows from 29,494 to 30,122 bytes.
 
 ## [0.4.0] and earlier
 

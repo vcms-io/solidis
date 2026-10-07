@@ -67,7 +67,7 @@ import { set } from '@vcms-io/solidis/command/set';
 const client = new SolidisClient({ host: '127.0.0.1', port: 6379 }).extend({ get, set });
 ```
 
-`extend()`는 객체가 직접 가진 함수를 클라이언트에 바인딩합니다.
+`extend()`는 객체의 함수를 클래스 메서드까지 포함해 클라이언트에 바인딩합니다.
 
 </details>
 
@@ -638,7 +638,7 @@ sequenceDiagram
 ```typescript
 client.on('connect', () => {});                    // TCP 연결됨
 client.on('ready', () => {});                      // 핸드셰이크 완료, 커맨드 전송 가능
-client.on('close', (error) => {});                 // 연결 끊김 (autoReconnect면 재연결)
+client.on('close', (error) => {});                 // 연결 끊김 (autoReconnect이고 준비된 적이 있으면 재연결)
 client.on('reconnecting', (attempt, delay) => {}); // 재연결을 시도할 때마다
 client.on('reconnected', () => {});                // 재연결 성공
 client.on('end', () => {});                        // 클라이언트 종료 (quit)

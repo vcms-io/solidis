@@ -67,7 +67,7 @@ import { set } from '@vcms-io/solidis/command/set';
 const client = new SolidisClient({ host: '127.0.0.1', port: 6379 }).extend({ get, set });
 ```
 
-`extend()` binds the object's own functions to the client.
+`extend()` binds the object's functions to the client, the methods of its class included.
 
 </details>
 
@@ -638,7 +638,7 @@ sequenceDiagram
 ```typescript
 client.on('connect', () => {});                    // TCP connected
 client.on('ready', () => {});                      // Handshake done, ready for commands
-client.on('close', (error) => {});                 // Connection lost (reconnects when autoReconnect)
+client.on('close', (error) => {});                 // Connection lost (reconnects when autoReconnect and it had been ready)
 client.on('reconnecting', (attempt, delay) => {}); // Before every reconnect attempt
 client.on('reconnected', () => {});                // Re-established after disconnect
 client.on('end', () => {});                        // Client quit

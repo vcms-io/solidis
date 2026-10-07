@@ -201,7 +201,11 @@ export default function UpdatesPage() {
                   )}
                   {changes.length === 0 && release.body && (
                     <div className="prose prose-sm prose-neutral max-w-none text-xs text-muted-foreground">
-                      <ReactMarkdown>{`${release.body.slice(0, 300)}...`}</ReactMarkdown>
+                      <ReactMarkdown>
+                        {release.body.length > 300
+                          ? `${release.body.slice(0, 300)}…`
+                          : release.body}
+                      </ReactMarkdown>
                     </div>
                   )}
                 </CardContent>
