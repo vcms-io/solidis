@@ -337,7 +337,7 @@ describe('transactions', () => {
     assert.deepStrictEqual(await transaction.exec(), []);
   });
 
-  it('handles discard on an empty pipeline gracefully', async () => {
+  it('handles discard on an empty transaction', async () => {
     const transaction = client.multi();
 
     transaction.discard();

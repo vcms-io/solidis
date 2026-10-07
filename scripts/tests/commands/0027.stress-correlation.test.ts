@@ -49,7 +49,7 @@ describe('stress-correlation', () => {
 
   after(async () => {
     await Promise.all(tracked.map((client) => closeClient(client)));
-    await closeAllClients();
+    closeAllClients();
 
     for (const socket of proxySockets) {
       socket.destroy();

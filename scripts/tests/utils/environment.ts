@@ -57,6 +57,13 @@ export function resolveConnectionTarget(): TestConnectionTarget {
   };
 }
 
+/** The test server as a URI writes it: an IPv6 address goes in brackets. */
+export function formatTargetAddress() {
+  const { host, port } = resolveConnectionTarget();
+
+  return `${host.includes(':') ? `[${host}]` : host}:${port}`;
+}
+
 export function buildClientOptions(
   overrides: SolidisClientOptions = {},
 ): SolidisClientOptions {

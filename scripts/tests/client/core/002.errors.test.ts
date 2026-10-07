@@ -33,6 +33,7 @@ import {
   createClient,
   createKeyspace,
   detectServerCapabilities,
+  track,
 } from '../../utils/index.ts';
 
 import type { FeaturedClient, ServerCapabilities } from '../../utils/index.ts';
@@ -165,14 +166,16 @@ describe('errors', () => {
   });
 
   it('wraps connection failures as SolidisConnectionError', async () => {
-    const failing = new SolidisFeaturedClient(
-      buildClientOptions({
-        host: '127.0.0.1',
-        port: 1,
-        lazyConnect: true,
-        maxConnectionRetries: 0,
-        connectionTimeout: 200,
-      }),
+    const failing = track(
+      new SolidisFeaturedClient(
+        buildClientOptions({
+          host: '127.0.0.1',
+          port: 1,
+          lazyConnect: true,
+          maxConnectionRetries: 0,
+          connectionTimeout: 200,
+        }),
+      ),
     );
 
     failing.on('error', () => {});
@@ -213,14 +216,16 @@ describe('errors', () => {
       },
     );
     const createFailing = () =>
-      new SolidisFeaturedClient(
-        buildClientOptions({
-          host: '127.0.0.1',
-          port: 1,
-          lazyConnect: true,
-          maxConnectionRetries: 0,
-          connectionTimeout: 200,
-        }),
+      track(
+        new SolidisFeaturedClient(
+          buildClientOptions({
+            host: '127.0.0.1',
+            port: 1,
+            lazyConnect: true,
+            maxConnectionRetries: 0,
+            connectionTimeout: 200,
+          }),
+        ),
       );
 
     const unattended = createFailing();
@@ -256,8 +261,8 @@ describe('errors', () => {
       warnings.push(warning);
     });
 
-    const client = new SolidisFeaturedClient(
-      buildClientOptions({ lazyConnect: true }),
+    const client = track(
+      new SolidisFeaturedClient(buildClientOptions({ lazyConnect: true })),
     );
     const [first, second, third] = ['first', 'second', 'third'].map(
       (message) => new Error(message),
@@ -497,14 +502,16 @@ describe('errors', () => {
       '',
     );
 
-    const failing = new SolidisFeaturedClient(
-      buildClientOptions({
-        host: 'localhost',
-        port: 1,
-        lazyConnect: true,
-        maxConnectionRetries: 0,
-        connectionTimeout: 200,
-      }),
+    const failing = track(
+      new SolidisFeaturedClient(
+        buildClientOptions({
+          host: 'localhost',
+          port: 1,
+          lazyConnect: true,
+          maxConnectionRetries: 0,
+          connectionTimeout: 200,
+        }),
+      ),
     );
 
     failing.on('error', () => {});

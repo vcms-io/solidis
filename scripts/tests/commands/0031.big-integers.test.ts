@@ -44,6 +44,7 @@ import {
   buildClientOptions,
   closeClient,
   createKeyspace,
+  track,
 } from '../utils/index.ts';
 
 import type {
@@ -83,8 +84,10 @@ describe('big-integers', () => {
 
   for (const protocol of [SolidisProtocols.RESP2, SolidisProtocols.RESP3]) {
     describe(`over ${protocol}`, () => {
-      const client = new SolidisFeaturedClient(
-        buildClientOptions({ lazyConnect: true, protocol }),
+      const client = track(
+        new SolidisFeaturedClient(
+          buildClientOptions({ lazyConnect: true, protocol }),
+        ),
       );
 
       before(async () => {
@@ -335,11 +338,11 @@ describe('big-integers', () => {
   }
 
   it('types results by the call even when detached or extended', async () => {
-    const client = new SolidisFeaturedClient(
-      buildClientOptions({ lazyConnect: true }),
+    const client = track(
+      new SolidisFeaturedClient(buildClientOptions({ lazyConnect: true })),
     );
-    const extended = new SolidisClient(
-      buildClientOptions({ lazyConnect: true }),
+    const extended = track(
+      new SolidisClient(buildClientOptions({ lazyConnect: true })),
     ).extend({ incr, bitfieldRo });
     const key = keyspace.key('detached', 'counter');
 

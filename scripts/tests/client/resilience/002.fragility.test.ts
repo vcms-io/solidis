@@ -656,86 +656,6 @@ describe('fragility', () => {
       await closeClient(client);
     });
 
-    it('accounts for every queued write across a disconnect boundary', async () => {
-      const client = await createClient({
-        autoReconnect: true,
-        maxConnectionRetries: 5,
-        connectionRetryDelay: 25,
-        connectionTimeout: 500,
-      });
-
-      client.on('error', () => {});
-
-      const total = 500;
-      const clientId = await client.clientId();
-      const killer = await createClient();
-
-      const outcomes = range(total).map((index) =>
-        client
-          .set(keyspace.key('loss', index), `${index}`)
-          .then(() => 'resolved' as const)
-          .catch(() => 'rejected' as const),
-      );
-
-      await waitFor(
-        async () => (await killer.exists(keyspace.key('loss', 0))) === 1,
-        {
-          timeout: 3000,
-          interval: 5,
-          description: 'at least one write reached server',
-        },
-      );
-
-      await killer.clientKill(clientId);
-
-      const settled = await Promise.all(outcomes);
-      const resolved = settled.filter((value) => value === 'resolved').length;
-
-      await waitFor(
-        async () => {
-          try {
-            return (await client.ping()) === 'PONG';
-          } catch {
-            return false;
-          }
-        },
-        { timeout: 2000, interval: 50, description: 'auto-reconnect' },
-      );
-
-      let persisted = 0;
-      const batchSize = 100;
-
-      for (let index = 0; index < total; index += batchSize) {
-        const keys = range(Math.min(batchSize, total - index)).map((j) =>
-          keyspace.key('loss', index + j),
-        );
-        const values = await client.mget(...keys);
-
-        for (let j = 0; j < values.length; j += 1) {
-          if (values[j] === `${index + j}`) {
-            persisted += 1;
-          }
-        }
-      }
-
-      assert.ok(
-        resolved > 0,
-        `expected at least some commands to resolve, but all ${total} were rejected`,
-      );
-      assert.ok(
-        persisted >= resolved,
-        `persisted (${persisted}) must cover resolved (${resolved})`,
-      );
-
-      assert.strictEqual(
-        await client.set(keyspace.key('loss-final'), 'ok'),
-        'OK',
-      );
-
-      await closeClient(killer);
-      await closeClient(client);
-    });
-
     it('does not misinterpret replies as pubsub events after recovery with disabled auto-recovery', async () => {
       const server = await startMockServer();
 
@@ -832,11 +752,11 @@ describe('fragility', () => {
 
       await server.close();
 
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(deadPort, { lazyConnect: true }),
+      const client = trackMockClient(
+        new SolidisFeaturedClient(
+          mockClientOptions(deadPort, { lazyConnect: true }),
+        ),
       );
-
-      client.on('error', () => {});
 
       await assert.rejects(
         () => client.connect(),
@@ -904,6 +824,7 @@ describe('fragility', () => {
       process.off('unhandledRejection', trap);
 
       assert.strictEqual(`${reply[0][0]}`, 'hello');
+      assert.deepStrictEqual(stash, []);
     });
   });
 

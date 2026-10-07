@@ -6,6 +6,8 @@
 
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
+import { setFlagsFromString } from 'node:v8';
+import { runInNewContext } from 'node:vm';
 
 export function assertCloseTo(
   actual: number,
@@ -66,11 +68,16 @@ export async function waitFor<T>(
   }
 }
 
-/** Milliseconds that `run` takes, run `times` times in a row. */
+/**
+ * Milliseconds that `run` takes, run `times` times in a row after a full
+ * garbage collection.
+ */
 export async function measureTime(
   run: () => unknown,
   times = 1,
 ): Promise<number> {
+  collectGarbage();
+
   const startedAt = performance.now();
 
   for (let time = 0; time < times; time += 1) {
@@ -81,10 +88,13 @@ export async function measureTime(
 }
 
 /**
- * Milliseconds of CPU time that `run` takes: the time the process spends
- * waiting, for a timer or for other processes, does not count.
+ * Milliseconds of CPU time that `run` takes after a full garbage collection:
+ * the time the process spends waiting, for a timer or for other processes,
+ * does not count.
  */
 export async function measureCpuTime(run: () => unknown): Promise<number> {
+  collectGarbage();
+
   const usage = process.cpuUsage();
 
   await run();
@@ -92,6 +102,15 @@ export async function measureCpuTime(run: () => unknown): Promise<number> {
   const { user, system } = process.cpuUsage(usage);
 
   return (user + system) / 1000;
+}
+
+/**
+ * Runs a full garbage collection, so a measurement does not pay for
+ * collecting what the code before it allocated.
+ */
+function collectGarbage(): void {
+  setFlagsFromString('--expose-gc');
+  runInNewContext('gc')();
 }
 
 /**
@@ -153,12 +172,6 @@ export function uniqueSuffix(): string {
   return `${Date.now().toString(36)}-${monotonicCounter.toString(36)}`;
 }
 
-export function randomString(length: number): string {
-  return randomBytes(Math.ceil(length / 2))
-    .toString('hex')
-    .slice(0, length);
-}
-
 export function randomBuffer(length: number): Buffer {
   return randomBytes(length);
 }
@@ -172,6 +185,8 @@ export function range(count: number): number[] {
 }
 
 export function chunk<T>(items: T[], size: number): T[][] {
+  assert.ok(size > 0, `chunk size must be positive, got ${size}`);
+
   const chunks: T[][] = [];
 
   for (let cursor = 0; cursor < items.length; cursor += size) {

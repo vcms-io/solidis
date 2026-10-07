@@ -13,7 +13,11 @@ import {
   SolidisConnectionError,
   SolidisDefaultOptions,
 } from '../../../../sources/index.ts';
-import { MockRedisServer, mockClientOptions } from '../../utils/index.ts';
+import {
+  MockRedisServer,
+  mockClientOptions,
+  track,
+} from '../../utils/index.ts';
 
 import type { SolidisDebugLog } from '../../../../sources/index.ts';
 
@@ -42,14 +46,18 @@ async function startServer(reply: (command: string) => string) {
 describe('diagnostics', () => {
   it('describes plain, authenticated and TLS endpoints without the password', () => {
     const clients = [
-      new SolidisClient({ host: 'cache', port: 6380, lazyConnect: true }),
-      new SolidisClient({
-        host: 'cache',
-        port: 6380,
-        tls: {},
-        authentication: { username: 'user', password: 'secret' },
-        lazyConnect: true,
-      }),
+      track(
+        new SolidisClient({ host: 'cache', port: 6380, lazyConnect: true }),
+      ),
+      track(
+        new SolidisClient({
+          host: 'cache',
+          port: 6380,
+          tls: {},
+          authentication: { username: 'user', password: 'secret' },
+          lazyConnect: true,
+        }),
+      ),
     ];
 
     assert.deepStrictEqual(
@@ -63,13 +71,15 @@ describe('diagnostics', () => {
   });
 
   it('logs socket errors and emitted errors when debug is enabled', async () => {
-    const client = new SolidisClient({
-      host: '127.0.0.1',
-      port: 1,
-      lazyConnect: true,
-      maxConnectionRetries: 0,
-      debug: true,
-    });
+    const client = track(
+      new SolidisClient({
+        host: '127.0.0.1',
+        port: 1,
+        lazyConnect: true,
+        maxConnectionRetries: 0,
+        debug: true,
+      }),
+    );
     const messages = collectDebugMessages(client);
 
     client.on('error', () => {});
@@ -96,12 +106,14 @@ describe('diagnostics', () => {
 
       return '+PONG\r\n';
     });
-    const client = new SolidisClient(
-      mockClientOptions(server.port, {
-        protocol: 'RESP3',
-        clientName: 'probe',
-        debug: true,
-      }),
+    const client = track(
+      new SolidisClient(
+        mockClientOptions(server.port, {
+          protocol: 'RESP3',
+          clientName: 'probe',
+          debug: true,
+        }),
+      ),
     );
     const messages = collectDebugMessages(client);
 
@@ -123,11 +135,13 @@ describe('diagnostics', () => {
     const server = await startServer(
       () => '-WRONGPASS invalid username-password pair\r\n',
     );
-    const client = new SolidisClient(
-      mockClientOptions(server.port, {
-        authentication: { password: 'wrong' },
-        debug: true,
-      }),
+    const client = track(
+      new SolidisClient(
+        mockClientOptions(server.port, {
+          authentication: { password: 'wrong' },
+          debug: true,
+        }),
+      ),
     );
     const messages = collectDebugMessages(client);
 
@@ -151,8 +165,8 @@ describe('diagnostics', () => {
 
   it('logs a connection that the server closes', async () => {
     const server = await startServer(() => '+PONG\r\n');
-    const client = new SolidisClient(
-      mockClientOptions(server.port, { debug: true }),
+    const client = track(
+      new SolidisClient(mockClientOptions(server.port, { debug: true })),
     );
     const messages = collectDebugMessages(client);
 
@@ -187,14 +201,16 @@ describe('diagnostics', () => {
 
     try {
       for (const protocol of ['RESP2', 'RESP3'] as const) {
-        const client = new SolidisClient(
-          mockClientOptions(server.port, {
-            protocol,
-            debug: true,
-            autoReconnect: true,
-            maxConnectionRetries: 3,
-            authentication: { username: 'user', password: 'Secret-pass-xyz' },
-          }),
+        const client = track(
+          new SolidisClient(
+            mockClientOptions(server.port, {
+              protocol,
+              debug: true,
+              autoReconnect: true,
+              maxConnectionRetries: 3,
+              authentication: { username: 'user', password: 'Secret-pass-xyz' },
+            }),
+          ),
         );
         const lines: string[] = [];
 
@@ -231,8 +247,8 @@ describe('diagnostics', () => {
 
   it('logs the established connection and the completed handshake', async () => {
     const server = await startServer(() => '+OK\r\n');
-    const client = new SolidisClient(
-      mockClientOptions(server.port, { debug: true }),
+    const client = track(
+      new SolidisClient(mockClientOptions(server.port, { debug: true })),
     );
     const messages = collectDebugMessages(client);
 
@@ -249,10 +265,12 @@ describe('diagnostics', () => {
 
   it('refuses a write while the socket is still connecting', async () => {
     const server = await startServer(() => '+OK\r\n');
-    const connection = new SolidisConnection({
-      ...SolidisDefaultOptions,
-      port: server.port,
-    });
+    const connection = track(
+      new SolidisConnection({
+        ...SolidisDefaultOptions,
+        port: server.port,
+      }),
+    );
 
     try {
       const connecting = connection.connect();
@@ -289,12 +307,14 @@ describe('diagnostics', () => {
         .getActiveResourcesInfo()
         .filter((resource) => resource === 'Timeout').length;
     const timers = countTimers();
-    const connection = new SolidisConnection({
-      ...SolidisDefaultOptions,
-      port: 1,
-      connectionTimeout: 60_000,
-      maxConnectionRetries: 0,
-    });
+    const connection = track(
+      new SolidisConnection({
+        ...SolidisDefaultOptions,
+        port: 1,
+        connectionTimeout: 60_000,
+        maxConnectionRetries: 0,
+      }),
+    );
 
     connection.on('error', () => {});
 
@@ -318,11 +338,13 @@ describe('diagnostics', () => {
       return socket as unknown as net.Socket;
     });
 
-    const connection = new SolidisConnection({
-      ...SolidisDefaultOptions,
-      port: 1,
-      maxConnectionRetries: 0,
-    });
+    const connection = track(
+      new SolidisConnection({
+        ...SolidisDefaultOptions,
+        port: 1,
+        maxConnectionRetries: 0,
+      }),
+    );
     const errors: unknown[] = [];
 
     connection.on('error', (error) => {

@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import net from 'node:net';
-import { after, describe, it } from 'node:test';
+import { describe, it } from 'node:test';
 import tls from 'node:tls';
 
 import { SolidisFeaturedClient } from '../../../../sources/client/featured.ts';
@@ -18,36 +18,27 @@ import {
   closeClient,
   createClient,
   delay,
+  formatTargetAddress,
   MockRedisServer,
   mockClientOptions,
-  resolveConnectionTarget,
+  track,
   waitFor,
 } from '../../utils/index.ts';
 
-import type { SolidisClientFrozenOptions } from '../../../../sources/index.ts';
-import type { FeaturedClient } from '../../utils/index.ts';
+import type {
+  SolidisClientFrozenOptions,
+  SolidisDebugLog,
+} from '../../../../sources/index.ts';
 
 describe('connection', () => {
-  const trackedClients: FeaturedClient[] = [];
-
-  after(async () => {
-    await Promise.all(trackedClients.map((client) => closeClient(client)));
-  });
-
-  const track = (client: FeaturedClient): FeaturedClient => {
-    trackedClients.push(client);
-
-    return client;
-  };
-
-  it('connects eagerly and answers PING', async () => {
-    const client = track(await createClient());
+  it('connects and answers PING', async () => {
+    const client = await createClient();
 
     assert.strictEqual(await client.ping(), 'PONG');
   });
 
   it('echoes the exact payload', async () => {
-    const client = track(await createClient());
+    const client = await createClient();
 
     assert.strictEqual(await client.echo('solidis'), 'solidis');
   });
@@ -55,11 +46,9 @@ describe('connection', () => {
   it('emits connect then ready in order', async () => {
     const events: string[] = [];
 
-    const client = new SolidisFeaturedClient(
-      buildClientOptions({ lazyConnect: true }),
+    const client = track(
+      new SolidisFeaturedClient(buildClientOptions({ lazyConnect: true })),
     );
-
-    track(client);
 
     client.on('error', () => {});
     client.on('connect', () => events.push('connect'));
@@ -75,9 +64,9 @@ describe('connection', () => {
 
     await server.listen();
 
-    const client = new SolidisFeaturedClient(mockClientOptions(server.port));
-
-    track(client);
+    const client = track(
+      new SolidisFeaturedClient(mockClientOptions(server.port)),
+    );
 
     client.on('error', () => {});
 
@@ -94,14 +83,17 @@ describe('connection', () => {
     await client.connect();
 
     assert.strictEqual(readyFired, true);
-    assert.strictEqual(server.acceptedCount, 1);
+
+    await waitFor(() => server.acceptedCount === 1, {
+      description: 'the server accepted the connection',
+    });
 
     client.quit();
     await server.close();
   });
 
   it('treats repeated connect() calls as idempotent', async () => {
-    const client = track(await createClient());
+    const client = await createClient();
 
     await client.connect();
     await client.connect();
@@ -110,15 +102,14 @@ describe('connection', () => {
   });
 
   it('exposes a normalised connection uri', async () => {
-    const client = track(await createClient());
-    const target = resolveConnectionTarget();
+    const client = await createClient();
 
-    assert.strictEqual(client.uri, `redis://${target.host}:${target.port}`);
+    assert.strictEqual(client.uri, `redis://${formatTargetAddress()}`);
   });
 
   it('rejects commands after quit with a client error', async () => {
-    const client = new SolidisFeaturedClient(
-      buildClientOptions({ lazyConnect: true }),
+    const client = track(
+      new SolidisFeaturedClient(buildClientOptions({ lazyConnect: true })),
     );
 
     client.on('error', () => {});
@@ -141,7 +132,7 @@ describe('connection', () => {
   });
 
   it('negotiates RESP3 when requested', async () => {
-    const client = track(await createClient({ protocol: 'RESP3' }));
+    const client = await createClient({ protocol: 'RESP3' });
 
     assert.strictEqual(await client.ping(), 'PONG');
 
@@ -166,7 +157,7 @@ describe('connection', () => {
   });
 
   it('selects a non-zero database without error', async () => {
-    const client = track(await createClient());
+    const client = await createClient();
 
     assert.strictEqual(await client.select(1), 'OK');
     await client.flushdb();
@@ -178,10 +169,6 @@ describe('connection', () => {
       Array.from({ length: 16 }, () => createClient()),
     );
 
-    for (const client of clients) {
-      track(client);
-    }
-
     const pongs = await Promise.all(clients.map((client) => client.ping()));
 
     assert.deepStrictEqual(
@@ -190,23 +177,37 @@ describe('connection', () => {
     );
   });
 
-  it('applies clientName via HELLO when using RESP3', async () => {
-    const name = `solidis-resp3-${Date.now()}`;
-    const client = await createClient({ clientName: name, protocol: 'RESP3' });
+  for (const [protocol, sent, skipped] of [
+    ['RESP3', 'HELLO', 'CLIENT SETNAME'],
+    ['RESP2', 'CLIENT SETNAME', 'HELLO'],
+  ] as const) {
+    it(`sends clientName with ${sent} on ${protocol}`, async () => {
+      const name = `solidis-${protocol}-${Date.now()}`;
+      const client = track(
+        new SolidisFeaturedClient(
+          buildClientOptions({
+            clientName: name,
+            protocol,
+            debug: true,
+            lazyConnect: true,
+          }),
+        ),
+      );
+      const writes: string[] = [];
 
-    assert.strictEqual(await client.clientGetname(), name);
+      client.on('debug', ({ message }: SolidisDebugLog) => {
+        if (message.startsWith('Requester serialized')) {
+          writes.push(message.slice(message.indexOf(': ') + 2));
+        }
+      });
 
-    await closeClient(client);
-  });
+      await client.connect();
 
-  it('falls back to CLIENT SETNAME for clientName on RESP2', async () => {
-    const name = `solidis-resp2-${Date.now()}`;
-    const client = await createClient({ clientName: name, protocol: 'RESP2' });
-
-    assert.strictEqual(await client.clientGetname(), name);
-
-    await closeClient(client);
-  });
+      assert.strictEqual(await client.clientGetname(), name);
+      assert.ok(writes.includes(sent), writes.join(' | '));
+      assert.ok(!writes.includes(skipped), writes.join(' | '));
+    });
+  }
 
   it('accepts enableReadyCheck in both states without error', async () => {
     let enabledReadyFired = false;
@@ -257,33 +258,39 @@ describe('connection', () => {
   });
 
   it('connects automatically when lazyConnect is false', async () => {
-    const autoClient = new SolidisFeaturedClient(
-      buildClientOptions({ lazyConnect: false }),
+    const autoClient = track(
+      new SolidisFeaturedClient(buildClientOptions({ lazyConnect: false })),
     );
 
-    autoClient.on('error', () => {});
+    let isReady = false;
 
-    await new Promise<void>((resolve) => {
-      autoClient.on('ready', resolve);
+    autoClient.on('error', () => {});
+    autoClient.on('ready', () => {
+      isReady = true;
+    });
+
+    await waitFor(() => isReady, {
+      timeout: 10_000,
+      description: 'ready without connect()',
     });
 
     assert.strictEqual(await autoClient.ping(), 'PONG');
-
-    track(autoClient);
   });
 
   it('retries and eventually rejects on persistent failure', async (context) => {
     context.mock.method(Math, 'random', () => 1);
 
-    const client = new SolidisFeaturedClient(
-      buildClientOptions({
-        host: '127.0.0.1',
-        port: 1,
-        lazyConnect: true,
-        maxConnectionRetries: 1,
-        connectionRetryDelay: 10,
-        connectionTimeout: 100,
-      }),
+    const client = track(
+      new SolidisFeaturedClient(
+        buildClientOptions({
+          host: '127.0.0.1',
+          port: 1,
+          lazyConnect: true,
+          maxConnectionRetries: 1,
+          connectionRetryDelay: 10,
+          connectionTimeout: 100,
+        }),
+      ),
     );
 
     const errors: unknown[] = [];
@@ -315,15 +322,17 @@ describe('connection', () => {
       [{ connectionRetryDelay: -50 }, [0, 0]],
       [{ maxConnectionRetryDelay: Number.NaN }, [0, 0]],
     ] as const) {
-      const client = new SolidisFeaturedClient(
-        buildClientOptions({
-          host: '127.0.0.1',
-          port: 1,
-          lazyConnect: true,
-          maxConnectionRetries: 2,
-          connectionTimeout: 100,
-          ...options,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          buildClientOptions({
+            host: '127.0.0.1',
+            port: 1,
+            lazyConnect: true,
+            maxConnectionRetries: 2,
+            connectionTimeout: 100,
+            ...options,
+          }),
+        ),
       );
       const reconnecting: [number, number][] = [];
 
@@ -343,14 +352,16 @@ describe('connection', () => {
   });
 
   it('rejects connection to wrong port with zero timeout', async () => {
-    const client = new SolidisFeaturedClient(
-      buildClientOptions({
-        host: '127.0.0.1',
-        port: 1,
-        lazyConnect: true,
-        connectionTimeout: 0,
-        maxConnectionRetries: 0,
-      }),
+    const client = track(
+      new SolidisFeaturedClient(
+        buildClientOptions({
+          host: '127.0.0.1',
+          port: 1,
+          lazyConnect: true,
+          connectionTimeout: 0,
+          maxConnectionRetries: 0,
+        }),
+      ),
     );
 
     client.on('error', () => {});
@@ -378,8 +389,8 @@ describe('connection', () => {
   });
 
   it('handles concurrent connect calls gracefully (connectLock)', async () => {
-    const raceClient = new SolidisFeaturedClient(
-      buildClientOptions({ lazyConnect: true }),
+    const raceClient = track(
+      new SolidisFeaturedClient(buildClientOptions({ lazyConnect: true })),
     );
 
     raceClient.on('error', () => {});
@@ -392,19 +403,19 @@ describe('connection', () => {
     assert.strictEqual(first.status, 'fulfilled');
     assert.strictEqual(second.status, 'fulfilled');
     assert.strictEqual(await raceClient.ping(), 'PONG');
-
-    track(raceClient);
   });
 
   it('rejects with a connection error when host is unreachable', async () => {
-    const unreachableClient = new SolidisFeaturedClient(
-      buildClientOptions({
-        lazyConnect: true,
-        host: '127.0.0.1',
-        port: 1,
-        connectionTimeout: 100,
-        maxConnectionRetries: 0,
-      }),
+    const unreachableClient = track(
+      new SolidisFeaturedClient(
+        buildClientOptions({
+          lazyConnect: true,
+          host: '127.0.0.1',
+          port: 1,
+          connectionTimeout: 100,
+          maxConnectionRetries: 0,
+        }),
+      ),
     );
 
     unreachableClient.on('error', () => {});
@@ -451,7 +462,7 @@ describe('connection', () => {
     await reconnectClient.set(key, 'before-kill');
 
     const clientId = await reconnectClient.clientId();
-    const killer = track(await createClient());
+    const killer = await createClient();
 
     await killer.clientKill(clientId);
 
@@ -474,7 +485,7 @@ describe('connection', () => {
   });
 
   it('completes a large write', async () => {
-    const client = track(await createClient());
+    const client = await createClient();
 
     assert.strictEqual(await client.ping(), 'PONG');
 
@@ -522,14 +533,16 @@ describe('connection', () => {
   });
 
   it('wraps connection error in SolidisClientError on send', async () => {
-    const badClient = new SolidisFeaturedClient(
-      buildClientOptions({
-        lazyConnect: true,
-        host: '127.0.0.1',
-        port: 1,
-        connectionTimeout: 50,
-        maxConnectionRetries: 0,
-      }),
+    const badClient = track(
+      new SolidisFeaturedClient(
+        buildClientOptions({
+          lazyConnect: true,
+          host: '127.0.0.1',
+          port: 1,
+          connectionTimeout: 50,
+          maxConnectionRetries: 0,
+        }),
+      ),
     );
 
     badClient.on('error', () => {});
@@ -549,15 +562,17 @@ describe('connection', () => {
       const server = new MockRedisServer();
       await server.listen();
 
-      const connection = new SolidisConnection({
-        ...SolidisDefaultOptions,
-        host: '127.0.0.1',
-        port: server.port,
-        clientName: '',
-        enableReadyCheck: false,
-        autoReconnect: false,
-        maxConnectionRetries: 0,
-      });
+      const connection = track(
+        new SolidisConnection({
+          ...SolidisDefaultOptions,
+          host: '127.0.0.1',
+          port: server.port,
+          clientName: '',
+          enableReadyCheck: false,
+          autoReconnect: false,
+          maxConnectionRetries: 0,
+        }),
+      );
 
       connection.on('error', () => {});
 
@@ -578,14 +593,16 @@ describe('connection', () => {
       const server = new MockRedisServer();
       await server.listen();
 
-      const connection = new SolidisConnection({
-        ...SolidisDefaultOptions,
-        host: '127.0.0.1',
-        port: server.port,
-        clientName: '',
-        enableReadyCheck: false,
-        autoReconnect: false,
-      });
+      const connection = track(
+        new SolidisConnection({
+          ...SolidisDefaultOptions,
+          host: '127.0.0.1',
+          port: server.port,
+          clientName: '',
+          enableReadyCheck: false,
+          autoReconnect: false,
+        }),
+      );
 
       connection.on('error', () => {});
 
@@ -614,66 +631,41 @@ describe('connection', () => {
     it('retries with exponential backoff until the server comes back', async (context) => {
       context.mock.method(Math, 'random', () => 1);
 
-      let acceptCount = 0;
+      const server = new MockRedisServer();
+      const port = await server.listen();
 
-      const createServer = () =>
-        net.createServer((socket) => {
-          acceptCount += 1;
-          socket.on('error', () => {});
-        });
+      await server.close();
 
-      let server = createServer();
-
-      const port = await new Promise<number>((resolve) => {
-        server.listen(0, '127.0.0.1', () => {
-          resolve((server.address() as net.AddressInfo).port);
-        });
-      });
-
-      await new Promise<void>((resolve) => {
-        server.close(() => resolve());
-      });
-
-      const connection = new SolidisConnection({
-        ...SolidisDefaultOptions,
-        host: '127.0.0.1',
-        port,
-        maxConnectionRetries: 10,
-        connectionRetryDelay: 20,
-        maxConnectionRetryDelay: 80,
-        connectionTimeout: 200,
-      });
+      const connection = track(
+        new SolidisConnection({
+          ...SolidisDefaultOptions,
+          host: '127.0.0.1',
+          port,
+          maxConnectionRetries: 10,
+          connectionRetryDelay: 20,
+          maxConnectionRetryDelay: 80,
+          connectionTimeout: 200,
+        }),
+      );
       const delays: number[] = [];
 
       connection.on('error', () => {});
       connection.on('reconnecting', (_attempt, delay) => {
         delays.push(delay);
+
+        if (delays.length === 3) {
+          server.listen(port);
+        }
       });
 
-      const reopenTimer = setTimeout(() => {
-        server = createServer();
-        server.listen(port, '127.0.0.1');
-      }, 250);
-
-      try {
-        await connection.connect();
-      } finally {
-        clearTimeout(reopenTimer);
-      }
+      await connection.connect();
 
       assert.strictEqual(connection.isConnected, true);
-      assert.strictEqual(acceptCount, 1);
-      assert.ok(delays.length >= 3, `expected 3+ retries, got ${delays}`);
-      assert.deepStrictEqual(
-        delays,
-        delays.map((_, index) => Math.min(20 * 2 ** index, 80)),
-      );
+      assert.strictEqual(server.acceptedCount, 1);
+      assert.deepStrictEqual(delays, [20, 40, 80]);
 
       connection.quit();
-
-      await new Promise<void>((resolve) => {
-        server.close(() => resolve());
-      });
+      await server.close();
     });
 
     it('emits close with the reset error and stops reconnecting once the retry budget is spent', async (context) => {
@@ -683,15 +675,17 @@ describe('connection', () => {
 
       await server.listen();
 
-      const connection = new SolidisConnection({
-        ...SolidisDefaultOptions,
-        host: '127.0.0.1',
-        port: server.port,
-        maxConnectionRetries: 3,
-        connectionRetryDelay: 10,
-        maxConnectionRetryDelay: 40,
-        connectionTimeout: 500,
-      });
+      const connection = track(
+        new SolidisConnection({
+          ...SolidisDefaultOptions,
+          host: '127.0.0.1',
+          port: server.port,
+          maxConnectionRetries: 3,
+          connectionRetryDelay: 10,
+          maxConnectionRetryDelay: 40,
+          connectionTimeout: 500,
+        }),
+      );
       const closes: unknown[] = [];
       const errors: Error[] = [];
       const reconnecting: [number, number][] = [];
@@ -776,15 +770,17 @@ describe('connection', () => {
 
         await server.listen();
 
-        const connection = new SolidisConnection({
-          ...SolidisDefaultOptions,
-          host: '127.0.0.1',
-          port: server.port,
-          maxConnectionRetries: 100,
-          connectionRetryDelay: 8,
-          maxConnectionRetryDelay: 32,
-          connectionTimeout: 500,
-        });
+        const connection = track(
+          new SolidisConnection({
+            ...SolidisDefaultOptions,
+            host: '127.0.0.1',
+            port: server.port,
+            maxConnectionRetries: 100,
+            connectionRetryDelay: 8,
+            maxConnectionRetryDelay: 32,
+            connectionTimeout: 500,
+          }),
+        );
         const delays: number[] = [];
 
         connection.on('error', () => {});
@@ -830,11 +826,13 @@ describe('connection', () => {
 
       await server.listen();
 
-      const connection = new SolidisConnection({
-        ...SolidisDefaultOptions,
-        host: '127.0.0.1',
-        port: server.port,
-      });
+      const connection = track(
+        new SolidisConnection({
+          ...SolidisDefaultOptions,
+          host: '127.0.0.1',
+          port: server.port,
+        }),
+      );
       const closes: unknown[] = [];
 
       connection.on('close', (error) => {
@@ -928,12 +926,14 @@ describe('connection', () => {
       function createConnection(
         overrides: Partial<SolidisClientFrozenOptions> = {},
       ) {
-        const connection = new SolidisConnection({
-          ...SolidisDefaultOptions,
-          host: '127.0.0.1',
-          port: 1,
-          ...overrides,
-        });
+        const connection = track(
+          new SolidisConnection({
+            ...SolidisDefaultOptions,
+            host: '127.0.0.1',
+            port: 1,
+            ...overrides,
+          }),
+        );
 
         connection.on('error', () => {});
 
@@ -1001,11 +1001,13 @@ describe('connection', () => {
       });
 
       it('rejects a connection the socket layer refuses on the spot, and reports it when nothing waits', async () => {
-        const connection = new SolidisConnection({
-          ...SolidisDefaultOptions,
-          host: '127.0.0.1',
-          port: 70000,
-        });
+        const connection = track(
+          new SolidisConnection({
+            ...SolidisDefaultOptions,
+            host: '127.0.0.1',
+            port: 70000,
+          }),
+        );
         const errors: Error[] = [];
         const reconnects: number[] = [];
 
@@ -1038,10 +1040,12 @@ describe('connection', () => {
 
       it('reports a refused connection once, after the constructor returns', async (context) => {
         const emitWarning = context.mock.method(process, 'emitWarning');
-        const client = new SolidisFeaturedClient({
-          host: '127.0.0.1',
-          port: 70000,
-        });
+        const client = track(
+          new SolidisFeaturedClient({
+            host: '127.0.0.1',
+            port: 70000,
+          }),
+        );
         const errors: Error[] = [];
 
         client.on('error', (error) => errors.push(error));

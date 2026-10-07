@@ -1,7 +1,7 @@
 /** Connection/client lifecycle edge branches (TLS, RESP3, lazy connect, no-reconnect, debug). */
 
 import assert from 'node:assert/strict';
-import { after, describe, it } from 'node:test';
+import { describe, it } from 'node:test';
 
 import { SolidisFeaturedClient } from '../../../../sources/client/featured.ts';
 import { get } from '../../../../sources/command/get.ts';
@@ -13,32 +13,20 @@ import {
 } from '../../../../sources/index.ts';
 import {
   buildClientOptions,
-  closeClient,
   createClient,
   delay,
+  formatTargetAddress,
   MockRedisServer,
   mockClientOptions,
-  resolveConnectionTarget,
+  track,
   waitFor,
 } from '../../utils/index.ts';
 
 import type { StringOrBuffer } from '../../../../sources/index.ts';
-import type { FeaturedClient } from '../../utils/index.ts';
 
 describe('lifecycle-edge', () => {
-  const tracked: FeaturedClient[] = [];
-
-  const track = (client: FeaturedClient): FeaturedClient => {
-    tracked.push(client);
-    return client;
-  };
-
-  after(async () => {
-    await Promise.all(tracked.map((client) => closeClient(client)));
-  });
-
   it('negotiates RESP3 and round-trips typed replies', async () => {
-    const client = track(await createClient({ protocol: 'RESP3' }));
+    const client = await createClient({ protocol: 'RESP3' });
 
     assert.strictEqual(await client.ping(), 'PONG');
 
@@ -55,19 +43,20 @@ describe('lifecycle-edge', () => {
   });
 
   it('drives the TLS socket constructor (handshake fails against a plain server)', async () => {
-    const client = new SolidisFeaturedClient(
-      buildClientOptions({
-        tls: {},
-        lazyConnect: true,
-        connectionTimeout: 500,
-        maxConnectionRetries: 0,
-      }),
+    const client = track(
+      new SolidisFeaturedClient(
+        buildClientOptions({
+          tls: {},
+          lazyConnect: true,
+          connectionTimeout: 500,
+          maxConnectionRetries: 0,
+        }),
+      ),
     );
 
     client.on('error', () => {});
 
-    // TLS against a plain TCP endpoint fails after retries in this environment
-    // because no TLS listener is bound on SOLIDIS_TEST_HOST.
+    // The test server speaks plain TCP, so the TLS handshake fails.
     await assert.rejects(
       () => client.connect(),
       (error: Error) =>
@@ -106,12 +95,10 @@ describe('lifecycle-edge', () => {
   });
 
   it('does not reconnect after a kill when autoReconnect is disabled', async () => {
-    const client = track(
-      await createClient({
-        autoReconnect: false,
-        maxConnectionRetries: 0,
-      }),
-    );
+    const client = await createClient({
+      autoReconnect: false,
+      maxConnectionRetries: 0,
+    });
 
     client.on('error', () => {});
 
@@ -125,7 +112,7 @@ describe('lifecycle-edge', () => {
     });
 
     const clientId = await client.clientId();
-    const killer = track(await createClient());
+    const killer = await createClient();
 
     const killResult = await killer.clientKill(clientId);
 
@@ -151,21 +138,19 @@ describe('lifecycle-edge', () => {
   });
 
   it('survives rapid repeated disconnects (idempotent recovery)', async () => {
-    const client = track(
-      await createClient({
-        autoReconnect: true,
-        maxConnectionRetries: 10,
-        connectionRetryDelay: 25,
-        connectionTimeout: 500,
-      }),
-    );
+    const client = await createClient({
+      autoReconnect: true,
+      maxConnectionRetries: 10,
+      connectionRetryDelay: 25,
+      connectionTimeout: 500,
+    });
 
     client.on('error', () => {});
 
     const key = `solidis:test:rapidkill:${Date.now()}`;
     await client.set(key, 'stable');
 
-    const killer = track(await createClient());
+    const killer = await createClient();
 
     for (let round = 0; round < 2; round += 1) {
       const id = await waitFor(
@@ -201,7 +186,7 @@ describe('lifecycle-edge', () => {
   });
 
   it('streams debug entries and survives a debug-enabled command flow', async () => {
-    const client = track(await createClient({ debug: true }));
+    const client = await createClient({ debug: true });
 
     const entries: unknown[] = [];
     client.on('debug', (entry) => entries.push(entry));
@@ -243,14 +228,12 @@ describe('lifecycle-edge', () => {
   });
 
   it('emits the "reconnected" event after a successful reconnection', async () => {
-    const client = track(
-      await createClient({
-        autoReconnect: true,
-        maxConnectionRetries: 10,
-        connectionRetryDelay: 25,
-        connectionTimeout: 500,
-      }),
-    );
+    const client = await createClient({
+      autoReconnect: true,
+      maxConnectionRetries: 10,
+      connectionRetryDelay: 25,
+      connectionTimeout: 500,
+    });
 
     let reconnectedFired = false;
 
@@ -258,7 +241,7 @@ describe('lifecycle-edge', () => {
       reconnectedFired = true;
     });
 
-    const killer = track(await createClient());
+    const killer = await createClient();
     const clientId = await client.clientId();
 
     const readyPromise = new Promise<void>((resolve) => {
@@ -277,7 +260,6 @@ describe('lifecycle-edge', () => {
   });
 
   it('does not expose credentials in the uri getter', () => {
-    const target = resolveConnectionTarget();
     const client = track(
       new SolidisFeaturedClient(
         buildClientOptions({
@@ -289,7 +271,7 @@ describe('lifecycle-edge', () => {
 
     assert.strictEqual(
       client.uri,
-      `redis://admin:***@${target.host}:${target.port}`,
+      `redis://admin:***@${formatTargetAddress()}`,
     );
   });
 
@@ -306,8 +288,8 @@ describe('lifecycle-edge', () => {
   });
 
   it('rejects connect() after the client has been quit', async () => {
-    const client = new SolidisFeaturedClient(
-      buildClientOptions({ lazyConnect: true }),
+    const client = track(
+      new SolidisFeaturedClient(buildClientOptions({ lazyConnect: true })),
     );
 
     client.on('error', () => {});
@@ -322,7 +304,7 @@ describe('lifecycle-edge', () => {
   });
 
   it('returns immediately when connect() is called on an already-connected client', async () => {
-    const client = track(await createClient());
+    const client = await createClient();
 
     const idBefore = await client.clientId();
 
@@ -339,13 +321,11 @@ describe('lifecycle-edge', () => {
   });
 
   it('does not background-reconnect after quit closes the transport socket', async () => {
-    const client = track(
-      await createClient({
-        autoReconnect: true,
-        maxConnectionRetries: 5,
-        connectionRetryDelay: 50,
-      }),
-    );
+    const client = await createClient({
+      autoReconnect: true,
+      maxConnectionRetries: 5,
+      connectionRetryDelay: 50,
+    });
 
     const events: string[] = [];
 
@@ -371,14 +351,16 @@ describe('lifecycle-edge', () => {
 
   it('emits an error when non-lazy connect targets an unreachable port', async () => {
     const errorPromise = new Promise<Error>((resolve) => {
-      const client = new SolidisFeaturedClient(
-        buildClientOptions({
-          host: '127.0.0.1',
-          port: 1,
-          lazyConnect: false,
-          maxConnectionRetries: 0,
-          connectionTimeout: 200,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          buildClientOptions({
+            host: '127.0.0.1',
+            port: 1,
+            lazyConnect: false,
+            maxConnectionRetries: 0,
+            connectionTimeout: 200,
+          }),
+        ),
       );
 
       client.on('error', (error) => {
@@ -460,13 +442,14 @@ describe('lifecycle-edge', () => {
       }
     });
 
-    const client = new SolidisFeaturedClient(
-      mockClientOptions(server.port, {
-        enableReadyCheck: true,
-      }),
+    const client = track(
+      new SolidisFeaturedClient(
+        mockClientOptions(server.port, {
+          enableReadyCheck: true,
+        }),
+      ),
     );
 
-    track(client);
     client.on('error', () => {});
 
     try {
@@ -537,15 +520,16 @@ describe('lifecycle-edge', () => {
       socket.write(Buffer.from('+OK\r\n', 'latin1'));
     });
 
-    const client = new SolidisFeaturedClient(
-      mockClientOptions(server.port, {
-        protocol: 'RESP3',
-        authentication: { username: 'testuser', password: 'testpass' },
-        enableReadyCheck: false,
-      }),
+    const client = track(
+      new SolidisFeaturedClient(
+        mockClientOptions(server.port, {
+          protocol: 'RESP3',
+          authentication: { username: 'testuser', password: 'testpass' },
+          enableReadyCheck: false,
+        }),
+      ),
     );
 
-    track(client);
     client.on('error', () => {});
 
     await client.connect();
@@ -569,7 +553,9 @@ describe('lifecycle-edge', () => {
   });
 
   it('binds extension functions to a bare client and skips everything else', async () => {
-    const bare = new SolidisClient(buildClientOptions({ lazyConnect: true }));
+    const bare = track(
+      new SolidisClient(buildClientOptions({ lazyConnect: true })),
+    );
     const key = `solidis:test:extend:${Date.now()}`;
 
     bare.on('error', () => {});

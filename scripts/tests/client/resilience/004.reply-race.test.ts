@@ -95,7 +95,7 @@ describe('reply-race', () => {
     assert.deepStrictEqual(secondaryReplies, [['b']]);
   });
 
-  it('preserves reply order under a different byte-chunk alignment', async () => {
+  it('preserves reply order when a chunk ends inside a reply', async () => {
     const server = await startMockServer();
 
     const commandCount = 100;
@@ -111,12 +111,12 @@ describe('reply-race', () => {
 
       socket.setNoDelay(true);
 
-      const repliesForPrimary = '+x\r\n'.repeat(commandCount);
+      const repliesForPrimary = '+x\r\n'.repeat(commandCount - 1);
 
-      socket.write(Buffer.from(repliesForPrimary, 'latin1'));
+      socket.write(Buffer.from(`${repliesForPrimary}+x\r`, 'latin1'));
 
       setTimeout(() => {
-        socket.write(Buffer.from('+y\r\n', 'latin1'));
+        socket.write(Buffer.from('\n+y\r\n', 'latin1'));
       }, 0);
     });
 

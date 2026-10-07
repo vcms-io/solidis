@@ -98,15 +98,13 @@ describe('bitmaps-hyperloglog', () => {
 
     const key = keyspace.key('bitpos-bit-mode');
 
-    await client.set(key, Buffer.from([0xf0]));
+    await client.set(key, Buffer.from([0xff, 0xf0]));
 
-    const result = await client.bitpos(key, 0, {
-      start: 0,
-      end: 7,
-      mode: 'BIT',
-    });
-
-    assert.strictEqual(result, 4);
+    assert.strictEqual(
+      await client.bitpos(key, 0, { start: 8, end: 15, mode: 'BIT' }),
+      12,
+    );
+    assert.strictEqual(await client.bitpos(key, 0, { start: 8, end: 15 }), -1);
   });
 
   it('combines bitmaps with BITOP', async () => {
@@ -203,18 +201,19 @@ describe('bitmaps-hyperloglog', () => {
   });
 
   it('honours BITFIELD overflow strategies', async () => {
-    const key = keyspace.key('bitfield', 'overflow');
+    const overflow = (strategy: 'WRAP' | 'SAT' | 'FAIL') =>
+      client.bitfield(
+        keyspace.key('bitfield', 'overflow', strategy),
+        [
+          { operation: 'SET', type: 'u8', offset: 0, value: 255 },
+          { operation: 'INCRBY', type: 'u8', offset: 0, increment: 10 },
+        ],
+        strategy,
+      );
 
-    const result = await client.bitfield(
-      key,
-      [
-        { operation: 'SET', type: 'u8', offset: 0, value: 255 },
-        { operation: 'INCRBY', type: 'u8', offset: 0, increment: 10 },
-      ],
-      'SAT',
-    );
-
-    assert.deepStrictEqual(result, [0, 255]);
+    assert.deepStrictEqual(await overflow('WRAP'), [0, 9]);
+    assert.deepStrictEqual(await overflow('SAT'), [0, 255]);
+    assert.deepStrictEqual(await overflow('FAIL'), [0, null]);
   });
 
   it('estimates cardinality with HyperLogLog', async () => {

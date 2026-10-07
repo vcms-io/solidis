@@ -11,6 +11,7 @@ import {
   createKeyspace,
   delay,
   detectServerCapabilities,
+  track,
 } from '../../utils/index.ts';
 
 import type { FeaturedClient } from '../../utils/index.ts';
@@ -32,8 +33,10 @@ describe('blocking', () => {
   it('keeps the blocking deadline of commands sent before the client is ready', async () => {
     const key = keyspace.key('before-ready');
     const rawKey = keyspace.key('before-ready-raw');
-    const waiting = new SolidisFeaturedClient(
-      buildClientOptions({ lazyConnect: true, commandTimeout: 200 }),
+    const waiting = track(
+      new SolidisFeaturedClient(
+        buildClientOptions({ lazyConnect: true, commandTimeout: 200 }),
+      ),
     );
 
     waiting.on('error', () => {});

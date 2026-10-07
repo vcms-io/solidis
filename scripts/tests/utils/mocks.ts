@@ -19,6 +19,8 @@ export type MockDataHandler = (
   server: MockRedisServer,
 ) => void;
 
+const listeningServers = new Set<MockRedisServer>();
+
 export class MockRedisServer {
   #server: net.Server;
   #port = 0;
@@ -77,6 +79,8 @@ export class MockRedisServer {
   }
 
   listen(port = 0): Promise<number> {
+    listeningServers.add(this);
+
     return new Promise((resolve, reject) => {
       this.#server.once('error', reject);
       this.#server.listen(port, '127.0.0.1', () => {
@@ -104,7 +108,7 @@ export class MockRedisServer {
     }
   }
 
-  /** Hard-closes every client socket without a graceful FIN. */
+  /** Destroys every client socket at once. */
   destroySockets(): void {
     for (const socket of this.#sockets) {
       socket.destroy();
@@ -114,12 +118,20 @@ export class MockRedisServer {
   }
 
   async close(): Promise<void> {
+    listeningServers.delete(this);
     this.destroySockets();
 
     await new Promise<void>((resolve) => {
       this.#server.close(() => resolve());
     });
   }
+}
+
+/** Closes every mock server a test left listening, also after a failure. */
+export async function closeAllServers(): Promise<void> {
+  await Promise.all(
+    Array.from(listeningServers).map((server) => server.close()),
+  );
 }
 
 /**

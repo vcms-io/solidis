@@ -13,6 +13,8 @@ import {
   createKeyspace,
   delay,
   detectServerCapabilities,
+  readLoggedCommands,
+  withConfig,
 } from '../../utils/index.ts';
 
 import type { FeaturedClient, ServerCapabilities } from '../../utils/index.ts';
@@ -142,9 +144,9 @@ describe('server-admin', () => {
 
   it('parses slowlog entries with structured fields', async () => {
     await client.slowlogReset();
-    await client.configSet('slowlog-log-slower-than', '0');
-    await client.ping();
-    await client.configSet('slowlog-log-slower-than', '10000');
+    await withConfig(client, 'slowlog-log-slower-than', '0', () =>
+      client.ping(),
+    );
 
     const entries = await client.slowlogGet(5);
 
@@ -161,9 +163,9 @@ describe('server-admin', () => {
 
   it('reports slowlog length with SLOWLOG LEN', async () => {
     await client.slowlogReset();
-    await client.configSet('slowlog-log-slower-than', '0');
-    await client.ping();
-    await client.configSet('slowlog-log-slower-than', '10000');
+    await withConfig(client, 'slowlog-log-slower-than', '0', () =>
+      client.ping(),
+    );
 
     const length = await client.slowlogLen();
     const entries = await client.slowlogGet(length);
@@ -244,25 +246,29 @@ describe('server-admin', () => {
   });
 
   it('triggers a scheduled background save with BGSAVE SCHEDULE', async () => {
-    const result = await client.bgsave(true).catch((error: Error) => error);
+    const sent = await readLoggedCommands(client, 'BGSAVE', async () => {
+      const result = await client.bgsave(true).catch((error: Error) => error);
 
-    if (result instanceof Error) {
-      assert.ok(result instanceof SolidisCommandError);
-      assert.ok(result.cause instanceof RespError);
-      assert.strictEqual(result.cause.code, 'ERR');
-      assert.strictEqual(
-        result.message,
-        '[BGSAVE] ERR Background save already in progress',
-      );
-      return;
-    }
+      if (result instanceof Error) {
+        assert.ok(result instanceof SolidisCommandError);
+        assert.ok(result.cause instanceof RespError);
+        assert.strictEqual(result.cause.code, 'ERR');
+        assert.strictEqual(
+          result.message,
+          '[BGSAVE] ERR Background save already in progress',
+        );
+        return;
+      }
 
-    assert.ok(
-      ['Background saving scheduled', 'Background saving started'].includes(
+      assert.ok(
+        ['Background saving scheduled', 'Background saving started'].includes(
+          result,
+        ),
         result,
-      ),
-      result,
-    );
+      );
+    });
+
+    assert.deepStrictEqual(sent, [['BGSAVE', 'SCHEDULE']]);
   });
 
   it('triggers AOF rewrite with BGREWRITEAOF', async () => {
@@ -279,13 +285,17 @@ describe('server-admin', () => {
 
   it('flushes all databases with FLUSHALL on a dedicated database', async () => {
     const dedicated = await createClient({ database: 15 });
+    const other = await createClient({ database: 14 });
 
     try {
       await dedicated.set(keyspace.key('flushall'), 'temp');
+      await other.set(keyspace.key('flushall-other'), 'temp');
       assert.strictEqual(await dedicated.flushall(), 'OK');
       assert.strictEqual(await dedicated.dbsize(), 0);
+      assert.strictEqual(await other.dbsize(), 0);
     } finally {
       await closeClient(dedicated);
+      await closeClient(other);
     }
   });
 
@@ -759,7 +769,14 @@ describe('server-admin', () => {
   });
 
   it('runs LATENCY DOCTOR without error', async () => {
-    const result = await client.latencyDoctor();
+    await client.latencyReset();
+
+    const result = await withConfig(
+      client,
+      'latency-monitor-threshold',
+      '0',
+      () => client.latencyDoctor(),
+    );
 
     if (capabilities.isValkey && capabilities.atLeast(8, 0)) {
       assert.strictEqual(
@@ -780,6 +797,7 @@ describe('server-admin', () => {
   });
 
   it('reports missing LATENCY GRAPH samples after LATENCY RESET without echoing the event', async () => {
+    await client.latencyReset(['command']);
     await assert.rejects(
       () => client.latencyGraph('command'),
       (error: Error) =>
@@ -923,29 +941,35 @@ describe('server-admin', () => {
   });
 
   it('resets latency events by name', async () => {
-    await client.configSet('latency-monitor-threshold', '1');
+    const reset = await withConfig(
+      client,
+      'latency-monitor-threshold',
+      '1',
+      async () => {
+        await client.send([
+          ['EVAL', 'local x=0 for i=1,5000000 do x=x+1 end return x', '0'],
+        ]);
 
-    await client.send([
-      ['EVAL', 'local x=0 for i=1,5000000 do x=x+1 end return x', '0'],
-    ]);
-
-    const reset = await client.latencyReset(['command']);
-
-    await client.configSet('latency-monitor-threshold', '0');
+        return await client.latencyReset(['command']);
+      },
+    );
 
     assert.strictEqual(reset, 1);
   });
 
   it('returns parsed LATENCY LATEST entries', async () => {
-    await client.configSet('latency-monitor-threshold', '1');
+    const result = await withConfig(
+      client,
+      'latency-monitor-threshold',
+      '1',
+      async () => {
+        await client.send([
+          ['EVAL', 'local x=0 for i=1,5000000 do x=x+1 end return x', '0'],
+        ]);
 
-    await client.send([
-      ['EVAL', 'local x=0 for i=1,5000000 do x=x+1 end return x', '0'],
-    ]);
-
-    const result = await client.latencyLatest();
-
-    await client.configSet('latency-monitor-threshold', '0');
+        return await client.latencyLatest();
+      },
+    );
 
     assert.ok(result.length > 0, 'latency events must exist after busy script');
 
@@ -980,15 +1004,18 @@ describe('server-admin', () => {
   });
 
   it('returns parsed LATENCY HISTORY entries', async () => {
-    await client.configSet('latency-monitor-threshold', '1');
+    const result = await withConfig(
+      client,
+      'latency-monitor-threshold',
+      '1',
+      async () => {
+        await client.send([
+          ['EVAL', 'local x=0 for i=1,5000000 do x=x+1 end return x', '0'],
+        ]);
 
-    await client.send([
-      ['EVAL', 'local x=0 for i=1,5000000 do x=x+1 end return x', '0'],
-    ]);
-
-    const result = await client.latencyHistory('command');
-
-    await client.configSet('latency-monitor-threshold', '0');
+        return await client.latencyHistory('command');
+      },
+    );
 
     assert.ok(
       result.length > 0,

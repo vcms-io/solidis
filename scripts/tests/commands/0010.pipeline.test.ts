@@ -135,7 +135,7 @@ describe('pipeline', () => {
     assert.deepStrictEqual(unwrap(replies, 2), Buffer.from('not-a-list'));
   });
 
-  it('throws guard error when pipeline called on invalid context', async () => {
+  it('throws when guard() gets an object without a send method', async () => {
     const { guard } = await import('../../../sources/command/utils/command.ts');
 
     assert.throws(() => guard(null, ['TEST']), {

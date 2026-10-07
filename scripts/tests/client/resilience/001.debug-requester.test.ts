@@ -1584,6 +1584,7 @@ describe('debug-requester', () => {
 
     it('writes each blocking request in a pipeline of its own when the timeouts match', async () => {
       const { connection, requester } = createRequester({ commandTimeout: 0 });
+      const ping = requester.send([['PING']]);
       const first = requester.send([['BLPOP', 'a', '0']], {
         blockingTimeout: 0,
       });
@@ -1595,14 +1596,16 @@ describe('debug-requester', () => {
       await flushed();
 
       assert.deepStrictEqual(connection.writes, [
+        commandsToBuffer([['PING']]),
         commandsToBuffer([['BLPOP', 'a', '0']]),
         commandsToBuffer([['BLPOP', 'b', '0']]),
         commandsToBuffer([['ECHO', 'x']]),
       ]);
 
-      connection.reply('*-1\r\n*-1\r\n$1\r\nx\r\n');
+      connection.reply('+PONG\r\n*-1\r\n*-1\r\n$1\r\nx\r\n');
 
-      assert.deepStrictEqual(await Promise.all([first, second, echo]), [
+      assert.deepStrictEqual(await Promise.all([ping, first, second, echo]), [
+        [['PONG']],
         [[null]],
         [[null]],
         [[Buffer.from('x')]],
@@ -1895,6 +1898,24 @@ describe('debug-requester', () => {
       connection.reply('+a\r\n+b\r\n$4\r\nslow\r\n');
 
       assert.deepStrictEqual(await patient, [[Buffer.from('slow')]]);
+    });
+
+    it('resets the connection once every request in flight timed out, also when commandTimeout is 0', async () => {
+      const { connection, requester } = createRequester({ commandTimeout: 0 });
+
+      await assert.rejects(requester.send([['ECHO', 'x']], { timeout: 20 }), {
+        name: 'SolidisRequesterError',
+        message: 'Command(s) timed out after 20 ms.',
+      });
+
+      const [reset] = connection.resets;
+
+      assert.strictEqual(connection.resets.length, 1);
+      assert.ok(reset instanceof SolidisRequesterError);
+      assert.strictEqual(
+        reset.message,
+        'Connection reset because a command timed out.',
+      );
     });
 
     it('remembers a lost WATCH and a lost MULTI across several drops', async () => {
@@ -2405,8 +2426,8 @@ describe('debug-requester', () => {
             assert.strictEqual((await pending).length, count);
           });
         },
-        [25_000, 100_000],
-        8,
+        [12_500, 100_000],
+        16,
       );
     });
 
@@ -2434,8 +2455,8 @@ describe('debug-requester', () => {
 
           return elapsed;
         },
-        [12_500, 50_000],
-        8,
+        [6_250, 50_000],
+        16,
       );
     });
 
@@ -2526,8 +2547,8 @@ describe('debug-requester', () => {
 
           return elapsed;
         },
-        [12_500, 50_000],
-        8,
+        [6_250, 50_000],
+        16,
       );
     });
 
@@ -3206,8 +3227,8 @@ describe('debug-requester', () => {
             assert.strictEqual(inspectCommand(command), 'restricted');
           });
         },
-        [50_000, 200_000],
-        8,
+        [25_000, 200_000],
+        16,
       );
     });
 

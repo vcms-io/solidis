@@ -336,6 +336,7 @@ describe('pubsub', () => {
     assert.deepStrictEqual(messages, ['pattern-msg']);
 
     await subscriber.punsubscribe(keyspace.key('pattern:*'));
+    await waitFor(async () => (await publisher.pubsubNumpat()) === 0);
   });
 
   it('unsubscribes from every channel when called without arguments', async () => {

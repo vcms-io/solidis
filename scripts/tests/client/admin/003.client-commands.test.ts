@@ -83,11 +83,26 @@ describe('client-commands', () => {
   });
 
   it('filters CLIENT LIST by type', async () => {
-    const list = await client.clientList({ type: 'NORMAL' });
-    const clients = parseClientList(list);
+    const subscriber = await createClient();
+    const subscriberId = await subscriber.clientId();
 
-    assert.ok(clients.length > 0);
-    assert.ok(clients.every((entry) => entry.flags?.includes('N') === true));
+    try {
+      await subscriber.subscribe(keyspace.key('type-filter'));
+
+      const normal = parseClientList(
+        await client.clientList({ type: 'NORMAL' }),
+      );
+      const pubsub = parseClientList(
+        await client.clientList({ type: 'PUBSUB' }),
+      );
+
+      assert.ok(normal.length > 0);
+      assert.ok(normal.every((entry) => entry.flags?.includes('N') === true));
+      assert.ok(normal.every((entry) => Number(entry.id) !== subscriberId));
+      assert.ok(pubsub.some((entry) => Number(entry.id) === subscriberId));
+    } finally {
+      await closeClient(subscriber);
+    }
   });
 
   it('sets client library info with CLIENT SETINFO', async (context) => {
@@ -202,9 +217,10 @@ describe('client-commands', () => {
 
     const commands = await client.commandList({ aclcat: 'string' });
 
-    assert.ok(commands.length > 0);
     assert.ok(commands.includes('get'));
     assert.ok(commands.includes('set'));
+    assert.ok(!commands.includes('ping'));
+    assert.ok(!commands.includes('lpush'));
   });
 
   it('extracts keys from a command with COMMAND GETKEYS', async () => {
@@ -554,17 +570,49 @@ describe('client-commands', () => {
   });
 
   it('filters CLIENT LIST by ID', async () => {
-    const myId = await client.clientId();
-    const list = await client.clientList({ identifiers: [myId] });
-    const clients = parseClientList(list);
+    const other = await createClient();
 
-    assert.strictEqual(clients.length, 1);
-    assert.strictEqual(Number.parseInt(clients[0].id ?? '', 10), myId);
+    try {
+      const myId = await client.clientId();
+      const list = await client.clientList({ identifiers: [myId] });
+      const clients = parseClientList(list);
+
+      assert.ok(parseClientList(await client.clientList()).length > 1);
+      assert.strictEqual(clients.length, 1);
+      assert.strictEqual(Number.parseInt(clients[0].id ?? '', 10), myId);
+    } finally {
+      await closeClient(other);
+    }
   });
 
-  it('pauses clients with WRITE mode', async () => {
-    assert.strictEqual(await client.clientPause(50, { mode: 'WRITE' }), 'OK');
-    assert.strictEqual(await client.clientUnpause(), 'OK');
+  it('pauses only writes with WRITE mode', async () => {
+    const key = keyspace.key('pause-write');
+    const writer = await createClient({ commandTimeout: 0 });
+    const reader = await createClient({ commandTimeout: 2000 });
+
+    let isWritten = false;
+
+    try {
+      assert.strictEqual(
+        await client.clientPause(10_000, { mode: 'WRITE' }),
+        'OK',
+      );
+
+      const write = writer.set(key, 'held').then((reply) => {
+        isWritten = true;
+
+        return reply;
+      });
+
+      assert.strictEqual(await reader.get(key), null);
+      assert.strictEqual(isWritten, false);
+      assert.strictEqual(await client.clientUnpause(), 'OK');
+      assert.strictEqual(await write, 'OK');
+    } finally {
+      await client.clientUnpause();
+      await closeClient(writer);
+      await closeClient(reader);
+    }
   });
 
   it('lists shard channels with pattern', async (context) => {
@@ -573,9 +621,19 @@ describe('client-commands', () => {
       return;
     }
 
-    const channels = await client.pubsubShardchannels('nonexistent:*');
+    const subscriber = await createClient();
+    const matching = keyspace.key('shard', 'match');
 
-    assert.deepStrictEqual(channels, []);
+    try {
+      await subscriber.ssubscribe(matching, keyspace.key('other', 'shard'));
+
+      assert.deepStrictEqual(
+        await client.pubsubShardchannels(keyspace.key('shard', '*')),
+        [matching],
+      );
+    } finally {
+      await closeClient(subscriber);
+    }
   });
 
   it('constructs AUTH with single password argument', async () => {

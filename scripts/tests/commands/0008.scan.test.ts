@@ -1,7 +1,7 @@
 /**
  * Keyspace iteration with SCAN, including MATCH and TYPE filters and the
- * guarantee that a full iteration visits every matching key exactly once even
- * while the cursor advances in small COUNT increments.
+ * guarantee that a full iteration returns every matching key at least once
+ * even while the cursor advances in small COUNT increments.
  */
 
 import assert from 'node:assert/strict';

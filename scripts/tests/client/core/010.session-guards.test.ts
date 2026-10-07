@@ -23,6 +23,7 @@ import {
   delay,
   MockRedisServer,
   mockClientOptions,
+  track,
   waitFor,
 } from '../../utils/index.ts';
 
@@ -75,13 +76,15 @@ describe('session-guards', () => {
       context.mock.method(Math, 'random', () => 1);
 
       const server = await startServer();
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          autoReconnect: true,
-          connectionRetryDelay: 20,
-          maxConnectionRetryDelay: 80,
-          maxConnectionRetries: 100,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            autoReconnect: true,
+            connectionRetryDelay: 20,
+            maxConnectionRetryDelay: 80,
+            maxConnectionRetries: 100,
+          }),
+        ),
       );
       const delays: number[] = [];
 
@@ -113,13 +116,15 @@ describe('session-guards', () => {
 
     it('gives up a background reconnect after maxConnectionRetries and reports it', async () => {
       const server = await startServer();
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          autoReconnect: true,
-          maxConnectionRetries: 2,
-          connectionRetryDelay: 5,
-          maxConnectionRetryDelay: 10,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            autoReconnect: true,
+            maxConnectionRetries: 2,
+            connectionRetryDelay: 5,
+            maxConnectionRetryDelay: 10,
+          }),
+        ),
       );
       const errors: Error[] = [];
       const attempts: number[] = [];
@@ -153,13 +158,15 @@ describe('session-guards', () => {
 
     it('gives up on a server that drops every connection right after accepting it', async () => {
       const server = await startServer();
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          autoReconnect: true,
-          maxConnectionRetries: 2,
-          connectionRetryDelay: 5,
-          maxConnectionRetryDelay: 10,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            autoReconnect: true,
+            maxConnectionRetries: 2,
+            connectionRetryDelay: 5,
+            maxConnectionRetryDelay: 10,
+          }),
+        ),
       );
       const errors: Error[] = [];
 
@@ -189,13 +196,15 @@ describe('session-guards', () => {
 
     it('starts over from the first attempt once a background reconnect gave up', async () => {
       const server = await startServer(answerPong);
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          autoReconnect: true,
-          maxConnectionRetries: 2,
-          connectionRetryDelay: 200,
-          maxConnectionRetryDelay: 400,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            autoReconnect: true,
+            maxConnectionRetries: 2,
+            connectionRetryDelay: 200,
+            maxConnectionRetryDelay: 400,
+          }),
+        ),
       );
       const errors: Error[] = [];
       const attempts: number[][] = [];
@@ -232,13 +241,15 @@ describe('session-guards', () => {
 
     it('starts over from the first attempt when the listener of a refused reconnect that gave up sends a command', async () => {
       const server = await startServer(answerPong);
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          autoReconnect: true,
-          maxConnectionRetries: 2,
-          connectionRetryDelay: 20,
-          maxConnectionRetryDelay: 40,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            autoReconnect: true,
+            maxConnectionRetries: 2,
+            connectionRetryDelay: 20,
+            maxConnectionRetryDelay: 40,
+          }),
+        ),
       );
       const attempts: number[][] = [];
       const pings: Promise<unknown>[] = [];
@@ -270,12 +281,14 @@ describe('session-guards', () => {
 
     it('announces every reconnect attempt, including the first one after a drop', async () => {
       const server = await startServer(answerPong);
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          autoReconnect: true,
-          connectionRetryDelay: 10,
-          maxConnectionRetryDelay: 10,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            autoReconnect: true,
+            connectionRetryDelay: 10,
+            maxConnectionRetryDelay: 10,
+          }),
+        ),
       );
       const events: string[] = [];
 
@@ -322,11 +335,13 @@ describe('session-guards', () => {
   describe('listener re-entrancy', () => {
     it('stops reconnecting when quit() runs inside a reconnecting listener', async () => {
       const server = await startServer(answerPong);
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          autoReconnect: true,
-          connectionRetryDelay: 10,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            autoReconnect: true,
+            connectionRetryDelay: 10,
+          }),
+        ),
       );
       const events: string[] = [];
 
@@ -376,13 +391,15 @@ describe('session-guards', () => {
     it('stops reconnecting when quit() runs inside the error listener of a refused attempt', async () => {
       const server = await startServer(answerPong);
       const { port } = server;
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(port, {
-          autoReconnect: true,
-          maxConnectionRetries: 5,
-          connectionRetryDelay: 10,
-          maxConnectionRetryDelay: 10,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(port, {
+            autoReconnect: true,
+            maxConnectionRetries: 5,
+            connectionRetryDelay: 10,
+            maxConnectionRetryDelay: 10,
+          }),
+        ),
       );
       const events: string[] = [];
 
@@ -427,7 +444,7 @@ describe('session-guards', () => {
     it('rejects only the requests sent before a refused attempt settled them', async () => {
       const server = await startServer(answerPong);
       const { port } = server;
-      const client = new SolidisFeaturedClient(mockClientOptions(port));
+      const client = track(new SolidisFeaturedClient(mockClientOptions(port)));
       const replacement = new MockRedisServer();
       const sends: Promise<unknown>[] = [];
 
@@ -469,14 +486,16 @@ describe('session-guards', () => {
     it('starts one attempt when error and reconnecting listeners send commands and connect', async () => {
       const server = await startServer(answerPong);
       const { port } = server;
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(port, {
-          autoReconnect: true,
-          connectionRetryDelay: 20,
-          maxConnectionRetryDelay: 40,
-          maxConnectionRetries: 100,
-          commandTimeout: 3000,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(port, {
+            autoReconnect: true,
+            connectionRetryDelay: 20,
+            maxConnectionRetryDelay: 40,
+            maxConnectionRetries: 100,
+            commandTimeout: 3000,
+          }),
+        ),
       );
       const pings: Promise<unknown>[] = [];
 
@@ -525,11 +544,13 @@ describe('session-guards', () => {
 
     it('announces no reconnect after quit() runs inside a ready listener', async () => {
       const server = await startServer(answerPong);
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          autoReconnect: true,
-          connectionRetryDelay: 10,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            autoReconnect: true,
+            connectionRetryDelay: 10,
+          }),
+        ),
       );
       const events: string[] = [];
 
@@ -562,11 +583,13 @@ describe('session-guards', () => {
 
     it('keeps the session working when connect, reconnecting, reconnected and end listeners throw', async () => {
       const server = await startServer(answerPong);
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          autoReconnect: true,
-          connectionRetryDelay: 10,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            autoReconnect: true,
+            connectionRetryDelay: 10,
+          }),
+        ),
       );
       const events = ['connect', 'reconnecting', 'reconnected', 'end'] as const;
       const errors: Error[] = [];
@@ -618,12 +641,14 @@ describe('session-guards', () => {
           );
         }
       });
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          autoReconnect: true,
-          maxConnectionRetries: 1,
-          connectionRetryDelay: 10,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            autoReconnect: true,
+            maxConnectionRetries: 1,
+            connectionRetryDelay: 10,
+          }),
+        ),
       );
 
       context.mock.method(
@@ -669,7 +694,9 @@ describe('session-guards', () => {
         return socket;
       });
 
-      const client = new SolidisFeaturedClient(mockClientOptions(server.port));
+      const client = track(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
       const errors: Error[] = [];
 
       client.on('error', (error) => errors.push(error));
@@ -695,11 +722,13 @@ describe('session-guards', () => {
 
     it('keeps the session working when ready and close listeners throw', async () => {
       const server = await startServer(answerPong);
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          autoReconnect: true,
-          connectionRetryDelay: 10,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            autoReconnect: true,
+            connectionRetryDelay: 10,
+          }),
+        ),
       );
       const errors: Error[] = [];
 
@@ -741,8 +770,10 @@ describe('session-guards', () => {
 
     it('reports a throwing debug listener as a warning even with an error listener', async () => {
       const server = await startServer(answerPong);
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, { debug: true }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, { debug: true }),
+        ),
       );
       const errors: Error[] = [];
       const warnings: unknown[] = [];
@@ -782,11 +813,15 @@ describe('session-guards', () => {
       const server = await startServer(answerPong);
       const warnings: Error[] = [];
       const onWarning = (warning: Error) => warnings.push(warning);
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, { debug: true }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, { debug: true }),
+        ),
       );
-      const quitter = new SolidisFeaturedClient(
-        mockClientOptions(server.port, { debug: true }),
+      const quitter = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, { debug: true }),
+        ),
       );
 
       process.on('warning', onWarning);
@@ -860,12 +895,14 @@ describe('session-guards', () => {
 
     it('retries the first handshake on a new connection when the socket closes during it', async () => {
       const server = await startSetnameServer(1);
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          clientName: 'app',
-          maxConnectionRetries: 2,
-          connectionRetryDelay: 10,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            clientName: 'app',
+            maxConnectionRetries: 2,
+            connectionRetryDelay: 10,
+          }),
+        ),
       );
       const events: string[] = [];
 
@@ -894,8 +931,10 @@ describe('session-guards', () => {
 
     it('rejects with the lost handshake connection once no retries are left', async () => {
       const server = await startSetnameServer(5);
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, { clientName: 'app' }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, { clientName: 'app' }),
+        ),
       );
       const events: string[] = [];
 
@@ -917,8 +956,10 @@ describe('session-guards', () => {
 
     it('never becomes ready after quit() interrupts the handshake', async () => {
       const server = await startServer();
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, { clientName: 'app' }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, { clientName: 'app' }),
+        ),
       );
       const events: string[] = [];
 
@@ -957,8 +998,10 @@ describe('session-guards', () => {
           answerPong(socket, data);
         }
       });
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, { enableReadyCheck: true }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, { enableReadyCheck: true }),
+        ),
       );
 
       client.on('error', () => {});
@@ -977,13 +1020,15 @@ describe('session-guards', () => {
       const server = await startServer((_socket, _data, mock) => {
         void mock.close();
       });
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          enableReadyCheck: true,
-          maxConnectionRetries: 2,
-          connectionRetryDelay: 10,
-          maxConnectionRetryDelay: 20,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            enableReadyCheck: true,
+            maxConnectionRetries: 2,
+            connectionRetryDelay: 10,
+            maxConnectionRetryDelay: 20,
+          }),
+        ),
       );
       const attempts: number[] = [];
 
@@ -1015,13 +1060,15 @@ describe('session-guards', () => {
 
       await server.close();
 
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(port, {
-          enableReadyCheck: true,
-          maxConnectionRetries: 2,
-          connectionRetryDelay: 200,
-          maxConnectionRetryDelay: 200,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(port, {
+            enableReadyCheck: true,
+            maxConnectionRetries: 2,
+            connectionRetryDelay: 200,
+            maxConnectionRetryDelay: 200,
+          }),
+        ),
       );
       const attempts: number[] = [];
 
@@ -1060,11 +1107,13 @@ describe('session-guards', () => {
           setTimeout(() => socket.destroy(), 10);
         }
       });
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          enableReadyCheck: true,
-          readyCheckInterval: 50,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            enableReadyCheck: true,
+            readyCheckInterval: 50,
+          }),
+        ),
       );
 
       client.on('error', () => {});
@@ -1104,12 +1153,14 @@ describe('session-guards', () => {
           answerPong(socket, data);
         }
       });
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          enableReadyCheck: true,
-          readyCheckInterval: 50,
-          commandTimeout: 60,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            enableReadyCheck: true,
+            readyCheckInterval: 50,
+            commandTimeout: 60,
+          }),
+        ),
       );
 
       client.on('error', () => {});
@@ -1137,8 +1188,10 @@ describe('session-guards', () => {
 
     it('announces the first attempt of a reconnect that a request starts', async () => {
       const server = await startServer(answerPong);
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, { maxConnectionRetryDelay: 1 }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, { maxConnectionRetryDelay: 1 }),
+        ),
       );
       const events: unknown[][] = [];
 
@@ -1185,13 +1238,15 @@ describe('session-guards', () => {
           }
         }
       });
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          enableReadyCheck: true,
-          readyCheckInterval: 60_000,
-          maxConnectionRetries: 1,
-          connectionRetryDelay: 10,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            enableReadyCheck: true,
+            readyCheckInterval: 60_000,
+            maxConnectionRetries: 1,
+            connectionRetryDelay: 10,
+          }),
+        ),
       );
 
       client.on('error', () => {});
@@ -1217,8 +1272,10 @@ describe('session-guards', () => {
       const server = await startServer((socket, data) => {
         socket.write('+OK\r\n'.repeat(data.toString().split('SET').length - 1));
       });
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, { lazyConnect: true }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, { lazyConnect: true }),
+        ),
       );
       const command = ['SET', 'a', '1'];
       const batch = [command];
@@ -1246,8 +1303,10 @@ describe('session-guards', () => {
           socket.write('-NOAUTH Authentication required.\r\n');
         }
       });
-      const selector = new SolidisFeaturedClient(
-        mockClientOptions(selecting.port, { database: 2 }),
+      const selector = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(selecting.port, { database: 2 }),
+        ),
       );
 
       selector.on('error', () => {});
@@ -1277,12 +1336,14 @@ describe('session-guards', () => {
           socket.write('-NOAUTH Authentication required.\r\n');
         }
       });
-      const subscriber = new SolidisFeaturedClient(
-        mockClientOptions(subscribing.port, {
-          autoReconnect: true,
-          maxConnectionRetries: 1,
-          connectionRetryDelay: 10,
-        }),
+      const subscriber = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(subscribing.port, {
+            autoReconnect: true,
+            maxConnectionRetries: 1,
+            connectionRetryDelay: 10,
+          }),
+        ),
       );
       const errors: Error[] = [];
 
@@ -1316,8 +1377,10 @@ describe('session-guards', () => {
     });
 
     it('takes the options of a send() made before the connection is ready when it is called', async () => {
-      const client = new SolidisFeaturedClient(
-        buildClientOptions({ lazyConnect: true, commandTimeout: 0 }),
+      const client = track(
+        new SolidisFeaturedClient(
+          buildClientOptions({ lazyConnect: true, commandTimeout: 0 }),
+        ),
       );
       const options = { timeout: 100 };
 
@@ -1375,21 +1438,23 @@ describe('session-guards', () => {
         socket.end('-ERR max number of clients reached\r\n');
       });
 
-      await new Promise<void>((resolve) => {
-        server.listen(0, '127.0.0.1', resolve);
-      });
-
-      const { port } = server.address() as net.AddressInfo;
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(port, {
-          clientName: 'probe',
-          maxConnectionRetries: 20,
-        }),
-      );
-
-      client.on('error', () => {});
-
       try {
+        await new Promise<void>((resolve) => {
+          server.listen(0, '127.0.0.1', resolve);
+        });
+
+        const { port } = server.address() as net.AddressInfo;
+        const client = track(
+          new SolidisFeaturedClient(
+            mockClientOptions(port, {
+              clientName: 'probe',
+              maxConnectionRetries: 20,
+            }),
+          ),
+        );
+
+        client.on('error', () => {});
+
         await assert.rejects(client.connect(), (error: unknown) => {
           assert.ok(error instanceof SolidisClientError);
           assert.strictEqual(error.message, 'CLIENT SETNAME failed');
@@ -1403,9 +1468,9 @@ describe('session-guards', () => {
           return true;
         });
         assert.strictEqual(accepted, 1);
-      } finally {
-        client.quit();
 
+        client.quit();
+      } finally {
         await new Promise((resolve) => {
           server.close(resolve);
         });
@@ -1416,11 +1481,13 @@ describe('session-guards', () => {
       const server = await startServer((socket) => {
         socket.end('-DENIED Redis is running in protected mode\r\n');
       });
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          clientName: 'probe',
-          maxConnectionRetries: 20,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            clientName: 'probe',
+            maxConnectionRetries: 20,
+          }),
+        ),
       );
 
       client.on('error', () => {});
@@ -1451,8 +1518,8 @@ describe('session-guards', () => {
         { clientName: 'probe' },
         { enableReadyCheck: true },
       ]) {
-        const client = new SolidisFeaturedClient(
-          mockClientOptions(server.port, overrides),
+        const client = track(
+          new SolidisFeaturedClient(mockClientOptions(server.port, overrides)),
         );
 
         client.on('error', () => {});
@@ -1476,11 +1543,13 @@ describe('session-guards', () => {
 
     it('never sends a request that timed out while it waited for the connection', async () => {
       const server = await startServer();
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          clientName: 'probe',
-          commandTimeout: 2000,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            clientName: 'probe',
+            commandTimeout: 2000,
+          }),
+        ),
       );
 
       client.on('error', () => {});
@@ -1516,8 +1585,10 @@ describe('session-guards', () => {
     });
 
     it('stops the wait timer of a request once the connection is ready', async () => {
-      const client = new SolidisClient(
-        buildClientOptions({ lazyConnect: true, commandTimeout: 60_000 }),
+      const client = track(
+        new SolidisClient(
+          buildClientOptions({ lazyConnect: true, commandTimeout: 60_000 }),
+        ),
       );
       const countTimers = () =>
         process
@@ -1537,7 +1608,9 @@ describe('session-guards', () => {
 
     it('refuses a send() argument that is not an array without breaking the handshake', async () => {
       const server = await startServer(answerPong);
-      const client = new SolidisFeaturedClient(mockClientOptions(server.port));
+      const client = track(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
       const events: string[] = [];
 
       client.on('ready', () => events.push('ready'));
@@ -1571,11 +1644,13 @@ describe('session-guards', () => {
 
     it('settles waiting requests at once when a ready listener calls quit()', async () => {
       const server = await startServer(answerPong);
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          commandTimeout: 0,
-          connectionTimeout: 600_000,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            commandTimeout: 0,
+            connectionTimeout: 600_000,
+          }),
+        ),
       );
 
       client.on('error', () => {});
@@ -1600,8 +1675,10 @@ describe('session-guards', () => {
 
       try {
         for (let hops = 0; hops < 5; hops += 1) {
-          const client = new SolidisFeaturedClient(
-            mockClientOptions(server.port, { commandTimeout: 0 }),
+          const client = track(
+            new SolidisFeaturedClient(
+              mockClientOptions(server.port, { commandTimeout: 0 }),
+            ),
           );
           const outcomes = new Promise<PromiseSettledResult<unknown>[]>(
             (resolve) => {
@@ -1650,13 +1727,15 @@ describe('session-guards', () => {
       const server = await startServer((socket) => {
         socket.write('$11\r\nloading:1\r\n\r\n');
       });
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          enableReadyCheck: true,
-          readyCheckInterval: 600_000,
-          commandTimeout: 0,
-          connectionTimeout: 600_000,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            enableReadyCheck: true,
+            readyCheckInterval: 600_000,
+            commandTimeout: 0,
+            connectionTimeout: 600_000,
+          }),
+        ),
       );
 
       client.on('error', () => {});
@@ -1694,12 +1773,14 @@ describe('session-guards', () => {
         [Number.NaN, 0],
         [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY],
       ] as const) {
-        const client = new SolidisClient({
-          port: 1,
-          lazyConnect: true,
-          debug: true,
-          maxEventListenersForClient: value,
-        });
+        const client = track(
+          new SolidisClient({
+            port: 1,
+            lazyConnect: true,
+            debug: true,
+            maxEventListenersForClient: value,
+          }),
+        );
 
         assert.strictEqual(client.getMaxListeners(), limit, String(value));
 
@@ -1709,8 +1790,10 @@ describe('session-guards', () => {
 
     it('keeps waiting for the connection when a timeout exceeds the timer limit', async () => {
       const server = await startServer();
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, { clientName: 'probe' }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, { clientName: 'probe' }),
+        ),
       );
 
       client.on('error', () => {});
@@ -1740,12 +1823,14 @@ describe('session-guards', () => {
       const server = await startServer((socket) => {
         socket.write('$11\r\nloading:1\r\n\r\n');
       });
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          enableReadyCheck: true,
-          readyCheckInterval: 2 ** 31,
-          maxReadyCheckRetries: 1,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            enableReadyCheck: true,
+            readyCheckInterval: 2 ** 31,
+            maxReadyCheckRetries: 1,
+          }),
+        ),
       );
 
       client.on('error', () => {});
@@ -1767,8 +1852,8 @@ describe('session-guards', () => {
     });
 
     it('runs commands in the order they were sent, also before the client is ready', async () => {
-      const client = new SolidisFeaturedClient(
-        buildClientOptions({ lazyConnect: true }),
+      const client = track(
+        new SolidisFeaturedClient(buildClientOptions({ lazyConnect: true })),
       );
       const key = keyspace.key('order');
 
@@ -1825,10 +1910,12 @@ describe('session-guards', () => {
 
       await server.close();
 
-      const client = new SolidisFeaturedClient({
-        ...mockClientOptions(port),
-        lazyConnect: false,
-      });
+      const client = track(
+        new SolidisFeaturedClient({
+          ...mockClientOptions(port),
+          lazyConnect: false,
+        }),
+      );
       const errors: Error[] = [];
 
       client.on('error', (error) => errors.push(error));
@@ -1846,10 +1933,12 @@ describe('session-guards', () => {
 
     it('emits no error when quit() follows the constructor', async () => {
       const server = await startServer();
-      const client = new SolidisFeaturedClient({
-        ...mockClientOptions(server.port),
-        lazyConnect: false,
-      });
+      const client = track(
+        new SolidisFeaturedClient({
+          ...mockClientOptions(server.port),
+          lazyConnect: false,
+        }),
+      );
       const errors: unknown[] = [];
 
       client.on('error', (error) => errors.push(error));
@@ -1875,10 +1964,12 @@ describe('session-guards', () => {
 
         socket.write('+OK\r\n');
       });
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          authentication: { password: 'wrong' },
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            authentication: { password: 'wrong' },
+          }),
+        ),
       );
       const errors: Error[] = [];
 
@@ -1941,11 +2032,13 @@ describe('session-guards', () => {
         const server = await startServer((socket, data) => {
           socket.write(data.includes('HELLO') ? helloReply : '+OK\r\n');
         });
-        const client = new SolidisFeaturedClient(
-          mockClientOptions(server.port, {
-            protocol: 'RESP3',
-            clientName: 'my app',
-          }),
+        const client = track(
+          new SolidisFeaturedClient(
+            mockClientOptions(server.port, {
+              protocol: 'RESP3',
+              clientName: 'my app',
+            }),
+          ),
         );
 
         client.on('error', () => {});
@@ -1988,7 +2081,7 @@ describe('session-guards', () => {
         'redis://[::1',
       ]) {
         assert.throws(
-          () => new SolidisClient({ uri, lazyConnect: true }),
+          () => track(new SolidisClient({ uri, lazyConnect: true })),
           (error: unknown) => {
             assert.ok(error instanceof SolidisClientError);
             assert.strictEqual(error.message, 'Invalid URI');
@@ -2001,12 +2094,14 @@ describe('session-guards', () => {
     });
 
     it('reports a parsable URI for IPv6 hosts and encoded usernames', () => {
-      const client = new SolidisClient({
-        host: '::1',
-        port: 6390,
-        lazyConnect: true,
-        authentication: { username: 'app user', password: 'secret' },
-      });
+      const client = track(
+        new SolidisClient({
+          host: '::1',
+          port: 6390,
+          lazyConnect: true,
+          authentication: { username: 'app user', password: 'secret' },
+        }),
+      );
       const parsed = new URL(client.uri);
 
       assert.strictEqual(client.uri, 'redis://app%20user:***@[::1]:6390');
@@ -2014,31 +2109,37 @@ describe('session-guards', () => {
       assert.strictEqual(parsed.port, '6390');
       assert.strictEqual(decodeURIComponent(parsed.username), 'app user');
       assert.strictEqual(
-        new SolidisClient({ host: 'cache', lazyConnect: true }).uri,
+        track(new SolidisClient({ host: 'cache', lazyConnect: true })).uri,
         'redis://cache:6379',
       );
       assert.strictEqual(
-        new SolidisClient({
-          host: 'cache',
-          lazyConnect: true,
-          authentication: { password: 'secret' },
-        }).uri,
+        track(
+          new SolidisClient({
+            host: 'cache',
+            lazyConnect: true,
+            authentication: { password: 'secret' },
+          }),
+        ).uri,
         'redis://:***@cache:6379',
       );
       assert.strictEqual(
-        new SolidisClient({
-          host: 'cache',
-          lazyConnect: true,
-          authentication: { username: 'app' },
-        }).uri,
+        track(
+          new SolidisClient({
+            host: 'cache',
+            lazyConnect: true,
+            authentication: { username: 'app' },
+          }),
+        ).uri,
         'redis://app:***@cache:6379',
       );
       assert.strictEqual(
-        new SolidisClient({
-          host: 'cache',
-          lazyConnect: true,
-          authentication: { username: 'app\uD800' },
-        }).uri,
+        track(
+          new SolidisClient({
+            host: 'cache',
+            lazyConnect: true,
+            authentication: { username: 'app\uD800' },
+          }),
+        ).uri,
         'redis://app%EF%BF%BD:***@cache:6379',
       );
     });
@@ -2441,8 +2542,8 @@ describe('session-guards', () => {
             socket.write(replies[name]);
           }
         });
-        const client = new SolidisFeaturedClient(
-          mockClientOptions(server.port),
+        const client = track(
+          new SolidisFeaturedClient(mockClientOptions(server.port)),
         );
 
         try {
@@ -2495,7 +2596,9 @@ describe('session-guards', () => {
           socket.write(replies[name]);
         }
       });
-      const client = new SolidisFeaturedClient(mockClientOptions(server.port));
+      const client = track(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
 
       try {
         await client.connect();

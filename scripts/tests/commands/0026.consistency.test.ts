@@ -51,7 +51,7 @@ describe('consistency', () => {
 
   after(async () => {
     await closeClient(client);
-    await closeAllClients();
+    closeAllClients();
   });
 
   function buildOperation(

@@ -1,7 +1,6 @@
 /** Session state across handshakes, reconnects and quits; blocking commands against commandTimeout. */
 
 import assert from 'node:assert/strict';
-import net from 'node:net';
 import { after, before, describe, it } from 'node:test';
 
 import { SolidisFeaturedClient } from '../../../../sources/client/featured.ts';
@@ -26,36 +25,23 @@ import {
   MockRedisServer,
   mockClientOptions,
   range,
+  track,
   waitFor,
 } from '../../utils/index.ts';
 
+import type net from 'node:net';
 import type { FeaturedClient } from '../../utils/index.ts';
 
 async function listenPong(port = 0) {
-  const sockets = new Set<net.Socket>();
-  const server = net.createServer((socket) => {
-    sockets.add(socket);
-    socket.on('error', () => {});
-    socket.on('close', () => sockets.delete(socket));
-    socket.on('data', () => socket.write('+PONG\r\n'));
+  const server = new MockRedisServer();
+
+  server.onData((socket) => {
+    socket.write('+PONG\r\n');
   });
 
-  await new Promise<void>((resolve) => {
-    server.listen(port, '127.0.0.1', resolve);
-  });
+  await server.listen(port);
 
-  return {
-    port: (server.address() as net.AddressInfo).port,
-    close() {
-      for (const socket of sockets) {
-        socket.destroy();
-      }
-
-      return new Promise<void>((resolve) => {
-        server.close(() => resolve());
-      });
-    },
-  };
+  return server;
 }
 
 function nextEvent(client: FeaturedClient, eventName: 'close' | 'reconnected') {
@@ -107,12 +93,14 @@ describe('session-recovery', () => {
       const server = await startHandshakeServer(
         '%2\r\n+server\r\n+redis\r\n+proto\r\n:3\r\n',
       );
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          protocol: 'RESP3',
-          clientName: 'solidis',
-          authentication: { username: 'alice', password: 'secret' },
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            protocol: 'RESP3',
+            clientName: 'solidis',
+            authentication: { username: 'alice', password: 'secret' },
+          }),
+        ),
       );
 
       try {
@@ -134,11 +122,13 @@ describe('session-recovery', () => {
       const server = await startHandshakeServer(
         '-WRONGPASS invalid username-password pair or user is disabled.\r\n',
       );
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          protocol: 'RESP3',
-          authentication: { password: 'wrong' },
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            protocol: 'RESP3',
+            authentication: { password: 'wrong' },
+          }),
+        ),
       );
 
       client.on('error', () => {});
@@ -170,12 +160,14 @@ describe('session-recovery', () => {
       const server = await startHandshakeServer(
         "-ERR unknown command 'HELLO'\r\n",
       );
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          protocol: 'RESP3',
-          clientName: 'solidis',
-          authentication: { password: 'secret' },
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            protocol: 'RESP3',
+            clientName: 'solidis',
+            authentication: { password: 'secret' },
+          }),
+        ),
       );
 
       client.on('error', () => {});
@@ -213,11 +205,13 @@ describe('session-recovery', () => {
   describe('database', () => {
     it('runs commands issued before ready on the configured database', async () => {
       const key = keyspace.key('database-race');
-      const eager = new SolidisFeaturedClient(
-        buildClientOptions({ database: 3 }),
+      const eager = track(
+        new SolidisFeaturedClient(buildClientOptions({ database: 3 })),
       );
-      const lazy = new SolidisFeaturedClient(
-        buildClientOptions({ database: 4, lazyConnect: true }),
+      const lazy = track(
+        new SolidisFeaturedClient(
+          buildClientOptions({ database: 4, lazyConnect: true }),
+        ),
       );
 
       eager.on('error', () => {});
@@ -498,13 +492,15 @@ describe('session-recovery', () => {
             );
           },
         );
-        const client = new SolidisFeaturedClient(
-          mockClientOptions(server.port, {
-            autoReconnect: true,
-            connectionRetryDelay: 10,
-            maxConnectionRetries: 5,
-            rejectOnPartialPipelineError,
-          }),
+        const client = track(
+          new SolidisFeaturedClient(
+            mockClientOptions(server.port, {
+              autoReconnect: true,
+              connectionRetryDelay: 10,
+              maxConnectionRetries: 5,
+              rejectOnPartialPipelineError,
+            }),
+          ),
         );
         const errors: Error[] = [];
         const messages: unknown[] = [];
@@ -618,12 +614,14 @@ describe('session-recovery', () => {
           return undefined;
         },
       );
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          autoReconnect: true,
-          connectionRetryDelay: 10,
-          maxConnectionRetries: 5,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            autoReconnect: true,
+            connectionRetryDelay: 10,
+            maxConnectionRetries: 5,
+          }),
+        ),
       );
       const errors: Error[] = [];
 
@@ -675,12 +673,14 @@ describe('session-recovery', () => {
 
         socket.write(confirmation);
       });
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          autoReconnect: true,
-          connectionRetryDelay: 10,
-          maxConnectionRetries: 5,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            autoReconnect: true,
+            connectionRetryDelay: 10,
+            maxConnectionRetries: 5,
+          }),
+        ),
       );
       const events: string[] = [];
 
@@ -720,8 +720,10 @@ describe('session-recovery', () => {
 
   describe('outages', () => {
     it('waits for readiness without a deadline when commandTimeout is disabled', async () => {
-      const client = new SolidisFeaturedClient(
-        buildClientOptions({ lazyConnect: true, commandTimeout: 0 }),
+      const client = track(
+        new SolidisFeaturedClient(
+          buildClientOptions({ lazyConnect: true, commandTimeout: 0 }),
+        ),
       );
 
       client.on('error', () => {});
@@ -754,13 +756,15 @@ describe('session-recovery', () => {
 
     it('rejects commands when the server stays away longer than commandTimeout', async () => {
       const server = await listenPong();
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          autoReconnect: true,
-          commandTimeout: 150,
-          connectionRetryDelay: 20,
-          maxConnectionRetries: 100,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            autoReconnect: true,
+            commandTimeout: 150,
+            connectionRetryDelay: 20,
+            maxConnectionRetries: 100,
+          }),
+        ),
       );
 
       client.on('error', () => {});
@@ -821,13 +825,15 @@ describe('session-recovery', () => {
 
     it('rejects commands once the retry budget runs out during an outage', async () => {
       const server = await listenPong();
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          autoReconnect: true,
-          commandTimeout: 5000,
-          connectionRetryDelay: 20,
-          maxConnectionRetries: 0,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            autoReconnect: true,
+            commandTimeout: 5000,
+            connectionRetryDelay: 20,
+            maxConnectionRetries: 0,
+          }),
+        ),
       );
 
       client.on('error', () => {});
@@ -894,12 +900,14 @@ describe('session-recovery', () => {
 
       await server.listen();
 
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          autoReconnect: true,
-          connectionRetryDelay: 10,
-          maxConnectionRetries: 5,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            autoReconnect: true,
+            connectionRetryDelay: 10,
+            maxConnectionRetries: 5,
+          }),
+        ),
       );
       const errors: Error[] = [];
       const messages: unknown[] = [];
@@ -949,12 +957,14 @@ describe('session-recovery', () => {
 
       await server.listen();
 
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(server.port, {
-          autoReconnect: true,
-          connectionRetryDelay: 10,
-          maxConnectionRetries: 0,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            autoReconnect: true,
+            connectionRetryDelay: 10,
+            maxConnectionRetries: 0,
+          }),
+        ),
       );
       const events: string[] = [];
 
@@ -999,13 +1009,15 @@ describe('session-recovery', () => {
 
       let server = await listenPong();
       const { port } = server;
-      const client = new SolidisFeaturedClient(
-        mockClientOptions(port, {
-          autoReconnect: true,
-          connectionRetryDelay: 20,
-          maxConnectionRetryDelay: 80,
-          maxConnectionRetries: 100,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(port, {
+            autoReconnect: true,
+            connectionRetryDelay: 20,
+            maxConnectionRetryDelay: 80,
+            maxConnectionRetries: 100,
+          }),
+        ),
       );
       const delays: number[] = [];
       const events: string[] = [];

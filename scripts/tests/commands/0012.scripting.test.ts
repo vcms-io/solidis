@@ -10,6 +10,7 @@ import {
   createClient,
   createKeyspace,
   detectServerCapabilities,
+  readLoggedCommands,
 } from '../utils/index.ts';
 
 import type { FeaturedClient, ServerCapabilities } from '../utils/index.ts';
@@ -152,19 +153,20 @@ describe('scripting', () => {
     assert.deepStrictEqual(await client.scriptExists([sha1]), [0]);
   });
 
-  it('flushes with SCRIPT FLUSH SYNC', async () => {
-    const sha1 = await client.scriptLoad('return 1');
+  for (const [mode, options] of [
+    ['SYNC', { sync: true }],
+    ['ASYNC', { async: true }],
+  ] as const) {
+    it(`flushes with SCRIPT FLUSH ${mode}`, async () => {
+      const sha1 = await client.scriptLoad('return 1');
+      const sent = await readLoggedCommands(client, 'SCRIPT', async () => {
+        assert.strictEqual(await client.scriptFlush(options), 'OK');
+      });
 
-    assert.strictEqual(await client.scriptFlush({ sync: true }), 'OK');
-    assert.deepStrictEqual(await client.scriptExists([sha1]), [0]);
-  });
-
-  it('flushes with SCRIPT FLUSH ASYNC', async () => {
-    const sha1 = await client.scriptLoad('return 1');
-
-    assert.strictEqual(await client.scriptFlush({ async: true }), 'OK');
-    assert.deepStrictEqual(await client.scriptExists([sha1]), [0]);
-  });
+      assert.deepStrictEqual(sent, [['SCRIPT', 'FLUSH', mode]]);
+      assert.deepStrictEqual(await client.scriptExists([sha1]), [0]);
+    });
+  }
 
   it('kills a running script with SCRIPT KILL (error when none running)', async () => {
     const result = await client.scriptKill().catch((error: unknown) => error);

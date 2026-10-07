@@ -12,6 +12,7 @@ import {
   closeClient,
   createClient,
   createKeyspace,
+  isBlocked,
   range,
   waitFor,
 } from '../../utils/index.ts';
@@ -42,14 +43,6 @@ describe('stress-recovery', () => {
       { timeout: 5000, interval: 25, description: 'reconnect after fault' },
     );
   };
-
-  const isBlockedOnServer = async (clientId: number): Promise<boolean> =>
-    (await killer.clientList())
-      .split('\n')
-      .some(
-        (line) =>
-          line.startsWith(`id=${clientId} `) && line.includes('cmd=blpop'),
-      );
 
   it('quantifies in-flight loss across repeated forced disconnects', async () => {
     const client = await createClient({
@@ -117,7 +110,7 @@ describe('stress-recovery', () => {
         return write(key, `${round}:${index}`);
       });
 
-      await waitFor(() => isBlockedOnServer(clientId), {
+      await waitFor(() => isBlocked(killer, clientId), {
         timeout: 3000,
         interval: 5,
         description: 'BLPOP blocked on the server',
@@ -179,37 +172,48 @@ describe('stress-recovery', () => {
     let wrong = 0;
     const wrongSamples: string[] = [];
 
-    const echo = (token: string) =>
-      client.echo(token).then((reply) => {
-        if (reply !== token) {
-          wrong += 1;
+    const check = (token: string, reply: string) => {
+      if (reply !== token) {
+        wrong += 1;
 
-          if (wrongSamples.length < 5) {
-            wrongSamples.push(`${token} -> ${reply}`);
-          }
+        if (wrongSamples.length < 5) {
+          wrongSamples.push(`${token} -> ${reply}`);
         }
+      }
 
-        return reply;
-      });
+      return reply;
+    };
+    const echo = (token: string) =>
+      client.echo(token).then((reply) => check(token, reply));
+    const echoLate = (token: string) =>
+      client
+        .send([['ECHO', token]], { timeout: 10_000 })
+        .then(([[reply]]) => check(token, String(reply)));
 
     const before = await Promise.all(
       range(wave).map((index) => echo(`before-${index}-${randomUUID()}`)),
     );
 
     /**
-     * The ECHOs queued behind the BLPOP time out while the server holds them,
-     * and their late replies arrive right before the replies of the next wave.
+     * The ECHOs queued behind a BLPOP without a deadline time out while the
+     * server holds them. The next wave is written before the BLPOP is
+     * released, so their late replies arrive while that wave waits for its own.
      */
-    const blocked = client.blpop([keyspace.key('storm', 'block')], 0.4);
+    const blockKey = keyspace.key('storm', 'block');
+    const blocked = client.blpop([blockKey], 0);
     const stuck = await Promise.allSettled(
       range(wave).map((index) => echo(`stuck-${index}-${randomUUID()}`)),
     );
-
-    assert.strictEqual(await blocked, null);
-
-    const after = await Promise.all(
-      range(wave).map((index) => echo(`after-${index}-${randomUUID()}`)),
+    const waiting = Promise.all(
+      range(wave).map((index) => echoLate(`after-${index}-${randomUUID()}`)),
     );
+
+    await new Promise((resolve) => setImmediate(resolve));
+    await killer.rpush(blockKey, 'release');
+
+    assert.deepStrictEqual(await blocked, [blockKey, 'release']);
+
+    const after = await waiting;
 
     console.log(
       `[stress-recovery] timeout-storm: before=${before.length} ` +

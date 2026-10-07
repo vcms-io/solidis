@@ -563,11 +563,11 @@ describe('modules-json', () => {
     assert.deepStrictEqual(fromStart, [3]);
 
     const withStop = await client.jsonArrindex(key, '$.items', '"b"', {
-      start: 0,
-      stop: 2,
+      start: 2,
+      stop: 3,
     });
 
-    assert.deepStrictEqual(withStop, [1]);
+    assert.deepStrictEqual(withStop, [-1]);
   });
 
   it('returns JSON.DEBUG HELP output', async (context) => {

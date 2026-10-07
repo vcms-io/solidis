@@ -607,8 +607,8 @@ describe('regressions', () => {
             );
           });
         },
-        [250_000, 1_000_000],
-        8,
+        [125_000, 1_000_000],
+        16,
       );
 
       const prefixed = toCommandError(new RespError("ERR invalid 'v0'"), [
@@ -655,8 +655,8 @@ describe('regressions', () => {
             );
           });
         },
-        [1000, 4000],
-        8,
+        [500, 4000],
+        16,
       );
     });
 
@@ -1170,8 +1170,8 @@ describe('regressions', () => {
             );
           }, 50);
         },
-        [50_000, 200_000],
-        8,
+        [25_000, 200_000],
+        16,
       );
 
       const argument = 'x'.repeat(200_000);

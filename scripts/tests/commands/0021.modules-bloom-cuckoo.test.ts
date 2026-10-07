@@ -439,14 +439,14 @@ describe('modules-bloom-cuckoo', () => {
 
     const key = keyspace.key('bloom-reserve-opts');
 
-    assert.strictEqual(await client.bfReserve(key, 0.01, 500, 2), 'OK');
+    assert.strictEqual(await client.bfReserve(key, 0.01, 500, 4), 'OK');
 
     const reserveInfo = await client.bfInfo(key);
 
     assert.strictEqual(reserveInfo.capacity, 500);
     assert.strictEqual(reserveInfo.numberOfFilters, 1);
     assert.strictEqual(reserveInfo.numberOfItemsInserted, 0);
-    assert.strictEqual(reserveInfo.expansionRate, 2);
+    assert.strictEqual(reserveInfo.expansionRate, 4);
     if (capabilities.isValkey) {
       assert.strictEqual(reserveInfo.size, 864);
     } else {
@@ -488,6 +488,7 @@ describe('modules-bloom-cuckoo', () => {
     });
 
     assert.deepStrictEqual(results, [1, 1]);
+    assert.strictEqual((await client.bfInfo(key)).expansionRate, 4);
 
     const nocreateKey = keyspace.key('bloom-nocreate-missing');
 

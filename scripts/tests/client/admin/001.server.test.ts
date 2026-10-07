@@ -1,7 +1,7 @@
 /**
- * Server and connection introspection commands that do not mutate user data:
- * PING/ECHO/TIME, INFO, CONFIG GET/SET, CLIENT ID/SETNAME/GETNAME, DBSIZE,
- * SELECT, SWAPDB, LOLWUT, ROLE, and WAIT.
+ * Server and connection commands: PING/ECHO/TIME, INFO, CONFIG GET/SET,
+ * CLIENT ID/SETNAME/GETNAME, DBSIZE, SWAPDB, LOLWUT, ROLE and WAIT, and the
+ * REPLCONF and MODULE command builders.
  */
 
 import assert from 'node:assert/strict';
@@ -83,19 +83,21 @@ describe('server', () => {
       'maxmemory-policy must be a recognised Redis eviction policy',
     );
 
-    assert.strictEqual(
-      await client.configSet('maxmemory-policy', 'allkeys-lru'),
-      'OK',
-    );
-    assert.strictEqual(
-      (await client.configGet('maxmemory-policy'))['maxmemory-policy'],
-      'allkeys-lru',
-    );
-
-    await client.configSet(
-      'maxmemory-policy',
-      original['maxmemory-policy'] ?? 'noeviction',
-    );
+    try {
+      assert.strictEqual(
+        await client.configSet('maxmemory-policy', 'allkeys-lru'),
+        'OK',
+      );
+      assert.strictEqual(
+        (await client.configGet('maxmemory-policy'))['maxmemory-policy'],
+        'allkeys-lru',
+      );
+    } finally {
+      await client.configSet(
+        'maxmemory-policy',
+        original['maxmemory-policy'] ?? 'noeviction',
+      );
+    }
   });
 
   it('reports and assigns the client connection name', async () => {

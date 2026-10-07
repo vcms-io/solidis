@@ -24,7 +24,7 @@ describe('concurrency', () => {
 
   after(async () => {
     await closeClient(client);
-    await closeAllClients();
+    closeAllClients();
   });
 
   it('keeps INCR atomic under 2000 concurrent increments on one connection', async () => {
@@ -43,21 +43,20 @@ describe('concurrency', () => {
   });
 
   it('returns correct values for 5000 interleaved set/get pairs', async () => {
-    const writes = range(5000).map((index) =>
-      client.set(keyspace.key('kv', index), `value-${index}`),
+    const pairs = await Promise.all(
+      range(5000).map((index) => {
+        const key = keyspace.key('kv', index);
+
+        return Promise.all([
+          client.set(key, `value-${index}`),
+          client.get(key),
+        ]);
+      }),
     );
 
-    await Promise.all(writes);
-
-    const reads = await Promise.all(
-      range(5000).map((index) => client.get(keyspace.key('kv', index))),
-    );
-
-    assert.strictEqual(reads[0], 'value-0');
-    assert.strictEqual(reads[4999], 'value-4999');
-    assert.strictEqual(
-      reads.every((value, index) => value === `value-${index}`),
-      true,
+    assert.deepStrictEqual(
+      pairs,
+      range(5000).map((index) => ['OK', `value-${index}`]),
     );
   });
 
@@ -149,7 +148,7 @@ describe('concurrency', () => {
     );
   });
 
-  it('sustains many sequential pipeline batches without leaking', async () => {
+  it('sustains many sequential pipeline batches', async () => {
     const batches = chunk(range(2000), 200);
 
     for (const batch of batches) {
@@ -178,14 +177,28 @@ describe('concurrency', () => {
 
     await client.del(key);
 
-    const producers = range(1000).map((index) => client.rpush(key, `${index}`));
+    const producers: Promise<number>[] = [];
+    const lengths: Promise<number>[] = [];
 
-    await Promise.all(producers);
+    for (const index of range(1000)) {
+      producers.push(client.rpush(key, `${index}`));
 
-    const length = await client.llen(key);
+      if (index % 100 === 99) {
+        lengths.push(client.llen(key));
+      }
+    }
+
+    assert.deepStrictEqual(
+      await Promise.all(producers),
+      range(1000).map((index) => index + 1),
+    );
+    assert.deepStrictEqual(
+      await Promise.all(lengths),
+      range(10).map((index) => (index + 1) * 100),
+    );
+
     const items = await client.lrange(key, 0, -1);
 
-    assert.strictEqual(length, 1000);
     assert.strictEqual(items.length, 1000);
     assert.strictEqual(new Set(items).size, 1000);
     assert.deepStrictEqual(

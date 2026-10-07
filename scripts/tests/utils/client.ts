@@ -16,10 +16,21 @@ import type {
   SolidisData,
   StringOrBuffer,
 } from '../../../sources/index.ts';
+import type { SolidisConnection } from '../../../sources/modules/connection.ts';
 
 export type FeaturedClient = SolidisFeaturedClient;
 
-const activeClients = new Set<SolidisFeaturedClient>();
+const activeClients = new Set<Pick<SolidisConnection, 'quit'>>();
+
+/**
+ * Registers a client or a bare connection that a test builds itself, so
+ * {@link closeAllClients} quits it also when the test fails before it does.
+ */
+export function track<T extends Pick<SolidisConnection, 'quit'>>(client: T): T {
+  activeClients.add(client);
+
+  return client;
+}
 
 /**
  * Creates a client and resolves only once it has signalled `ready`, so tests
@@ -29,11 +40,11 @@ const activeClients = new Set<SolidisFeaturedClient>();
 export async function createClient(
   overrides: SolidisClientOptions = {},
 ): Promise<SolidisFeaturedClient> {
-  const client = new SolidisFeaturedClient(
-    buildClientOptions({ lazyConnect: true, ...overrides }),
+  const client = track(
+    new SolidisFeaturedClient(
+      buildClientOptions({ lazyConnect: true, ...overrides }),
+    ),
   );
-
-  activeClients.add(client);
 
   client.on('error', () => {
     /**
@@ -52,24 +63,7 @@ export async function closeClient(
   client: SolidisFeaturedClient,
 ): Promise<void> {
   activeClients.delete(client);
-
-  await new Promise<void>((resolve) => {
-    let settled = false;
-
-    const finish = () => {
-      if (settled) {
-        return;
-      }
-
-      settled = true;
-      resolve();
-    };
-
-    client.once('end', finish);
-    client.quit();
-
-    setTimeout(finish, 200);
-  });
+  client.quit();
 }
 
 /**
@@ -84,12 +78,69 @@ export async function readServerTime(
   return seconds * 1000 + Math.floor(microseconds / 1000);
 }
 
-export async function closeAllClients(): Promise<void> {
-  const pending = Array.from(activeClients).map((client) =>
-    closeClient(client),
-  );
+/**
+ * Runs `run` with a server parameter set to `value` and sets it back to what
+ * it was, also when `run` fails.
+ */
+export async function withConfig<T>(
+  client: Pick<SolidisFeaturedClient, 'configGet' | 'configSet'>,
+  parameter: string,
+  value: string,
+  run: () => Promise<T>,
+): Promise<T> {
+  const original = (await client.configGet(parameter))[parameter];
 
-  await Promise.all(pending);
+  if (original === undefined) {
+    throw new Error(`The server has no parameter ${parameter}`);
+  }
+
+  await client.configSet(parameter, value);
+
+  try {
+    return await run();
+  } finally {
+    await client.configSet(parameter, original);
+  }
+}
+
+/**
+ * Runs `run` while the server writes every command it executes to its slow
+ * log, and returns the arguments of the logged commands named `name`, oldest
+ * first: the trace of an option whose effect the server does not show.
+ */
+export async function readLoggedCommands(
+  client: Pick<
+    SolidisFeaturedClient,
+    'configGet' | 'configSet' | 'slowlogGet' | 'slowlogReset'
+  >,
+  name: string,
+  run: () => Promise<unknown>,
+): Promise<string[][]> {
+  await client.slowlogReset();
+  await withConfig(client, 'slowlog-log-slower-than', '0', run);
+
+  return (await client.slowlogGet(128))
+    .map((entry) => entry.commandArguments)
+    .filter(([command]) => command === name)
+    .reverse();
+}
+
+/** Whether the server reports the client with this id as blocked in a command. */
+export async function isBlocked(
+  observer: Pick<SolidisFeaturedClient, 'clientList'>,
+  clientId: number,
+): Promise<boolean> {
+  return /\bflags=\S*b/.test(
+    await observer.clientList({ identifiers: [clientId] }),
+  );
+}
+
+export function closeAllClients(): void {
+  for (const client of activeClients) {
+    client.quit();
+  }
+
+  activeClients.clear();
 }
 
 export interface ServerCapabilities {

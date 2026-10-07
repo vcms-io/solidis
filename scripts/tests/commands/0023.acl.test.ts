@@ -53,16 +53,8 @@ describe('acl', () => {
   });
 
   it('reports the current user with ACL WHOAMI', async () => {
-    const whoami = await client.aclWhoami();
-
-    /**
-     * The test harness connects either anonymously or with explicit
-     * credentials; in both cases redis reports the `default` user unless a
-     * dedicated username is supplied, which the environment helper exposes.
-     */
-    const expected = 'default';
-
-    assert.strictEqual(whoami, expected);
+    /** The suites connect without credentials, as the default user. */
+    assert.strictEqual(await client.aclWhoami(), 'default');
   });
 
   it('lists ACL categories with ACL CAT', async () => {

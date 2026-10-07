@@ -55,7 +55,7 @@ function spawnTests(files: string[], concurrency?: number): Promise<number> {
 
 function report(): Promise<number> {
   const command = [
-    'c8',
+    join(root, 'node_modules', 'c8', 'bin', 'c8.js'),
     'report',
     `--temp-directory=${coverageDirectory}`,
     '--include=sources/**/*.ts',
@@ -66,10 +66,9 @@ function report(): Promise<number> {
   ];
 
   return new Promise((resolvePromise) => {
-    const child = spawn('npx', command, {
+    const child = spawn(process.execPath, command, {
       cwd: root,
       stdio: 'inherit',
-      shell: true,
     });
 
     child.on('close', (code) => resolvePromise(code ?? 1));

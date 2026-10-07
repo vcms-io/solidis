@@ -299,7 +299,7 @@ describe('hashes', () => {
 
     assert.ok(
       unchangedTtl >= 90 && unchangedTtl <= 100,
-      `HTTL after NX no-op must still be close to 100s, got ${unchangedTtl}`,
+      `HTTL after the refused GT must still be close to 100s, got ${unchangedTtl}`,
     );
 
     assert.deepStrictEqual(
@@ -415,7 +415,7 @@ describe('hashes', () => {
 
     assert.ok(
       unchangedMilliseconds >= 110000 && unchangedMilliseconds <= 120000,
-      `HPTTL after NX no-op must still be close to 120000ms, got ${unchangedMilliseconds}`,
+      `HPTTL after the refused GT must still be close to 120000ms, got ${unchangedMilliseconds}`,
     );
   });
 

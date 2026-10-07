@@ -1,53 +1,26 @@
 /** Replies stay paired with their requests while pushes, messages and look-alike data flow. */
 
 import assert from 'node:assert/strict';
-import { after, describe, it } from 'node:test';
+import { describe, it } from 'node:test';
 
 import { SolidisFeaturedClient } from '../../../../sources/client/featured.ts';
 import { RespPush } from '../../../../sources/index.ts';
 import {
-  closeClient,
   createClient,
   createKeyspace,
   MockRedisServer,
   mockClientOptions,
   range,
+  track,
   waitFor,
 } from '../../utils/index.ts';
 
-import type { FeaturedClient } from '../../utils/index.ts';
-
 describe('stream-integrity', () => {
   const keyspace = createKeyspace('stream-integrity');
-  const clients: FeaturedClient[] = [];
-  const servers: MockRedisServer[] = [];
-
-  after(async () => {
-    await Promise.all(clients.map((client) => closeClient(client)));
-    await Promise.all(servers.map((server) => server.close()));
-  });
-
-  async function track(client: Promise<FeaturedClient>) {
-    const created = await client;
-
-    clients.push(created);
-
-    return created;
-  }
-
-  async function startMockServer() {
-    const server = new MockRedisServer();
-
-    servers.push(server);
-
-    await server.listen();
-
-    return server;
-  }
 
   it('delivers RESP3 invalidation pushes without disturbing pending replies', async () => {
-    const tracked = await track(createClient({ protocol: 'RESP3' }));
-    const writer = await track(createClient());
+    const tracked = await createClient({ protocol: 'RESP3' });
+    const writer = await createClient();
     const key = keyspace.key('tracked');
     const pushes: RespPush[] = [];
     const errors: Error[] = [];
@@ -82,8 +55,8 @@ describe('stream-integrity', () => {
   });
 
   it('lets a RESP3 subscriber run commands while messages stream in', async () => {
-    const subscriber = await track(createClient({ protocol: 'RESP3' }));
-    const publisher = await track(createClient());
+    const subscriber = await createClient({ protocol: 'RESP3' });
+    const publisher = await createClient();
     const channel = keyspace.key('resp3', 'channel');
     const counter = keyspace.key('resp3', 'counter');
     const total = 300;
@@ -118,7 +91,7 @@ describe('stream-integrity', () => {
   });
 
   it('returns RESP2 list data shaped like pub/sub frames as plain data', async () => {
-    const client = await track(createClient({ protocol: 'RESP2' }));
+    const client = await createClient({ protocol: 'RESP2' });
     const key = keyspace.key('lookalike');
     const channel = keyspace.key('lookalike', 'channel');
     const events: unknown[] = [];
@@ -159,8 +132,8 @@ describe('stream-integrity', () => {
   });
 
   it('returns RESP3 list data shaped like pub/sub frames as plain data while subscribed', async () => {
-    const client = await track(createClient({ protocol: 'RESP3' }));
-    const writer = await track(createClient());
+    const client = await createClient({ protocol: 'RESP3' });
+    const writer = await createClient();
     const key = keyspace.key('lookalike', 'resp3');
     const channel = keyspace.key('lookalike', 'resp3', 'channel');
     const messages: unknown[] = [];
@@ -183,18 +156,21 @@ describe('stream-integrity', () => {
   });
 
   it('emits unsolicited pushes and keeps replies aligned', async () => {
-    const server = await startMockServer();
+    const server = new MockRedisServer();
+
+    await server.listen();
     const push = '>2\r\n$10\r\ninvalidate\r\n_\r\n';
 
     server.onData((socket) => {
       socket.write(`${push}+PONG\r\n`);
     });
 
-    const client = new SolidisFeaturedClient(mockClientOptions(server.port));
+    const client = track(
+      new SolidisFeaturedClient(mockClientOptions(server.port)),
+    );
     const pushes: RespPush[] = [];
     const errors: Error[] = [];
 
-    clients.push(client);
     client.on('push', (reply) => pushes.push(reply));
     client.on('error', (error) => errors.push(error));
 
@@ -216,16 +192,19 @@ describe('stream-integrity', () => {
   });
 
   it('reports a reply that arrives with nothing pending', async () => {
-    const server = await startMockServer();
+    const server = new MockRedisServer();
+
+    await server.listen();
 
     server.onData((socket) => {
       socket.write('+PONG\r\n');
     });
 
-    const client = new SolidisFeaturedClient(mockClientOptions(server.port));
+    const client = track(
+      new SolidisFeaturedClient(mockClientOptions(server.port)),
+    );
     const errors: Error[] = [];
 
-    clients.push(client);
     client.on('error', (error) => errors.push(error));
 
     await client.connect();

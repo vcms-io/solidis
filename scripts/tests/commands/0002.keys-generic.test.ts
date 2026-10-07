@@ -8,6 +8,7 @@ import {
   createClient,
   createKeyspace,
   detectServerCapabilities,
+  readLoggedCommands,
   readServerTime,
   waitFor,
 } from '../utils/index.ts';
@@ -115,17 +116,24 @@ describe('keys-generic', () => {
     assert.strictEqual(await client.get(destination), 'updated');
 
     const crossDbDestination = keyspace.key('copy-cross-db');
+    const verifier = await createClient({ database: 9 });
 
-    assert.strictEqual(
-      await client.copy(source, crossDbDestination, { destinationDatabase: 0 }),
-      1,
-    );
-
-    assert.strictEqual(
-      await client.get(crossDbDestination),
-      'updated',
-      'COPY with destinationDatabase must preserve the source value',
-    );
+    try {
+      assert.strictEqual(
+        await client.copy(source, crossDbDestination, {
+          destinationDatabase: 9,
+        }),
+        1,
+      );
+      assert.strictEqual(await client.get(crossDbDestination), null);
+      assert.strictEqual(
+        await verifier.get(crossDbDestination),
+        'updated',
+        'COPY with destinationDatabase must preserve the source value',
+      );
+    } finally {
+      await closeClient(verifier);
+    }
   });
 
   it('moves keys between databases', async () => {
@@ -329,6 +337,13 @@ describe('keys-generic', () => {
     assert.strictEqual(await client.expireat(key, future - 100, 'LT'), 1);
     assert.ok((await client.ttl(key)) < 3600);
 
+    assert.strictEqual(await client.expireat(key, future - 300, 'XX GT'), 0);
+    assert.strictEqual(await client.expireat(key, future + 200, 'XX GT'), 1);
+    assert.ok((await client.ttl(key)) > 3600);
+    assert.strictEqual(await client.expireat(key, future + 300, 'XX LT'), 0);
+    assert.strictEqual(await client.expireat(key, future - 200, 'XX LT'), 1);
+    assert.ok((await client.ttl(key)) < 3600);
+
     assert.strictEqual(await client.expireat(key, future, 'XX'), 1);
     assert.deepStrictEqual(
       [
@@ -337,6 +352,11 @@ describe('keys-generic', () => {
       ],
       [1, 0],
     );
+
+    await client.persist(key);
+
+    assert.strictEqual(await client.expireat(key, future, 'XX LT'), 0);
+    assert.strictEqual(await client.ttl(key), -1);
   });
 
   it('uses PEXPIRE with GT mode', async (context) => {
@@ -447,22 +467,32 @@ describe('keys-generic', () => {
       assert.fail('expected non-null dump result');
     }
 
-    assert.strictEqual(
-      await client.restore(destination, 0, serialized, {
-        replace: true,
-        idletime: 100,
-      }),
-      'OK',
-    );
+    /** Redis 8 accepts IDLETIME without applying it, so the sent arguments are checked. */
+    const sent = await readLoggedCommands(client, 'RESTORE', async () => {
+      assert.strictEqual(
+        await client.restore(destination, 0, serialized, {
+          replace: true,
+          idletime: 100,
+        }),
+        'OK',
+      );
+    });
 
+    assert.deepStrictEqual(
+      sent.map((restored) => restored.slice(4)),
+      [['REPLACE', 'IDLETIME', '100']],
+    );
     assert.strictEqual(await client.get(destination), 'extra');
   });
 
   it('uses LOLWUT with VERSION and optional arguments', async () => {
     const lolwutResult = await client.lolwut(5, '10', '20');
 
-    assert.strictEqual(typeof lolwutResult, 'string');
-    assert.ok(lolwutResult.length > 0, 'LOLWUT must return non-empty string');
+    assert.match(
+      lolwutResult,
+      /Georg Nees - schotter, plotter on paper, 1968\./,
+    );
+    assert.strictEqual(lolwutResult.split('\n')[0].length, 10);
   });
 
   it('returns null from GETBUFFER on missing key', async () => {

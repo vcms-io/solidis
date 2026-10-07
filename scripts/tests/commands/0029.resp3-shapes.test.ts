@@ -12,6 +12,7 @@ import {
   isCommandSupported,
   uniqueSuffix,
   waitFor,
+  withConfig,
   withoutSanitizePayload,
 } from '../utils/index.ts';
 
@@ -40,6 +41,10 @@ describe('resp3-shapes', () => {
 
   after(async () => {
     await closeClient(client);
+  });
+
+  it('negotiates RESP3 for the replies below', async () => {
+    assert.strictEqual((await client.hello()).proto, 3);
   });
 
   it('normalises a RESP3 map reply from HGETALL', async () => {
@@ -457,6 +462,8 @@ describe('resp3-shapes', () => {
       return;
     }
 
+    await client.functionFlush();
+
     const stats = await client.functionStats();
 
     assert.strictEqual(stats.runningScript, null);
@@ -495,9 +502,9 @@ describe('resp3-shapes', () => {
 
   it('reads a RESP3 nested reply from SLOWLOG GET', async () => {
     await client.slowlogReset();
-    await client.configSet('slowlog-log-slower-than', '0');
-    await client.ping();
-    await client.configSet('slowlog-log-slower-than', '10000');
+    await withConfig(client, 'slowlog-log-slower-than', '0', () =>
+      client.ping(),
+    );
 
     const probeEntries = await client.slowlogGet(1);
     const probeId = probeEntries[0].id;
@@ -511,11 +518,11 @@ describe('resp3-shapes', () => {
 
     const marker = `slowlog-${uniqueSuffix()}`;
 
-    await client.configSet('slowlog-log-slower-than', '1000');
-    await client.send([
-      ['EVAL', 'for index = 1, 5000000 do end return ARGV[1]', '0', marker],
-    ]);
-    await client.configSet('slowlog-log-slower-than', '10000');
+    await withConfig(client, 'slowlog-log-slower-than', '1000', () =>
+      client.send([
+        ['EVAL', 'for index = 1, 5000000 do end return ARGV[1]', '0', marker],
+      ]),
+    );
 
     const entries = await client.slowlogGet(128);
 
@@ -942,15 +949,18 @@ describe('resp3-shapes', () => {
   });
 
   it('reads RESP3 parsed entries from LATENCY LATEST with real data', async () => {
-    await client.configSet('latency-monitor-threshold', '1');
+    const entries = await withConfig(
+      client,
+      'latency-monitor-threshold',
+      '1',
+      async () => {
+        await client.send([
+          ['EVAL', 'local x=0 for i=1,5000000 do x=x+1 end return x', '0'],
+        ]);
 
-    await client.send([
-      ['EVAL', 'local x=0 for i=1,5000000 do x=x+1 end return x', '0'],
-    ]);
-
-    const entries = await client.latencyLatest();
-
-    await client.configSet('latency-monitor-threshold', '0');
+        return await client.latencyLatest();
+      },
+    );
 
     assert.ok(
       entries.length >= 1,
@@ -989,15 +999,18 @@ describe('resp3-shapes', () => {
   });
 
   it('reads RESP3 parsed entries from LATENCY HISTORY with real data', async () => {
-    await client.configSet('latency-monitor-threshold', '1');
+    const history = await withConfig(
+      client,
+      'latency-monitor-threshold',
+      '1',
+      async () => {
+        await client.send([
+          ['EVAL', 'local x=0 for i=1,5000000 do x=x+1 end return x', '0'],
+        ]);
 
-    await client.send([
-      ['EVAL', 'local x=0 for i=1,5000000 do x=x+1 end return x', '0'],
-    ]);
-
-    const history = await client.latencyHistory('command');
-
-    await client.configSet('latency-monitor-threshold', '0');
+        return await client.latencyHistory('command');
+      },
+    );
 
     assert.ok(
       history.length >= 1,
@@ -1345,35 +1358,37 @@ describe('resp3-shapes', () => {
 
     await client.functionDelete(libraryName).catch(() => undefined);
 
-    const loadResult = await client.functionLoad(code);
+    try {
+      const loadResult = await client.functionLoad(code);
 
-    assert.strictEqual(
-      loadResult,
-      libraryName,
-      'FUNCTION LOAD must return the library name on success',
-    );
+      assert.strictEqual(
+        loadResult,
+        libraryName,
+        'FUNCTION LOAD must return the library name on success',
+      );
 
-    const list = await client.functionList({ withCode: true });
+      const list = await client.functionList({ withCode: true });
 
-    const library = list.find((lib) => lib.libraryName === libraryName);
+      const library = list.find((lib) => lib.libraryName === libraryName);
 
-    if (library === undefined) {
-      assert.fail(`expected loaded function library ${libraryName}`);
+      if (library === undefined) {
+        assert.fail(`expected loaded function library ${libraryName}`);
+      }
+      assert.strictEqual(library.engine, 'LUA');
+      assert.strictEqual(library.code, code);
+      assert.deepStrictEqual(library.functions, [
+        { name: 'solidisresp3fn', description: null, flags: [] },
+      ]);
+
+      const filtered = await client.functionList({
+        libraryNamePattern: libraryName,
+      });
+
+      assert.strictEqual(filtered.length, 1);
+      assert.strictEqual(filtered[0].libraryName, libraryName);
+    } finally {
+      await client.functionDelete(libraryName).catch(() => undefined);
     }
-    assert.strictEqual(library.engine, 'LUA');
-    assert.strictEqual(library.code, code);
-    assert.deepStrictEqual(library.functions, [
-      { name: 'solidisresp3fn', description: null, flags: [] },
-    ]);
-
-    const filtered = await client.functionList({
-      libraryNamePattern: libraryName,
-    });
-
-    assert.strictEqual(filtered.length, 1);
-    assert.strictEqual(filtered[0].libraryName, libraryName);
-
-    await client.functionDelete(libraryName);
   });
 
   it('reads RESP3 SET with returnOldValue options', async () => {
