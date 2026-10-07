@@ -204,6 +204,8 @@ export type SolidisTransactionBannedMethods =
 
 type SolidisFunction = (...parameters: never[]) => unknown;
 
+declare const SolidisTransactionBrand: unique symbol;
+
 export type SolidisTransactionClient<T> = {
   [K in keyof T as K extends SolidisTransactionBannedMethods
     ? never
@@ -215,19 +217,20 @@ export type SolidisTransactionClient<T> = {
 } & {
   exec(): Promise<SolidisData[] | null>;
   discard(): void;
+  readonly [SolidisTransactionBrand]: true;
 };
 
 export type SolidisClientExtensions<
   T extends Record<string, unknown> = Record<string, unknown>,
   C = unknown,
 > = {
-  [K in keyof T as K extends symbol | 'constructor'
+  [K in keyof T as K extends symbol | 'constructor' | '__proto__'
     ? never
     : T[K] extends SolidisFunction
       ? K
       : never]: T[K] extends (
     ...parameters: infer Parameters
-  ) => Pick<SolidisTransactionClient<unknown>, 'exec' | 'discard'>
+  ) => Pick<SolidisTransactionClient<unknown>, typeof SolidisTransactionBrand>
     ? (
         ...parameters: Parameters
       ) => SolidisTransactionClient<C & SolidisClientExtensions<Omit<T, K>>>

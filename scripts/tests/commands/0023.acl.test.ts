@@ -11,6 +11,7 @@ import {
   closeClient,
   createClient,
   detectServerCapabilities,
+  resolveConnectionTarget,
   uniqueSuffix,
   withoutSanitizePayload,
 } from '../utils/index.ts';
@@ -59,7 +60,7 @@ describe('acl', () => {
      * credentials; in both cases redis reports the `default` user unless a
      * dedicated username is supplied, which the environment helper exposes.
      */
-    const expected = process.env.SOLIDIS_TEST_USERNAME || 'default';
+    const expected = 'default';
 
     assert.strictEqual(whoami, expected);
   });
@@ -156,6 +157,71 @@ describe('acl', () => {
     const deleted = await client.aclGetuser(user);
 
     assert.strictEqual(deleted, null);
+  });
+
+  it('authenticates a binary username byte for byte with AUTH and HELLO', async () => {
+    const name = Buffer.from([0x75, 0xff]);
+    const password = `binary-${uniqueSuffix()}`;
+    const protocol = resolveConnectionTarget().protocol ?? 'RESP2';
+    const user = await createClient();
+
+    await client.send([
+      ['ACL', 'SETUSER', name, 'on', `>${password}`, '~*', '+@all'],
+    ]);
+
+    try {
+      for (const attempt of [
+        user.auth(name.toString(), password),
+        user.hello(protocol, name.toString(), password),
+      ]) {
+        await assert.rejects(attempt, (error: unknown) => {
+          assert.ok(error instanceof SolidisCommandError);
+          assert.ok(error.cause instanceof RespError);
+          assert.strictEqual(error.cause.code, 'WRONGPASS');
+
+          return true;
+        });
+      }
+
+      assert.strictEqual(await user.auth(name, password), 'OK');
+      assert.strictEqual(
+        (await user.hello(protocol, name, password)).proto,
+        protocol === 'RESP3' ? 3 : 2,
+      );
+    } finally {
+      await closeClient(user);
+      await client.send([['ACL', 'DELUSER', name]]);
+    }
+  });
+
+  it('answers a failed AUTH and HELLO with AUTH sent between other commands', async () => {
+    const key = `solidis-test-auth-${uniqueSuffix()}`;
+    const protocol = resolveConnectionTarget().protocol ?? 'RESP2';
+    const user = await createClient();
+
+    try {
+      const [pong, auth, hello, set] = await Promise.allSettled([
+        user.ping(),
+        user.auth('solidis-missing-user', 'wrong'),
+        user.hello(protocol, 'solidis-missing-user', 'wrong'),
+        user.set(key, 'v'),
+      ]);
+
+      assert.deepStrictEqual(pong, { status: 'fulfilled', value: 'PONG' });
+
+      for (const result of [auth, hello]) {
+        assert.strictEqual(result.status, 'rejected');
+        assert.ok(result.reason instanceof SolidisCommandError);
+        assert.ok(result.reason.cause instanceof RespError);
+        assert.strictEqual(result.reason.cause.code, 'WRONGPASS');
+      }
+
+      assert.deepStrictEqual(set, { status: 'fulfilled', value: 'OK' });
+      assert.strictEqual(await user.get(key), 'v');
+    } finally {
+      await user.del(key);
+      await closeClient(user);
+    }
   });
 
   it('returns null from ACL GETUSER for non-existent user', async () => {
@@ -264,21 +330,32 @@ describe('acl', () => {
     });
 
     try {
-      await assert.rejects(
+      for (const denied of [
         restricted.set('forbidden:key', 'val'),
-        (error: unknown) =>
-          error instanceof SolidisCommandError &&
-          error.cause instanceof RespError &&
-          error.cause.code === 'NOPERM',
-      );
+        restricted.get('forbidden:key'),
+      ]) {
+        await assert.rejects(
+          denied,
+          (error: unknown) =>
+            error instanceof SolidisCommandError &&
+            error.cause instanceof RespError &&
+            error.cause.code === 'NOPERM',
+        );
+      }
     } finally {
       await closeClient(restricted);
     }
 
-    const log = await client.aclLog(5);
+    const all = await client.aclLog();
+    const latest = await client.aclLog(1);
 
-    assert.strictEqual(log.length, 1);
-    assert.strictEqual(log[0].username, user);
+    assert.strictEqual(all.length, 2);
+    assert.strictEqual(latest.length, 1);
+    assert.strictEqual(latest[0].username, user);
+    assert.deepStrictEqual(
+      [latest[0].reason, latest[0].object],
+      [all[0].reason, all[0].object],
+    );
   });
 
   it('resets the ACL log', async () => {

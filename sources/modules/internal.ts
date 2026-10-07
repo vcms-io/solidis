@@ -100,7 +100,7 @@ export function inspectCommand(
   command: StringOrBuffer[],
   isQueueing?: boolean,
 ) {
-  if (!Array.isArray(command) || command.length === 0) {
+  if (!Array.isArray(command) || !command.length) {
     return new SolidisRequesterError(
       'Cannot send an empty or non-array command.',
     );
@@ -118,7 +118,8 @@ export function inspectCommand(
     return createRefusal(command, `is not supported: ${SolidisPairingReason}`);
   }
 
-  return isQueueing && isSubscriptionEventName(kind)
+  return isQueueing &&
+    (isSubscriptionEventName(kind) || kind === 'auth' || kind === 'hello')
     ? createRefusal(
         command,
         `is not supported inside a transaction: ${SolidisPairingReason}`,

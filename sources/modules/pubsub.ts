@@ -26,7 +26,7 @@ export class SolidisPubSub {
   }
 
   public get hasActiveSubscriptions() {
-    return this.#subscriptions.some((subscriptions) => subscriptions.size > 0);
+    return this.#subscriptions.some((subscriptions) => subscriptions.size);
   }
 
   public getSubscriptions(eventName: SolidisSubscriptionEventName): Buffer[] {

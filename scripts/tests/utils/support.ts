@@ -66,6 +66,67 @@ export async function waitFor<T>(
   }
 }
 
+/** Milliseconds that `run` takes, run `times` times in a row. */
+export async function measureTime(
+  run: () => unknown,
+  times = 1,
+): Promise<number> {
+  const startedAt = performance.now();
+
+  for (let time = 0; time < times; time += 1) {
+    await run();
+  }
+
+  return performance.now() - startedAt;
+}
+
+/**
+ * Milliseconds of CPU time that `run` takes: the time the process spends
+ * waiting, for a timer or for other processes, does not count.
+ */
+export async function measureCpuTime(run: () => unknown): Promise<number> {
+  const usage = process.cpuUsage();
+
+  await run();
+
+  const { user, system } = process.cpuUsage(usage);
+
+  return (user + system) / 1000;
+}
+
+/**
+ * Asserts that a task of the larger size takes less than `limit` times as
+ * long as one of the smaller size. `measure` runs the task once at a size and
+ * returns the milliseconds it took. A first run, which also compiles the code
+ * it runs, does not count; then each size runs up to three times and the
+ * fastest runs are compared, so neither the speed nor a passing load of the
+ * machine decides the outcome.
+ */
+export async function assertGrowth(
+  measure: (size: number) => Promise<number>,
+  [small, large]: [number, number],
+  limit: number,
+): Promise<void> {
+  let smallTime = Number.POSITIVE_INFINITY;
+  let largeTime = Number.POSITIVE_INFINITY;
+
+  await measure(small);
+
+  for (
+    let round = 0;
+    round < 3 && !(largeTime < smallTime * limit);
+    round += 1
+  ) {
+    smallTime = Math.min(smallTime, await measure(small));
+    largeTime = Math.min(largeTime, await measure(large));
+  }
+
+  assert.ok(
+    largeTime < smallTime * limit,
+    `${small}: ${smallTime.toFixed(2)} ms, ${large}: ${largeTime.toFixed(2)} ms`,
+  );
+}
+
 /**
  * Builds a collision-resistant key namespace for a single suite run so that
  * concurrent suites (and repeated runs against a shared server) never clobber

@@ -142,7 +142,7 @@ export class SolidisClient extends EventEmitter {
         }
       }
 
-      if (batch.length === 0 && !this.#connection.isQuitted) {
+      if (!batch.length && !this.#connection.isQuitted) {
         resolve([]);
 
         return;
@@ -228,7 +228,11 @@ export class SolidisClient extends EventEmitter {
     for (const method of Object.getOwnPropertyNames(extensions)) {
       const extension = extensions[method];
 
-      if (method !== 'constructor' && typeof extension === 'function') {
+      if (
+        method !== 'constructor' &&
+        method !== '__proto__' &&
+        typeof extension === 'function'
+      ) {
         this[method] = extension.bind(this);
       }
     }
@@ -267,13 +271,14 @@ export class SolidisClient extends EventEmitter {
 
     connection.on('connect', () => this.#onConnect());
     connection.on('close', (error) => this.#onClose(error));
-    connection.on('reconnecting', (attempt, delay) =>
-      this.#notify('reconnecting', attempt, delay),
-    );
     connection.on('error', (error) => this.emit('error', error));
 
-    for (const event of ['drain', 'end'] as const) {
-      connection.on(event, () => this.#notify(event));
+    for (const event of ['drain', 'end', 'reconnecting'] as const) {
+      connection.on(
+        event,
+        (...parameters: Parameters<SolidisClientEvents[typeof event]>) =>
+          this.#notify(event, ...parameters),
+      );
     }
   }
 

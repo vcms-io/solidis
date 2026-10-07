@@ -102,7 +102,7 @@ function redactArguments(
   const isCut = message.length > SolidisMaximumErrorMessageLength;
   const starts = new Set(text.match(/(?<=['`])./gs));
 
-  if (starts.size === 0) {
+  if (!starts.size) {
     return text;
   }
 

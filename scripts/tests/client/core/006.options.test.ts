@@ -100,6 +100,24 @@ describe('options', () => {
       }
     });
 
+    it('rejects a URI without an authority, and keeps an empty host', () => {
+      for (const uri of [
+        'redis:',
+        'redis:5',
+        'redis:6380',
+        'redis:localhost:6380',
+        'rediss:cache.example.com',
+        new URL('redis:5'),
+      ]) {
+        assert.throws(() => parseConnectionUri(uri), {
+          name: 'SolidisClientError',
+          message: 'Invalid URI',
+        });
+      }
+
+      assert.deepStrictEqual(parseConnectionUri('redis:///2'), { database: 2 });
+    });
+
     it('rejects a database that is not a non-negative integer', () => {
       for (const database of [
         'x',
@@ -201,6 +219,43 @@ describe('options', () => {
       assert.deepStrictEqual(resolved.parser, { maxBulkStringLength: 10 });
     });
 
+    it('reads options through getters and prototypes, like the URI', () => {
+      class Configuration {
+        get host() {
+          return 'getter-host';
+        }
+
+        get authentication() {
+          return Object.create({ username: 'inherited' });
+        }
+      }
+
+      const fromClass = resolveClientOptions(new Configuration());
+      const inherited = resolveClientOptions(
+        Object.create({
+          uri: 'redis://uri-host:6380/3',
+          port: 7000,
+          tls: { servername: 'name' },
+          parser: Object.create({ maxBulkStringLength: 10 }),
+        }),
+      );
+
+      assert.strictEqual(fromClass.host, 'getter-host');
+      assert.deepStrictEqual(fromClass.authentication, {
+        username: 'inherited',
+        password: '',
+      });
+      assert.strictEqual(inherited.host, 'uri-host');
+      assert.strictEqual(inherited.port, 7000);
+      assert.strictEqual(inherited.database, 3);
+      assert.deepStrictEqual(inherited.tls, { servername: 'name' });
+      assert.strictEqual(inherited.parser.maxBulkStringLength, 10);
+      assert.strictEqual(
+        Reflect.get(resolveClientOptions(JSON.parse('{"extra":1}')), 'extra'),
+        undefined,
+      );
+    });
+
     it('never mutates the shared defaults', () => {
       const snapshot = structuredClone(SolidisDefaultOptions);
       const resolved = resolveClientOptions({
@@ -223,13 +278,9 @@ describe('options', () => {
 
   it('connects through a URI and selects its database', async () => {
     const target = resolveConnectionTarget();
-    const credentials =
-      target.password === undefined
-        ? ''
-        : `${encodeURIComponent(target.username ?? '')}:${encodeURIComponent(target.password)}@`;
     const key = keyspace.key('uri-database');
     const client = new SolidisFeaturedClient({
-      uri: `redis://${credentials}${target.host}:${target.port}/5`,
+      uri: `redis://${target.host}:${target.port}/5`,
       lazyConnect: true,
     });
 

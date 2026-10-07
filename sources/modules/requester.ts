@@ -126,6 +126,7 @@ export class SolidisRequester {
   #isWatchingConfirmed = false;
   #isWatchLost = false;
   #hasWritten = false;
+  #isIsolating = false;
 
   constructor(options: SolidisRequesterOptions) {
     const { connection } = options;
@@ -169,7 +170,7 @@ export class SolidisRequester {
   ): Promise<SolidisData[][]> {
     const batch = copyCommands(commands);
 
-    if (batch.length === 0) {
+    if (!batch.length) {
       return Promise.resolve([]);
     }
 
@@ -221,7 +222,14 @@ export class SolidisRequester {
 
     try {
       for (const request of requests) {
-        const refusal = this.#accept(request);
+        const refusal = !this.#isIsolating && this.#accept(request, pipeline);
+
+        if (refusal === false) {
+          this.#isIsolating = true;
+          this.#pendingRequests.push(request);
+
+          continue;
+        }
 
         if (refusal) {
           request.reject(refusal);
@@ -230,7 +238,7 @@ export class SolidisRequester {
         }
 
         if (
-          pipeline.commands.length > 0 &&
+          pipeline.commands.length &&
           (request.isBlocking ||
             pipeline.isBlocking ||
             request.timeout !== pipeline.timeout)
@@ -266,7 +274,7 @@ export class SolidisRequester {
         }
       }
 
-      if (pipeline.commands.length > 0) {
+      if (pipeline.commands.length) {
         this.#seal(pipeline);
       }
     } catch (error) {
@@ -286,12 +294,13 @@ export class SolidisRequester {
     }
   }
 
-  #accept(request: SolidisRequest) {
+  #accept(request: SolidisRequest, pipeline: SolidisPipeline) {
     const { commands } = request;
 
     let isQueueing = this.#isQueueing ?? this.#settle()[0];
     let isQueueingLost = this.#isQueueingLost;
     let isWatchLost = this.#isWatchLost;
+    let isIsolating = false;
 
     for (let index = 0; index < commands.length; index += 1) {
       const command = commands[index];
@@ -321,7 +330,20 @@ export class SolidisRequester {
         continue;
       }
 
-      if (kind === 'auth' || kind === 'hello' || kind === 'select') {
+      const isAuthentication = kind === 'auth' || kind === 'hello';
+
+      if (index === 0 && isAuthentication) {
+        if (
+          pipeline.commands.length ||
+          this.#inflightHead < this.#inflightQueue.length
+        ) {
+          return false;
+        }
+
+        isIsolating = true;
+      }
+
+      if (isAuthentication || kind === 'select') {
         command.forEach((argument, position) => {
           if (Buffer.isBuffer(argument)) {
             command[position] = Buffer.from(argument);
@@ -349,6 +371,7 @@ export class SolidisRequester {
     this.#isQueueing = isQueueing;
     this.#isQueueingLost = isQueueingLost;
     this.#isWatchLost = isWatchLost;
+    this.#isIsolating = isIsolating;
 
     return undefined;
   }
@@ -471,7 +494,7 @@ export class SolidisRequester {
       if (
         reply instanceof RespError &&
         !this.#hasWritten &&
-        this.#pendingRequests.length > 0
+        this.#pendingRequests.length
       ) {
         this.#rejectPendingRequests(
           wrapWithSolidisError(SolidisConnectionError, reply),
@@ -524,12 +547,18 @@ export class SolidisRequester {
       if (pipeline.isTimedOut) {
         this.#timedOutCount -= 1;
 
-        if (this.#timedOutRun > 0) {
+        if (this.#timedOutRun) {
           this.#timedOutRun -= 1;
         }
       }
 
       this.#inflightHead = dequeue(this.#inflightQueue, this.#inflightHead);
+
+      if (this.#isIsolating && !this.#inflightQueue.length) {
+        this.#isIsolating = false;
+
+        setImmediate(() => this.#flush());
+      }
     }
 
     this.#complete(subRequest, replies);
@@ -688,6 +717,7 @@ export class SolidisRequester {
     this.#isWatchLost ||= isWatching;
     this.#isWatchingConfirmed = false;
     this.#hasWritten = false;
+    this.#isIsolating = false;
 
     for (const pipeline of pipelines) {
       rejectPipeline(pipeline, error);

@@ -22,13 +22,6 @@ import type {
   SolidisSocket,
 } from '../types/solidis.ts';
 
-function createRetryError(maxConnectionRetries: number, cause?: unknown) {
-  return new SolidisConnectionError(
-    `Connection failed after ${maxConnectionRetries} retries.`,
-    cause,
-  );
-}
-
 interface SolidisConnectionWaiter {
   resolve: (attempts: number) => void;
   reject: (error: Error) => void;
@@ -196,7 +189,7 @@ export class SolidisConnection extends EventEmitter {
 
       this.#isReconnecting = false;
 
-      if (this.#waiters.length > 0) {
+      if (this.#waiters.length) {
         this.#rejectWaiters(failure);
       } else {
         this.emit('error', failure);
@@ -322,9 +315,7 @@ export class SolidisConnection extends EventEmitter {
         return true;
       }
 
-      waiter.reject(
-        createRetryError(this.#options.maxConnectionRetries, error),
-      );
+      waiter.reject(this.#createRetryError(error));
 
       return false;
     });
@@ -375,7 +366,14 @@ export class SolidisConnection extends EventEmitter {
 
     this.#isReconnecting = false;
 
-    return createRetryError(this.#options.maxConnectionRetries, cause);
+    return this.#createRetryError(cause);
+  }
+
+  #createRetryError(cause: unknown) {
+    return new SolidisConnectionError(
+      `Connection failed after ${this.#options.maxConnectionRetries} retries.`,
+      cause,
+    );
   }
 
   #destroySocket() {

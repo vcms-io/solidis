@@ -14,25 +14,44 @@ function decodeUriComponent(text: string) {
   }
 }
 
-function removeUndefined(value: object | undefined) {
-  return Object.fromEntries(
-    Object.entries(value ?? {}).filter((entry) => entry[1] !== undefined),
-  );
+function resolveLayers<T extends object>(
+  defaults: T,
+  layers: unknown[],
+  keys = Object.keys(defaults),
+) {
+  const result = { ...defaults };
+
+  for (const key of keys) {
+    const fallback: unknown = Reflect.get(defaults, key);
+    const values = layers.map((layer) => Reflect.get(Object(layer), key));
+    const value =
+      fallback && typeof fallback === 'object'
+        ? resolveLayers(fallback, values)
+        : [fallback, ...values].findLast((entry) => entry !== undefined);
+
+    if (value !== undefined) {
+      Reflect.set(result, key, value);
+    }
+  }
+
+  return result;
 }
 
 export function parseConnectionUri(uri: string | URL): SolidisClientOptions {
-  let url: URL;
+  let url: URL | undefined;
 
   try {
     url = typeof uri === 'string' ? new URL(uri) : uri;
-  } catch {
-    throw new SolidisClientError('Invalid URI');
-  }
+  } catch {}
 
-  if (!/^rediss?:$/.test(url.protocol)) {
+  if (url && !/^rediss?:$/.test(url.protocol)) {
     throw new SolidisClientError(
       `Unsupported URI scheme '${url.protocol}', expected redis: or rediss:`,
     );
+  }
+
+  if (!url?.href.startsWith(`${url.protocol}//`)) {
+    throw new SolidisClientError('Invalid URI');
   }
 
   const options: SolidisClientOptions = {};
@@ -73,24 +92,9 @@ export function parseConnectionUri(uri: string | URL): SolidisClientOptions {
 export function resolveClientOptions(
   options: SolidisClientOptions,
 ): SolidisClientFrozenOptions {
-  const uriOptions = options.uri ? parseConnectionUri(options.uri) : {};
-
-  return {
-    ...SolidisDefaultOptions,
-    ...uriOptions,
-    ...removeUndefined(options),
-    authentication: {
-      ...SolidisDefaultOptions.authentication,
-      ...uriOptions.authentication,
-      ...removeUndefined(options.authentication),
-    },
-    autoRecovery: {
-      ...SolidisDefaultOptions.autoRecovery,
-      ...removeUndefined(options.autoRecovery),
-    },
-    parser: {
-      ...SolidisDefaultOptions.parser,
-      ...removeUndefined(options.parser),
-    },
-  };
+  return resolveLayers(
+    SolidisDefaultOptions,
+    [options.uri ? parseConnectionUri(options.uri) : {}, options],
+    [...Object.keys(SolidisDefaultOptions), 'tls'],
+  );
 }

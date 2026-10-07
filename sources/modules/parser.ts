@@ -92,7 +92,7 @@ export class SolidisParser {
   }
 
   public parse(chunk: Buffer, replies: SolidisData[] = []): SolidisData[] {
-    const tail = chunk.length > 0 ? this.#append(chunk) : NeedsMoreData;
+    const tail = chunk.length ? this.#append(chunk) : NeedsMoreData;
 
     if (tail === NeedsMoreData) {
       return replies;
@@ -119,7 +119,7 @@ export class SolidisParser {
   }
 
   #append(chunk: Buffer) {
-    if (this.#buffer.length === 0) {
+    if (!this.#buffer.length) {
       this.#buffer = chunk;
 
       return;
