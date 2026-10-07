@@ -20,10 +20,13 @@ import type {
   CommandSortOptions,
   CommandSortStoreOptions,
   CommandTimeSeriesRangeOptions,
+  RespGeoRadius,
   RespInteger,
+  RespLCSMatches,
   RespLmpop,
   RespOK,
   RespSortedSetMember,
+  RespStreamEntry,
   RespStreamInfo,
   RespStreamInfoFull,
   RespStreamPendingEntry,
@@ -142,7 +145,11 @@ describe('type-contracts', () => {
       Has<Transaction, 'hscan'>,
       Has<Transaction, 'sscan'>,
       Has<Transaction, 'zscan'>,
+      Has<Transaction, 'save'>,
+      Has<Transaction, 'shutdown'>,
     ] = [
+      false,
+      false,
       false,
       false,
       false,
@@ -171,11 +178,13 @@ describe('type-contracts', () => {
   });
 
   it('hides from a transaction every client method it cannot queue', () => {
-    const client = new SolidisFeaturedClient({ lazyConnect: true });
+    const client = new SolidisFeaturedClient({ port: 1, lazyConnect: true });
     const transaction = client.multi();
 
     for (const name of [
       'reset',
+      'save',
+      'shutdown',
       'scan',
       'hscan',
       'sscan',
@@ -204,12 +213,12 @@ describe('type-contracts', () => {
   });
 
   it('types a transaction from everything the extended client offers', () => {
-    const extended = new SolidisClient({ lazyConnect: true }).extend({
+    const extended = new SolidisClient({ port: 1, lazyConnect: true }).extend({
       get,
       set,
       multi,
     });
-    const chained = new SolidisClient({ lazyConnect: true })
+    const chained = new SolidisClient({ port: 1, lazyConnect: true })
       .extend({ get, set })
       .extend({ multi });
     const transaction = extended.multi();
@@ -233,11 +242,11 @@ describe('type-contracts', () => {
       );
     }
 
-    const renamed = new SolidisClient({ lazyConnect: true }).extend({
+    const renamed = new SolidisClient({ port: 1, lazyConnect: true }).extend({
       get,
       transaction: multi,
     });
-    const answering = new SolidisClient({ lazyConnect: true }).extend({
+    const answering = new SolidisClient({ port: 1, lazyConnect: true }).extend({
       multi: () => 42,
     });
     const renamedTransaction = renamed.transaction();
@@ -258,7 +267,7 @@ describe('type-contracts', () => {
   });
 
   it('types this in an extension as the client it extends', () => {
-    const client = new SolidisClient({ lazyConnect: true })
+    const client = new SolidisClient({ port: 1, lazyConnect: true })
       .extend({ get })
       .extend({
         async read(key: string): Promise<string | null> {
@@ -288,12 +297,15 @@ describe('type-contracts', () => {
       return this.uri;
     }
 
-    const minimal = new SolidisClient({ lazyConnect: true });
+    const minimal = new SolidisClient({ port: 1, lazyConnect: true });
 
     // @ts-expect-error readAll needs a client with hgetall
     minimal.extend({ readAll });
 
-    const featured = new SolidisFeaturedClient({ lazyConnect: true }).extend({
+    const featured = new SolidisFeaturedClient({
+      port: 1,
+      lazyConnect: true,
+    }).extend({
       readAll,
     });
     const named = minimal.extend({ readName });
@@ -303,6 +315,46 @@ describe('type-contracts', () => {
 
     featured.quit();
     minimal.quit();
+  });
+
+  it('never installs __proto__ with extend(), and types only multi() results as transactions', async () => {
+    const client = new SolidisClient({ port: 1, lazyConnect: true });
+    const prototype = Object.getPrototypeOf(client);
+    const extension = {
+      batch() {
+        const keys: string[] = [];
+
+        return {
+          add(key: string) {
+            keys.push(key);
+          },
+          async exec() {
+            return keys;
+          },
+          discard() {
+            keys.length = 0;
+          },
+        };
+      },
+    };
+
+    Object.defineProperty(extension, '__proto__', {
+      value: () => 'replaced',
+      enumerable: true,
+    });
+
+    const extended = client.extend(extension);
+    const batch = extended.batch();
+
+    batch.add('k');
+    // @ts-expect-error a batch with exec() and discard() is not a transaction
+    void batch.get;
+
+    assert.strictEqual(Object.getPrototypeOf(extended), prototype);
+    assert.strictEqual(typeof extended.send, 'function');
+    assert.deepStrictEqual(await batch.exec(), ['k']);
+
+    extended.quit();
   });
 
   it('adds only functions to a client with extend()', () => {
@@ -320,7 +372,7 @@ describe('type-contracts', () => {
   });
 
   it('gives the featured client every command of the command entry point', () => {
-    const client = new SolidisFeaturedClient({ lazyConnect: true });
+    const client = new SolidisFeaturedClient({ port: 1, lazyConnect: true });
 
     for (const [name, command] of Object.entries(commands)) {
       const method = client[name];
@@ -336,7 +388,7 @@ describe('type-contracts', () => {
   });
 
   it('types call sites the way the server answers them', async () => {
-    const client = new SolidisFeaturedClient({ lazyConnect: true });
+    const client = new SolidisFeaturedClient({ port: 1, lazyConnect: true });
 
     async function contract(
       sortOptions: CommandSortOptions | CommandSortStoreOptions,
@@ -537,8 +589,78 @@ describe('type-contracts', () => {
 
       const { multi } = client;
       const options: XclaimOptions = { justid: true };
+      const randomMembers: string[] = await client.srandmember('s', 3);
+      const randomMember: string | null = await client.srandmember('s');
+      const positions: number[] = await client.lpos('l', 'e', { count: 0 });
+      const position: number | null = await client.lpos('l', 'e', { rank: 1 });
+      const length: number = await client.lcs('a', 'b', { len: true });
+      const matches: RespLCSMatches = await client.lcs('a', 'b', { idx: true });
+      const common: string = await client.lcs('a', 'b');
+      const claimedIds: string[] = await client.xclaim(
+        's',
+        'g',
+        'c',
+        0,
+        ['1-0'],
+        {
+          justid: true,
+        },
+      );
+      const claimed: RespStreamEntry[] = await client.xclaim('s', 'g', 'c', 0, [
+        '1-0',
+      ]);
+      const either: RespStreamEntry[] | string[] = await client.xclaim(
+        's',
+        'g',
+        'c',
+        0,
+        ['1-0'],
+        options,
+      );
+      const stored: number = await client.georadius('g', 0, 0, 1, 'KM', {
+        store: 'd',
+      });
+      const located: RespGeoRadius[] = await client.georadius(
+        'g',
+        0,
+        0,
+        1,
+        'KM',
+      );
+      const storedNear: number = await client.georadiusbymember(
+        'g',
+        'm',
+        1,
+        'KM',
+        {
+          storedist: 'd',
+        },
+      );
+      const locatedNear: RespGeoRadius[] = await client.georadiusbymember(
+        'g',
+        'm',
+        1,
+        'KM',
+        { withDist: true },
+      );
+
+      // @ts-expect-error LPOS with COUNT returns positions
+      const notOne: number = await client.lpos('l', 'e', { count: 1 });
+      // @ts-expect-error a stored GEORADIUS returns a count
+      const notFound: RespGeoRadius[] = await client.georadius(
+        'g',
+        0,
+        0,
+        1,
+        'KM',
+        {
+          store: 'd',
+        },
+      );
 
       multi().get('k');
+      multi().lcs('a', 'b', { idx: true });
+      multi().georadius('g', 0, 0, 1, 'KM', { store: 'd' });
 
       return [
         sorted,
@@ -562,6 +684,22 @@ describe('type-contracts', () => {
         previous,
         previousBytes,
         unwritten,
+        randomMembers,
+        randomMember,
+        positions,
+        position,
+        length,
+        matches,
+        common,
+        claimedIds,
+        claimed,
+        either,
+        stored,
+        located,
+        storedNear,
+        locatedNear,
+        notOne,
+        notFound,
       ];
     }
 

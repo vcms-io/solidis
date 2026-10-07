@@ -309,7 +309,7 @@ describe('strings', () => {
   it('SET with expireInMilliseconds expires the key', async () => {
     const key = keyspace.key('set-px');
 
-    await client.set(key, 'value', { expireInMilliseconds: 60 });
+    await client.set(key, 'value', { expireInMilliseconds: 400 });
 
     assert.strictEqual(await client.get(key), 'value');
 
@@ -402,6 +402,30 @@ describe('strings', () => {
     );
     assert.strictEqual(
       await client.set(key, 'text', { setIfValueEquals: payload }),
+      'OK',
+    );
+    assert.strictEqual(await client.get(key), 'text');
+  });
+
+  it('SET setIfValueNotEquals compares Buffers byte for byte', async (context) => {
+    if (!supportsSetIfNe) {
+      context.skip('SET IFNE requires Redis 8.4+ or Valkey 9.2+');
+      return;
+    }
+
+    const key = keyspace.key('set-ifne-binary');
+    const payload = Buffer.from([0x00, 0xff, 0x10, 0x7f, 0x80]);
+
+    await client.set(key, payload);
+
+    assert.strictEqual(
+      await client.set(key, 'text', { setIfValueNotEquals: payload }),
+      null,
+    );
+    assert.strictEqual(
+      await client.set(key, 'text', {
+        setIfValueNotEquals: payload.toString(),
+      }),
       'OK',
     );
     assert.strictEqual(await client.get(key), 'text');
@@ -647,6 +671,17 @@ describe('strings', () => {
       0,
     );
     assert.strictEqual(await client.delex(key, { ifValueEquals: payload }), 1);
+
+    await client.set(key, payload);
+
+    assert.strictEqual(
+      await client.delex(key, { ifValueNotEquals: payload }),
+      0,
+    );
+    assert.strictEqual(
+      await client.delex(key, { ifValueNotEquals: payload.toString() }),
+      1,
+    );
   });
 
   it('rejects DIGEST and conditional DELEX on a non-string key', async (context) => {

@@ -15,13 +15,28 @@ import {
   createCommand as createBloomInsertCommand,
 } from '../../../sources/command/bf.insert.ts';
 import { createCommand as createBloomLoadchunkCommand } from '../../../sources/command/bf.loadchunk.ts';
-import { createCommand as createBgsaveCommand } from '../../../sources/command/bgsave.ts';
+import { bfReserve } from '../../../sources/command/bf.reserve.ts';
+import {
+  bgsave,
+  createCommand as createBgsaveCommand,
+} from '../../../sources/command/bgsave.ts';
 import { createCommand as createBitcountCommand } from '../../../sources/command/bitcount.ts';
 import { cfInfo } from '../../../sources/command/cf.info.ts';
-import { createCommand as createCuckooInsertCommand } from '../../../sources/command/cf.insert.ts';
+import {
+  cfInsert,
+  createCommand as createCuckooInsertCommand,
+} from '../../../sources/command/cf.insert.ts';
+import { cfInsertnx } from '../../../sources/command/cf.insertnx.ts';
 import { createCommand as createCuckooLoadchunkCommand } from '../../../sources/command/cf.loadchunk.ts';
-import { createCommand as createClientListCommand } from '../../../sources/command/client.list.ts';
-import { createCommand as createClientPauseCommand } from '../../../sources/command/client.pause.ts';
+import { cfReserve } from '../../../sources/command/cf.reserve.ts';
+import {
+  clientList,
+  createCommand as createClientListCommand,
+} from '../../../sources/command/client.list.ts';
+import {
+  clientPause,
+  createCommand as createClientPauseCommand,
+} from '../../../sources/command/client.pause.ts';
 import { createCommand as createClientTrackingCommand } from '../../../sources/command/client.tracking.ts';
 import { createCommand as createClientUnblockCommand } from '../../../sources/command/client.unblock.ts';
 import {
@@ -41,9 +56,14 @@ import { evalsha } from '../../../sources/command/evalsha.ts';
 import { failover } from '../../../sources/command/failover.ts';
 import { fcallRo } from '../../../sources/command/fcall.ro.ts';
 import { fcall } from '../../../sources/command/fcall.ts';
-import { createCommand as createFunctionFlushCommand } from '../../../sources/command/function.flush.ts';
+import {
+  createCommand as createFunctionFlushCommand,
+  functionFlush,
+} from '../../../sources/command/function.flush.ts';
 import { functionList } from '../../../sources/command/function.list.ts';
 import { functionStats } from '../../../sources/command/function.stats.ts';
+import { georadiusRo } from '../../../sources/command/georadius.ro.ts';
+import { georadiusbymemberRo } from '../../../sources/command/georadiusbymember.ro.ts';
 import { geosearch } from '../../../sources/command/geosearch.ts';
 import { get } from '../../../sources/command/get.ts';
 import { createCommand as createGetsetCommand } from '../../../sources/command/getset.ts';
@@ -68,13 +88,22 @@ import {
 } from '../../../sources/command/info.ts';
 import { jsonArrappend } from '../../../sources/command/json.arrappend.ts';
 import { jsonArrinsert } from '../../../sources/command/json.arrinsert.ts';
-import { createCommand as createJsonArrpopCommand } from '../../../sources/command/json.arrpop.ts';
+import {
+  createCommand as createJsonArrpopCommand,
+  jsonArrpop,
+} from '../../../sources/command/json.arrpop.ts';
 import { createCommand as createJsonGetCommand } from '../../../sources/command/json.get.ts';
-import { createCommand as createJsonMergeCommand } from '../../../sources/command/json.merge.ts';
+import {
+  createCommand as createJsonMergeCommand,
+  jsonMerge,
+} from '../../../sources/command/json.merge.ts';
 import { jsonResp } from '../../../sources/command/json.resp.ts';
 import { latencyHistogram } from '../../../sources/command/latency.histogram.ts';
 import { latencyLatest } from '../../../sources/command/latency.latest.ts';
-import { createCommand as createLatencyResetCommand } from '../../../sources/command/latency.reset.ts';
+import {
+  createCommand as createLatencyResetCommand,
+  latencyReset,
+} from '../../../sources/command/latency.reset.ts';
 import { lcs } from '../../../sources/command/lcs.ts';
 import { createCommand as createLinsertCommand } from '../../../sources/command/linsert.ts';
 import { lolwut } from '../../../sources/command/lolwut.ts';
@@ -91,6 +120,7 @@ import { lrange } from '../../../sources/command/lrange.ts';
 import { createCommand as createLremCommand } from '../../../sources/command/lrem.ts';
 import { createCommand as createLsetCommand } from '../../../sources/command/lset.ts';
 import { memoryStats } from '../../../sources/command/memory.stats.ts';
+import { memoryUsage } from '../../../sources/command/memory.usage.ts';
 import { mget } from '../../../sources/command/mget.ts';
 import {
   createCommand as createMigrateCommand,
@@ -112,7 +142,9 @@ import { multi } from '../../../sources/command/multi.ts';
 import { createCommand as createPsetexCommand } from '../../../sources/command/psetex.ts';
 import { psubscribe } from '../../../sources/command/psubscribe.ts';
 import { createCommand as createPublishCommand } from '../../../sources/command/publish.ts';
+import { pubsubChannels } from '../../../sources/command/pubsub.channels.ts';
 import { createCommand as createPubsubNumsubCommand } from '../../../sources/command/pubsub.numsub.ts';
+import { pubsubShardchannels } from '../../../sources/command/pubsub.shardchannels.ts';
 import { createCommand as createPubsubShardnumsubCommand } from '../../../sources/command/pubsub.shardnumsub.ts';
 import { punsubscribe } from '../../../sources/command/punsubscribe.ts';
 import { replconf } from '../../../sources/command/replconf.ts';
@@ -125,7 +157,10 @@ import {
 import { createCommand as createRpushxCommand } from '../../../sources/command/rpushx.ts';
 import { sadd } from '../../../sources/command/sadd.ts';
 import { scan } from '../../../sources/command/scan.ts';
-import { createCommand as createScriptFlushCommand } from '../../../sources/command/script.flush.ts';
+import {
+  createCommand as createScriptFlushCommand,
+  scriptFlush,
+} from '../../../sources/command/script.flush.ts';
 import { sdiff } from '../../../sources/command/sdiff.ts';
 import {
   createCommand as createSetCommand,
@@ -136,6 +171,7 @@ import { createCommand as createSetnxCommand } from '../../../sources/command/se
 import { createCommand as createSetrangeCommand } from '../../../sources/command/setrange.ts';
 import { shutdown } from '../../../sources/command/shutdown.ts';
 import { sinter } from '../../../sources/command/sinter.ts';
+import { slowlogGet } from '../../../sources/command/slowlog.get.ts';
 import { createCommand as createSmismemberCommand } from '../../../sources/command/smismember.ts';
 import { sort } from '../../../sources/command/sort.ts';
 import { createCommand as createSpublishCommand } from '../../../sources/command/spublish.ts';
@@ -145,7 +181,10 @@ import { subscribe } from '../../../sources/command/subscribe.ts';
 import { sunion } from '../../../sources/command/sunion.ts';
 import { sunsubscribe } from '../../../sources/command/sunsubscribe.ts';
 import { createCommand as createTimeSeriesCreateCommand } from '../../../sources/command/ts.create.ts';
-import { createCommand as createTimeSeriesGetCommand } from '../../../sources/command/ts.get.ts';
+import {
+  createCommand as createTimeSeriesGetCommand,
+  tsGet,
+} from '../../../sources/command/ts.get.ts';
 import { createCommand as createTimeSeriesMgetCommand } from '../../../sources/command/ts.mget.ts';
 import { createCommand as createTimeSeriesMrangeCommand } from '../../../sources/command/ts.mrange.ts';
 import { createCommand as createTimeSeriesMrevrangeCommand } from '../../../sources/command/ts.mrevrange.ts';
@@ -156,6 +195,7 @@ import {
   tryReplyToInteger,
   tryReplyToNumber,
 } from '../../../sources/command/utils/reply.ts';
+import { wait } from '../../../sources/command/wait.ts';
 import { watch } from '../../../sources/command/watch.ts';
 import { createCommand as createXaddCommand } from '../../../sources/command/xadd.ts';
 import { xautoclaim } from '../../../sources/command/xautoclaim.ts';
@@ -168,8 +208,14 @@ import { xinfoConsumers } from '../../../sources/command/xinfo.consumers.ts';
 import { xinfoGroups } from '../../../sources/command/xinfo.groups.ts';
 import { xinfoStream } from '../../../sources/command/xinfo.stream.ts';
 import { createCommand as createXpendingCommand } from '../../../sources/command/xpending.ts';
-import { createCommand as createXreadCommand } from '../../../sources/command/xread.ts';
-import { createCommand as createXreadgroupCommand } from '../../../sources/command/xreadgroup.ts';
+import {
+  createCommand as createXreadCommand,
+  xread,
+} from '../../../sources/command/xread.ts';
+import {
+  createCommand as createXreadgroupCommand,
+  xreadgroup,
+} from '../../../sources/command/xreadgroup.ts';
 import { createCommand as createZinterCommand } from '../../../sources/command/zinter.ts';
 import { createCommand as createZrandmemberCommand } from '../../../sources/command/zrandmember.ts';
 import { zrange } from '../../../sources/command/zrange.ts';
@@ -838,6 +884,24 @@ describe('reply-guards', () => {
       ),
       [{ libraryName: 'lib', engine: 'LUA', functions: [], code: 'code' }],
     );
+    assert.deepStrictEqual(
+      await functionList.call(
+        createRecorder([
+          [
+            bulk('library_name'),
+            bulk('lib'),
+            bulk('engine'),
+            bulk('LUA'),
+            bulk('functions'),
+            [],
+            bulk('library_code'),
+            bulk('code'),
+          ],
+        ]),
+        JSON.parse('{"withCode":1}'),
+      ),
+      [{ libraryName: 'lib', engine: 'LUA', functions: [], code: 'code' }],
+    );
 
     for await (const keys of scan.call(scanned, new Matching())) {
       pages.push(keys);
@@ -911,6 +975,7 @@ describe('reply-guards', () => {
     const commands = [
       createSetCommand('k', value),
       createSetCommand('k', 'v', { setIfValueEquals: value }),
+      createSetCommand('k', 'v', { setIfValueNotEquals: value }),
       createSetnxCommand('k', value),
       createSetexCommand('k', 1, value),
       createPsetexCommand('k', 1, value),
@@ -933,6 +998,7 @@ describe('reply-guards', () => {
       createLposCommand('k', value),
       createSmismemberCommand('k', [value]),
       createDelexCommand('k', { ifValueEquals: value }),
+      createDelexCommand('k', { ifValueNotEquals: value }),
       createRestoreCommand('k', 0, value),
       createBloomLoadchunkCommand('k', 1, value),
       createCuckooLoadchunkCommand('k', 1, value),
@@ -949,6 +1015,11 @@ describe('reply-guards', () => {
 
     assert.strictEqual(
       createLinsertCommand('k', 'AFTER', value, 'element')[3],
+      value,
+    );
+    assert.strictEqual(createAuthCommand(value, 'password')[1], value);
+    assert.strictEqual(
+      createHelloCommand(SolidisProtocols.RESP3, value, 'password')[3],
       value,
     );
   });
@@ -1146,6 +1217,140 @@ describe('reply-guards', () => {
 
     for (const [command, expected] of cases) {
       assert.deepStrictEqual(command, expected);
+    }
+  });
+
+  it('passes each flush mode on to the command it sends', async () => {
+    const recorder = createRecorder('OK');
+
+    await functionFlush.call(recorder);
+    await functionFlush.call(recorder, true);
+    await functionFlush.call(recorder, false);
+    await scriptFlush.call(recorder);
+    await scriptFlush.call(recorder, { sync: true });
+    await scriptFlush.call(recorder, { async: true });
+
+    assert.deepStrictEqual(recorder.commands, [
+      ['FUNCTION', 'FLUSH'],
+      ['FUNCTION', 'FLUSH', 'ASYNC'],
+      ['FUNCTION', 'FLUSH', 'SYNC'],
+      ['SCRIPT', 'FLUSH'],
+      ['SCRIPT', 'FLUSH', 'SYNC'],
+      ['SCRIPT', 'FLUSH', 'ASYNC'],
+    ]);
+  });
+
+  it('passes every argument of a method on to the command it sends', async () => {
+    const recorder = createRecorder(null);
+    const calls: [() => Promise<unknown>, StringOrBuffer[]][] = [
+      [
+        () => bfReserve.call(recorder, 'k', 0.01, 100, 2),
+        ['BF.RESERVE', 'k', '0.01', '100', 'EXPANSION', '2'],
+      ],
+      [() => bgsave.call(recorder, true), ['BGSAVE', 'SCHEDULE']],
+      [
+        () => cfInsert.call(recorder, 'k', ['a'], { capacity: 10 }),
+        ['CF.INSERT', 'k', 'CAPACITY', '10', 'ITEMS', 'a'],
+      ],
+      [
+        () => cfInsertnx.call(recorder, 'k', ['a'], { nocreate: true }),
+        ['CF.INSERTNX', 'k', 'NOCREATE', 'ITEMS', 'a'],
+      ],
+      [
+        () => cfReserve.call(recorder, 'k', 100, 4, 20, 2),
+        [
+          'CF.RESERVE',
+          'k',
+          '100',
+          'BUCKETSIZE',
+          '4',
+          'MAXITERATIONS',
+          '20',
+          'EXPANSION',
+          '2',
+        ],
+      ],
+      [
+        () => clientList.call(recorder, { type: 'NORMAL' }),
+        ['CLIENT', 'LIST', 'TYPE', 'NORMAL'],
+      ],
+      [
+        () => clientPause.call(recorder, 100, { mode: 'WRITE' }),
+        ['CLIENT', 'PAUSE', '100', 'WRITE'],
+      ],
+      [() => commandDocs.call(recorder, ['get']), ['COMMAND', 'DOCS', 'get']],
+      [
+        () =>
+          georadiusRo.call(recorder, 'g', 1, 2, 3, 'KM', { withDist: true }),
+        ['GEORADIUS_RO', 'g', '1', '2', '3', 'km', 'WITHDIST'],
+      ],
+      [
+        () =>
+          georadiusbymemberRo.call(recorder, 'g', 'm', 3, 'KM', {
+            withHash: true,
+          }),
+        ['GEORADIUSBYMEMBER_RO', 'g', 'm', '3', 'km', 'WITHHASH'],
+      ],
+      [() => info.call(recorder, 'server'), ['INFO', 'server']],
+      [
+        () => jsonArrpop.call(recorder, 'k', '$.a', 1),
+        ['JSON.ARRPOP', 'k', '$.a', '1'],
+      ],
+      [
+        () => jsonMerge.call(recorder, 'k', '{}', '$.a'),
+        ['JSON.MERGE', 'k', '$.a', '{}'],
+      ],
+      [() => jsonResp.call(recorder, 'k', '$.a'), ['JSON.RESP', 'k', '$.a']],
+      [
+        () => latencyReset.call(recorder, ['command']),
+        ['LATENCY', 'RESET', 'command'],
+      ],
+      [
+        () => lolwut.call(recorder, 5, '1', '2'),
+        ['LOLWUT', 'VERSION', '5', '1', '2'],
+      ],
+      [
+        () => memoryUsage.call(recorder, 'k', 5),
+        ['MEMORY', 'USAGE', 'k', 'SAMPLES', '5'],
+      ],
+      [
+        () => pubsubChannels.call(recorder, 'news.*'),
+        ['PUBSUB', 'CHANNELS', 'news.*'],
+      ],
+      [
+        () => pubsubShardchannels.call(recorder, 'news.*'),
+        ['PUBSUB', 'SHARDCHANNELS', 'news.*'],
+      ],
+      [() => slowlogGet.call(recorder, 5), ['SLOWLOG', 'GET', '5']],
+      [() => tsGet.call(recorder, 'k', true), ['TS.GET', 'k', 'LATEST']],
+      [() => wait.call(recorder, 1, 100), ['WAIT', '1', '100']],
+      [
+        () => xread.call(recorder, ['s'], ['0'], 10, 100),
+        ['XREAD', 'COUNT', '10', 'BLOCK', '100', 'STREAMS', 's', '0'],
+      ],
+      [
+        () => xreadgroup.call(recorder, 'g', 'c', ['s'], ['>'], 10, 100, true),
+        [
+          'XREADGROUP',
+          'GROUP',
+          'g',
+          'c',
+          'COUNT',
+          '10',
+          'BLOCK',
+          '100',
+          'NOACK',
+          'STREAMS',
+          's',
+          '>',
+        ],
+      ],
+    ];
+
+    for (const [call, expected] of calls) {
+      recorder.commands.length = 0;
+      await call().catch(() => undefined);
+      assert.deepStrictEqual(recorder.commands, [expected]);
     }
   });
 
@@ -1437,6 +1642,32 @@ describe('reply-guards', () => {
         ),
       ),
       { runningScript: null, engines: [] },
+    );
+  });
+
+  it('sets only the COMMAND DOCS fields the reply has', async () => {
+    const docs = await commandDocs.call(
+      createRecorder([
+        bulk('get'),
+        [
+          bulk('summary'),
+          bulk(''),
+          bulk('arguments'),
+          [[bulk('name'), bulk('key'), bulk('type'), bulk('key')]],
+        ],
+      ]),
+    );
+
+    assert.deepStrictEqual(Object.keys(docs.get), ['summary', 'arguments']);
+    assert.strictEqual(docs.get.summary, '');
+    assert.deepStrictEqual(docs.get.arguments, [
+      { name: 'key', type: 'key', optional: false, multiple: false },
+    ]);
+    await assert.rejects(
+      commandDocs.call(
+        createRecorder([bulk('get'), [bulk('arguments'), bulk('none')]]),
+      ),
+      { message: '[COMMAND DOCS] Unexpected reply: Buffer(4)' },
     );
   });
 

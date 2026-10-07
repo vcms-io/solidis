@@ -18,6 +18,20 @@ export function createCommand(key: string, count?: number) {
 export async function srandmember<T>(
   this: T,
   key: string,
+): Promise<string | null>;
+export async function srandmember<T>(
+  this: T,
+  key: string,
+  count: number,
+): Promise<string[]>;
+export async function srandmember<T>(
+  this: T,
+  key: string,
+  count?: number,
+): Promise<string | string[] | null>;
+export async function srandmember<T>(
+  this: T,
+  key: string,
   count?: number,
 ): Promise<string | string[] | null> {
   return await executeCommand(

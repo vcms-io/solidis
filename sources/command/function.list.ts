@@ -29,7 +29,7 @@ function parseFunction(
 
 function parseLibrary(
   library: unknown,
-  withCode: boolean,
+  withCode: boolean | undefined,
   command: StringOrBuffer[],
 ): RespFunctionListItem {
   const map = tryReplyToMap(library, command);
@@ -66,7 +66,7 @@ export async function functionList<T>(
   this: T,
   options?: CommandFunctionListOptions,
 ): Promise<RespFunctionListItem[]> {
-  const withCode = options?.withCode === true;
+  const withCode = options?.withCode;
 
   return await executeCommand(this, createCommand(options), (reply, command) =>
     tryReplyArray(reply, command).map((library) =>

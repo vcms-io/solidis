@@ -56,6 +56,33 @@ export async function xclaim<T>(
   consumer: string,
   minIdleTime: number,
   ids: string[],
+  options: XclaimOptions & { justid: true },
+): Promise<string[]>;
+export async function xclaim<T>(
+  this: T,
+  key: string,
+  group: string,
+  consumer: string,
+  minIdleTime: number,
+  ids: string[],
+  options?: XclaimOptions & { justid?: false },
+): Promise<RespStreamEntry[]>;
+export async function xclaim<T>(
+  this: T,
+  key: string,
+  group: string,
+  consumer: string,
+  minIdleTime: number,
+  ids: string[],
+  options?: XclaimOptions,
+): Promise<RespStreamEntry[] | string[]>;
+export async function xclaim<T>(
+  this: T,
+  key: string,
+  group: string,
+  consumer: string,
+  minIdleTime: number,
+  ids: string[],
   options?: XclaimOptions,
 ): Promise<RespStreamEntry[] | string[]> {
   return await executeCommand<T, RespStreamEntry[] | string[]>(

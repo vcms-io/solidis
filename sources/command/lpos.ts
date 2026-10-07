@@ -29,6 +29,24 @@ export async function lpos<T>(
   this: T,
   key: string,
   element: StringOrBuffer,
+  options: CommandLposOptions & { count: number },
+): Promise<number[]>;
+export async function lpos<T>(
+  this: T,
+  key: string,
+  element: StringOrBuffer,
+  options?: CommandLposOptions & { count?: undefined },
+): Promise<number | null>;
+export async function lpos<T>(
+  this: T,
+  key: string,
+  element: StringOrBuffer,
+  options?: CommandLposOptions,
+): Promise<number | number[] | null>;
+export async function lpos<T>(
+  this: T,
+  key: string,
+  element: StringOrBuffer,
   options?: CommandLposOptions,
 ): Promise<number | number[] | null> {
   return await executeCommand(

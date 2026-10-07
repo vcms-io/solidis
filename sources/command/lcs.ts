@@ -42,6 +42,30 @@ export async function lcs<T>(
   this: T,
   key1: string,
   key2: string,
+  options: CommandLCSOptions & { len: true },
+): Promise<number>;
+export async function lcs<T>(
+  this: T,
+  key1: string,
+  key2: string,
+  options: CommandLCSOptions & { idx: true },
+): Promise<RespLCSMatches>;
+export async function lcs<T>(
+  this: T,
+  key1: string,
+  key2: string,
+  options?: CommandLCSOptions & { len?: false; idx?: false },
+): Promise<string>;
+export async function lcs<T>(
+  this: T,
+  key1: string,
+  key2: string,
+  options?: CommandLCSOptions,
+): Promise<string | number | RespLCSMatches>;
+export async function lcs<T>(
+  this: T,
+  key1: string,
+  key2: string,
   options?: CommandLCSOptions,
 ): Promise<string | number | RespLCSMatches> {
   const { len, idx, withmatchlen } = options ?? {};

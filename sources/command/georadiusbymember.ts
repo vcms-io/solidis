@@ -30,6 +30,34 @@ export async function georadiusbymember<T>(
   member: string,
   radius: number,
   unit: CommandGeoUnitOption,
+  options: CommandGeoRadiusOptions &
+    ({ store: string } | { storedist: string }),
+): Promise<number>;
+export async function georadiusbymember<T>(
+  this: T,
+  key: string,
+  member: string,
+  radius: number,
+  unit: CommandGeoUnitOption,
+  options?: CommandGeoRadiusOptions & {
+    store?: undefined;
+    storedist?: undefined;
+  },
+): Promise<RespGeoRadius[]>;
+export async function georadiusbymember<T>(
+  this: T,
+  key: string,
+  member: string,
+  radius: number,
+  unit: CommandGeoUnitOption,
+  options?: CommandGeoRadiusOptions,
+): Promise<RespGeoRadius[] | number>;
+export async function georadiusbymember<T>(
+  this: T,
+  key: string,
+  member: string,
+  radius: number,
+  unit: CommandGeoUnitOption,
   options?: CommandGeoRadiusOptions,
 ): Promise<RespGeoRadius[] | number> {
   return await executeCommand(
