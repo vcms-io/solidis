@@ -12,6 +12,6 @@
     "Import SolidisFeaturedClient from '@vcms-io/solidis/featured' for all 384 built-in commands; send any other command with send()",
     "For minimal bundle size, import SolidisClient from '@vcms-io/solidis' and add only needed commands via .extend()",
     "Solidis has zero dependencies — do not add other Redis client libraries alongside it",
-    "Commands return Promises (scan iterators are async generators) and are fully typed; prefer TypeScript strict mode"
+    "Commands return Promises, except multi(), which returns a transaction, and the scan iterators, which are async generators; all are fully typed; prefer TypeScript strict mode"
   ]
 }

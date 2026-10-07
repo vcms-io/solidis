@@ -9,7 +9,10 @@
     "faq": "FAQ",
     "updates": "업데이트",
     "logo": "Solidis 로고",
-    "switchLanguage": "언어 전환"
+    "switchLanguage": "언어 전환",
+    "openMenu": "메뉴 열기",
+    "menu": "메뉴",
+    "close": "닫기"
   },
   "home": {
     "title": "Solidis",
@@ -25,7 +28,7 @@
     "battleTested": "실전 검증된 안정성",
     "battleTestedDesc": "테스트 커버리지 100%, 2년 넘게 프로덕션에서 운영하며 오류 보고 0건. 예상치 못한 동작 없이 안정적으로 돌아갑니다.",
     "modernProtocol": "RESP2 + RESP3 지원",
-    "modernProtocolDesc": "Map, Set, Push, Attribute, BigNumber를 비롯한 RESP3 응답 타입 15가지를 모두 지원합니다. 트리 쉐이킹이 되므로 필요한 커맨드만 가져오면 됩니다.",
+    "modernProtocolDesc": "Map, Set, Push, Attribute, BigNumber를 비롯한 RESP3 응답 타입 15가지를 모두 지원합니다. 트리 셰이킹이 되므로 필요한 커맨드만 가져오면 됩니다.",
     "solidArchitecture": "SOLID 아키텍처",
     "solidArchitectureDesc": "SOLID 원칙을 따르는 깔끔한 코드라 유지보수와 확장이 쉽습니다",
     "blazingFast": "설계부터 빠르게",

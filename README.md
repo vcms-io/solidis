@@ -226,7 +226,7 @@ const pending = await client.xpending('jobs', 'workers', '-', '+', 10);
 
 # <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/High%20Voltage.png?raw=true" alt="High Voltage" width="25" height="25" /> Solidis vs ioredis, iovalkey, node-redis, valkey-glide and speedkey
 
-<small>Generated on 2026-10-05 15:52:42 · linux x64 · Node.js v22.23.0 · Redis 8.10.2</small>
+<small>Generated on 2026-10-05 15:52:42 UTC · linux x64 · Node.js v22.23.0 · Redis 8.10.2</small>
 
 ### Fastest in **19** of **19** benchmarks · **1.5x** the throughput of the next-fastest client on average <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Rocket.png?raw=true" alt="Rocket" width="25" height="25" />
 
@@ -429,7 +429,7 @@ _100,000 operations × 10,000 concurrency · 1 KB payload · 10 repeats per clie
 | Concurrency per connection | 10,000                                                                                             |
 | Repeats                    | 10                                                                                                 |
 | Cooldown                   | 300ms                                                                                              |
-| Date                       | 2026-10-05 15:52:42                                                                                |
+| Date                       | 2026-10-05 15:52:42 UTC                                                                            |
 
 </details>
 

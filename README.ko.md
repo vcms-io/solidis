@@ -52,10 +52,10 @@ const value = await client.get('key');
 ```
 
 > [!TIP]
-> **번들을 더 줄이려면** `SolidisClient`와 `.extend()`로 쓰는 커맨드만 가져오세요. 트리 쉐이킹하면 **29KB 미만**입니다.
+> **번들을 더 줄이려면** `SolidisClient`와 `.extend()`로 쓰는 커맨드만 가져오세요. 트리 셰이킹하면 **29KB 미만**입니다.
 
 <details>
-<summary>&nbsp;&nbsp;<b>트리 쉐이킹 클라이언트</b></summary>
+<summary>&nbsp;&nbsp;<b>트리 셰이킹 클라이언트</b></summary>
 
 <br/>
 
@@ -226,7 +226,7 @@ const pending = await client.xpending('jobs', 'workers', '-', '+', 10);
 
 # <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/High%20Voltage.png?raw=true" alt="High Voltage" width="25" height="25" /> Solidis vs ioredis, iovalkey, node-redis, valkey-glide, speedkey
 
-<small>측정일 2026-10-05 15:52:42 · linux x64 · Node.js v22.23.0 · Redis 8.10.2</small>
+<small>측정일 2026-10-05 15:52:42 UTC · linux x64 · Node.js v22.23.0 · Redis 8.10.2</small>
 
 ### 벤치마크 **19**개 중 **19**개에서 가장 빠름 · 처리량은 2위 클라이언트 대비 평균 **1.5배** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Rocket.png?raw=true" alt="Rocket" width="25" height="25" />
 
@@ -429,7 +429,7 @@ _작업 100,000회 × 동시 실행 10,000 · 1 KB 페이로드 · 클라이언�
 | 연결당 동시 실행     | 10,000                                                                                             |
 | 측정 횟수            | 10                                                                                                 |
 | 쿨다운               | 300ms                                                                                              |
-| 날짜                 | 2026-10-05 15:52:42                                                                                |
+| 날짜                 | 2026-10-05 15:52:42 UTC                                                                            |
 
 </details>
 
@@ -516,7 +516,7 @@ _작업 100,000회 × 동시 실행 10,000 · 1 KB 페이로드 · 클라이언�
 
 ### <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Activities/Puzzle%20Piece.png?raw=true" alt="Puzzle Piece" width="25" height="25" /> 확장성
 
-- `.extend()`로 필요한 커맨드만 조합 (트리 쉐이킹)
+- `.extend()`로 필요한 커맨드만 조합 (트리 셰이킹)
 - 클라이언트에 바인딩되는 커스텀 커맨드
 - 커맨드만 노출하는 트랜잭션
 

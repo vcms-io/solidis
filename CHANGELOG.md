@@ -116,7 +116,7 @@ try {
 | `shutdown()`                         | Rejected with `SolidisConnectionError: Connection closed.`                        | `'OK'` when the connection closes after it was sent, with no deadline unless it aborts |
 | `bgsave()`, `bgrewriteaof()`         | Typed `'OK'`; rejected the actual reply                                           | The server's status, such as `'Background saving started'`                             |
 | `reset()`                            | Typed `'OK'`; rejected the actual reply                                           | `'RESET'`                                                                              |
-| `commandDocs()`                      | Rejected every command with subcommands                                           | `subcommands` is a record of `RespCommandDoc`                                          |
+| `commandDocs()`                      | Rejected most commands with subcommands, such as `CLIENT` and `CONFIG`            | `subcommands` is a record of `RespCommandDoc`                                          |
 | `functionStats()`                    | Rejected with `Invalid reply` while a function ran                                | `runningScript.command` lists the arguments as `string[]`                              |
 | RESP2 `__redis__:invalidate`         | `message` events with the keys joined by commas                                   | `push` events, `['invalidate', keys]` as on RESP3                                      |
 
@@ -281,7 +281,7 @@ Other option changes:
   - A ready check denied with `NOPERM` or refused as an unknown command counts as ready, and the check stops waiting when its connection closes.
   - A user chosen at runtime with `auth()` or `hello()`, and a protocol chosen with `hello()`, are restored after a reconnect until `RESET`, after which a reconnect uses the configured user, protocol and database. A `SELECT` queued in a transaction counts once `EXEC` runs it, and a `MULTI` or `WATCH` the server refuses does not count as lost.
   - A `CLIENT SETNAME` error other than `NOPERM` or an unknown command fails with `CLIENT SETNAME failed`.
-  - An error the server sends before any request, as in protected mode or at `maxclients`, fails the first handshake step with that step's error, such as `CLIENT SETNAME failed`; `cause` holds the reply.
+  - An error the server sends before any request, as in protected mode or at `maxclients`, fails the first handshake step with that step's error, such as `CLIENT SETNAME failed`, caused by a `SolidisConnectionError` that carries the reply.
   - When the handshake sends nothing, `connect()` resolves first. The refusal then rejects waiting commands with a `SolidisConnectionError` that carries the reply, or reaches a command already sent or the `error` listeners.
   - `WRONGPASS` or `NOAUTH` on any step, including restoring the database and subscriptions, and any other `AUTH` error fail with `Authentication failed`. Another `SELECT` error fails with `SELECT failed`.
 - **Listener errors.** A throwing `connect`, `ready`, `reconnected`, `close`, `reconnecting`, `drain` or `end` listener no longer breaks the session; the client emits an `error` such as `A 'ready' listener threw`. A throwing `debug` listener goes to `process.emitWarning()`, and debug entries are delivered asynchronously.
@@ -296,7 +296,7 @@ Other option changes:
 Skip this step unless you build the internal classes yourself or write custom commands.
 
 - **`SolidisConnection`:**
-  - `socket` and `cleanup()` are removed; `reconnect()`, `write(buffer)` and `resetBackoff()` are added. `connect(attempts)` spends at most the attempts it is given and resolves with those left.
+  - `socket` and `cleanup()` are removed; `reconnect()`, `write(buffer)` and `resetBackoff()` are added. `connect(attempts)` makes up to `attempts` attempts, and at least one, when it has to connect, and resolves with those left; its error counts `maxConnectionRetries` retries.
   - `reset(error)` takes the error to report with `close` and no longer reconnects. `reconnect()` does nothing once its retries are spent, until the next `connect()`.
   - `resetBackoff()` marks the connection ready, and the backoff and retries reset once it stays up for `maxConnectionRetryDelay`.
   - `close(error)` and `reconnecting(attempt, delay)` replace `closed` and `reconnected`; `data` and `drain` are new.
@@ -330,7 +330,7 @@ Skip this step unless you build the internal classes yourself or write custom co
   - `mget` and `hmget` take it after their keys or fields, as in `mget('a', 'b', { buffer: true })`, and read a trailing `undefined` as missing options.
   - Result types follow `{ buffer: true }` and `{ bigint: true }` whatever else is passed.
 - `{ bigint: true }` makes `incr`, `incrby`, `decr`, `decrby`, `hincrby`, `bitfield` and `bitfieldRo` return their integers as `bigint`. Increments and bitfield values accept `bigint`.
-- `Buffer` values for `append`, `msetnx`, `lpush`, `rpush`, `lpushx`, `lset`, `linsert`, `lrem` and `lpos`, and `Buffer` messages for `publish` and `spublish`.
+- `Buffer` values for `append`, `msetnx`, `lpush`, `rpush`, `lpushx`, `lset`, `linsert`, `lrem` and `lpos`, `Buffer` messages for `publish` and `spublish`, and a `Buffer` dump for `functionRestore`.
 - `'-inf'`, `'+inf'` and exclusive bounds such as `'(1'` for `zcount`, `zrangebyscore`, `zrevrangebyscore` and `zremrangebyscore` (`CommandScoreBound`).
 - `send(commands, { timeout })` gives one request its own timeout, applied while it waits for the connection and again while it waits for the reply. Like `commandTimeout`, it resets the connection once every command in flight has timed out, also when `commandTimeout` is `0`. `send(commands, { blockingTimeout })` handles a raw blocking command like `blpop()`.
 - `maxConnectionRetryDelay` caps the reconnect backoff.
@@ -350,6 +350,7 @@ Skip this step unless you build the internal classes yourself or write custom co
   - `XclaimOptions` is exported from the package root, and `select` from `@vcms-io/solidis/command`.
 - Utilities:
   - `parseConnectionUri()`, `resolveClientOptions()`, `getCommandName()`, `toCommandError()`, `parseDouble()`, `formatDouble()` and `formatDebugLog()`.
+  - `SolidisSymbolBytes` has `MINUS` and `COLON`.
   - Pub/Sub event names: `SolidisMessageEventNames`, `SolidisSubscribeEventNames`, `SolidisUnsubscribeEventNames`, `SolidisSubscriptionEventNames`, `getPubSubEventName()`, `isMessageEventName()`, `isSubscriptionEventName()` and `isUnsubscribeEventName()`.
   - `SolidisTransactionBannedCommandNames` lists the command methods a transaction leaves out, the scan iterators included. A transaction also leaves out client methods such as `send` and `quit`.
 - The CommonJS entry points have their own declarations (`.d.cts`), so `require()` consumers on `node16` resolution type-check without `esModuleInterop`.
@@ -435,8 +436,9 @@ Skip this step unless you build the internal classes yourself or write custom co
 - `zrandmember(key, undefined, true)` sent `WITHSCORES` without a count, which the server refuses.
 - `findErrorInReplies()` missed errors inside RESP3 maps and sets.
 - `extend()` with an own `__proto__` key replaced the client's prototype, so `send()` and the other methods disappeared. That key is skipped now.
-- Client options given through getters or a prototype were ignored, except `uri` and the nested objects, so an inherited `host` lost to the `uri` it should override. Every option is read by name now.
+- Client options inherited from a prototype, `uri` included, were ignored, except the nested objects. Every option is read by name now.
 - A URI without `//`, such as `redis:6380`, was read as one without a host, minus the first character of its path. It throws `Invalid URI` now.
+- A URI host with percent-escapes or letters beyond ASCII, such as `redis://bücher.example`, never resolved. The host is now read as an http URL reads it, and a host such a URL rejects throws `Invalid URI`.
 - Reply conversions for time-series `NaN` samples, JSON legacy paths, `CF.INFO`, `BITPOS`, `BITCOUNT` and `SORT` were corrected.
 
 ### Security
@@ -457,7 +459,7 @@ Skip this step unless you build the internal classes yourself or write custom co
 - In alternating benchmark runs against 0.4.0, throughput is on par or better across the suite.
 - Replies and timeouts for tens of thousands of pipelines in flight take linear time. Masking bounds how much argument text it searches for quoted spans, so a reply full of quotes cannot stall the event loop.
 - Error replies no longer capture a stack trace they then drop.
-- Measured with each version's `npm run bundle`, the minimal client with `get` and `set` grows from 29,494 to 29,676 bytes.
+- Measured with each version's `npm run bundle`, the minimal client with `get` and `set` grows from 29,494 to 29,662 bytes.
 
 ## [0.4.0] and earlier
 

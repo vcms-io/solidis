@@ -9,7 +9,10 @@
     "faq": "FAQ",
     "updates": "Updates",
     "logo": "Solidis logo",
-    "switchLanguage": "Switch language"
+    "switchLanguage": "Switch language",
+    "openMenu": "Open menu",
+    "menu": "Navigation",
+    "close": "Close"
   },
   "home": {
     "title": "Solidis",

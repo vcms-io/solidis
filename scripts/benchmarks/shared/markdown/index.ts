@@ -56,7 +56,7 @@ function formatOperation(operation: string, locale: BenchmarkLocale): string {
 }
 
 function formatDate(isoDate: string): string {
-  return isoDate.slice(0, 19).replace('T', ' ');
+  return `${isoDate.slice(0, 19).replace('T', ' ')} UTC`;
 }
 
 function formatNoteMarker(
