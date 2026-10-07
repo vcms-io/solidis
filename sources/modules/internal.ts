@@ -100,14 +100,21 @@ function hasWrongDigestLength(command: StringOrBuffer[]) {
     return false;
   }
 
-  const words = command.map((word) => toCommandWord(toTextPrefix(word, 16)));
-  const index = words.indexOf('IFDEQ', 3) + 1 || words.indexOf('IFDNE', 3) + 1;
+  let digest: StringOrBuffer | undefined;
+  let hasGet = false;
 
-  return (
-    index > 0 &&
-    words.includes('GET', 3) &&
-    Buffer.byteLength(command[index] ?? '') !== 16
-  );
+  for (let index = 3; index < command.length; index += 1) {
+    const word = toCommandWord(toTextPrefix(command[index], 16));
+
+    if (word === 'GET') {
+      hasGet = true;
+    } else if (/^(IFD?(EQ|NE)|[EP]X(AT)?)$/.test(word)) {
+      index += 1;
+      digest = word.startsWith('IFD') ? command[index] : digest;
+    }
+  }
+
+  return hasGet && digest !== undefined && Buffer.byteLength(digest) !== 16;
 }
 
 export function createRefusal(command: StringOrBuffer[], reason: string) {

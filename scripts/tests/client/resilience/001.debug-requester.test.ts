@@ -3402,6 +3402,71 @@ describe('debug-requester', () => {
       assert.strictEqual((await stillClosed)[0].length, 1);
     });
 
+    it('holds AUTH behind an in-flight blocking command until its reply', async () => {
+      const { connection, requester } = createRequester();
+      const popped = requester.send([['BLPOP', 'jobs', '0']], {
+        blockingTimeout: 0,
+      });
+
+      await flushed();
+
+      const auth = requester.send([['AUTH', 'secret']]);
+
+      await flushed();
+
+      assert.deepStrictEqual(connection.writes, [
+        commandsToBuffer([['BLPOP', 'jobs', '0']]),
+      ]);
+
+      connection.reply('*2\r\n$4\r\njobs\r\n$1\r\nx\r\n');
+
+      await flushed();
+
+      assert.deepStrictEqual(connection.writes.slice(1), [
+        commandsToBuffer([['AUTH', 'secret']]),
+      ]);
+
+      connection.reply('+OK\r\n');
+
+      assert.deepStrictEqual(await popped, [
+        [[Buffer.from('jobs'), Buffer.from('x')]],
+      ]);
+      assert.deepStrictEqual(await auth, [['OK']]);
+    });
+
+    it('starts the timeout of a request held behind AUTH when the request goes out', async () => {
+      const { connection, requester } = createRequester({ commandTimeout: 0 });
+      const ping = requester.send([['PING']]);
+
+      await flushed();
+
+      const auth = requester.send([['AUTH', 'secret']]);
+      const get = requester
+        .send([['GET', 'k']], { timeout: 50 })
+        .catch((error: unknown) => error);
+
+      await new Promise((resolve) => setTimeout(resolve, 120));
+
+      connection.reply('+PONG\r\n');
+
+      await flushed();
+
+      connection.reply('+OK\r\n');
+
+      await flushed();
+
+      assert.deepStrictEqual(connection.writes.slice(1), [
+        commandsToBuffer([['AUTH', 'secret']]),
+        commandsToBuffer([['GET', 'k']]),
+      ]);
+
+      connection.reply('$1\r\nv\r\n');
+
+      assert.deepStrictEqual(await ping, [['PONG']]);
+      assert.deepStrictEqual(await auth, [['OK']]);
+      assert.deepStrictEqual(await get, [[Buffer.from('v')]]);
+    });
+
     it('writes AUTH and HELLO alone after every earlier reply, and holds later commands until theirs', async () => {
       const { connection, requester } = createRequester();
       const wrongPassword =
@@ -3559,10 +3624,11 @@ describe('debug-requester', () => {
         [
           ['SET', 'k', 'v', 'IFDEQ', 'xyz', 'GET'],
           ['set', 'k', 'v', 'get', 'ifdne', '0123456789abcdef0'],
-          ['SET', 'k', 'v', 'GET', 'EX', '10', 'IFDEQ'],
+          ['SET', 'k', 'v', 'EX', '10', 'IFDNE', 'xyz', 'GET'],
           ['SET', 'k', 'v', 'IFDEQ\0x', Buffer.from('0123456789abcde'), 'GET'],
           ['SET', 'k', 'v', 'IFDEQ', 'é'.repeat(16), 'GET'],
           ['SET', 'k', 'v', 'NX', 'IFDNE', '0123456789abcde', 'GET\0'],
+          ['SET', 'k', 'v', 'IFEQ', 'IFDEQ', 'IFDEQ', 'xyz', 'GET'],
         ].map((command) => settle(requester.send([['PING'], command]))),
       );
 
@@ -3583,6 +3649,11 @@ describe('debug-requester', () => {
         ['SET', 'IFDEQ', 'xyz', 'GET', 'EX', '10'],
         ['SET', 'k', 'v', 'IFDEQ', 'z'.repeat(16), 'GET'],
         ['SET', 'k', 'v', 'IFDNE', Buffer.from('é'.repeat(8)), 'GET'],
+        ['SET', 'k', 'v', 'IFEQ', 'ifdeq', 'GET'],
+        ['SET', 'k', 'v', 'IFNE', 'IFDNE', 'EX', '10', 'GET'],
+        ['SET', 'k', 'v', 'IFDEQ', 'GET', 'EX', 'GET'],
+        ['SET', 'k', 'v', 'GET', 'EX', '10', 'IFDEQ'],
+        ['SET', 'k', 'GET', 'IFDNE', 'xyz', 'EX', '10'],
       ];
       const pending = requester.send(sent);
 
@@ -3591,10 +3662,10 @@ describe('debug-requester', () => {
       assert.deepStrictEqual(connection.writes, [commandsToBuffer(sent)]);
 
       connection.reply(
-        '$-1\r\n+OK\r\n+OK\r\n-ERR syntax error\r\n$1\r\nv\r\n$-1\r\n$1\r\nv\r\n$1\r\nv\r\n',
+        '$-1\r\n+OK\r\n+OK\r\n-ERR syntax error\r\n$1\r\nv\r\n$-1\r\n$1\r\nv\r\n$1\r\nv\r\n$1\r\nv\r\n$1\r\nv\r\n-ERR syntax error\r\n-ERR syntax error\r\n+OK\r\n',
       );
 
-      assert.strictEqual((await pending).length, 8);
+      assert.strictEqual((await pending).length, 13);
     });
 
     it('refuses AUTH and HELLO inside a transaction', async () => {
