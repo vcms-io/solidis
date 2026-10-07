@@ -67,6 +67,14 @@ describe('streams', () => {
     assert.deepStrictEqual(reverse[0].fields, { value: 'c' });
     assert.deepStrictEqual(reverse[1].fields, { value: 'b' });
     assert.deepStrictEqual(reverse[2].fields, { value: 'a' });
+    assert.deepStrictEqual(
+      (await client.xrange(key, '2-1', '3-1')).map((entry) => entry.id),
+      ['2-1', '3-1'],
+    );
+    assert.deepStrictEqual(
+      (await client.xrevrange(key, '2-1', '-')).map((entry) => entry.id),
+      ['2-1', '1-1'],
+    );
   });
 
   it('decodes field names as UTF-8 and keeps the last value of a repeated field', async () => {
@@ -221,6 +229,19 @@ describe('streams', () => {
     await client.xadd(key, '2-1', { task: 'b' });
     await client.xgroupCreate(key, group, '0');
     await client.xreadgroup(group, 'worker-1', [key], ['>']);
+
+    assert.deepStrictEqual(
+      (await client.xpending(key, group, '2-0', '+', 10)).map(
+        (entry) => entry.id,
+      ),
+      ['2-1'],
+    );
+    assert.deepStrictEqual(
+      (await client.xautoclaim(key, group, 'worker-2', 0, '2-0')).entries.map(
+        (entry) => entry.id,
+      ),
+      ['2-1'],
+    );
 
     const result = await client.xautoclaim(key, group, 'worker-2', 0, '0-0');
 

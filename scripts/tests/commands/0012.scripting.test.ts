@@ -11,6 +11,8 @@ import {
   createKeyspace,
   detectServerCapabilities,
   readLoggedCommands,
+  waitFor,
+  withConfig,
 } from '../utils/index.ts';
 
 import type { FeaturedClient, ServerCapabilities } from '../utils/index.ts';
@@ -168,7 +170,44 @@ describe('scripting', () => {
     });
   }
 
-  it('kills a running script with SCRIPT KILL (error when none running)', async () => {
+  it('kills a running script with SCRIPT KILL', async () => {
+    const busy = await createClient({ commandTimeout: 0 });
+
+    try {
+      await withConfig(client, 'lua-time-limit', '20', async () => {
+        const running = busy
+          .eval(
+            "local start = redis.call('TIME') repeat local now = redis.call('TIME') until (now[1] - start[1]) * 1000000 + now[2] - start[2] > 3000000 return 'done'",
+            [],
+            [],
+          )
+          .catch((error: unknown) => error);
+
+        try {
+          await waitFor(
+            async () =>
+              (await client.scriptKill().catch(() => undefined)) === 'OK',
+            {
+              timeout: 2000,
+              description: 'SCRIPT KILL of the running script',
+            },
+          );
+
+          const error = await running;
+
+          assert.ok(error instanceof SolidisCommandError);
+          assert.match(error.message, /^\[EVAL\] .*kill/i);
+        } finally {
+          await client.send([['SCRIPT', 'KILL']]).catch(() => undefined);
+          await running;
+        }
+      });
+    } finally {
+      await closeClient(busy);
+    }
+  });
+
+  it('answers SCRIPT KILL with NOTBUSY when no script runs', async () => {
     const result = await client.scriptKill().catch((error: unknown) => error);
 
     assert.ok(result instanceof SolidisCommandError);

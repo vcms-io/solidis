@@ -22,6 +22,7 @@ import {
   commandsToBuffer,
   SolidisClient,
   type SolidisRequester,
+  SolidisSymbolBytes,
 } from '../../../sources/index.ts';
 
 import type {
@@ -215,6 +216,11 @@ describe('type-contracts', () => {
       'multi',
     ]) {
       assert.strictEqual(typeof Reflect.get(client, name), 'function', name);
+      assert.strictEqual(Reflect.get(transaction, name), undefined, name);
+    }
+
+    for (const name of ['uri', '_events', '_maxListeners']) {
+      assert.notStrictEqual(Reflect.get(client, name), undefined, name);
       assert.strictEqual(Reflect.get(transaction, name), undefined, name);
     }
 
@@ -471,6 +477,20 @@ describe('type-contracts', () => {
       'SET k v',
       'GET k',
     ]);
+  });
+
+  it('exports the RESP symbol bytes, MINUS and COLON included', () => {
+    assert.deepStrictEqual(SolidisSymbolBytes, {
+      ASTERISK: 42,
+      DOLLAR: 36,
+      CR: 13,
+      LF: 10,
+      ZERO: 48,
+      MINUS: 45,
+      COLON: 58,
+      LOWER_T: 116,
+      LOWER_F: 102,
+    });
   });
 
   it('offers the handshake commands from the basic entry point', () => {

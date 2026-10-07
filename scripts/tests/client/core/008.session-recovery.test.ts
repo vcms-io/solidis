@@ -358,9 +358,17 @@ describe('session-recovery', () => {
           database: 2,
           clientName: name,
           connectionRetryDelay: 10,
+          debug: true,
         });
         const channel = keyspace.key(protocol, 'ordered');
         const received: string[] = [];
+        const serialized: string[] = [];
+
+        subscriber.on('debug', ({ message }) => {
+          if (message.startsWith('Requester serialized')) {
+            serialized.push(message.slice(message.indexOf(': ') + 2));
+          }
+        });
 
         subscriber.on('message', (_channel, message) => {
           received.push(`${message}`);
@@ -372,7 +380,18 @@ describe('session-recovery', () => {
           assert.strictEqual(await subscriber.select(3), 'OK');
 
           await subscriber.subscribe(channel);
+
+          const restoring = serialized.length;
+
           await forceReconnect(subscriber, id);
+
+          const restored = serialized.slice(restoring);
+
+          assert.ok(restored.indexOf('SELECT') >= 0, restored.join(' | '));
+          assert.ok(
+            restored.indexOf('SELECT') < restored.indexOf('SUBSCRIBE'),
+            restored.join(' | '),
+          );
 
           const line = (await killer.clientList())
             .split('\n')

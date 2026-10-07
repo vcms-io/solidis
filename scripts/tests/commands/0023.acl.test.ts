@@ -356,7 +356,7 @@ describe('acl', () => {
     assert.deepStrictEqual(log, []);
   });
 
-  it('persists ACL rules with ACL SAVE', async () => {
+  it('refuses ACL SAVE without an ACL file and accepts it with one', async () => {
     /**
      * ACL SAVE returns OK when the server is configured with an aclfile; with
      * the default in-memory configuration it must fail with a *specific* error

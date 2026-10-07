@@ -839,7 +839,7 @@ describe('server-admin', () => {
     );
   });
 
-  it('kills a running function (none running)', async (context) => {
+  it('answers FUNCTION KILL with NOTBUSY when no function runs', async (context) => {
     if (!capabilities.atLeast(7, 0)) {
       context.skip('FUNCTION KILL requires Redis 7.0+');
       return;

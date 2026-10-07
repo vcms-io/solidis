@@ -347,9 +347,10 @@ describe('transactions', () => {
 
   it('returns undefined when accessing a non-function property through the transaction proxy', () => {
     const transaction = client.multi();
-    const value = (transaction as Record<string, unknown>).nonExistentProperty;
 
-    assert.strictEqual(value, undefined);
+    for (const name of ['uri', '_events', 'nonExistentProperty']) {
+      assert.strictEqual(Reflect.get(transaction, name), undefined, name);
+    }
   });
 
   it('rejects an EXEC reply that is neither a reply list nor null', async () => {

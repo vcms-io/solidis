@@ -242,19 +242,38 @@ describe('diagnostics', () => {
     }
   });
 
-  it('logs the established connection and the completed handshake', async () => {
+  it('logs the established connection and the completed handshake to the debug event only', async (context) => {
     const server = await startServer(() => '+OK\r\n');
     const client = track(
       new SolidisClient(mockClientOptions(server.port, { debug: true })),
     );
     const messages = collectDebugMessages(client);
+    const debugVariable = process.env.DEBUG;
+    const writes = [
+      context.mock.method(process.stdout, 'write'),
+      context.mock.method(process.stderr, 'write'),
+    ];
+
+    process.env.DEBUG = 'solidis';
 
     try {
       await client.connect();
 
       assert.ok(messages.includes('Connection established'));
       assert.ok(messages.includes('Initialization completed'));
+
+      for (const write of writes) {
+        for (const call of write.mock.calls) {
+          assert.ok(!`${call.arguments[0]}`.includes('Connection established'));
+        }
+      }
     } finally {
+      if (debugVariable === undefined) {
+        Reflect.deleteProperty(process.env, 'DEBUG');
+      } else {
+        process.env.DEBUG = debugVariable;
+      }
+
       client.quit();
       await server.close();
     }
