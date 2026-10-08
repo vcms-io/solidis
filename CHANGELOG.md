@@ -17,7 +17,7 @@ This release rebuilds the core around one rule: every reply reaches the request 
 - A reconnect restores authentication, protocol, database and subscriptions before queued commands run, backs off with jitter, and never commits a transaction whose `WATCH` or `MULTI` it lost.
 - Server errors reject with a `SolidisCommandError` whose `cause` is the server's `RespError`. Messages never list arguments and mask the ones the server quotes back.
 - `{ buffer: true }` and `{ bigint: true }` options, per-request timeouts, and option types that reject what the server refuses.
-- The CommonJS build loads again, with its own type declarations.
+- The CommonJS build, which failed to load in 0.4.0, loads with its own type declarations.
 
 ### Upgrading from 0.4.x
 
@@ -462,7 +462,6 @@ Skip this step unless you build the internal classes yourself or write custom co
 
 - Replies split across socket chunks parse in linear time, and a reply that spans chunks copies only its own bytes.
 - Serialization measures each argument once and replies allocate less.
-- In alternating benchmark runs against 0.4.0, throughput is on par or better across the suite.
 - Replies and timeouts for tens of thousands of pipelines in flight take linear time. Masking bounds how much argument text it searches for quoted spans, so a reply full of quotes cannot stall the event loop.
 - Error replies no longer capture a stack trace they then drop.
 - Measured with each version's `npm run bundle`, the minimal client with `get` and `set` grows from 29,494 to 30,393 bytes.
