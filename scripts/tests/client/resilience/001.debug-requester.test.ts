@@ -1204,6 +1204,39 @@ describe('debug-requester', () => {
       );
     });
 
+    it('keeps a lost MULTI after a batch it could not serialize', async () => {
+      const { connection, requester } = createRequester();
+      const poisoned = Buffer.from('v');
+
+      Object.defineProperty(poisoned, 'copy', {
+        value: () => {
+          throw new RangeError('Array buffer allocation failed');
+        },
+      });
+
+      const multi = requester.send([['MULTI']]);
+
+      await flushed();
+      connection.reply('+OK\r\n');
+      await multi;
+      connection.emit('close', new SolidisConnectionError('lost'));
+      connection.isConnected = true;
+
+      const transaction = settle(
+        requester.send([['MULTI'], ['SET', 'k', poisoned]]),
+      );
+
+      await flushed();
+
+      assert.ok((await transaction) instanceof SolidisRequesterError);
+
+      connection.isConnected = true;
+
+      await assert.rejects(requester.send([['INCR', 'k']]), {
+        message: 'INCR is refused after a lost MULTI.',
+      });
+    });
+
     it('forgets a refused MULTI or WATCH while another session command is in flight', async () => {
       const { connection, requester } = createRequester();
       const multi = requester.send([['MULTI']]);

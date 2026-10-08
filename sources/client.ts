@@ -540,12 +540,15 @@ export class SolidisClient extends EventEmitter {
       attempt += 1;
 
       await new Promise<void>((resolve) => {
-        this.#interruptReadyCheck = resolve;
-
-        setTimeout(
+        const timer = setTimeout(
           resolve,
           Math.min(readyCheckInterval, SolidisMaximumTimerDelay),
         ).unref();
+
+        this.#interruptReadyCheck = () => {
+          clearTimeout(timer);
+          resolve();
+        };
       });
     }
   }

@@ -1175,6 +1175,46 @@ describe('session-guards', () => {
       }
     });
 
+    it('clears the ready check timer when quit() interrupts the wait', async (context) => {
+      const server = await startServer((socket, data) => {
+        if (data.includes('INFO')) {
+          socket.write('$9\r\nloading:1\r\n');
+        }
+      });
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            enableReadyCheck: true,
+            readyCheckInterval: 600_000,
+          }),
+        ),
+      );
+      const setTimer = context.mock.method(globalThis, 'setTimeout');
+      const clearTimer = context.mock.method(globalThis, 'clearTimeout');
+      const isReadyCheckWait = (call: { arguments: unknown[] }) =>
+        call.arguments[1] === 600_000;
+
+      client.on('error', () => {});
+
+      try {
+        const connecting = client.connect().catch((error: unknown) => error);
+
+        await waitFor(async () => setTimer.mock.calls.some(isReadyCheckWait));
+
+        client.quit();
+        await connecting;
+
+        const timer = setTimer.mock.calls.find(isReadyCheckWait)?.result;
+
+        assert.ok(
+          clearTimer.mock.calls.some((call) => call.arguments[0] === timer),
+        );
+      } finally {
+        client.quit();
+        await server.close();
+      }
+    });
+
     it('stops a ready check that outlives its connection', async () => {
       let readyChecks = 0;
 
