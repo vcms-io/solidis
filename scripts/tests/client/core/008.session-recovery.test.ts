@@ -1207,6 +1207,12 @@ describe('session-recovery', () => {
       await assert.rejects(client.connect(), {
         message: 'The client was quit.',
       });
+      await waitFor(
+        async () =>
+          !(await killer.clientList())
+            .split('\n')
+            .some((line) => line.startsWith(`id=${id} `)),
+      );
 
       assert.strictEqual(await killer.rpush(key, 'kept'), 1);
       assert.strictEqual(await killer.llen(key), 1);

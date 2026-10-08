@@ -96,11 +96,12 @@ describe('connection', () => {
 
   it('treats repeated connect() calls as idempotent', async () => {
     const client = await createClient();
+    const id = await client.clientId();
 
     await client.connect();
     await client.connect();
 
-    assert.strictEqual(await client.ping(), 'PONG');
+    assert.strictEqual(await client.clientId(), id);
   });
 
   it('exposes a normalised connection uri', async () => {
