@@ -195,6 +195,7 @@ export function assertHashContains(
 
   if (
     Array.isArray(hgetallResult) &&
+    hgetallResult.length > 0 &&
     hgetallResult.every(
       (entry) => typeof entry === 'object' && entry !== null && 'key' in entry,
     )
