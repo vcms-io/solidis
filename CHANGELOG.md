@@ -47,6 +47,7 @@ With `debug: true`, entries reach only the `debug` event and are no longer print
 - `CLIENT REPLY OFF`, `CLIENT REPLY SKIP`, `CLUSTER SYNCSLOTS`, `MONITOR`, `SYNC`, `PSYNC`, `REPLCONF ACK`, `REPLCONF GETACK`, `SCRIPT DEBUG YES`, `SCRIPT DEBUG SYNC`.
 - `SUBSCRIBE`, `UNSUBSCRIBE` and their pattern and shard variants inside a transaction.
 - `SET` with `GET` and an `IFDEQ` or `IFDNE` digest that is not 16 bytes, which Redis 8.4 and later answer twice.
+- A command name with a NUL byte or a character outside printable ASCII that reads as a command above or one whose state the client tracks, such as `RESET\0`, which Redis 6.2 runs as `RESET` and later versions reject as unknown.
 - `AUTH` and `HELLO` after another command of the same call or inside a transaction. Redis 7.2 and later drop the error of a failed one while other replies are pending, also from the `EXEC` reply.
 - A `commands` argument that is not an array, empty commands, entries that are not arrays, and arguments that are neither strings nor `Buffer`s.
 - Anything but `MULTI`, `EXEC`, `DISCARD` and `RESET` after a reconnect lost a `MULTI` sent with `send()`.
@@ -463,7 +464,7 @@ Skip this step unless you build the internal classes yourself or write custom co
 - In alternating benchmark runs against 0.4.0, throughput is on par or better across the suite.
 - Replies and timeouts for tens of thousands of pipelines in flight take linear time. Masking bounds how much argument text it searches for quoted spans, so a reply full of quotes cannot stall the event loop.
 - Error replies no longer capture a stack trace they then drop.
-- Measured with each version's `npm run bundle`, the minimal client with `get` and `set` grows from 29,494 to 30,279 bytes.
+- Measured with each version's `npm run bundle`, the minimal client with `get` and `set` grows from 29,494 to 30,343 bytes.
 
 ## [0.4.0] and earlier
 

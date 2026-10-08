@@ -196,7 +196,7 @@ await client.set('key', 'value', { expireInSeconds: 60, setIfKeyNotExists: true 
 await client.set('key', 'value', { expireInSeconds: 60, keepOriginalTimeToLive: true });
 ```
 
-Option types accept only what the command accepts: one of NX and XX, one of BYSCORE and BYLEX, no WITHSCORES with BYLEX, and so on.
+Option types accept only the option combinations the command accepts: one of NX and XX, one of BYSCORE and BYLEX, no WITHSCORES with BYLEX, and so on. Lists and records of items are not checked: an empty one is sent, and the server refuses it.
 
 </details>
 

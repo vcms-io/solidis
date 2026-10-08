@@ -196,7 +196,7 @@ await client.set('key', 'value', { expireInSeconds: 60, setIfKeyNotExists: true 
 await client.set('key', 'value', { expireInSeconds: 60, keepOriginalTimeToLive: true });
 ```
 
-옵션 타입은 커맨드가 받는 조합만 허용합니다. NX와 XX 중 하나, BYSCORE와 BYLEX 중 하나만 받고, BYLEX와 WITHSCORES는 함께 쓸 수 없는 식입니다.
+옵션 타입은 커맨드가 받는 옵션 조합만 허용합니다. NX와 XX 중 하나, BYSCORE와 BYLEX 중 하나만 받고, BYLEX와 WITHSCORES는 함께 쓸 수 없는 식입니다. 항목 목록과 레코드는 검사하지 않으므로, 비어 있으면 그대로 보내고 서버가 거부합니다.
 
 </details>
 

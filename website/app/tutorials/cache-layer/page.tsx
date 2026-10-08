@@ -397,8 +397,8 @@ export class UserRepository {
   async updateUser(userId: string, data: Partial<User>): Promise<User> {
     // Update database
     const result = await this.db.query(
-      'UPDATE users SET username = $1, email = $2, name = $3 WHERE id = $4 RETURNING *',
-      [data.username, data.email, data.name, userId]
+      'UPDATE users SET username = COALESCE($1, username), email = COALESCE($2, email), name = COALESCE($3, name) WHERE id = $4 RETURNING *',
+      [data.username ?? null, data.email ?? null, data.name ?? null, userId]
     );
 
     const user = result.rows[0];
