@@ -225,30 +225,28 @@ const pending = await client.xpending('jobs', 'workers', '-', '+', 10);
 
 <div align="center">
 
-# <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/High%20Voltage.png?raw=true" alt="High Voltage" width="25" height="25" /> Solidis vs ioredis, iovalkey, node-redis, valkey-glide and speedkey
+### <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/High%20Voltage.png?raw=true" alt="High Voltage" width="25" height="25" /> Up to 4.9x faster than other Node.js Redis clients <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Rocket.png?raw=true" alt="Rocket" width="25" height="25" />
 
-<small>Generated on 2026-10-05 15:52:42 UTC · linux x64 · Node.js v22.23.0 · Redis 8.10.2</small>
+**Fastest in 19 of 19 benchmarks against 5 clients**
 
-### Fastest in **19** of **19** benchmarks · **1.5x** the throughput of the next-fastest client on average <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Rocket.png?raw=true" alt="Rocket" width="25" height="25" />
+<sub>linux x64 · Node.js v22.23.0 · Redis 8.10.2 · 2026-10-05</sub>
 
-### Leaderboard
+#### Leaderboard
 
-|                                                                                                                                                                                        | Client       | Version |  Fastest in | Throughput | CPU per operation |       Peak memory |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :----------- | :------ | ----------: | ---------: | ----------------: | ----------------: |
-| <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Activities/1st%20Place%20Medal.png?raw=true" alt="1st Place Medal" width="20" height="20" /> | **solidis**  | 0.5.0   | **19** / 19 |  **1.00x** |         **1.00x** |         **1.00x** |
-| <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Activities/2nd%20Place%20Medal.png?raw=true" alt="2nd Place Medal" width="20" height="20" /> | node-redis   | 6.3.0   |      0 / 19 |      0.67x |             1.11x |             0.92x |
-| <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Activities/3rd%20Place%20Medal.png?raw=true" alt="3rd Place Medal" width="20" height="20" /> | speedkey     | 0.4.2   |      0 / 19 |      0.47x |             1.98x | 0.46x<sup>†</sup> |
-|                                                                                                                                                                                     4. | iovalkey     | 0.4.0   |      0 / 19 |      0.41x |             2.17x |             1.40x |
-|                                                                                                                                                                                     5. | ioredis      | 6.0.0   |      0 / 19 |      0.40x |             2.22x |             1.30x |
-|                                                                                                                                                                                     6. | valkey-glide | 2.5.3   |      0 / 19 |      0.38x |             2.50x | 1.01x<sup>†</sup> |
+|                                                                                                                                                                                        | Client       | Version |  Fastest in | Throughput ↑ | CPU / op ↓ |     Peak memory ↓ |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :----------- | :------ | ----------: | -----------: | ---------: | ----------------: |
+| <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Activities/1st%20Place%20Medal.png?raw=true" alt="1st Place Medal" width="20" height="20" /> | **solidis**  | 0.5.0   | **19** / 19 |    **1.00x** |  **1.00x** |         **1.00x** |
+| <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Activities/2nd%20Place%20Medal.png?raw=true" alt="2nd Place Medal" width="20" height="20" /> | node-redis   | 6.3.0   |      0 / 19 |        0.67x |      1.11x |             0.92x |
+| <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Activities/3rd%20Place%20Medal.png?raw=true" alt="3rd Place Medal" width="20" height="20" /> | speedkey     | 0.4.2   |      0 / 19 |        0.47x |      1.98x | 0.46x<sup>†</sup> |
+|                                                                                                                                                                                     4. | iovalkey     | 0.4.0   |      0 / 19 |        0.41x |      2.17x |             1.40x |
+|                                                                                                                                                                                     5. | ioredis      | 6.0.0   |      0 / 19 |        0.40x |      2.22x |             1.30x |
+|                                                                                                                                                                                     6. | valkey-glide | 2.5.3   |      0 / 19 |        0.38x |      2.50x | 1.01x<sup>†</sup> |
 
-<sub>Throughput, CPU per operation and peak memory are geometric means over all benchmarks, relative to `solidis` (1.00x). Higher throughput and lower CPU and memory are better.</sub>
+<sub>Geometric means over all benchmarks, relative to `solidis` · <sup>†</sup> Native memory not counted</sub>
 
-<sub><sup>†</sup> Memory the client keeps in native code is not counted.</sub>
+#### Operations per Second
 
-### Operations per Second
-
-_100,000 operations × 10,000 concurrency · 1 KB payload · 10 repeats per client_
+<sub>100,000 operations × 10,000 concurrency · 1 KB payload · 10 repeats</sub>
 
 |                                                                                                                                                                                        | Benchmark                                                                                                          | **solidis** |            ioredis |           iovalkey | node-redis |       valkey-glide |           speedkey |                                                                                                                                                                          Lead                                                                                                                                                                           |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :----------------------------------------------------------------------------------------------------------------- | ----------: | -----------------: | -----------------: | ---------: | -----------------: | -----------------: | :-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
@@ -272,21 +270,22 @@ _100,000 operations × 10,000 concurrency · 1 KB payload · 10 repeats per clie
 |                                                                                                                                                                                    18. | **List Mutation**<br/><sup><kbd>LPUSH</kbd> <kbd>RPUSH</kbd> <kbd>LPOP</kbd> <kbd>RPOP</kbd> <kbd>LLEN</kbd></sup> |  **107.3K** |              40.1K |              40.7K |      88.2K |  48.6K<sup>3</sup> |  57.0K<sup>3</sup> |                                                                           **1.2x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/High%20Voltage.png?raw=true" alt="High Voltage" width="16" height="16" />                                                                            |
 |                                                                                                                                                                                    19. | **Get**<br/><sup><kbd>GET</kbd></sup>                                                                              |  **350.1K** |             192.0K |             189.2K |     322.8K |             112.0K |             177.6K |                                                                           **1.1x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/High%20Voltage.png?raw=true" alt="High Voltage" width="16" height="16" />                                                                            |
 
-<sub>Median operations per second over the repeats; the fastest client of each benchmark is in bold. Lead = `solidis` ÷ the fastest other client.</sub>
+<sub>Medians over the repeats · fastest in bold · Lead = `solidis` ÷ the fastest other client</sub>
 
-<sub><sup>1</sup> Does not take MULTI and EXEC in a batch, so it sends the commands between them as an atomic batch</sub><br/>
-<sub><sup>2</sup> Subscribes over RESP3, which it requires for Pub/Sub</sub><br/>
-<sub><sup>3</sup> Does not keep the order of concurrent commands, so it sends each operation as one batch</sub><br/>
+<details>
+<summary><sub>Notes</sub></summary>
+
+<sub><sup>1</sup> Sends MULTI/EXEC transactions as an atomic batch</sub><br/>
+<sub><sup>2</sup> Needs RESP3 for Pub/Sub</sub><br/>
+<sub><sup>3</sup> Sends each operation as one batch to keep command order</sub><br/>
 <sub><sup>4</sup> Does not auto-pipeline INFO</sub>
+
+</details>
 
 </div>
 
-## <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Bar%20Chart.png?raw=true" alt="Bar Chart" width="25" height="25" /> Detailed Metrics
-
-<sub>Per library: operations and commands per second, latency (p50 / p95 / p99 / p99.9), CPU and GC time per operation, peak memory and spread.</sub>
-
 <details>
-<summary>Click to expand the detailed metrics</summary>
+<summary>&nbsp;&nbsp;<b>Detailed metrics</b></summary>
 
 | Benchmark                                                                                                                              | Library                  |  ops/s | cmds/s |      p50 |      p95 |      p99 |    p99.9 |  CPU/op |  GC/op |               Memory | Spread |
 | :------------------------------------------------------------------------------------------------------------------------------------- | :----------------------- | -----: | -----: | -------: | -------: | -------: | -------: | ------: | -----: | -------------------: | -----: |
@@ -350,7 +349,7 @@ _100,000 operations × 10,000 concurrency · 1 KB payload · 10 repeats per clie
 |                                                                                                                                        | node-redis               | 102.3K | 204.6K |  94.45ms | 113.72ms | 151.61ms | 174.21ms | 16.68µs | 2.88µs |             307.2 MB |  ±5.9% |
 |                                                                                                                                        | valkey-glide<sup>3</sup> |  62.5K | 125.0K | 156.23ms | 176.67ms | 181.75ms | 191.26ms | 36.39µs | 4.86µs | 280.7 MB<sup>†</sup> |  ±2.7% |
 |                                                                                                                                        | speedkey<sup>3</sup>     |  72.2K | 144.4K | 133.65ms | 159.67ms | 167.13ms | 172.51ms | 28.04µs | 2.18µs | 169.9 MB<sup>†</sup> |  ±1.8% |
-| **Counter**<br/><sup><kbd>INCR</kbd> <kbd>DECR</kbd></sup>                                                                             | **solidis**              | 265.7K | 531.3K |  33.75ms |  53.21ms |  60.98ms |  72.59ms |  9.27µs | 1.52µs |             253.6 MB |  ±2.3% |
+| **Counter**<br/><sup><kbd>INCR</kbd> <kbd>DECR</kbd></sup><br/><sub>1 KB</sub>                                                         | **solidis**              | 265.7K | 531.3K |  33.75ms |  53.21ms |  60.98ms |  72.59ms |  9.27µs | 1.52µs |             253.6 MB |  ±2.3% |
 |                                                                                                                                        | ioredis                  | 124.2K | 248.3K |  73.75ms | 113.98ms | 122.37ms | 128.37ms | 16.98µs | 2.97µs |             350.1 MB |  ±3.5% |
 |                                                                                                                                        | iovalkey                 | 129.7K | 259.4K |  71.02ms | 106.11ms | 115.05ms | 123.70ms | 16.75µs | 3.02µs |             329.2 MB |  ±4.0% |
 |                                                                                                                                        | node-redis               | 187.6K | 375.3K |  50.13ms |  62.31ms |  68.19ms |  73.07ms |  9.31µs | 2.43µs |             224.5 MB |  ±2.7% |
@@ -386,7 +385,7 @@ _100,000 operations × 10,000 concurrency · 1 KB payload · 10 repeats per clie
 |                                                                                                                                        | node-redis               | 106.6K | 319.9K |  90.20ms | 101.36ms | 108.10ms | 116.93ms | 15.21µs | 3.39µs |             330.5 MB |  ±2.1% |
 |                                                                                                                                        | valkey-glide<sup>3</sup> |  54.0K | 162.0K | 172.55ms | 211.16ms | 222.84ms | 239.99ms | 38.90µs | 6.24µs | 392.9 MB<sup>†</sup> |  ±1.3% |
 |                                                                                                                                        | speedkey<sup>3</sup>     |  55.5K | 166.4K | 173.53ms | 204.52ms | 214.02ms | 218.42ms | 34.92µs | 2.88µs | 205.7 MB<sup>†</sup> |  ±1.1% |
-| **Info / Config**<br/><sup><kbd>INFO</kbd> <kbd>CONFIG GET</kbd></sup>                                                                 | **solidis**              | 224.1K | 448.2K |  39.09ms |  71.97ms |  82.95ms |  95.84ms | 10.59µs | 1.66µs |             287.4 MB |  ±2.3% |
+| **Info / Config**<br/><sup><kbd>INFO</kbd> <kbd>CONFIG GET</kbd></sup><br/><sub>1 KB</sub>                                             | **solidis**              | 224.1K | 448.2K |  39.09ms |  71.97ms |  82.95ms |  95.84ms | 10.59µs | 1.66µs |             287.4 MB |  ±2.3% |
 |                                                                                                                                        | ioredis<sup>4</sup>      | 111.8K | 223.7K |  82.88ms | 124.81ms | 133.86ms | 138.06ms | 17.14µs | 2.35µs |             275.8 MB |  ±1.8% |
 |                                                                                                                                        | iovalkey<sup>4</sup>     | 115.3K | 230.6K |  78.61ms | 117.28ms | 122.82ms | 127.81ms | 17.09µs | 2.48µs |             308.0 MB |  ±1.9% |
 |                                                                                                                                        | node-redis               | 176.2K | 352.3K |  52.97ms |  72.09ms |  81.40ms |  90.86ms | 10.44µs | 2.37µs |             243.2 MB |  ±3.5% |
@@ -405,14 +404,12 @@ _100,000 operations × 10,000 concurrency · 1 KB payload · 10 repeats per clie
 |                                                                                                                                        | valkey-glide             | 112.0K | 112.0K |  80.80ms | 139.17ms | 159.95ms | 174.48ms | 19.70µs | 1.24µs |  81.0 MB<sup>†</sup> |  ±2.9% |
 |                                                                                                                                        | speedkey                 | 177.6K | 177.6K |  52.23ms |  68.85ms |  80.90ms |  90.14ms | 16.21µs | 1.18µs |  17.8 MB<sup>†</sup> |  ±2.7% |
 
-<sub><sup>†</sup> Memory the client keeps in native code is not counted.</sub>
+<sub><sup>†</sup> Native memory not counted</sub>
 
 </details>
 
-## <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Gear.png?raw=true" alt="Gear" width="25" height="25" /> Environment and Configuration
-
 <details>
-<summary>Click to expand the environment and configuration</summary>
+<summary>&nbsp;&nbsp;<b>Environment</b></summary>
 
 | Parameter                  | Value                                                                                              |
 | :------------------------- | :------------------------------------------------------------------------------------------------- |
@@ -434,7 +431,8 @@ _100,000 operations × 10,000 concurrency · 1 KB payload · 10 repeats per clie
 
 </details>
 
-## <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Open%20Book.png?raw=true" alt="Open Book" width="25" height="25" /> Methodology
+<details>
+<summary>&nbsp;&nbsp;<b>Methodology</b></summary>
 
 - Every sample runs in its own **worker thread**, so garbage collection and JIT state never carry over.
 - The library order **rotates** per sample, and the server is **flushed and settled** before each one.
@@ -447,6 +445,8 @@ _100,000 operations × 10,000 concurrency · 1 KB payload · 10 repeats per clie
 - Clients run with **command timeouts, ready checks and reconnects off** and no pipelining limit. Valkey GLIDE and speedkey cannot turn reconnects off and wait up to 10 minutes per request. ioredis and iovalkey auto-pipeline; Valkey GLIDE and speedkey decode replies as bytes over RESP2.
 - A result whose client could not run a benchmark the same way is **numbered** and explained below the table.
 - Compared: every Node.js TCP client with 1,000+ weekly npm downloads that installs without compiling and keeps binary values. Left out: redis-fast-driver (native build), tedis (string values) and HTTP clients such as @upstash/redis. Valkey GLIDE has no Windows build.
+
+</details>
 
 </div>
 
@@ -461,18 +461,18 @@ _100,000 operations × 10,000 concurrency · 1 KB payload · 10 repeats per clie
 - `setImmediate` pipeline coalescing
 - Linear-time incremental RESP parser
 - Zero-copy views for bulk replies
-- Pipelines go out as soon as they are built; Node merges them into `writev`
+- Node merges pipelines into one `writev`
 
 </td>
 <td width="50%" valign="top">
 
 ### <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Electric%20Plug.png?raw=true" alt="Electric Plug" width="25" height="25" /> Protocol
 
-- RESP2 and RESP3, except streamed replies, which Redis and Valkey never send
-- All 15 RESP3 reply types (Map, Set, Push, Attribute, BigNumber, ...)
-- Pushes such as tracking invalidations never take a command's reply
-- `bigint` past `Number.MAX_SAFE_INTEGER`: automatic in raw replies, `{ bigint: true }` for INCR, INCRBY, DECR, DECRBY, HINCRBY, BITFIELD and BITFIELD_RO
-- Binary-safe: `Buffer` values in, `{ buffer: true }` bytes out
+- RESP2 and RESP3 (no streamed replies)
+- All 15 RESP3 reply types
+- Pushes never take a command's reply
+- `bigint` past safe integers
+- Binary-safe `Buffer` in and out
 
 </td>
 </tr>
@@ -482,12 +482,11 @@ _100,000 operations × 10,000 concurrency · 1 KB payload · 10 repeats per clie
 ### <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Shield.png?raw=true" alt="Shield" width="25" height="25" /> Reliability
 
 - Auto-reconnect with jittered exponential backoff
-- Commands wait for the handshake (AUTH, SELECT)
+- Commands wait for the handshake and ready check
 - Restores AUTH, protocol, SELECT and subscriptions
-- Discards a transaction whose WATCH or MULTI a reconnect lost
-- Timeouts per pipeline or per `send()`; blocking commands get their own
-- Ready check that waits for the server to load
-- Deterministic rejection of in-flight commands on faults
+- Aborts transactions a reconnect broke
+- Timeouts per pipeline, `send()` and blocking call
+- In-flight commands fail fast on faults
 
 </td>
 <td width="50%" valign="top">
@@ -496,9 +495,9 @@ _100,000 operations × 10,000 concurrency · 1 KB payload · 10 repeats per clie
 
 - TLS (`rediss://` or the `tls` option)
 - ACL username and password
-- Debug entries name commands, never their arguments
-- Command errors mask the argument text the server quotes back
-- `maxBulkStringLength` guard and a 512-level nesting limit
+- Debug entries never log arguments
+- Errors mask arguments the server echoes
+- Bulk size and 512-level nesting limits
 
 </td>
 </tr>
@@ -638,16 +637,16 @@ sequenceDiagram
 ```typescript
 client.on('connect', () => {});                    // TCP connected
 client.on('ready', () => {});                      // Handshake done, ready for commands
-client.on('close', (error) => {});                 // Connection lost (reconnects when autoReconnect and it had been ready)
+client.on('close', (error) => {});                 // Lost; autoReconnect retries if it was ready
 client.on('reconnecting', (attempt, delay) => {}); // Before every reconnect attempt
 client.on('reconnected', () => {});                // Re-established after disconnect
 client.on('end', () => {});                        // Client quit
-client.on('error', (error) => {});                 // Non-fatal error (process.emitWarning() without a listener)
+client.on('error', (error) => {});                 // Non-fatal error (emitWarning() without a listener)
 client.on('drain', () => {});                      // Write buffer drained
 client.on('message', (channel, message) => {});    // Pub/Sub message
 client.on('pmessage', (pattern, channel, message) => {});
 client.on('smessage', (channel, message) => {});   // Shard channel
-client.on('subscribe', (channel, count) => {});    // Also psubscribe, ssubscribe and each unsubscribe event
+client.on('subscribe', (channel, count) => {});    // Also psubscribe, ssubscribe and unsubscribes
 client.on('push', (reply) => {});                  // Other pushes, such as client tracking invalidations
 client.on('debug', (entry) => {});                 // Debug log entry
 ```
@@ -677,15 +676,18 @@ try {
 | `SolidisParserError`     | Malformed RESP, oversized bulk string or line, nesting past 512 levels                      |
 | `SolidisPubSubError`     | Malformed Pub/Sub event, throwing Pub/Sub or push listener                                  |
 
-> [!NOTE]
->
-> - Errors for arguments of the declared types are `SolidisError`s linked by the standard `cause`.
-> - Messages add the command name (`[INCR] ERR ...`), not its arguments. Quoted text found in an argument becomes `'***'` in the message and in `cause`, and a Lua error is masked from its first quote. Unquoted echoes stay: GEOADD coordinates, `redis.error_reply()` text, a function name in FUNCTION LOAD.
-> - Messages longer than 4,096 characters are cut, and a cut message that masks anything is masked to its end.
-> - Arguments are checked by declared type only. From JavaScript, a string for an array, an array for an object or ioredis-style `set(key, value, 'EX', 10)` builds a different command. Field records accept objects only.
-> - ESM and CJS clients and commands mix, but each build has its own error classes, so `instanceof` matches its own build only.
-> - TS.MADD, BF.MADD and BF.INSERT return a rejected item as a `RespError` in their result.
-> - Error replies in the raw results of `send()`, `pipeline()` and `exec()` keep the server's text.
+<details>
+<summary>&nbsp;&nbsp;<b>Notes</b></summary>
+
+- Errors for arguments of the declared types are `SolidisError`s linked by the standard `cause`.
+- Messages add the command name (`[INCR] ERR ...`), not its arguments. Quoted text found in an argument becomes `'***'` in the message and in `cause`, and a Lua error is masked from its first quote. Unquoted echoes stay: GEOADD coordinates, `redis.error_reply()` text, a function name in FUNCTION LOAD.
+- Messages longer than 4,096 characters are cut, and a cut message that masks anything is masked to its end.
+- Arguments are checked by declared type only. From JavaScript, a string for an array, an array for an object or ioredis-style `set(key, value, 'EX', 10)` builds a different command. Field records accept objects only.
+- ESM and CJS clients and commands mix, but each build has its own error classes, so `instanceof` matches its own build only.
+- TS.MADD, BF.MADD and BF.INSERT return a rejected item as a `RespError` in their result.
+- Error replies in the raw results of `send()`, `pipeline()` and `exec()` keep the server's text.
+
+</details>
 
 ## Extensions
 

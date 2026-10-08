@@ -33,6 +33,7 @@ export interface BenchmarkAnalysis {
   subjectWins: number;
   averageLead: number | null;
   peakLead: number | null;
+  peakSpeedup: number | null;
   notes: BenchmarkNote[];
 }
 
@@ -136,6 +137,21 @@ export function analyze(
         (right.relativeThroughput ?? 0) - (left.relativeThroughput ?? 0),
     );
   const leads = cases.flatMap((comparison) => comparison.lead ?? []);
+  const speedups = cases.flatMap(({ results, subject }) => {
+    const throughput = subject?.nonComparableReason
+      ? undefined
+      : subject?.unitsPerSecond;
+
+    return throughput
+      ? results.flatMap((result) =>
+          result !== subject &&
+          result.unitsPerSecond &&
+          !result.nonComparableReason
+            ? [throughput / result.unitsPerSecond]
+            : [],
+        )
+      : [];
+  });
 
   return {
     subjectLibrary,
@@ -146,6 +162,7 @@ export function analyze(
         ?.wins ?? 0,
     averageLead: geometricMean(leads),
     peakLead: leads.length > 0 ? Math.max(...leads) : null,
+    peakSpeedup: speedups.length > 0 ? Math.max(...speedups) : null,
     notes: [
       ...new Map(
         cases.flatMap((comparison) =>

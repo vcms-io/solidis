@@ -72,16 +72,17 @@ function formatNativeMarker(library: LibraryInfo | undefined): string {
   return library?.hasNativeCore ? '<sup>†</sup>' : '';
 }
 
-function buildTitle(
-  snapshot: BenchmarkSnapshot,
+function buildHeadline(
   analysis: BenchmarkAnalysis,
   locale: BenchmarkLocale,
-): string {
-  return `# ${locale.reportTitle(
-    snapshot.libraries
-      .map((library) => library.name)
-      .filter((name) => name !== analysis.subjectLibrary),
-  )}`;
+): string[] {
+  return [
+    ...(analysis.peakSpeedup !== null && analysis.peakSpeedup > 1
+      ? [`### ${locale.headline(analysis.peakSpeedup)}`, '']
+      : []),
+    `**${locale.standing(analysis.subjectWins, analysis.cases.length, analysis.standings.length - 1)}**`,
+    '',
+  ];
 }
 
 function buildLeaderboard(
@@ -107,27 +108,30 @@ function buildStandings(
   analysis: BenchmarkAnalysis,
   locale: BenchmarkLocale,
 ): string[] {
+  const nativeFootnote = analysis.standings.some(
+    ({ library }) => library.hasNativeCore,
+  )
+    ? ` · <sup>†</sup> ${locale.nativeMemoryFootnote}`
+    : '';
+
   return [
-    ...(analysis.averageLead === null
-      ? []
-      : [
-          `### ${locale.headline(
-            analysis.subjectWins,
-            analysis.cases.length,
-            analysis.averageLead,
-          )}`,
-          '',
-        ]),
     locale.leaderboardTitle,
     '',
     buildLeaderboard(analysis, locale),
     '',
-    `<sub>${locale.leaderboardFootnote(analysis.subjectLibrary)}</sub>`,
+    `<sub>${locale.leaderboardFootnote(analysis.subjectLibrary)}${nativeFootnote}</sub>`,
     '',
-    ...buildNativeFootnote(
-      analysis.standings.map(({ library }) => library),
-      locale,
-    ),
+  ];
+}
+
+function buildFold(title: string, lines: string[]): string[] {
+  return [
+    '<details>',
+    `<summary>&nbsp;&nbsp;<b>${title}</b></summary>`,
+    '',
+    ...lines,
+    '</details>',
+    '',
   ];
 }
 
@@ -272,8 +276,7 @@ export function generateSummary(
   const analysis = analyze(snapshot);
 
   return [
-    buildTitle(snapshot, analysis, locale),
-    '',
+    ...buildHeadline(analysis, locale),
     ...buildStandings(analysis, locale),
   ].join('\n');
 }
@@ -289,10 +292,8 @@ export function generateMarkdownReport(
   return [
     '<div align="center">',
     '',
-    buildTitle(snapshot, analysis, locale),
-    '',
-    `<small>${[
-      `${locale.generatedOnPrefix} ${formatDate(snapshot.createdAt)}`,
+    ...buildHeadline(analysis, locale),
+    `<sub>${[
       ...(environment
         ? [
             `${environment.platform} ${environment.arch}`,
@@ -300,18 +301,19 @@ export function generateMarkdownReport(
             environment.server,
           ]
         : []),
-    ].join(' · ')}</small>`,
+      snapshot.createdAt.slice(0, 10),
+    ].join(' · ')}</sub>`,
     '',
     ...buildStandings(analysis, locale),
     locale.resultsTitle,
     '',
-    locale.subtitle(
+    `<sub>${locale.subtitle(
       configuration.iterations,
       configuration.clients * configuration.concurrency,
       configuration.sizes.map(formatPayloadSize).join(', '),
       configuration.sizes.length,
       configuration.repeats,
-    ),
+    )}</sub>`,
     '',
     analysis.cases.length > 0
       ? buildResultsTable(
@@ -325,6 +327,9 @@ export function generateMarkdownReport(
     '',
     ...(analysis.notes.length > 0
       ? [
+          '<details>',
+          `<summary><sub>${locale.notesTitle}</sub></summary>`,
+          '',
           analysis.notes
             .map(
               (note, index) =>
@@ -332,35 +337,25 @@ export function generateMarkdownReport(
             )
             .join('<br/>\n'),
           '',
+          '</details>',
+          '',
         ]
       : []),
     '</div>',
     '',
-    locale.detailedMetricsTitle,
-    '',
-    `<sub>${locale.detailedMetricsDescription}</sub>`,
-    '',
-    '<details>',
-    `<summary>${locale.expandDetailedMetrics}</summary>`,
-    '',
-    buildDetailedMetrics(analysis, snapshot.libraries, locale),
-    '',
-    ...buildNativeFootnote(snapshot.libraries, locale),
-    '</details>',
-    '',
-    locale.environmentTitle,
-    '',
-    '<details>',
-    `<summary>${locale.expandEnvironment}</summary>`,
-    '',
-    buildEnvironment(snapshot, locale),
-    '',
-    '</details>',
-    '',
-    locale.methodologyTitle,
-    '',
-    ...locale.methodologyItems.map((item) => `- ${item}`),
-    '',
+    ...buildFold(locale.detailedMetricsTitle, [
+      buildDetailedMetrics(analysis, snapshot.libraries, locale),
+      '',
+      ...buildNativeFootnote(snapshot.libraries, locale),
+    ]),
+    ...buildFold(locale.environmentTitle, [
+      buildEnvironment(snapshot, locale),
+      '',
+    ]),
+    ...buildFold(locale.methodologyTitle, [
+      ...locale.methodologyItems.map((item) => `- ${item}`),
+      '',
+    ]),
   ].join('\n');
 }
 

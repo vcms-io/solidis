@@ -5,51 +5,45 @@ import type { BenchmarkLocale } from './types.ts';
 export const ko: BenchmarkLocale = {
   sectionTitle: `## ${fluentEmoji('Objects', 'Bar Chart')} 벤치마크`,
 
-  reportTitle: (competitors) =>
-    `${fluentEmoji('Travel and places', 'High Voltage')} Solidis vs ${competitors.join(', ')}`,
-  generatedOnPrefix: '측정일',
-  headline: (wins, total, averageLead) =>
-    `벤치마크 **${total}**개 중 **${wins}**개에서 가장 빠름 · 처리량은 2위 클라이언트 대비 평균 **${averageLead.toFixed(1)}배** ${fluentEmoji('Travel and places', 'Rocket')}`,
+  headline: (peakSpeedup) =>
+    `${fluentEmoji('Travel and places', 'High Voltage')} 다른 Node.js Redis 클라이언트보다 최대 ${peakSpeedup.toFixed(1)}배 빠름 ${fluentEmoji('Travel and places', 'Rocket')}`,
+  standing: (wins, total, competitors) =>
+    `클라이언트 ${competitors}종과 비교한 벤치마크 ${total}개 중 ${wins}개 1위`,
   subtitle: (iterations, concurrency, payloadLabel, _payloadCount, repeats) =>
-    `*작업 ${iterations.toLocaleString('en-US')}회 × 동시 실행 ${concurrency.toLocaleString('en-US')} · ${payloadLabel} 페이로드 · 클라이언트마다 ${repeats.toLocaleString('en-US')}회 측정*`,
+    `작업 ${iterations.toLocaleString('en-US')}회 × 동시 실행 ${concurrency.toLocaleString('en-US')} · ${payloadLabel} 페이로드 · ${repeats.toLocaleString('en-US')}회 측정`,
 
-  leaderboardTitle: '### 순위',
+  leaderboardTitle: '#### 순위',
   leaderboardHeaders: {
     client: '클라이언트',
     version: '버전',
     fastestIn: '1위 횟수',
-    throughput: '처리량',
-    cpu: '작업당 CPU',
-    memory: '최대 메모리',
+    throughput: '처리량 ↑',
+    cpu: '작업당 CPU ↓',
+    memory: '최대 메모리 ↓',
   },
   leaderboardFootnote: (subject) =>
-    `처리량, 작업당 CPU, 최대 메모리는 모든 벤치마크의 기하평균이며, \`${subject}\`(1.00x) 대비 값입니다. 처리량은 높을수록, CPU와 메모리는 낮을수록 좋습니다.`,
-  nativeMemoryFootnote:
-    '클라이언트가 네이티브 코드에서 쓰는 메모리는 포함하지 않습니다.',
+    `모든 벤치마크의 기하평균, \`${subject}\` 대비`,
+  nativeMemoryFootnote: '네이티브 메모리 제외',
 
-  resultsTitle: '### 초당 작업 수',
+  resultsTitle: '#### 초당 작업 수',
   mainTableHeaders: {
     benchmark: '벤치마크',
     lead: '배율',
   },
   rankingFootnote: (subject) =>
-    `반복 측정의 초당 작업 수 중앙값이며, 벤치마크마다 가장 빠른 클라이언트를 굵게 표시합니다. 배율 = \`${subject}\` ÷ 다른 클라이언트 중 가장 빠른 값.`,
+    `반복 측정 중앙값 · 가장 빠른 값은 굵게 · 배율 = \`${subject}\` ÷ 다른 클라이언트 중 가장 빠른 값`,
+  notesTitle: '참고',
   note: (note) =>
     note.kind === 'noAutoPipeline'
-      ? `${note.commands.join(', ')}는 오토 파이프라이닝하지 않습니다`
+      ? `${note.commands.join(', ')}는 오토 파이프라이닝하지 않음`
       : {
-          resp3PubSub: 'Pub/Sub에는 RESP3가 필요해 RESP3로 구독합니다',
-          atomicTransactions:
-            '배치에 MULTI와 EXEC를 넣을 수 없어, 그 사이의 커맨드를 원자적 배치로 보냅니다',
-          batchedOperations:
-            '동시에 보낸 커맨드의 순서를 지키지 않아, 작업마다 배치 하나로 보냅니다',
+          resp3PubSub: 'Pub/Sub에 RESP3 필요',
+          atomicTransactions: 'MULTI/EXEC 트랜잭션을 원자적 배치로 전송',
+          batchedOperations: '커맨드 순서를 지키려고 작업마다 배치 하나로 전송',
         }[note.kind],
   noResults: '*결과가 없습니다.*',
 
-  detailedMetricsTitle: `## ${fluentEmoji('Objects', 'Bar Chart')} 상세 지표`,
-  detailedMetricsDescription:
-    '라이브러리별 초당 작업 수와 커맨드 수, 지연 시간(p50 / p95 / p99 / p99.9), 작업당 CPU와 GC 시간, 최대 메모리, 편차입니다.',
-  expandDetailedMetrics: '상세 지표 펼치기',
+  detailedMetricsTitle: '상세 지표',
   detailedMetricsHeaders: {
     benchmark: '벤치마크',
     library: '라이브러리',
@@ -65,8 +59,7 @@ export const ko: BenchmarkLocale = {
     spread: '편차',
   },
 
-  environmentTitle: `## ${fluentEmoji('Objects', 'Gear')} 환경과 설정`,
-  expandEnvironment: '환경과 설정 펼치기',
+  environmentTitle: '환경',
   cpuThreads: (count) => `스레드 ${count}개`,
   environmentLabels: {
     parameter: '항목',
@@ -88,7 +81,7 @@ export const ko: BenchmarkLocale = {
     date: '날짜',
   },
 
-  methodologyTitle: `## ${fluentEmoji('Objects', 'Open Book')} 측정 방법론`,
+  methodologyTitle: '측정 방법',
   methodologyItems: [
     '샘플마다 **별도 워커 스레드**에서 실행하므로 GC와 JIT 상태가 다음 샘플로 이어지지 않습니다.',
     '샘플마다 라이브러리 순서를 **바꾸고**, 매번 서버를 **비우고 안정화**한 뒤 측정합니다.',

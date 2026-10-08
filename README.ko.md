@@ -225,30 +225,28 @@ const pending = await client.xpending('jobs', 'workers', '-', '+', 10);
 
 <div align="center">
 
-# <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/High%20Voltage.png?raw=true" alt="High Voltage" width="25" height="25" /> Solidis vs ioredis, iovalkey, node-redis, valkey-glide, speedkey
+### <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/High%20Voltage.png?raw=true" alt="High Voltage" width="25" height="25" /> 다른 Node.js Redis 클라이언트보다 최대 4.9배 빠름 <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Rocket.png?raw=true" alt="Rocket" width="25" height="25" />
 
-<small>측정일 2026-10-05 15:52:42 UTC · linux x64 · Node.js v22.23.0 · Redis 8.10.2</small>
+**클라이언트 5종과 비교한 벤치마크 19개 중 19개 1위**
 
-### 벤치마크 **19**개 중 **19**개에서 가장 빠름 · 처리량은 2위 클라이언트 대비 평균 **1.5배** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/Rocket.png?raw=true" alt="Rocket" width="25" height="25" />
+<sub>linux x64 · Node.js v22.23.0 · Redis 8.10.2 · 2026-10-05</sub>
 
-### 순위
+#### 순위
 
-|                                                                                                                                                                                        | 클라이언트   | 버전  |    1위 횟수 |    처리량 | 작업당 CPU |       최대 메모리 |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :----------- | :---- | ----------: | --------: | ---------: | ----------------: |
-| <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Activities/1st%20Place%20Medal.png?raw=true" alt="1st Place Medal" width="20" height="20" /> | **solidis**  | 0.5.0 | **19** / 19 | **1.00x** |  **1.00x** |         **1.00x** |
-| <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Activities/2nd%20Place%20Medal.png?raw=true" alt="2nd Place Medal" width="20" height="20" /> | node-redis   | 6.3.0 |      0 / 19 |     0.67x |      1.11x |             0.92x |
-| <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Activities/3rd%20Place%20Medal.png?raw=true" alt="3rd Place Medal" width="20" height="20" /> | speedkey     | 0.4.2 |      0 / 19 |     0.47x |      1.98x | 0.46x<sup>†</sup> |
-|                                                                                                                                                                                     4. | iovalkey     | 0.4.0 |      0 / 19 |     0.41x |      2.17x |             1.40x |
-|                                                                                                                                                                                     5. | ioredis      | 6.0.0 |      0 / 19 |     0.40x |      2.22x |             1.30x |
-|                                                                                                                                                                                     6. | valkey-glide | 2.5.3 |      0 / 19 |     0.38x |      2.50x | 1.01x<sup>†</sup> |
+|                                                                                                                                                                                        | 클라이언트   | 버전  |    1위 횟수 |  처리량 ↑ | 작업당 CPU ↓ |     최대 메모리 ↓ |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :----------- | :---- | ----------: | --------: | -----------: | ----------------: |
+| <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Activities/1st%20Place%20Medal.png?raw=true" alt="1st Place Medal" width="20" height="20" /> | **solidis**  | 0.5.0 | **19** / 19 | **1.00x** |    **1.00x** |         **1.00x** |
+| <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Activities/2nd%20Place%20Medal.png?raw=true" alt="2nd Place Medal" width="20" height="20" /> | node-redis   | 6.3.0 |      0 / 19 |     0.67x |        1.11x |             0.92x |
+| <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Activities/3rd%20Place%20Medal.png?raw=true" alt="3rd Place Medal" width="20" height="20" /> | speedkey     | 0.4.2 |      0 / 19 |     0.47x |        1.98x | 0.46x<sup>†</sup> |
+|                                                                                                                                                                                     4. | iovalkey     | 0.4.0 |      0 / 19 |     0.41x |        2.17x |             1.40x |
+|                                                                                                                                                                                     5. | ioredis      | 6.0.0 |      0 / 19 |     0.40x |        2.22x |             1.30x |
+|                                                                                                                                                                                     6. | valkey-glide | 2.5.3 |      0 / 19 |     0.38x |        2.50x | 1.01x<sup>†</sup> |
 
-<sub>처리량, 작업당 CPU, 최대 메모리는 모든 벤치마크의 기하평균이며, `solidis`(1.00x) 대비 값입니다. 처리량은 높을수록, CPU와 메모리는 낮을수록 좋습니다.</sub>
+<sub>모든 벤치마크의 기하평균, `solidis` 대비 · <sup>†</sup> 네이티브 메모리 제외</sub>
 
-<sub><sup>†</sup> 클라이언트가 네이티브 코드에서 쓰는 메모리는 포함하지 않습니다.</sub>
+#### 초당 작업 수
 
-### 초당 작업 수
-
-_작업 100,000회 × 동시 실행 10,000 · 1 KB 페이로드 · 클라이언트마다 10회 측정_
+<sub>작업 100,000회 × 동시 실행 10,000 · 1 KB 페이로드 · 10회 측정</sub>
 
 |                                                                                                                                                                                        | 벤치마크                                                                                                       | **solidis** |            ioredis |           iovalkey | node-redis |       valkey-glide |           speedkey |                                                                                                                                                                          배율                                                                                                                                                                           |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------------------- | ----------: | -----------------: | -----------------: | ---------: | -----------------: | -----------------: | :-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
@@ -272,21 +270,22 @@ _작업 100,000회 × 동시 실행 10,000 · 1 KB 페이로드 · 클라이언�
 |                                                                                                                                                                                    18. | **List 변경**<br/><sup><kbd>LPUSH</kbd> <kbd>RPUSH</kbd> <kbd>LPOP</kbd> <kbd>RPOP</kbd> <kbd>LLEN</kbd></sup> |  **107.3K** |              40.1K |              40.7K |      88.2K |  48.6K<sup>3</sup> |  57.0K<sup>3</sup> |                                                                           **1.2x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/High%20Voltage.png?raw=true" alt="High Voltage" width="16" height="16" />                                                                            |
 |                                                                                                                                                                                    19. | **Get**<br/><sup><kbd>GET</kbd></sup>                                                                          |  **350.1K** |             192.0K |             189.2K |     322.8K |             112.0K |             177.6K |                                                                           **1.1x** <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Travel%20and%20places/High%20Voltage.png?raw=true" alt="High Voltage" width="16" height="16" />                                                                            |
 
-<sub>반복 측정의 초당 작업 수 중앙값이며, 벤치마크마다 가장 빠른 클라이언트를 굵게 표시합니다. 배율 = `solidis` ÷ 다른 클라이언트 중 가장 빠른 값.</sub>
+<sub>반복 측정 중앙값 · 가장 빠른 값은 굵게 · 배율 = `solidis` ÷ 다른 클라이언트 중 가장 빠른 값</sub>
 
-<sub><sup>1</sup> 배치에 MULTI와 EXEC를 넣을 수 없어, 그 사이의 커맨드를 원자적 배치로 보냅니다</sub><br/>
-<sub><sup>2</sup> Pub/Sub에는 RESP3가 필요해 RESP3로 구독합니다</sub><br/>
-<sub><sup>3</sup> 동시에 보낸 커맨드의 순서를 지키지 않아, 작업마다 배치 하나로 보냅니다</sub><br/>
-<sub><sup>4</sup> INFO는 오토 파이프라이닝하지 않습니다</sub>
+<details>
+<summary><sub>참고</sub></summary>
+
+<sub><sup>1</sup> MULTI/EXEC 트랜잭션을 원자적 배치로 전송</sub><br/>
+<sub><sup>2</sup> Pub/Sub에 RESP3 필요</sub><br/>
+<sub><sup>3</sup> 커맨드 순서를 지키려고 작업마다 배치 하나로 전송</sub><br/>
+<sub><sup>4</sup> INFO는 오토 파이프라이닝하지 않음</sub>
+
+</details>
 
 </div>
 
-## <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Bar%20Chart.png?raw=true" alt="Bar Chart" width="25" height="25" /> 상세 지표
-
-<sub>라이브러리별 초당 작업 수와 커맨드 수, 지연 시간(p50 / p95 / p99 / p99.9), 작업당 CPU와 GC 시간, 최대 메모리, 편차입니다.</sub>
-
 <details>
-<summary>상세 지표 펼치기</summary>
+<summary>&nbsp;&nbsp;<b>상세 지표</b></summary>
 
 | 벤치마크                                                                                                                           | 라이브러리               |  ops/s | cmds/s |      p50 |      p95 |      p99 |    p99.9 | CPU/작업 | GC/작업 |               메모리 |  편차 |
 | :--------------------------------------------------------------------------------------------------------------------------------- | :----------------------- | -----: | -----: | -------: | -------: | -------: | -------: | -------: | ------: | -------------------: | ----: |
@@ -350,7 +349,7 @@ _작업 100,000회 × 동시 실행 10,000 · 1 KB 페이로드 · 클라이언�
 |                                                                                                                                    | node-redis               | 102.3K | 204.6K |  94.45ms | 113.72ms | 151.61ms | 174.21ms |  16.68µs |  2.88µs |             307.2 MB | ±5.9% |
 |                                                                                                                                    | valkey-glide<sup>3</sup> |  62.5K | 125.0K | 156.23ms | 176.67ms | 181.75ms | 191.26ms |  36.39µs |  4.86µs | 280.7 MB<sup>†</sup> | ±2.7% |
 |                                                                                                                                    | speedkey<sup>3</sup>     |  72.2K | 144.4K | 133.65ms | 159.67ms | 167.13ms | 172.51ms |  28.04µs |  2.18µs | 169.9 MB<sup>†</sup> | ±1.8% |
-| **Counter**<br/><sup><kbd>INCR</kbd> <kbd>DECR</kbd></sup>                                                                         | **solidis**              | 265.7K | 531.3K |  33.75ms |  53.21ms |  60.98ms |  72.59ms |   9.27µs |  1.52µs |             253.6 MB | ±2.3% |
+| **Counter**<br/><sup><kbd>INCR</kbd> <kbd>DECR</kbd></sup><br/><sub>1 KB</sub>                                                     | **solidis**              | 265.7K | 531.3K |  33.75ms |  53.21ms |  60.98ms |  72.59ms |   9.27µs |  1.52µs |             253.6 MB | ±2.3% |
 |                                                                                                                                    | ioredis                  | 124.2K | 248.3K |  73.75ms | 113.98ms | 122.37ms | 128.37ms |  16.98µs |  2.97µs |             350.1 MB | ±3.5% |
 |                                                                                                                                    | iovalkey                 | 129.7K | 259.4K |  71.02ms | 106.11ms | 115.05ms | 123.70ms |  16.75µs |  3.02µs |             329.2 MB | ±4.0% |
 |                                                                                                                                    | node-redis               | 187.6K | 375.3K |  50.13ms |  62.31ms |  68.19ms |  73.07ms |   9.31µs |  2.43µs |             224.5 MB | ±2.7% |
@@ -386,7 +385,7 @@ _작업 100,000회 × 동시 실행 10,000 · 1 KB 페이로드 · 클라이언�
 |                                                                                                                                    | node-redis               | 106.6K | 319.9K |  90.20ms | 101.36ms | 108.10ms | 116.93ms |  15.21µs |  3.39µs |             330.5 MB | ±2.1% |
 |                                                                                                                                    | valkey-glide<sup>3</sup> |  54.0K | 162.0K | 172.55ms | 211.16ms | 222.84ms | 239.99ms |  38.90µs |  6.24µs | 392.9 MB<sup>†</sup> | ±1.3% |
 |                                                                                                                                    | speedkey<sup>3</sup>     |  55.5K | 166.4K | 173.53ms | 204.52ms | 214.02ms | 218.42ms |  34.92µs |  2.88µs | 205.7 MB<sup>†</sup> | ±1.1% |
-| **Info / Config**<br/><sup><kbd>INFO</kbd> <kbd>CONFIG GET</kbd></sup>                                                             | **solidis**              | 224.1K | 448.2K |  39.09ms |  71.97ms |  82.95ms |  95.84ms |  10.59µs |  1.66µs |             287.4 MB | ±2.3% |
+| **Info / Config**<br/><sup><kbd>INFO</kbd> <kbd>CONFIG GET</kbd></sup><br/><sub>1 KB</sub>                                         | **solidis**              | 224.1K | 448.2K |  39.09ms |  71.97ms |  82.95ms |  95.84ms |  10.59µs |  1.66µs |             287.4 MB | ±2.3% |
 |                                                                                                                                    | ioredis<sup>4</sup>      | 111.8K | 223.7K |  82.88ms | 124.81ms | 133.86ms | 138.06ms |  17.14µs |  2.35µs |             275.8 MB | ±1.8% |
 |                                                                                                                                    | iovalkey<sup>4</sup>     | 115.3K | 230.6K |  78.61ms | 117.28ms | 122.82ms | 127.81ms |  17.09µs |  2.48µs |             308.0 MB | ±1.9% |
 |                                                                                                                                    | node-redis               | 176.2K | 352.3K |  52.97ms |  72.09ms |  81.40ms |  90.86ms |  10.44µs |  2.37µs |             243.2 MB | ±3.5% |
@@ -405,14 +404,12 @@ _작업 100,000회 × 동시 실행 10,000 · 1 KB 페이로드 · 클라이언�
 |                                                                                                                                    | valkey-glide             | 112.0K | 112.0K |  80.80ms | 139.17ms | 159.95ms | 174.48ms |  19.70µs |  1.24µs |  81.0 MB<sup>†</sup> | ±2.9% |
 |                                                                                                                                    | speedkey                 | 177.6K | 177.6K |  52.23ms |  68.85ms |  80.90ms |  90.14ms |  16.21µs |  1.18µs |  17.8 MB<sup>†</sup> | ±2.7% |
 
-<sub><sup>†</sup> 클라이언트가 네이티브 코드에서 쓰는 메모리는 포함하지 않습니다.</sub>
+<sub><sup>†</sup> 네이티브 메모리 제외</sub>
 
 </details>
 
-## <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Gear.png?raw=true" alt="Gear" width="25" height="25" /> 환경과 설정
-
 <details>
-<summary>환경과 설정 펼치기</summary>
+<summary>&nbsp;&nbsp;<b>환경</b></summary>
 
 | 항목                 | 값                                                                                                 |
 | :------------------- | :------------------------------------------------------------------------------------------------- |
@@ -434,7 +431,8 @@ _작업 100,000회 × 동시 실행 10,000 · 1 KB 페이로드 · 클라이언�
 
 </details>
 
-## <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Open%20Book.png?raw=true" alt="Open Book" width="25" height="25" /> 측정 방법론
+<details>
+<summary>&nbsp;&nbsp;<b>측정 방법</b></summary>
 
 - 샘플마다 **별도 워커 스레드**에서 실행하므로 GC와 JIT 상태가 다음 샘플로 이어지지 않습니다.
 - 샘플마다 라이브러리 순서를 **바꾸고**, 매번 서버를 **비우고 안정화**한 뒤 측정합니다.
@@ -447,6 +445,8 @@ _작업 100,000회 × 동시 실행 10,000 · 1 KB 페이로드 · 클라이언�
 - 클라이언트는 **커맨드 타임아웃, 레디 체크, 재연결을 끄고** 파이프라이닝 제한 없이 실행합니다. Valkey GLIDE와 speedkey는 재연결을 끌 수 없고, 요청마다 최대 10분을 기다립니다. ioredis와 iovalkey는 오토 파이프라이닝을 쓰고, Valkey GLIDE와 speedkey는 RESP2에서 응답을 바이트로 디코딩합니다.
 - 같은 방식으로 실행할 수 없었던 결과에는 **번호를 붙이고** 표 아래에 이유를 적습니다.
 - 비교 대상: npm 주간 다운로드가 1,000회 이상이고, 컴파일 없이 설치되며, 바이너리 값을 그대로 다루는 Node.js TCP 클라이언트 전부입니다. 제외: redis-fast-driver(네이티브 빌드 필요), tedis(값을 문자열로 반환), @upstash/redis 같은 HTTP 클라이언트. Valkey GLIDE는 Windows 빌드가 없습니다.
+
+</details>
 
 </div>
 
@@ -461,18 +461,18 @@ _작업 100,000회 × 동시 실행 10,000 · 1 KB 페이로드 · 클라이언�
 - `setImmediate`로 파이프라인 자동 병합
 - 선형 시간 증분 RESP 파서
 - bulk 응답은 복사 없이 뷰로 반환
-- 파이프라인은 만들자마자 소켓에 쓰고, Node가 `writev`로 묶음
+- Node가 파이프라인을 `writev` 하나로 묶음
 
 </td>
 <td width="50%" valign="top">
 
 ### <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Electric%20Plug.png?raw=true" alt="Electric Plug" width="25" height="25" /> 프로토콜
 
-- RESP2, RESP3 지원 (Redis와 Valkey가 보내지 않는 스트리밍 응답 제외)
-- RESP3 응답 타입 15가지 전부 (Map, Set, Push, Attribute, BigNumber, ...)
-- 추적 무효화 같은 push가 커맨드 응답을 가로채지 않음
-- `Number.MAX_SAFE_INTEGER`를 넘는 정수는 `bigint`로: 원시 응답은 자동, INCR, INCRBY, DECR, DECRBY, HINCRBY, BITFIELD, BITFIELD_RO는 `{ bigint: true }`
-- 바이너리 세이프: `Buffer` 값 쓰기, `{ buffer: true }`로 바이트 그대로 읽기
+- RESP2, RESP3 지원 (스트리밍 응답 제외)
+- RESP3 응답 타입 15가지 전부
+- push가 커맨드 응답을 가로채지 않음
+- 안전 범위를 넘는 정수는 `bigint`로
+- 바이너리 세이프 `Buffer` 입출력
 
 </td>
 </tr>
@@ -482,12 +482,11 @@ _작업 100,000회 × 동시 실행 10,000 · 1 KB 페이로드 · 클라이언�
 ### <img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Objects/Shield.png?raw=true" alt="Shield" width="25" height="25" /> 안정성
 
 - 지터를 넣은 지수 백오프로 자동 재연결
-- 핸드셰이크(AUTH, SELECT)가 끝난 뒤 커맨드 전송
+- 핸드셰이크와 레디 체크 뒤에 커맨드 전송
 - AUTH, 프로토콜, SELECT, 구독 자동 복구
-- 재연결로 WATCH나 MULTI가 풀린 트랜잭션은 버림
-- 파이프라인이나 `send()` 단위 타임아웃, 블로킹 커맨드는 별도 기한
-- 서버 로딩이 끝날 때까지 기다리는 레디 체크
-- 장애가 나면 처리 중인 요청을 확실하게 실패 처리
+- 재연결로 깨진 트랜잭션은 중단
+- 파이프라인, `send()`, 블로킹 커맨드별 타임아웃
+- 장애 시 처리 중인 요청을 바로 실패 처리
 
 </td>
 <td width="50%" valign="top">
@@ -496,9 +495,9 @@ _작업 100,000회 × 동시 실행 10,000 · 1 KB 페이로드 · 클라이언�
 
 - TLS (`rediss://` 또는 `tls` 옵션)
 - ACL 사용자 이름과 비밀번호
-- 디버그 항목에는 커맨드 이름만 남기고 인자는 남기지 않음
-- 커맨드 에러에서는 서버가 되돌려준 인자 텍스트를 가림
-- `maxBulkStringLength` 제한과 512단계 중첩 제한
+- 디버그 항목에 인자를 남기지 않음
+- 서버가 되돌려준 인자를 에러에서 가림
+- bulk 크기 제한과 512단계 중첩 제한
 
 </td>
 </tr>
@@ -638,16 +637,16 @@ sequenceDiagram
 ```typescript
 client.on('connect', () => {});                    // TCP 연결됨
 client.on('ready', () => {});                      // 핸드셰이크 완료, 커맨드 전송 가능
-client.on('close', (error) => {});                 // 연결 끊김 (autoReconnect가 켜져 있고 준비된 적이 있으면 재연결)
+client.on('close', (error) => {});                 // 끊김 (준비된 적이 있으면 autoReconnect 재연결)
 client.on('reconnecting', (attempt, delay) => {}); // 재연결을 시도할 때마다
 client.on('reconnected', () => {});                // 재연결 성공
 client.on('end', () => {});                        // 클라이언트 종료 (quit)
-client.on('error', (error) => {});                 // 치명적이지 않은 에러 (리스너가 없으면 process.emitWarning())
+client.on('error', (error) => {});                 // 비치명적 에러 (리스너가 없으면 emitWarning())
 client.on('drain', () => {});                      // 쓰기 버퍼가 비워짐
 client.on('message', (channel, message) => {});    // Pub/Sub 메시지
 client.on('pmessage', (pattern, channel, message) => {});
 client.on('smessage', (channel, message) => {});   // 샤드 채널 메시지
-client.on('subscribe', (channel, count) => {});    // psubscribe, ssubscribe와 각 unsubscribe 이벤트도 같음
+client.on('subscribe', (channel, count) => {});    // psubscribe, ssubscribe, unsubscribe 계열도 같음
 client.on('push', (reply) => {});                  // 그 밖의 push (예: client tracking 무효화)
 client.on('debug', (entry) => {});                 // 디버그 항목
 ```
@@ -677,15 +676,18 @@ try {
 | `SolidisParserError`     | 잘못된 RESP, 너무 큰 bulk string이나 줄, 512단계를 넘는 중첩                          |
 | `SolidisPubSubError`     | 잘못된 Pub/Sub 이벤트, 예외를 던진 Pub/Sub·push 리스너                                |
 
-> [!NOTE]
->
-> - 선언된 타입의 인자로 생긴 에러는 모두 `SolidisError`이고, 원인은 표준 `cause`로 이어집니다.
-> - 메시지에는 커맨드 이름(`[INCR] ERR ...`)만 붙고 인자는 붙지 않습니다. 따옴표 안의 텍스트가 인자에 들어 있으면 메시지와 `cause` 모두에서 `'***'`로 가리고, Lua 에러는 첫 따옴표부터 가립니다. 따옴표 없이 되돌려준 값(GEOADD 좌표, `redis.error_reply()` 텍스트, FUNCTION LOAD의 함수 이름)은 그대로 남습니다.
-> - 4,096자보다 긴 메시지는 잘리고, 잘린 메시지에서 가린 부분이 있으면 끝까지 가립니다.
-> - 인자는 선언된 타입으로만 검사합니다. JavaScript에서 배열 자리에 문자열, 객체 자리에 배열을 넘기거나 ioredis식으로 `set(key, value, 'EX', 10)`을 쓰면 다른 커맨드가 됩니다. 필드 레코드는 객체만 받습니다.
-> - ESM과 CJS 빌드의 클라이언트와 커맨드는 섞어 쓸 수 있지만, 에러 클래스는 빌드마다 따로라서 `instanceof`는 같은 빌드의 에러에만 맞습니다.
-> - TS.MADD, BF.MADD, BF.INSERT는 거부된 항목을 결과 안의 `RespError`로 돌려줍니다.
-> - `send()`, `pipeline()`, `exec()`의 원시 결과에 든 에러 응답은 서버 텍스트를 그대로 둡니다.
+<details>
+<summary>&nbsp;&nbsp;<b>참고</b></summary>
+
+- 선언된 타입의 인자로 생긴 에러는 모두 `SolidisError`이고, 원인은 표준 `cause`로 이어집니다.
+- 메시지에는 커맨드 이름(`[INCR] ERR ...`)만 붙고 인자는 붙지 않습니다. 따옴표 안의 텍스트가 인자에 들어 있으면 메시지와 `cause` 모두에서 `'***'`로 가리고, Lua 에러는 첫 따옴표부터 가립니다. 따옴표 없이 되돌려준 값(GEOADD 좌표, `redis.error_reply()` 텍스트, FUNCTION LOAD의 함수 이름)은 그대로 남습니다.
+- 4,096자보다 긴 메시지는 잘리고, 잘린 메시지에서 가린 부분이 있으면 끝까지 가립니다.
+- 인자는 선언된 타입으로만 검사합니다. JavaScript에서 배열 자리에 문자열, 객체 자리에 배열을 넘기거나 ioredis식으로 `set(key, value, 'EX', 10)`을 쓰면 다른 커맨드가 됩니다. 필드 레코드는 객체만 받습니다.
+- ESM과 CJS 빌드의 클라이언트와 커맨드는 섞어 쓸 수 있지만, 에러 클래스는 빌드마다 따로라서 `instanceof`는 같은 빌드의 에러에만 맞습니다.
+- TS.MADD, BF.MADD, BF.INSERT는 거부된 항목을 결과 안의 `RespError`로 돌려줍니다.
+- `send()`, `pipeline()`, `exec()`의 원시 결과에 든 에러 응답은 서버 텍스트를 그대로 둡니다.
+
+</details>
 
 ## 확장
 

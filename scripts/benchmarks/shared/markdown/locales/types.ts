@@ -3,9 +3,8 @@ import type { BenchmarkNote } from '../../types.ts';
 export interface BenchmarkLocale {
   sectionTitle: string;
 
-  reportTitle(competitors: string[]): string;
-  generatedOnPrefix: string;
-  headline(wins: number, total: number, averageLead: number): string;
+  headline(peakSpeedup: number): string;
+  standing(wins: number, total: number, competitors: number): string;
   subtitle(
     iterations: number,
     concurrency: number,
@@ -32,12 +31,11 @@ export interface BenchmarkLocale {
     lead: string;
   };
   rankingFootnote(subject: string): string;
+  notesTitle: string;
   note(note: BenchmarkNote): string;
   noResults: string;
 
   detailedMetricsTitle: string;
-  detailedMetricsDescription: string;
-  expandDetailedMetrics: string;
   detailedMetricsHeaders: {
     benchmark: string;
     library: string;
@@ -54,7 +52,6 @@ export interface BenchmarkLocale {
   };
 
   environmentTitle: string;
-  expandEnvironment: string;
   cpuThreads(count: number): string;
   environmentLabels: {
     parameter: string;

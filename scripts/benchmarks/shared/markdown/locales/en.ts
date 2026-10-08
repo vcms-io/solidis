@@ -15,51 +15,47 @@ function list(names: string[]): string {
 export const en: BenchmarkLocale = {
   sectionTitle: `## ${fluentEmoji('Objects', 'Bar Chart')} Benchmarks`,
 
-  reportTitle: (competitors) =>
-    `${fluentEmoji('Travel and places', 'High Voltage')} Solidis vs ${list(competitors)}`,
-  generatedOnPrefix: 'Generated on',
-  headline: (wins, total, averageLead) =>
-    `Fastest in **${wins}** of **${total}** benchmarks · **${averageLead.toFixed(1)}x** the throughput of the next-fastest client on average ${fluentEmoji('Travel and places', 'Rocket')}`,
+  headline: (peakSpeedup) =>
+    `${fluentEmoji('Travel and places', 'High Voltage')} Up to ${peakSpeedup.toFixed(1)}x faster than other Node.js Redis clients ${fluentEmoji('Travel and places', 'Rocket')}`,
+  standing: (wins, total, competitors) =>
+    `Fastest in ${wins} of ${total} benchmarks against ${competitors} ${plural(competitors, 'client')}`,
   subtitle: (iterations, concurrency, payloadLabel, payloadCount, repeats) =>
-    `*${iterations.toLocaleString('en-US')} operations × ${concurrency.toLocaleString('en-US')} concurrency · ${payloadLabel} ${plural(payloadCount, 'payload')} · ${repeats.toLocaleString('en-US')} ${plural(repeats, 'repeat')} per client*`,
+    `${iterations.toLocaleString('en-US')} operations × ${concurrency.toLocaleString('en-US')} concurrency · ${payloadLabel} ${plural(payloadCount, 'payload')} · ${repeats.toLocaleString('en-US')} ${plural(repeats, 'repeat')}`,
 
-  leaderboardTitle: '### Leaderboard',
+  leaderboardTitle: '#### Leaderboard',
   leaderboardHeaders: {
     client: 'Client',
     version: 'Version',
     fastestIn: 'Fastest in',
-    throughput: 'Throughput',
-    cpu: 'CPU per operation',
-    memory: 'Peak memory',
+    throughput: 'Throughput ↑',
+    cpu: 'CPU / op ↓',
+    memory: 'Peak memory ↓',
   },
   leaderboardFootnote: (subject) =>
-    `Throughput, CPU per operation and peak memory are geometric means over all benchmarks, relative to \`${subject}\` (1.00x). Higher throughput and lower CPU and memory are better.`,
-  nativeMemoryFootnote:
-    'Memory the client keeps in native code is not counted.',
+    `Geometric means over all benchmarks, relative to \`${subject}\``,
+  nativeMemoryFootnote: 'Native memory not counted',
 
-  resultsTitle: '### Operations per Second',
+  resultsTitle: '#### Operations per Second',
   mainTableHeaders: {
     benchmark: 'Benchmark',
     lead: 'Lead',
   },
   rankingFootnote: (subject) =>
-    `Median operations per second over the repeats; the fastest client of each benchmark is in bold. Lead = \`${subject}\` ÷ the fastest other client.`,
+    `Medians over the repeats · fastest in bold · Lead = \`${subject}\` ÷ the fastest other client`,
+  notesTitle: 'Notes',
   note: (note) =>
     note.kind === 'noAutoPipeline'
       ? `Does not auto-pipeline ${list(note.commands)}`
       : {
-          resp3PubSub: 'Subscribes over RESP3, which it requires for Pub/Sub',
+          resp3PubSub: 'Needs RESP3 for Pub/Sub',
           atomicTransactions:
-            'Does not take MULTI and EXEC in a batch, so it sends the commands between them as an atomic batch',
+            'Sends MULTI/EXEC transactions as an atomic batch',
           batchedOperations:
-            'Does not keep the order of concurrent commands, so it sends each operation as one batch',
+            'Sends each operation as one batch to keep command order',
         }[note.kind],
   noResults: '*No results.*',
 
-  detailedMetricsTitle: `## ${fluentEmoji('Objects', 'Bar Chart')} Detailed Metrics`,
-  detailedMetricsDescription:
-    'Per library: operations and commands per second, latency (p50 / p95 / p99 / p99.9), CPU and GC time per operation, peak memory and spread.',
-  expandDetailedMetrics: 'Click to expand the detailed metrics',
+  detailedMetricsTitle: 'Detailed metrics',
   detailedMetricsHeaders: {
     benchmark: 'Benchmark',
     library: 'Library',
@@ -75,8 +71,7 @@ export const en: BenchmarkLocale = {
     spread: 'Spread',
   },
 
-  environmentTitle: `## ${fluentEmoji('Objects', 'Gear')} Environment and Configuration`,
-  expandEnvironment: 'Click to expand the environment and configuration',
+  environmentTitle: 'Environment',
   cpuThreads: (count) => `${count} threads`,
   environmentLabels: {
     parameter: 'Parameter',
@@ -98,7 +93,7 @@ export const en: BenchmarkLocale = {
     date: 'Date',
   },
 
-  methodologyTitle: `## ${fluentEmoji('Objects', 'Open Book')} Methodology`,
+  methodologyTitle: 'Methodology',
   methodologyItems: [
     'Every sample runs in its own **worker thread**, so garbage collection and JIT state never carry over.',
     'The library order **rotates** per sample, and the server is **flushed and settled** before each one.',
