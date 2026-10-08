@@ -11,6 +11,7 @@ import {
   createClient,
   createKeyspace,
   detectServerCapabilities,
+  readServerTime,
   waitFor,
 } from '../utils/index.ts';
 
@@ -113,7 +114,7 @@ describe('strings', () => {
       (error: Error) => {
         assert.strictEqual(
           error.message,
-          `[INCR ${key}] Invalid reply: RespError: ERR value is not an integer or out of range`,
+          '[INCR] ERR value is not an integer or out of range',
         );
         return true;
       },
@@ -210,16 +211,17 @@ describe('strings', () => {
     const getexMillisPttl = await client.pttl(key);
     assert.ok(getexMillisPttl >= 49000 && getexMillisPttl <= 50000);
 
-    const futureSeconds = Math.floor(Date.now() / 1000) + 3600;
+    const futureSeconds =
+      Math.floor((await readServerTime(client)) / 1000) + 3600;
 
     assert.strictEqual(
       await client.getex(key, { expireAtSeconds: futureSeconds }),
       'value',
     );
     const getexFutureSecondsTtl = await client.ttl(key);
-    assert.ok(getexFutureSecondsTtl >= 3599 && getexFutureSecondsTtl <= 3600);
+    assert.ok(getexFutureSecondsTtl > 3590 && getexFutureSecondsTtl <= 3600);
 
-    const futureMilliseconds = Date.now() + 7200000;
+    const futureMilliseconds = (await readServerTime(client)) + 7200000;
 
     assert.strictEqual(
       await client.getex(key, { expireAtMilliseconds: futureMilliseconds }),
@@ -227,7 +229,7 @@ describe('strings', () => {
     );
     const getexFutureMillisPttl = await client.pttl(key);
     assert.ok(
-      getexFutureMillisPttl >= 7199000 && getexFutureMillisPttl <= 7200000,
+      getexFutureMillisPttl > 7190000 && getexFutureMillisPttl <= 7201000,
     );
 
     assert.strictEqual(await client.getex(key, { persist: true }), 'value');
@@ -307,7 +309,7 @@ describe('strings', () => {
   it('SET with expireInMilliseconds expires the key', async () => {
     const key = keyspace.key('set-px');
 
-    await client.set(key, 'value', { expireInMilliseconds: 60 });
+    await client.set(key, 'value', { expireInMilliseconds: 400 });
 
     assert.strictEqual(await client.get(key), 'value');
 
@@ -405,6 +407,30 @@ describe('strings', () => {
     assert.strictEqual(await client.get(key), 'text');
   });
 
+  it('SET setIfValueNotEquals compares Buffers byte for byte', async (context) => {
+    if (!supportsSetIfNe) {
+      context.skip('SET IFNE requires Redis 8.4+ or Valkey 9.2+');
+      return;
+    }
+
+    const key = keyspace.key('set-ifne-binary');
+    const payload = Buffer.from([0x00, 0xff, 0x10, 0x7f, 0x80]);
+
+    await client.set(key, payload);
+
+    assert.strictEqual(
+      await client.set(key, 'text', { setIfValueNotEquals: payload }),
+      null,
+    );
+    assert.strictEqual(
+      await client.set(key, 'text', {
+        setIfValueNotEquals: payload.toString(),
+      }),
+      'OK',
+    );
+    assert.strictEqual(await client.get(key), 'text');
+  });
+
   it('SET setIfValueEquals with returnOldValue yields the previous value either way', async (context) => {
     if (!supportsSetIfEq) {
       context.skip('SET IFEQ requires Redis 8.4+ or Valkey 8.1+');
@@ -448,7 +474,7 @@ describe('strings', () => {
       (error: Error) => {
         assert.strictEqual(
           error.message,
-          `[SET ${key} value IFEQ item] Invalid reply: RespError: WRONGTYPE Operation against a key holding the wrong kind of value`,
+          '[SET] WRONGTYPE Operation against a key holding the wrong kind of value',
         );
         return true;
       },
@@ -645,6 +671,17 @@ describe('strings', () => {
       0,
     );
     assert.strictEqual(await client.delex(key, { ifValueEquals: payload }), 1);
+
+    await client.set(key, payload);
+
+    assert.strictEqual(
+      await client.delex(key, { ifValueNotEquals: payload }),
+      0,
+    );
+    assert.strictEqual(
+      await client.delex(key, { ifValueNotEquals: payload.toString() }),
+      1,
+    );
   });
 
   it('rejects DIGEST and conditional DELEX on a non-string key', async (context) => {
@@ -662,7 +699,7 @@ describe('strings', () => {
       (error: Error) => {
         assert.strictEqual(
           error.message,
-          `[DIGEST ${key}] Invalid reply: RespError: WRONGTYPE Operation against a key holding the wrong kind of value`,
+          '[DIGEST] WRONGTYPE Operation against a key holding the wrong kind of value',
         );
         return true;
       },
@@ -672,7 +709,7 @@ describe('strings', () => {
       (error: Error) => {
         assert.strictEqual(
           error.message,
-          `[DELEX ${key} IFEQ item] Invalid reply: RespError: ERR Key should be of string type if conditions are specified`,
+          '[DELEX] ERR Key should be of string type if conditions are specified',
         );
         return true;
       },

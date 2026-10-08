@@ -1,9 +1,10 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
-  newCommandError,
-  tryReplyToStreamEntry,
+  tryReplyArray,
+  tryReplyToStreamEntries,
   tryReplyToString,
-  UnexpectedReplyPrefix,
+  tryReplyToStringArray,
 } from './utils/index.ts';
 
 import type { RespStreamAutoClaimResult } from '../index.ts';
@@ -17,10 +18,17 @@ export function createCommand(
   count?: number,
   justid?: boolean,
 ) {
-  const command = ['XAUTOCLAIM', key, group, consumer, `${minIdleTime}`, start];
+  const command = [
+    'XAUTOCLAIM',
+    key,
+    group,
+    consumer,
+    formatInteger(minIdleTime),
+    start,
+  ];
 
   if (count !== undefined) {
-    command.push('COUNT', `${count}`);
+    command.push('COUNT', formatInteger(count));
   }
 
   if (justid) {
@@ -44,31 +52,18 @@ export async function xautoclaim<T>(
     this,
     createCommand(key, group, consumer, minIdleTime, start, count, justid),
     (reply, command) => {
-      if (Array.isArray(reply) && (reply.length === 2 || reply.length === 3)) {
-        const [nextId, entries] = reply;
+      const [nextId, entries, deletedIds] = tryReplyArray(reply, command);
 
-        if (
-          (typeof nextId === 'string' || nextId instanceof Buffer) &&
-          Array.isArray(entries)
-        ) {
-          if (justid) {
-            return {
-              nextId: `${nextId}`,
-              entries: entries.map((entry) => ({
-                id: tryReplyToString(entry),
-                fields: {},
-              })),
-            };
-          }
-
-          return {
-            nextId: `${nextId}`,
-            entries: entries.map(tryReplyToStreamEntry),
-          };
-        }
-      }
-
-      throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
+      return {
+        nextId: tryReplyToString(nextId, command),
+        entries: justid
+          ? tryReplyToStringArray(entries, command).map((id) => ({
+              id,
+              fields: {},
+            }))
+          : tryReplyToStreamEntries(entries, command),
+        deletedIds: tryReplyToStringArray(deletedIds ?? [], command),
+      };
     },
   );
 }

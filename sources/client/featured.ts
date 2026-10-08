@@ -60,7 +60,6 @@ import {
   clientNoEvict,
   clientNoTouch,
   clientPause,
-  clientReply,
   clientSetinfo,
   clientSetname,
   clientTracking,
@@ -300,7 +299,6 @@ import {
   sunionstore,
   sunsubscribe,
   swapdb,
-  sync,
   time,
   touch,
   tsAdd,
@@ -385,17 +383,16 @@ import {
 } from '../command/index.ts';
 import { SolidisClient } from '../index.ts';
 
-import type { SolidisClientOptions } from '../index.ts';
+import type {
+  SolidisClientOptions,
+  SolidisTransactionClient,
+} from '../index.ts';
 
 export class SolidisFeaturedClient extends SolidisClient {
   constructor(options?: SolidisClientOptions) {
     super(options);
 
-    for (const method of Object.getOwnPropertyNames(this)) {
-      if (method !== 'constructor' && typeof this[method] === 'function') {
-        this[method] = this[method].bind(this);
-      }
-    }
+    this.extend<Record<string, unknown>>(this);
   }
 
   aclCat = aclCat;
@@ -459,7 +456,6 @@ export class SolidisFeaturedClient extends SolidisClient {
   clientNoEvict = clientNoEvict;
   clientNoTouch = clientNoTouch;
   clientPause = clientPause;
-  clientReply = clientReply;
   clientSetinfo = clientSetinfo;
   clientSetname = clientSetname;
   clientTracking = clientTracking;
@@ -630,7 +626,7 @@ export class SolidisFeaturedClient extends SolidisClient {
   move = move;
   mset = mset;
   msetnx = msetnx;
-  multi = multi;
+  multi: () => SolidisTransactionClient<this> = multi;
   objectEncoding = objectEncoding;
   objectFreq = objectFreq;
   objectHelp = objectHelp;
@@ -711,7 +707,6 @@ export class SolidisFeaturedClient extends SolidisClient {
   sunionstore = sunionstore;
   sunsubscribe = sunsubscribe;
   swapdb = swapdb;
-  sync = sync;
   time = time;
   touch = touch;
   tsAdd = tsAdd;

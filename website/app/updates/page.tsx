@@ -23,8 +23,8 @@ import { useGitHubReleases } from '@/hooks/use-github-releases';
 import { useI18n } from '@/lib/i18n-context';
 
 export default function UpdatesPage() {
-  const { t } = useI18n();
-  const { releases, loading, error, fallback } = useGitHubReleases();
+  const { t, locale } = useI18n();
+  const { releases, loading, fallback } = useGitHubReleases();
 
   const upcomingFeatures = [
     {
@@ -39,21 +39,13 @@ export default function UpdatesPage() {
     },
   ];
 
-  const getStatusColor = (statusKey: string) => {
-    switch (statusKey) {
-      case 'statusInDev':
-        return 'bg-blue-500/10 text-blue-600 border-blue-500/20';
-      case 'statusPlanned':
-        return 'bg-purple-500/10 text-purple-600 border-purple-500/20';
-      case 'statusResearch':
-        return 'bg-muted text-muted-foreground';
-      default:
-        return 'bg-muted text-muted-foreground';
-    }
-  };
+  const getStatusColor = (statusKey: string) =>
+    statusKey === 'statusPlanned'
+      ? 'bg-purple-500/10 text-purple-600 border-purple-500/20'
+      : 'bg-muted text-muted-foreground';
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    return new Date(dateString).toLocaleDateString(locale, {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -65,11 +57,10 @@ export default function UpdatesPage() {
     const changes: string[] = [];
 
     for (const line of lines) {
-      if (line.trim().startsWith('*') || line.trim().startsWith('-')) {
-        const change = line.trim().replace(/^[*-]\s*/, '');
-        if (change && !change.startsWith('**Full Changelog**')) {
-          changes.push(change);
-        }
+      const item = /^[*-]\s+(.+)$/.exec(line.trim());
+
+      if (item && !item[1].startsWith('**Full Changelog**')) {
+        changes.push(item[1]);
       }
     }
 
@@ -83,7 +74,7 @@ export default function UpdatesPage() {
           <h1 className="text-3xl font-bold tracking-tight text-foreground">
             {t('updates.title')}
           </h1>
-          {fallback && (
+          {fallback && !loading && (
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <WifiOff className="h-3 w-3" />
               <span>{t('updates.cachedData')}</span>
@@ -113,17 +104,18 @@ export default function UpdatesPage() {
                 {releases[0].tag_name}
               </Badge>
             </div>
-            <CardDescription>{t('updates.latestReleaseDesc')}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
               <div className="flex items-center gap-1">
                 <Calendar className="h-3 w-3" />
-                Released {formatDate(releases[0].published_at)}
+                {t('updates.released', {
+                  date: formatDate(releases[0].published_at),
+                })}
               </div>
               <div className="flex items-center gap-1">
                 <User className="h-3 w-3" />
-                by {releases[0].author.login}
+                {t('updates.author', { author: releases[0].author.login })}
               </div>
             </div>
           </CardContent>
@@ -194,14 +186,28 @@ export default function UpdatesPage() {
                           className="flex items-start gap-2 text-xs text-muted-foreground"
                         >
                           <span className="text-emerald-600 mt-0.5">·</span>
-                          {change}
+                          <span>
+                            <ReactMarkdown
+                              allowedElements={['code', 'em', 'strong']}
+                              unwrapDisallowed
+                            >
+                              {change}
+                            </ReactMarkdown>
+                          </span>
                         </li>
                       ))}
                     </ul>
                   )}
                   {changes.length === 0 && release.body && (
-                    <div className="prose prose-sm prose-neutral max-w-none text-xs text-muted-foreground">
-                      <ReactMarkdown>{`${release.body.slice(0, 300)}...`}</ReactMarkdown>
+                    <div className="text-xs text-muted-foreground">
+                      <ReactMarkdown
+                        allowedElements={['p', 'code', 'em', 'strong']}
+                        unwrapDisallowed
+                      >
+                        {release.body.length > 300
+                          ? `${release.body.slice(0, 300)}…`
+                          : release.body}
+                      </ReactMarkdown>
                     </div>
                   )}
                 </CardContent>
@@ -211,7 +217,7 @@ export default function UpdatesPage() {
         </div>
       </div>
 
-      {error && fallback && (
+      {fallback && !loading && (
         <Card className="mb-8 border-amber-500/20">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 text-xs text-amber-500">

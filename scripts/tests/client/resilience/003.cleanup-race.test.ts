@@ -1,4 +1,4 @@
-/** Cleanup race: deferred end-callback in cleanup() targets the wrong socket during reconnection. */
+/** Reconnection with no retries left after the server drops the socket or kills the client. */
 
 import assert from 'node:assert/strict';
 import { afterEach, describe, it } from 'node:test';

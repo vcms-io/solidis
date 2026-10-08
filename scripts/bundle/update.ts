@@ -20,7 +20,7 @@ if (!solidisResult) {
   process.exit(1);
 }
 
-const bundleKilobytes = Math.ceil(solidisResult.bundleBytes / 1024);
+const bundleKilobytes = Math.floor(solidisResult.bundleBytes / 1024) + 1;
 const badgeLabel = `<${bundleKilobytes}KB`;
 const displayLabel = `< ${bundleKilobytes}KB`;
 
@@ -76,6 +76,10 @@ for (const readmeFile of readmeFiles) {
       pattern: /(\*\*&lt; )\d+(KB\*\*)/g,
       replacement: `$1${bundleKilobytes}$2`,
     },
+    {
+      pattern: /(\*\*)\d+(KB 미만\*\*)/g,
+      replacement: `$1${bundleKilobytes}$2`,
+    },
   ]);
 
   if (changed) {
@@ -84,28 +88,47 @@ for (const readmeFile of readmeFiles) {
   }
 }
 
-const benchmarksPagePath = resolve(
-  projectRoot,
-  'website',
-  'app',
-  'benchmarks',
-  'page.tsx',
-);
+const websiteFiles: Array<{
+  path: string;
+  replacements: Array<{ pattern: RegExp; replacement: string }>;
+}> = [
+  {
+    path: 'website/app/benchmarks/page.tsx',
+    replacements: [
+      { pattern: /&lt;\d+KB/g, replacement: `&lt;${bundleKilobytes}KB` },
+    ],
+  },
+  {
+    path: 'website/i18n/messages/en.json',
+    replacements: [
+      {
+        pattern: /(Under |"statBundle": "< )\d+( KB)/g,
+        replacement: `$1${bundleKilobytes}$2`,
+      },
+    ],
+  },
+  {
+    path: 'website/i18n/messages/ko.json',
+    replacements: [
+      {
+        pattern: /(최소 번들이 |"statBundle": ")\d+( KB 미만)/g,
+        replacement: `$1${bundleKilobytes}$2`,
+      },
+    ],
+  },
+  {
+    path: 'website/public/llms.txt',
+    replacements: [
+      { pattern: /< \d+KB/g, replacement: `< ${bundleKilobytes}KB` },
+    ],
+  },
+];
 
-try {
-  const changed = await replaceInFile(benchmarksPagePath, [
-    {
-      pattern: /\{'<\d+KB'\}/g,
-      replacement: `{'${badgeLabel}'}`,
-    },
-  ]);
-
-  if (changed) {
+for (const { path, replacements } of websiteFiles) {
+  if (await replaceInFile(resolve(projectRoot, path), replacements)) {
     updatedCount += 1;
-    console.log('Updated: website/app/benchmarks/page.tsx');
+    console.log(`Updated: ${path}`);
   }
-} catch {
-  console.log('Skipped: website/app/benchmarks/page.tsx (not found)');
 }
 
 await rm(BUNDLE_DIRECTORY, { recursive: true, force: true });

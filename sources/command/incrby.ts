@@ -1,17 +1,24 @@
-import { executeCommand, tryReplyNumber } from './utils/index.ts';
+import { formatInteger } from '../common/utils/internal.ts';
+import { executeIntegerCommand } from './utils/index.ts';
 
-export function createCommand(key: string, increment: number) {
-  return ['INCRBY', key, `${increment}`];
+import type { CommandIntegerOptions, RespInteger } from '../index.ts';
+
+export function createCommand(key: string, increment: number | bigint) {
+  return ['INCRBY', key, formatInteger(increment)];
 }
 
-export async function incrby<T>(
+export async function incrby<
+  T,
+  Options extends CommandIntegerOptions | undefined = undefined,
+>(
   this: T,
   key: string,
-  increment: number,
-): Promise<number> {
-  return await executeCommand(
+  increment: number | bigint,
+  options?: Options,
+): Promise<RespInteger<Options>> {
+  return await executeIntegerCommand(
     this,
     createCommand(key, increment),
-    tryReplyNumber,
+    options,
   );
 }

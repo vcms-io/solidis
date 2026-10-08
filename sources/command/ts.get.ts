@@ -1,14 +1,17 @@
 import {
   executeCommand,
-  newCommandError,
-  UnexpectedReplyPrefix,
+  tryReplyArray,
+  tryReplyToNumber,
+  tryReplyTuple,
 } from './utils/index.ts';
 
 export function createCommand(key: string, latest?: boolean) {
   const command = ['TS.GET', key];
+
   if (latest) {
     command.push('LATEST');
   }
+
   return command;
 }
 
@@ -21,27 +24,16 @@ export async function tsGet<T>(
     this,
     createCommand(key, latest),
     (reply, command) => {
-      if (reply === null) {
+      if (tryReplyArray(reply, command).length === 0) {
         return null;
       }
 
-      if (!Array.isArray(reply) || reply.length !== 2) {
-        throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
-      }
+      const [timestamp, value] = tryReplyTuple(reply, 2, command);
 
-      const [timestamp, value] = reply;
-
-      const timestampNumber = Number(`${timestamp}`);
-      const valueNumber = Number(`${value}`);
-
-      if (Number.isNaN(timestampNumber) || Number.isNaN(valueNumber)) {
-        throw newCommandError(
-          `${UnexpectedReplyPrefix}: ${timestamp}/${value}`,
-          command,
-        );
-      }
-
-      return [timestampNumber, valueNumber];
+      return [
+        tryReplyToNumber(timestamp, command),
+        tryReplyToNumber(value, command),
+      ];
     },
   );
 }

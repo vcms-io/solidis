@@ -1,7 +1,7 @@
 import {
   executeCommand,
-  newCommandError,
-  UnexpectedReplyPrefix,
+  tryReplyToInteger,
+  tryReplyTuple,
 } from './utils/index.ts';
 
 export function createCommand() {
@@ -12,15 +12,11 @@ export async function time<T>(
   this: T,
 ): Promise<[seconds: number, microseconds: number]> {
   return await executeCommand(this, createCommand(), (reply, command) => {
-    if (Array.isArray(reply) && reply.length === 2) {
-      const seconds = Number(`${reply[0]}`);
-      const microseconds = Number(`${reply[1]}`);
+    const [seconds, microseconds] = tryReplyTuple(reply, 2, command);
 
-      if (!Number.isNaN(seconds) && !Number.isNaN(microseconds)) {
-        return [seconds, microseconds];
-      }
-    }
-
-    throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
+    return [
+      tryReplyToInteger(seconds, command),
+      tryReplyToInteger(microseconds, command),
+    ];
   });
 }

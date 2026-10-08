@@ -20,16 +20,12 @@
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  --color-amber-accent: var(--amber-accent);
-  --color-amber-accent-foreground: var(--amber-accent-foreground);
 }
 
 :root {
@@ -41,9 +37,6 @@
 
   --card: #f2f1ed;
   --card-foreground: #26251e;
-
-  --popover: #f7f7f4;
-  --popover-foreground: #26251e;
 
   --primary: #26251e;
   --primary-foreground: #f7f7f4;
@@ -64,8 +57,6 @@
   --ring: #26251e;
 
   --amber-accent: #d97706;
-  --amber-accent-foreground: #f7f7f4;
-
 }
 
 @layer base {
@@ -81,6 +72,7 @@
   html {
     font-family: "Pretendard Variable", "Pretendard", -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
     scroll-behavior: smooth;
+    scroll-padding-top: 4.5rem;
     background: var(--background);
   }
 
@@ -223,14 +215,6 @@
     text-wrap: balance;
   }
 
-  .fade-in {
-    animation: fadeIn 0.5s ease-out forwards;
-  }
-
-  .slide-up {
-    animation: slideUp 0.5s ease-out forwards;
-  }
-
   .reveal {
     opacity: 0;
     transform: translateY(24px);
@@ -250,16 +234,6 @@
     animation-delay: var(--hero-delay, 0ms);
   }
 
-  .bar-fill {
-    width: 0%;
-    transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
-    transition-delay: var(--bar-delay, 0ms);
-  }
-
-  .bar-fill.active {
-    width: var(--bar-width);
-  }
-
   .feature-card {
     transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
   }
@@ -272,22 +246,6 @@
 
   .feature-card:hover h3 {
     color: var(--amber-accent);
-  }
-
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-
-  @keyframes slideUp {
-    from {
-      opacity: 0;
-      transform: translateY(16px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
   }
 
   @keyframes fadeInUp {

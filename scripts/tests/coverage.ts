@@ -1,7 +1,7 @@
 /**
  * Unified coverage runner.
  *
- * commands: parallel. client/admin: serial, alone (global state).
+ * commands: serial (global state). client/admin: serial, alone (global state).
  * client/{core,resilience,fault}: serial per group, groups in parallel.
  * Uses NODE_V8_COVERAGE + native TS stripping for per-file identity.
  */
@@ -37,6 +37,7 @@ function spawnTests(files: string[], concurrency?: number): Promise<number> {
     '--experimental-strip-types',
     '--no-warnings',
     '--test',
+    '--test-timeout=60000',
     ...(concurrency === undefined ? [] : [`--test-concurrency=${concurrency}`]),
     ...files,
   ];
@@ -54,26 +55,29 @@ function spawnTests(files: string[], concurrency?: number): Promise<number> {
 
 function report(): Promise<number> {
   const command = [
-    'c8',
+    join(root, 'node_modules', 'c8', 'bin', 'c8.js'),
     'report',
     `--temp-directory=${coverageDirectory}`,
+    '--all',
     '--include=sources/**/*.ts',
+    '--exclude=sources/types/internal.ts',
     '--reporter=text',
     '--reporter=text-summary',
+    '--check-coverage',
+    '--100',
   ];
 
   return new Promise((resolvePromise) => {
-    const child = spawn('npx', command, {
+    const child = spawn(process.execPath, command, {
       cwd: root,
       stdio: 'inherit',
-      shell: true,
     });
 
     child.on('close', (code) => resolvePromise(code ?? 1));
   });
 }
 
-const commandsCode = await spawnTests(listTests('commands'));
+const commandsCode = await spawnTests(listTests('commands'), 1);
 const adminCode = await spawnTests(listTests('client/admin'), 1);
 const restCodes = await Promise.all(
   ['client/core', 'client/resilience', 'client/fault'].map((group) =>
@@ -81,11 +85,11 @@ const restCodes = await Promise.all(
   ),
 );
 
-await report();
+const reportCode = await report();
 
 rmSync(coverageDirectory, { recursive: true });
 
-const allCodes = [commandsCode, adminCode, ...restCodes];
+const allCodes = [commandsCode, adminCode, ...restCodes, reportCode];
 
 if (allCodes.some((code) => code !== 0)) {
   process.exit(1);

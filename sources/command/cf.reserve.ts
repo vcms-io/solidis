@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyOK } from './utils/index.ts';
 
 export function createCommand(
@@ -7,18 +8,18 @@ export function createCommand(
   maxIterations?: number,
   expansion?: number,
 ) {
-  const command = ['CF.RESERVE', key, `${capacity}`];
+  const command = ['CF.RESERVE', key, formatInteger(capacity)];
 
   if (bucketSize !== undefined) {
-    command.push('BUCKETSIZE', `${bucketSize}`);
+    command.push('BUCKETSIZE', formatInteger(bucketSize));
   }
 
   if (maxIterations !== undefined) {
-    command.push('MAXITERATIONS', `${maxIterations}`);
+    command.push('MAXITERATIONS', formatInteger(maxIterations));
   }
 
   if (expansion !== undefined) {
-    command.push('EXPANSION', `${expansion}`);
+    command.push('EXPANSION', formatInteger(expansion));
   }
 
   return command;

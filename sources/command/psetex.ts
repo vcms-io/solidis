@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyOK } from './utils/index.ts';
 
 import type { StringOrBuffer } from '../index.ts';
@@ -7,7 +8,7 @@ export function createCommand(
   milliseconds: number,
   value: StringOrBuffer,
 ) {
-  return ['PSETEX', key, `${milliseconds}`, value];
+  return ['PSETEX', key, formatInteger(milliseconds), value];
 }
 
 export async function psetex<T>(

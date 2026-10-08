@@ -1,7 +1,8 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyNumber } from './utils/index.ts';
 
 export function createCommand(key: string, maxlen: number) {
-  return ['XTRIM', key, 'MAXLEN', `${maxlen}`];
+  return ['XTRIM', key, 'MAXLEN', formatInteger(maxlen)];
 }
 
 export async function xtrim<T>(

@@ -5,12 +5,18 @@ on:
     branches: [main]
     paths:
       - 'sources/**'
+      - 'scripts/build/**'
       - 'scripts/bundle/**'
+      - 'package.json'
+      - 'package-lock.json'
       - '.github/workflows/bundle.yml'
   pull_request:
     branches: [main]
     paths:
+      - 'scripts/build/**'
       - 'scripts/bundle/**'
+      - 'package.json'
+      - 'package-lock.json'
       - '.github/workflows/bundle.yml'
 
 concurrency:
@@ -21,14 +27,13 @@ jobs:
   bundle:
     name: Measure & Compare
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: write
       pull-requests: write
 
     steps:
       - uses: actions/checkout@v6
-        with:
-          fetch-depth: 2
 
       - uses: actions/setup-node@v6
         with:
@@ -48,9 +53,7 @@ jobs:
       - name: Check if PR should be created
         id: check
         run: |
-          if [ "${{ github.event_name }}" != "push" ]; then
-            echo "pr=false" >> "$GITHUB_OUTPUT"
-          elif git diff --name-only HEAD~1 HEAD | grep -qE '^(sources/|scripts/bundle/|\.github/workflows/bundle\.yml)'; then
+          if [ "${{ github.event_name }}" = "push" ]; then
             echo "pr=true" >> "$GITHUB_OUTPUT"
           else
             echo "pr=false" >> "$GITHUB_OUTPUT"
@@ -81,3 +84,6 @@ jobs:
             README.md
             README.ko.md
             website/app/benchmarks/page.tsx
+            website/i18n/messages/en.json
+            website/i18n/messages/ko.json
+            website/public/llms.txt

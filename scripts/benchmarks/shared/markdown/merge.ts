@@ -1,79 +1,63 @@
 import { writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-import { deserializeConfig } from '../configuration.ts';
-import { generateMarkdownReport } from './index.ts';
+import { generateMarkdownReport, generateSummary } from './index.ts';
 import { loadSnapshot, mergeSnapshots } from './snapshot.ts';
 
-const processArguments = process.argv.slice(2);
+const outputs = new Map<string, string>();
 const snapshotPaths: string[] = [];
-let outputPath = './benchmark.md';
-let snapshotOutputPath: string | undefined;
+const processArguments = process.argv.slice(2);
+const options: Record<string, string> = {
+  '--output': 'report',
+  '-o': 'report',
+  '--snapshot': 'snapshot',
+  '-s': 'snapshot',
+  '--summary': 'summary',
+};
 
 for (let index = 0; index < processArguments.length; index += 1) {
   const argument = processArguments[index];
+  const output = options[argument];
 
-  if (argument === '--output' || argument === '-o') {
-    const nextValue = processArguments[index + 1];
-
-    if (!nextValue) {
-      console.error('Missing value for --output');
-      process.exit(1);
-    }
-
-    outputPath = nextValue;
-    index += 1;
-  } else if (argument === '--snapshot' || argument === '-s') {
-    const nextValue = processArguments[index + 1];
-
-    if (!nextValue) {
-      console.error('Missing value for --snapshot');
-      process.exit(1);
-    }
-
-    snapshotOutputPath = nextValue;
-    index += 1;
-  } else {
+  if (output === undefined) {
     snapshotPaths.push(argument);
+
+    continue;
   }
+
+  const value = processArguments[index + 1];
+
+  if (!value) {
+    console.error(`Missing value for ${argument}`);
+    process.exit(1);
+  }
+
+  outputs.set(output, resolve(value));
+  index += 1;
 }
 
 if (snapshotPaths.length === 0) {
   console.error(
-    'Usage: benchmark:merge <file1.benchmark> <file2.benchmark> ... [-o output.md] [-s merged.benchmark]',
+    'Usage: benchmark:merge <file.benchmark>... [-o report.md] [-s merged.benchmark] [--summary summary.md]',
   );
   process.exit(1);
 }
 
-const snapshots = await Promise.all(
-  snapshotPaths.map((path) => loadSnapshot(path)),
+const merged = mergeSnapshots(
+  await Promise.all(snapshotPaths.map((path) => loadSnapshot(path))),
 );
 
-const merged = mergeSnapshots(snapshots);
-const configuration = deserializeConfig(merged.configuration);
-const markdown = generateMarkdownReport(
-  merged.results,
-  merged.baselineLibrary,
-  configuration,
-);
+const contents: Record<string, string> = {
+  report: generateMarkdownReport(merged),
+  snapshot: JSON.stringify(merged, null, 2),
+  summary: generateSummary(merged),
+};
 
-const resolvedOutputPath = resolve(outputPath);
-
-await writeFile(resolvedOutputPath, markdown, 'utf-8');
-
-if (snapshotOutputPath) {
-  const resolvedSnapshotPath = resolve(snapshotOutputPath);
-
-  await writeFile(
-    resolvedSnapshotPath,
-    JSON.stringify(merged, null, 2),
-    'utf-8',
-  );
-  console.log(`  Snapshot: ${resolvedSnapshotPath}`);
+for (const [output, path] of outputs) {
+  await writeFile(path, contents[output], 'utf-8');
+  console.log(`  ${output}: ${path}`);
 }
 
 console.log(
-  `Merged ${snapshotPaths.length} snapshot(s) from suite "${merged.suiteName}"`,
+  `Merged ${snapshotPaths.length} snapshot(s) with ${merged.results.length} results`,
 );
-console.log(`  Results: ${merged.results.length} entries`);
-console.log(`  Output:  ${resolvedOutputPath}`);

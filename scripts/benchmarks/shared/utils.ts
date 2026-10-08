@@ -74,19 +74,21 @@ function formatTimestamp(): string {
 }
 
 export function formatPayloadSize(bytes: number): string {
-  if (bytes >= 1024) {
-    return `${(bytes / 1024).toFixed(0)} KB`;
-  }
+  return bytes >= 1024 && bytes % 1024 === 0
+    ? `${bytes / 1024} KB`
+    : `${bytes} B`;
+}
 
-  return `${bytes} B`;
+export function formatMemory(bytes: number): string {
+  return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
 }
 
 export function formatLargeNumber(value: number): string {
-  if (value >= 1_000_000) {
+  if (value >= 999_950) {
     return `${(value / 1_000_000).toFixed(2)}M`;
   }
 
-  if (value >= 1_000) {
+  if (value >= 999.95) {
     return `${(value / 1_000).toFixed(1)}K`;
   }
 
@@ -142,14 +144,14 @@ export function logSeparator(): void {
 
 export function logCaseTitle(caseName: string, payloadBytes: number): void {
   const title = caseName.toUpperCase();
-  const subtitle = `payload ${formatPayloadSize(payloadBytes)}`;
+  const subtitle = payloadBytes
+    ? `  ${ansi.dim}│${ansi.reset}  ${ansi.white}payload ${formatPayloadSize(payloadBytes)}${ansi.reset}`
+    : '';
   const line = '═'.repeat(DISPLAY_LINE_WIDTH);
 
   console.log('');
   console.log(`${ansi.bold}${ansi.cyan}${line}${ansi.reset}`);
-  console.log(
-    `${ansi.bold}${ansi.cyan}  ${title}${ansi.reset}  ${ansi.dim}│${ansi.reset}  ${ansi.white}${subtitle}${ansi.reset}`,
-  );
+  console.log(`${ansi.bold}${ansi.cyan}  ${title}${ansi.reset}${subtitle}`);
   console.log(`${ansi.bold}${ansi.cyan}${line}${ansi.reset}`);
 }
 
@@ -193,7 +195,7 @@ export function logCaseDone(
   console.log(
     `  ${ansi.cyan}■${ansi.reset} ${formatTimestamp()} ` +
       `${ansi.bold}${caseName}${ansi.reset} ` +
-      `${ansi.dim}payload=${payloadBytes}${ansi.reset} ` +
+      (payloadBytes ? `${ansi.dim}payload=${payloadBytes}${ansi.reset} ` : '') +
       `completed in ${ansi.bold}${(wallMilliseconds / 1000).toFixed(1)}s${ansi.reset}`,
   );
 }
@@ -252,4 +254,30 @@ export function spreadPercent(samples: number[], center: number): number {
     samples.length;
 
   return (Math.sqrt(variance) / center) * 100;
+}
+
+export function sortPooledSamples(samples: Float64Array[]): Float64Array {
+  const length = samples.reduce((total, sample) => total + sample.length, 0);
+  const pooled = new Float64Array(length);
+  let offset = 0;
+
+  for (const sample of samples) {
+    pooled.set(sample, offset);
+    offset += sample.length;
+  }
+
+  return pooled.sort();
+}
+
+export function percentile(
+  sortedSamples: Float64Array,
+  percentage: number,
+): number {
+  if (sortedSamples.length === 0) {
+    return 0;
+  }
+
+  const index = Math.ceil((percentage / 100) * sortedSamples.length) - 1;
+
+  return sortedSamples[Math.max(0, index)];
 }

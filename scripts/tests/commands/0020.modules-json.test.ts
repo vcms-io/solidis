@@ -172,6 +172,10 @@ describe('modules-json', () => {
 
     const keys = await client.jsonObjkeys(key, '$');
 
+    if (keys === null) {
+      assert.fail('JSON.OBJKEYS must return the keys of an existing object');
+    }
+
     assert.deepStrictEqual(
       keys.map((entry) => {
         if (!Array.isArray(entry)) {
@@ -559,11 +563,11 @@ describe('modules-json', () => {
     assert.deepStrictEqual(fromStart, [3]);
 
     const withStop = await client.jsonArrindex(key, '$.items', '"b"', {
-      start: 0,
-      stop: 2,
+      start: 2,
+      stop: 3,
     });
 
-    assert.deepStrictEqual(withStop, [1]);
+    assert.deepStrictEqual(withStop, [-1]);
   });
 
   it('returns JSON.DEBUG HELP output', async (context) => {
@@ -624,13 +628,11 @@ describe('modules-json', () => {
     if (typeof result[0] !== 'number' || result[0] <= 0) {
       assert.fail(`expected positive memory size, got: ${result[0]}`);
     }
-    if (capabilities.isValkey) {
-      assert.strictEqual(result[0], 40);
-    } else if (capabilities.atLeast(8, 10)) {
-      assert.strictEqual(result[0], 80);
-    } else {
-      assert.strictEqual(result[0], 128);
-    }
+    const [[raw]] = await client.send([
+      ['JSON.DEBUG', 'MEMORY', key, '$.user'],
+    ]);
+
+    assert.deepStrictEqual(result, raw);
   });
 
   it('returns root-level keys with JSON.OBJKEYS (no path)', async (context) => {
@@ -645,10 +647,14 @@ describe('modules-json', () => {
 
     const keys = await client.jsonObjkeys(key);
 
+    if (keys === null) {
+      assert.fail('JSON.OBJKEYS must return the keys of an existing object');
+    }
+
     assert.deepStrictEqual([...keys].sort(), ['alpha', 'beta']);
   });
 
-  it('returns null from JSON.OBJKEYS on non-object path', async (context) => {
+  it('returns [null] (Valkey: [[]]) from JSON.OBJKEYS on a non-object path', async (context) => {
     if (!available) {
       context.skip('RedisJSON not loaded');
       return;
@@ -684,7 +690,7 @@ describe('modules-json', () => {
     assert.strictEqual(result, 'object');
   });
 
-  it('returns null from JSON.TYPE on missing path', async (context) => {
+  it('returns an empty array from JSON.TYPE for a JSONPath that matches nothing, and null for a missing key', async (context) => {
     if (!available) {
       context.skip('RedisJSON not loaded');
       return;
@@ -698,5 +704,9 @@ describe('modules-json', () => {
 
     /** A JSONPath that matches nothing yields an empty array, not null. */
     assert.deepStrictEqual(result, []);
+    assert.strictEqual(
+      await client.jsonType(keyspace.key('type-absent'), '$'),
+      null,
+    );
   });
 });

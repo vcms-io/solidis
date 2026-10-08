@@ -6,11 +6,13 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
+import { SolidisRequesterError } from '../../../../sources/index.ts';
 import {
   closeClient,
   createClient,
   createKeyspace,
   detectServerCapabilities,
+  isBlocked,
   waitFor,
 } from '../../utils/index.ts';
 
@@ -56,6 +58,10 @@ describe('client-commands', () => {
     await closeClient(client);
   });
 
+  async function readFlags() {
+    return parseClientFields(await client.clientInfo()).flags ?? '';
+  }
+
   it('returns connection info with CLIENT INFO', async () => {
     const info = await client.clientInfo();
     const fields = parseClientFields(info.split('\n')[0] ?? info);
@@ -82,11 +88,26 @@ describe('client-commands', () => {
   });
 
   it('filters CLIENT LIST by type', async () => {
-    const list = await client.clientList({ type: 'NORMAL' });
-    const clients = parseClientList(list);
+    const subscriber = await createClient();
+    const subscriberId = await subscriber.clientId();
 
-    assert.ok(clients.length > 0);
-    assert.ok(clients.every((entry) => entry.flags?.includes('N') === true));
+    try {
+      await subscriber.subscribe(keyspace.key('type-filter'));
+
+      const normal = parseClientList(
+        await client.clientList({ type: 'NORMAL' }),
+      );
+      const pubsub = parseClientList(
+        await client.clientList({ type: 'PUBSUB' }),
+      );
+
+      assert.ok(normal.length > 0);
+      assert.ok(normal.every((entry) => entry.flags?.includes('N') === true));
+      assert.ok(normal.every((entry) => Number(entry.id) !== subscriberId));
+      assert.ok(pubsub.some((entry) => Number(entry.id) === subscriberId));
+    } finally {
+      await closeClient(subscriber);
+    }
   });
 
   it('sets client library info with CLIENT SETINFO', async (context) => {
@@ -100,6 +121,11 @@ describe('client-commands', () => {
       'OK',
     );
     assert.strictEqual(await client.clientSetinfo('LIB-VER', '1.0.0'), 'OK');
+
+    const fields = parseClientFields(await client.clientInfo());
+
+    assert.strictEqual(fields['lib-name'], 'solidis-test');
+    assert.strictEqual(fields['lib-ver'], '1.0.0');
   });
 
   it('pauses and unpauses clients', async () => {
@@ -113,8 +139,14 @@ describe('client-commands', () => {
       return;
     }
 
-    assert.strictEqual(await client.clientNoEvict('ON'), 'OK');
-    assert.strictEqual(await client.clientNoEvict('OFF'), 'OK');
+    try {
+      assert.strictEqual(await client.clientNoEvict('ON'), 'OK');
+      assert.match(await readFlags(), /e/);
+      assert.strictEqual(await client.clientNoEvict('OFF'), 'OK');
+      assert.doesNotMatch(await readFlags(), /e/);
+    } finally {
+      await client.clientNoEvict('OFF');
+    }
   });
 
   it('toggles LRU touch with CLIENT NO-TOUCH', async (context) => {
@@ -123,8 +155,14 @@ describe('client-commands', () => {
       return;
     }
 
-    assert.strictEqual(await client.clientNoTouch('ON'), 'OK');
-    assert.strictEqual(await client.clientNoTouch('OFF'), 'OK');
+    try {
+      assert.strictEqual(await client.clientNoTouch('ON'), 'OK');
+      assert.match(await readFlags(), /T/);
+      assert.strictEqual(await client.clientNoTouch('OFF'), 'OK');
+      assert.doesNotMatch(await readFlags(), /T/);
+    } finally {
+      await client.clientNoTouch('OFF');
+    }
   });
 
   it('returns redirect target with CLIENT GETREDIR', async () => {
@@ -201,9 +239,10 @@ describe('client-commands', () => {
 
     const commands = await client.commandList({ aclcat: 'string' });
 
-    assert.ok(commands.length > 0);
     assert.ok(commands.includes('get'));
     assert.ok(commands.includes('set'));
+    assert.ok(!commands.includes('ping'));
+    assert.ok(!commands.includes('lpush'));
   });
 
   it('extracts keys from a command with COMMAND GETKEYS', async () => {
@@ -272,6 +311,16 @@ describe('client-commands', () => {
     }
     assert.strictEqual(setDoc.arguments[0].name, 'key');
     assert.strictEqual(setDoc.arguments[0].type, 'key');
+    assert.strictEqual(setDoc.arguments[0].optional, false);
+    assert.strictEqual(setDoc.arguments[0].multiple, false);
+    assert.strictEqual(
+      setDoc.arguments.find(({ name }) => name === 'condition')?.optional,
+      true,
+    );
+
+    const { del } = await client.commandDocs(['del']);
+
+    assert.strictEqual(del.arguments?.[0].multiple, true);
   });
 
   it('parses COMMAND DOCS for a deprecated command', async (context) => {
@@ -366,20 +415,42 @@ describe('client-commands', () => {
 
       assert.strictEqual(
         settlement.error.message,
-        `[BLPOP ${blockKey} 0] Unexpected reply: RespError: UNBLOCKED client unblocked via CLIENT UNBLOCK`,
+        '[BLPOP] UNBLOCKED client unblocked via CLIENT UNBLOCK',
       );
     } finally {
       await closeClient(blocked);
     }
   });
 
-  it('toggles client caching mode', async () => {
+  it('rejects CLIENT CACHING while tracking is off', async () => {
     await assert.rejects(
       () => client.clientCaching('YES'),
       (error: Error) =>
         error.message ===
-        '[CLIENT CACHING YES] Invalid reply: RespError: ERR CLIENT CACHING can be called only when the client is in tracking mode with OPTIN or OPTOUT mode enabled',
+        '[CLIENT CACHING] ERR CLIENT CACHING can be called only when the client is in tracking mode with OPTIN or OPTOUT mode enabled',
     );
+  });
+
+  it('sends the CLIENT CACHING mode that OPTIN and OPTOUT tracking take', async () => {
+    const tracked = await createClient();
+
+    try {
+      assert.strictEqual(
+        await tracked.clientTracking('ON', { optin: true }),
+        'OK',
+      );
+      assert.strictEqual(await tracked.clientCaching('YES'), 'OK');
+      await assert.rejects(tracked.clientCaching('NO'), /OPTOUT/);
+      assert.strictEqual(await tracked.clientTracking('OFF'), 'OK');
+      assert.strictEqual(
+        await tracked.clientTracking('ON', { optout: true }),
+        'OK',
+      );
+      assert.strictEqual(await tracked.clientCaching('NO'), 'OK');
+      await assert.rejects(tracked.clientCaching('YES'), /OPTIN/);
+    } finally {
+      await closeClient(tracked);
+    }
   });
 
   it('enables client tracking with BCAST and prefixes', async (context) => {
@@ -503,30 +574,73 @@ describe('client-commands', () => {
     assert.deepStrictEqual(info.prefixes, []);
   });
 
-  it('switches client reply mode', async () => {
-    assert.strictEqual(await client.clientReply('ON'), 'OK');
-  });
+  it('rejects CLIENT REPLY OFF / SKIP before sending and keeps replies paired', async () => {
+    for (const mode of ['OFF', 'SKIP']) {
+      await assert.rejects(
+        client.send([['CLIENT', 'REPLY', mode]]),
+        (error: Error) =>
+          error instanceof SolidisRequesterError &&
+          error.message ===
+            'CLIENT REPLY is not supported: it breaks the pairing of requests and replies.',
+      );
+    }
 
-  it('constructs CLIENT REPLY OFF without sending', async () => {
-    const { createCommand } = await import(
-      '../../../../sources/command/client.reply.ts'
-    );
-
-    assert.deepStrictEqual(createCommand('OFF'), ['CLIENT', 'REPLY', 'OFF']);
+    assert.deepStrictEqual(await client.send([['CLIENT', 'REPLY', 'ON']]), [
+      ['OK'],
+    ]);
+    assert.strictEqual(await client.echo('still-paired'), 'still-paired');
   });
 
   it('filters CLIENT LIST by ID', async () => {
-    const myId = await client.clientId();
-    const list = await client.clientList({ identifiers: [myId] });
-    const clients = parseClientList(list);
+    const other = await createClient();
 
-    assert.strictEqual(clients.length, 1);
-    assert.strictEqual(Number.parseInt(clients[0].id ?? '', 10), myId);
+    try {
+      const myId = await client.clientId();
+      const list = await client.clientList({ identifiers: [myId] });
+      const clients = parseClientList(list);
+
+      assert.ok(parseClientList(await client.clientList()).length > 1);
+      assert.strictEqual(clients.length, 1);
+      assert.strictEqual(Number.parseInt(clients[0].id ?? '', 10), myId);
+    } finally {
+      await closeClient(other);
+    }
   });
 
-  it('pauses clients with WRITE mode', async () => {
-    assert.strictEqual(await client.clientPause(50, { mode: 'WRITE' }), 'OK');
-    assert.strictEqual(await client.clientUnpause(), 'OK');
+  it('pauses only writes with WRITE mode', async () => {
+    const key = keyspace.key('pause-write');
+    const writer = await createClient({ commandTimeout: 0 });
+    const reader = await createClient({ commandTimeout: 2000 });
+    const writerId = await writer.clientId();
+
+    let isWritten = false;
+
+    try {
+      assert.strictEqual(
+        await client.clientPause(10_000, { mode: 'WRITE' }),
+        'OK',
+      );
+
+      const write = writer.set(key, 'held').then((reply) => {
+        isWritten = true;
+
+        return reply;
+      });
+
+      await waitFor(() => isBlocked(client, writerId), {
+        description: 'the paused SET',
+      });
+
+      assert.strictEqual(await reader.get(key), null);
+      assert.strictEqual(isWritten, false);
+      assert.strictEqual(await client.clientUnpause(), 'OK');
+      assert.strictEqual(await write, 'OK');
+      assert.strictEqual(await reader.get(key), 'held');
+    } finally {
+      await client.clientUnpause();
+      await closeClient(writer);
+      await closeClient(reader);
+    }
   });
 
   it('lists shard channels with pattern', async (context) => {
@@ -535,9 +649,19 @@ describe('client-commands', () => {
       return;
     }
 
-    const channels = await client.pubsubShardchannels('nonexistent:*');
+    const subscriber = await createClient();
+    const matching = keyspace.key('shard', 'match');
 
-    assert.deepStrictEqual(channels, []);
+    try {
+      await subscriber.ssubscribe(matching, keyspace.key('other', 'shard'));
+
+      assert.deepStrictEqual(
+        await client.pubsubShardchannels(keyspace.key('shard', '*')),
+        [matching],
+      );
+    } finally {
+      await closeClient(subscriber);
+    }
   });
 
   it('constructs AUTH with single password argument', async () => {

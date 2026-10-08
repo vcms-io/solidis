@@ -21,6 +21,11 @@ export async function jsonArrlen<T>(
   this: T,
   key: string,
   path?: string,
+): Promise<number | (number | null)[] | null>;
+export async function jsonArrlen<T>(
+  this: T,
+  key: string,
+  path?: string,
 ): Promise<number | (number | null)[] | null> {
   return await executeCommand(
     this,

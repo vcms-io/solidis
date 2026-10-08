@@ -1,19 +1,23 @@
+import { formatFloat, formatInteger } from '../common/utils/internal.ts';
 import {
   buildTimeSeriesCommand,
   executeCommand,
   tryReplyNumber,
 } from './utils/index.ts';
 
-import type { CommandTimeSeriesAddOptions } from '../index.ts';
+import type {
+  CommandTimeSeriesAddOptions,
+  CommandTimeSeriesSampleTimestamp,
+} from '../index.ts';
 
 export function createCommand(
   key: string,
-  timestamp: number,
+  timestamp: CommandTimeSeriesSampleTimestamp,
   value: number,
   options: CommandTimeSeriesAddOptions,
 ) {
   return buildTimeSeriesCommand(
-    ['TS.ADD', key, `${timestamp}`, `${value}`],
+    ['TS.ADD', key, formatInteger(timestamp), formatFloat(value)],
     options,
   );
 }
@@ -21,7 +25,7 @@ export function createCommand(
 export async function tsAdd<T>(
   this: T,
   key: string,
-  timestamp: number,
+  timestamp: CommandTimeSeriesSampleTimestamp,
   value: number,
   options: CommandTimeSeriesAddOptions = {},
 ): Promise<number> {

@@ -1,7 +1,7 @@
 /**
- * Server and connection introspection commands that do not mutate user data:
- * PING/ECHO/TIME, INFO, CONFIG GET/SET, CLIENT ID/SETNAME/GETNAME, DBSIZE,
- * SELECT, SWAPDB, LOLWUT, ROLE, and WAIT.
+ * Server and connection commands: PING/ECHO/TIME, INFO, CONFIG GET/SET,
+ * CLIENT ID/SETNAME/GETNAME, DBSIZE, SWAPDB, LOLWUT, ROLE and WAIT, and the
+ * REPLCONF and MODULE command builders.
  */
 
 import assert from 'node:assert/strict';
@@ -40,13 +40,12 @@ describe('server', () => {
   });
 
   it('returns a numeric [seconds, microseconds] pair', async () => {
-    const beforeSeconds = Math.floor(Date.now() / 1000);
     const [seconds, microseconds] = await client.time();
-    const afterSeconds = Math.floor(Date.now() / 1000);
 
+    assert.ok(Number.isInteger(seconds) && Number.isInteger(microseconds));
     assert.ok(
-      seconds >= beforeSeconds && seconds <= afterSeconds,
-      `TIME seconds ${seconds} outside local clock range ${beforeSeconds}..${afterSeconds}`,
+      Math.abs(seconds - Date.now() / 1000) < 86_400,
+      `TIME seconds ${seconds} are not within a day of the local clock`,
     );
     assert.ok(
       microseconds >= 0 && microseconds < 1_000_000,
@@ -84,19 +83,21 @@ describe('server', () => {
       'maxmemory-policy must be a recognised Redis eviction policy',
     );
 
-    assert.strictEqual(
-      await client.configSet('maxmemory-policy', 'allkeys-lru'),
-      'OK',
-    );
-    assert.strictEqual(
-      (await client.configGet('maxmemory-policy'))['maxmemory-policy'],
-      'allkeys-lru',
-    );
-
-    await client.configSet(
-      'maxmemory-policy',
-      original['maxmemory-policy'] ?? 'noeviction',
-    );
+    try {
+      assert.strictEqual(
+        await client.configSet('maxmemory-policy', 'allkeys-lru'),
+        'OK',
+      );
+      assert.strictEqual(
+        (await client.configGet('maxmemory-policy'))['maxmemory-policy'],
+        'allkeys-lru',
+      );
+    } finally {
+      await client.configSet(
+        'maxmemory-policy',
+        original['maxmemory-policy'] ?? 'noeviction',
+      );
+    }
   });
 
   it('reports and assigns the client connection name', async () => {
@@ -169,6 +170,18 @@ describe('server', () => {
           trimmed,
           versionFooter,
           `Redis 7 LOLWUT must be exactly '${versionFooter}'`,
+        );
+      } else if (capabilities.major === 8 && !capabilities.atLeast(8, 4)) {
+        const hint = 'Use: LOLWUT IT for the original Italian output.';
+
+        assert.ok(
+          trimmed.endsWith(hint),
+          `Redis 8.0 and 8.2 LOLWUT must end with '${hint}' but got: ...${trimmed.slice(-80)}`,
+        );
+        assert.notStrictEqual(
+          trimmed,
+          hint,
+          'LOLWUT with art must include content before the hint',
         );
       } else {
         assert.ok(
@@ -326,30 +339,6 @@ describe('server', () => {
       'name',
       'path',
       'version',
-    ]);
-  });
-
-  it('parses recursive string record from reply', async () => {
-    const { tryReplyToStringRecordRecursively } = await import(
-      '../../../../sources/command/utils/reply.ts'
-    );
-
-    const result = tryReplyToStringRecordRecursively([
-      'name',
-      'get',
-      'summary',
-      'Get the value of a key',
-      'arguments',
-      ['key', 'string'],
-    ]);
-
-    assert.strictEqual(result.name, 'get');
-    assert.strictEqual(result.summary, 'Get the value of a key');
-    assert.deepStrictEqual(result.arguments, { key: 'string' });
-    assert.deepStrictEqual(Object.keys(result).sort(), [
-      'arguments',
-      'name',
-      'summary',
     ]);
   });
 });

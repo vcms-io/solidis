@@ -34,6 +34,7 @@ export default function ArchitecturePage() {
         t('architecture.coreConfig'),
         t('architecture.coreEvent'),
         t('architecture.coreExtension'),
+        t('architecture.coreRecovery'),
       ],
     },
     {
@@ -45,7 +46,6 @@ export default function ArchitecturePage() {
         t('architecture.connReconnect'),
         t('architecture.connTls'),
         t('architecture.connState'),
-        t('architecture.connRecovery'),
       ],
     },
     {
@@ -84,14 +84,12 @@ export default function ArchitecturePage() {
       ],
     },
     {
-      name: 'Debug Memory',
+      name: 'Debug',
       icon: <Layers className="h-5 w-5 text-muted-foreground" />,
       description: t('architecture.debugDesc'),
       responsibilities: [
         t('architecture.debugEvent'),
-        t('architecture.debugBuffer'),
-        t('architecture.debugFilter'),
-        t('architecture.debugMetrics'),
+        t('architecture.debugArguments'),
       ],
     },
   ];

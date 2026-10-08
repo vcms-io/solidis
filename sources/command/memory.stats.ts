@@ -1,4 +1,9 @@
-import { executeCommand, processPairedArray } from './utils/index.ts';
+import {
+  executeCommand,
+  processPairedArray,
+  tryReplyToMap,
+  tryReplyToNumber,
+} from './utils/index.ts';
 
 import type { RespMemoryStats } from '../index.ts';
 
@@ -8,23 +13,40 @@ export function createCommand() {
 
 export async function memoryStats<T>(this: T): Promise<RespMemoryStats> {
   return await executeCommand(this, createCommand(), (reply, command) => {
-    const result: Record<string, string | number> = {};
-    const dbEntries: Record<string, number> = {};
+    const result = new Map<string, unknown>();
+    const dbEntries: RespMemoryStats['db'] = {};
 
     processPairedArray(
       reply,
       (key, value) => {
-        if (key.match(/^db\d+$/)) {
-          dbEntries[key] = Number(value);
+        if (/^db\.\d+$/.test(key)) {
+          const database = tryReplyToMap(value, command);
+
+          dbEntries[key.slice(3)] = {
+            overhead: {
+              hashtable: {
+                main: tryReplyToNumber(
+                  database.get('overhead.hashtable.main'),
+                  command,
+                ),
+                expires: tryReplyToNumber(
+                  database.get('overhead.hashtable.expires'),
+                  command,
+                ),
+              },
+            },
+          };
+
           return;
         }
 
-        result[key] = typeof value === 'number' ? value : String(value);
+        result.set(key, value);
       },
       command,
     );
 
-    const toNumber = (key: string) => Number(result[key]);
+    const toNumber = (key: string) =>
+      tryReplyToNumber(result.get(key) ?? 0, command);
 
     return {
       peak: {
@@ -45,7 +67,7 @@ export async function memoryStats<T>(this: T): Promise<RespMemoryStats> {
         normal: toNumber('clients.normal'),
       },
       cluster: {
-        links: toNumber('cluster.links') || 0,
+        links: toNumber('cluster.links'),
       },
       aof: {
         buffer: toNumber('aof.buffer'),

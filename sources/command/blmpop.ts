@@ -1,9 +1,15 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
   tryReplyToKeyStringElementsOrNull,
 } from './utils/index.ts';
 
-import type { CommandLeftOrRightOption, RespListMember } from '../index.ts';
+import type {
+  CommandBufferOptions,
+  CommandLeftOrRightOption,
+  RespLmpop,
+  RespString,
+} from '../index.ts';
 
 export function createCommand(
   timeout: number,
@@ -14,25 +20,28 @@ export function createCommand(
   const command = ['BLMPOP', `${timeout}`, `${keys.length}`, ...keys, where];
 
   if (count !== undefined) {
-    command.push('COUNT', `${count}`);
+    command.push('COUNT', formatInteger(count));
   }
 
   return command;
 }
 
-export async function blmpop<T>(
+export async function blmpop<
+  T,
+  Options extends CommandBufferOptions | undefined = undefined,
+>(
   this: T,
   timeout: number,
   keys: string[],
   where: CommandLeftOrRightOption,
   count?: number,
-): Promise<{
-  key: string;
-  elements: RespListMember[];
-} | null> {
+  options?: Options,
+): Promise<RespLmpop<RespString<Options>> | null> {
   return await executeCommand(
     this,
     createCommand(timeout, keys, where, count),
     tryReplyToKeyStringElementsOrNull,
+    options,
+    { blockingTimeout: timeout * 1000 },
   );
 }

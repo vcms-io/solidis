@@ -1,13 +1,10 @@
+import type { BenchmarkNote } from '../../types.ts';
+
 export interface BenchmarkLocale {
   sectionTitle: string;
 
-  reportTitle(baseline: string): string;
-  generatedOnPrefix: string;
-  upToFaster(ratio: string, baseline: string): string;
-
-  benchmarksWon(wins: number, total: number): string;
-  averageSpeedImprovement(percent: number): string;
-  peakSpeedImprovement(percent: number): string;
+  headline(peakSpeedup: number): string;
+  standing(wins: number, total: number, competitors: number): string;
   subtitle(
     iterations: number,
     concurrency: number,
@@ -16,50 +13,63 @@ export interface BenchmarkLocale {
     repeats: number,
   ): string;
 
+  leaderboardTitle: string;
+  leaderboardHeaders: {
+    client: string;
+    version: string;
+    fastestIn: string;
+    throughput: string;
+    cpu: string;
+    memory: string;
+  };
+  leaderboardFootnote(subject: string): string;
+  nativeMemoryFootnote: string;
+
+  resultsTitle: string;
   mainTableHeaders: {
     benchmark: string;
-    commands: string;
-    difference: string;
-    performance: string;
+    lead: string;
   };
-
-  noComparableResults: string;
-
-  nonComparableTitle: string;
-  nonComparableDescription: string;
-
-  rankingFootnote(solidis: string, baseline: string): string;
+  rankingFootnote(subject: string): string;
+  notesTitle: string;
+  note(note: BenchmarkNote): string;
+  noResults: string;
 
   detailedMetricsTitle: string;
-  detailedMetricsDescription: string;
-  expandDetailedMetrics: string;
-
   detailedMetricsHeaders: {
     benchmark: string;
     library: string;
     opsPerSec: string;
     cmdsPerSec: string;
-    elapsed: string;
+    latencyPercentile50: string;
+    latencyPercentile95: string;
+    latencyPercentile99: string;
+    latencyPercentile999: string;
+    cpu: string;
+    gc: string;
+    memory: string;
     spread: string;
   };
 
-  configurationTitle: string;
-  expandConfiguration: string;
-
-  configLabels: {
+  environmentTitle: string;
+  cpuThreads(count: number): string;
+  environmentLabels: {
     parameter: string;
     value: string;
+    cpu: string;
+    memory: string;
+    operatingSystem: string;
+    nodeJs: string;
+    server: string;
+    clientVersions: string;
     mode: string;
     payloadSizes: string;
     iterations: string;
     warmup: string;
-    clients: string;
-    concurrencyPerClient: string;
-    totalConcurrency: string;
+    connections: string;
+    concurrencyPerConnection: string;
     repeats: string;
     cooldown: string;
-    platform: string;
-    nodeJs: string;
     date: string;
   };
 

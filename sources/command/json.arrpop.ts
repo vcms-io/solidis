@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
   tryReplyToStringScalarOrArray,
@@ -6,12 +7,12 @@ import {
 export function createCommand(key: string, path?: string, index?: number) {
   const command = ['JSON.ARRPOP', key];
 
-  if (path !== undefined) {
-    command.push(path);
+  if (path !== undefined || index !== undefined) {
+    command.push(path ?? '.');
+  }
 
-    if (index !== undefined) {
-      command.push(`${index}`);
-    }
+  if (index !== undefined) {
+    command.push(formatInteger(index));
   }
 
   return command;
@@ -25,6 +26,12 @@ export async function jsonArrpop<T>(
   this: T,
   key: string,
   path: string,
+  index?: number,
+): Promise<string | (string | null)[] | null>;
+export async function jsonArrpop<T>(
+  this: T,
+  key: string,
+  path?: string,
   index?: number,
 ): Promise<string | (string | null)[] | null>;
 export async function jsonArrpop<T>(

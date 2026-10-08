@@ -10,6 +10,9 @@ import {
   createClient,
   createKeyspace,
   detectServerCapabilities,
+  readLoggedCommands,
+  waitFor,
+  withConfig,
 } from '../utils/index.ts';
 
 import type { FeaturedClient, ServerCapabilities } from '../utils/index.ts';
@@ -83,19 +86,26 @@ describe('scripting', () => {
 
   it('surfaces a NOSCRIPT error for an unknown EVALSHA', async () => {
     /**
-     * EVAL/EVALSHA pass the raw reply through without a type guard, so a
-     * server error arrives as a RespError value rather than a thrown
-     * exception.
+     * EVAL/EVALSHA pass successful replies through untouched, but a server
+     * error rejects like any other typed command: a SolidisCommandError whose
+     * cause is the RespError carrying the NOSCRIPT code.
      */
-    const result = await client.evalsha('0'.repeat(40), [], []);
+    const result = await client
+      .evalsha('0'.repeat(40), [], [])
+      .catch((error: unknown) => error);
 
-    assert.ok(result instanceof RespError);
+    assert.ok(result instanceof SolidisCommandError);
+    assert.ok(result.cause instanceof RespError);
+    assert.strictEqual(result.cause.code, 'NOSCRIPT');
     if (capabilities.isValkey && capabilities.atLeast(8, 0)) {
-      assert.strictEqual(result.message, 'NOSCRIPT No matching script.');
+      assert.strictEqual(
+        result.message,
+        '[EVALSHA] NOSCRIPT No matching script.',
+      );
     } else {
       assert.strictEqual(
         result.message,
-        'NOSCRIPT No matching script. Please use EVAL.',
+        '[EVALSHA] NOSCRIPT No matching script. Please use EVAL.',
       );
     }
   });
@@ -145,27 +155,67 @@ describe('scripting', () => {
     assert.deepStrictEqual(await client.scriptExists([sha1]), [0]);
   });
 
-  it('flushes with SCRIPT FLUSH SYNC', async () => {
-    const sha1 = await client.scriptLoad('return 1');
+  for (const [mode, options] of [
+    ['SYNC', { sync: true }],
+    ['ASYNC', { async: true }],
+  ] as const) {
+    it(`flushes with SCRIPT FLUSH ${mode}`, async () => {
+      const sha1 = await client.scriptLoad('return 1');
+      const sent = await readLoggedCommands(client, 'SCRIPT', async () => {
+        assert.strictEqual(await client.scriptFlush(options), 'OK');
+      });
 
-    assert.strictEqual(await client.scriptFlush({ sync: true }), 'OK');
-    assert.deepStrictEqual(await client.scriptExists([sha1]), [0]);
+      assert.deepStrictEqual(sent, [['SCRIPT', 'FLUSH', mode]]);
+      assert.deepStrictEqual(await client.scriptExists([sha1]), [0]);
+    });
+  }
+
+  it('kills a running script with SCRIPT KILL', async () => {
+    const busy = await createClient({ commandTimeout: 0 });
+
+    try {
+      await withConfig(client, 'lua-time-limit', '20', async () => {
+        const running = busy
+          .eval(
+            "local start = redis.call('TIME') repeat local now = redis.call('TIME') until (now[1] - start[1]) * 1000000 + now[2] - start[2] > 3000000 return 'done'",
+            [],
+            [],
+          )
+          .catch((error: unknown) => error);
+
+        try {
+          await waitFor(
+            async () =>
+              (await client.scriptKill().catch(() => undefined)) === 'OK',
+            {
+              timeout: 2000,
+              description: 'SCRIPT KILL of the running script',
+            },
+          );
+
+          const error = await running;
+
+          assert.ok(error instanceof SolidisCommandError);
+          assert.match(error.message, /^\[EVAL\] .*kill/i);
+        } finally {
+          await client.send([['SCRIPT', 'KILL']]).catch(() => undefined);
+          await running;
+        }
+      });
+    } finally {
+      await closeClient(busy);
+    }
   });
 
-  it('flushes with SCRIPT FLUSH ASYNC', async () => {
-    const sha1 = await client.scriptLoad('return 1');
-
-    assert.strictEqual(await client.scriptFlush({ async: true }), 'OK');
-    assert.deepStrictEqual(await client.scriptExists([sha1]), [0]);
-  });
-
-  it('kills a running script with SCRIPT KILL (error when none running)', async () => {
+  it('answers SCRIPT KILL with NOTBUSY when no script runs', async () => {
     const result = await client.scriptKill().catch((error: unknown) => error);
 
     assert.ok(result instanceof SolidisCommandError);
+    assert.ok(result.cause instanceof RespError);
+    assert.strictEqual(result.cause.code, 'NOTBUSY');
     assert.strictEqual(
       result.message,
-      '[SCRIPT KILL] Invalid reply: RespError: NOTBUSY No scripts in execution right now.',
+      '[SCRIPT KILL] NOTBUSY No scripts in execution right now.',
     );
   });
 });

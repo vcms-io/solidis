@@ -159,7 +159,9 @@ export default function ApiReferencePage() {
                       {t('apiReference.connectDesc')}
                     </p>
                     <CodeBlock
-                      code={`const client = new SolidisClient();
+                      code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
+
+const client = new SolidisFeaturedClient();
 await client.connect();`}
                       language="typescript"
                     />
@@ -196,7 +198,7 @@ await client.connect();`}
                       },
                       {
                         signature:
-                          'async get(key: string): Promise<string | null>',
+                          'async get(key: string, options?: CommandBufferOptions): Promise<string | Buffer | null>',
                         descriptionKey: 'apiReference.getDesc',
                       },
                       {
@@ -318,7 +320,7 @@ await client.subscribe('news');`}
               <CardContent>
                 <CodeBlock
                   code={`const client = new SolidisClient({
-  uri: 'redis://localhost:6379',
+  uri: 'redis://user:password@localhost:6379/0',
   host: '127.0.0.1',
   port: 6379,
   tls: { /* tls.ConnectionOptions */ },
@@ -340,24 +342,18 @@ await client.subscribe('news');`}
   enableReadyCheck: true,
   maxConnectionRetries: 20,
   connectionRetryDelay: 100,
+  maxConnectionRetryDelay: 2000,
   commandTimeout: 5000,
   connectionTimeout: 2000,
-  socketWriteTimeout: 1000,
   readyCheckInterval: 100,
+  maxReadyCheckRetries: 100,
   maxCommandsPerPipeline: 300,
   maxEventListenersForClient: 10240,
-  maxEventListenersForSocket: 10240,
-  maxProcessRepliesPerChunk: 4096,
-  maxSocketWriteSizePerOnce: 65536,
   rejectOnPartialPipelineError: false,
   parser: {
-    buffer: {
-      initial: 4194304,
-      shiftThreshold: 2097152,
-    },
+    maxBulkStringLength: 536870912,
   },
   debug: false,
-  debugMaxEntries: 10240,
 });`}
                   language="typescript"
                   showLineNumbers={true}
@@ -383,6 +379,12 @@ await client.subscribe('news');`}
                     <TabsTrigger value="raw-commands">
                       {t('apiReference.rawCommands')}
                     </TabsTrigger>
+                    <TabsTrigger value="binary-values">
+                      {t('apiReference.binaryValues')}
+                    </TabsTrigger>
+                    <TabsTrigger value="big-integers">
+                      {t('apiReference.bigIntegers')}
+                    </TabsTrigger>
                     <TabsTrigger value="debugging">
                       {t('apiReference.debugging')}
                     </TabsTrigger>
@@ -391,20 +393,14 @@ await client.subscribe('news');`}
                     <CodeBlock
                       code={`import { SolidisClient } from '@vcms-io/solidis';
 import { get, set } from '@vcms-io/solidis/command';
-import type { SolidisClientExtensions } from '@vcms-io/solidis';
 
-const extensions = {
+const client = new SolidisClient({ host: '127.0.0.1', port: 6379 }).extend({
   get,
   set,
-  fill: async function(this: typeof client, keys: string[], value: string) {
+  async fill(keys: string[], value: string) {
     return await Promise.all(keys.map((key) => this.set(key, value)));
   },
-} satisfies SolidisClientExtensions;
-
-const client = new SolidisClient({
-  host: '127.0.0.1',
-  port: 6379,
-}).extend(extensions);
+});
 
 await client.fill(['key1', 'key2', 'key3'], 'value');`}
                       language="typescript"
@@ -415,11 +411,42 @@ await client.fill(['key1', 'key2', 'key3'], 'value');`}
                   </TabsContent>
                   <TabsContent value="raw-commands" className="space-y-3">
                     <CodeBlock
-                      code={`const result = await client.send([['COMMAND', 'SOME', 'OPTIONS']]);`}
+                      code={`const result = await client.send([['COMMAND', 'SOME', 'OPTIONS']]);
+
+const job = await client.send([['BLPOP', 'jobs', '30']], { blockingTimeout: 30_000 });`}
                       language="typescript"
                     />
                     <p className="text-xs text-muted-foreground">
                       {t('apiReference.rawCommandsDesc')}
+                    </p>
+                  </TabsContent>
+                  <TabsContent value="binary-values" className="space-y-3">
+                    <CodeBlock
+                      code={`await client.set('image', Buffer.from([0xff, 0xd8, 0xff, 0xe0]));
+
+const image = await client.get('image', { buffer: true }); // Buffer | null
+const queue = await client.lrange('jobs', 0, -1, { buffer: true }); // Buffer[]`}
+                      language="typescript"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {t('apiReference.binaryValuesDesc')}
+                    </p>
+                  </TabsContent>
+                  <TabsContent value="big-integers" className="space-y-3">
+                    <CodeBlock
+                      code={`const views = await client.incr('views', { bigint: true }); // bigint
+
+try {
+  await client.incr('views');
+} catch (error) {
+  if (error instanceof SolidisCommandError) {
+    console.log(error.cause); // the exact bigint beyond Number.MAX_SAFE_INTEGER
+  }
+}`}
+                      language="typescript"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {t('apiReference.bigIntegersDesc')}
                     </p>
                   </TabsContent>
                   <TabsContent value="debugging" className="space-y-3">
@@ -453,13 +480,9 @@ client.on('debug', (entry) => {
               <CardContent>
                 <CodeBlock
                   code={`import {
-  SolidisError,
-  SolidisClientError,
   SolidisCommandError,
   SolidisConnectionError,
   SolidisParserError,
-  SolidisPubSubError,
-  SolidisRequesterError,
   unwrapSolidisError,
 } from '@vcms-io/solidis';
 
@@ -541,14 +564,17 @@ try {
                 <CodeBlock
                   code={`client.on('connect', () => console.log('Connected to server'));
 client.on('ready', () => console.log('Client is ready'));
-client.on('end', () => console.log('Connection closed'));
-client.on('close', () => console.log('Connection closed'));
+client.on('close', (error) => console.log('Connection lost:', error.message));
+client.on('reconnecting', (attempt, delay) => console.log(\`Reconnect attempt \${attempt} in \${delay} ms\`));
+client.on('reconnected', () => console.log('Connection re-established'));
+client.on('end', () => console.log('Client quit'));
 client.on('drain', () => console.log('Socket drain occurred'));
 client.on('error', (err) => console.error('Error:', err));
 
 client.on('message', (channel, message) => console.log(\`\${channel}: \${message}\`));
 client.on('smessage', (channel, message) => console.log(\`\${channel}: \${message}\`));
 client.on('pmessage', (pattern, channel, message) => console.log(\`\${pattern} \${channel}: \${message}\`));
+client.on('push', (reply) => console.log('push:', reply));
 
 client.on('debug', (entry) => console.log(\`[\${entry.type}] \${entry.message}\`));`}
                   language="typescript"
@@ -567,8 +593,24 @@ client.on('debug', (entry) => console.log(\`[\${entry.type}] \${entry.message}\`
                       descriptionKey: 'apiReference.eventReady',
                     },
                     {
-                      name: 'end',
+                      name: 'close',
                       descriptionKey: 'apiReference.eventClose',
+                    },
+                    {
+                      name: 'reconnecting',
+                      descriptionKey: 'apiReference.eventReconnecting',
+                    },
+                    {
+                      name: 'reconnected',
+                      descriptionKey: 'apiReference.eventReconnected',
+                    },
+                    {
+                      name: 'end',
+                      descriptionKey: 'apiReference.eventEnd',
+                    },
+                    {
+                      name: 'drain',
+                      descriptionKey: 'apiReference.eventDrain',
                     },
                     {
                       name: 'error',
@@ -581,6 +623,18 @@ client.on('debug', (entry) => console.log(\`[\${entry.type}] \${entry.message}\`
                     {
                       name: 'smessage',
                       descriptionKey: 'apiReference.eventShardMessage',
+                    },
+                    {
+                      name: 'pmessage',
+                      descriptionKey: 'apiReference.eventPatternMessage',
+                    },
+                    {
+                      name: 'subscribe',
+                      descriptionKey: 'apiReference.eventSubscription',
+                    },
+                    {
+                      name: 'push',
+                      descriptionKey: 'apiReference.eventPush',
                     },
                     {
                       name: 'debug',

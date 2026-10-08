@@ -1,6 +1,7 @@
 import {
   executeCommand,
   tryReplyToNullableNumberArray,
+  tryReplyToString,
 } from './utils/index.ts';
 
 export function createCommand(key: string, path: string) {
@@ -15,6 +16,12 @@ export async function jsonToggle<T>(
   return await executeCommand(
     this,
     createCommand(key, path),
-    tryReplyToNullableNumberArray,
+    (reply, command) => {
+      if (Array.isArray(reply)) {
+        return tryReplyToNullableNumberArray(reply, command);
+      }
+
+      return [tryReplyToString(reply, command) === 'true' ? 1 : 0];
+    },
   );
 }

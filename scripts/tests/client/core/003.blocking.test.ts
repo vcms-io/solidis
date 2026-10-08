@@ -3,11 +3,16 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
+import { SolidisFeaturedClient } from '../../../../sources/client/featured.ts';
+import { createCommand as blpopCommand } from '../../../../sources/command/blpop.ts';
 import {
+  buildClientOptions,
   closeClient,
   createClient,
   createKeyspace,
+  delay,
   detectServerCapabilities,
+  track,
 } from '../../utils/index.ts';
 
 import type { FeaturedClient } from '../../utils/index.ts';
@@ -24,6 +29,72 @@ describe('blocking', () => {
 
   after(async () => {
     await closeClient(client);
+  });
+
+  it('keeps the blocking deadline of commands sent before the client is ready', async () => {
+    const key = keyspace.key('before-ready');
+    const rawKey = keyspace.key('before-ready-raw');
+    const waiting = track(
+      new SolidisFeaturedClient(
+        buildClientOptions({ lazyConnect: true, commandTimeout: 200 }),
+      ),
+    );
+
+    waiting.on('error', () => {});
+
+    try {
+      const popped = waiting.blpop([key], 0);
+      const raw = waiting.send([['BLPOP', rawKey, '0']], {
+        blockingTimeout: 0,
+      });
+
+      await waiting.connect();
+      await delay(400);
+      await client.rpush(key, 'element');
+      await client.rpush(rawKey, 'raw');
+
+      assert.deepStrictEqual(await popped, [key, 'element']);
+      assert.deepStrictEqual(await raw, [
+        [[Buffer.from(rawKey), Buffer.from('raw')]],
+      ]);
+    } finally {
+      waiting.quit();
+    }
+  });
+
+  it('ends a blocking timeout of one millisecond or less on every server', async () => {
+    const short = await createClient({ commandTimeout: 1000 });
+    const key = keyspace.key('short');
+    const list = keyspace.key('short-list');
+
+    try {
+      for (const timeout of [0.001, 0.0005, 1e-7]) {
+        const results = await Promise.all([
+          short.blpop([key], timeout),
+          short.brpop([key], timeout),
+          short.blmove(key, list, 'LEFT', 'RIGHT', timeout),
+          short.brpoplpush(key, list, timeout),
+          short.bzpopmin([key], timeout),
+          short.bzpopmax([key], timeout),
+        ]);
+
+        assert.deepStrictEqual(results, [null, null, null, null, null, null]);
+      }
+
+      assert.deepStrictEqual(blpopCommand(['k'], 0.001), [
+        'BLPOP',
+        'k',
+        '0.0011',
+      ]);
+      assert.deepStrictEqual(blpopCommand(['k'], 0.0012), [
+        'BLPOP',
+        'k',
+        '0.0012',
+      ]);
+      assert.deepStrictEqual(blpopCommand(['k'], 0), ['BLPOP', 'k', '0']);
+    } finally {
+      await closeClient(short);
+    }
   });
 
   it('pops from the left with BLPOP', async () => {
@@ -159,7 +230,7 @@ describe('blocking', () => {
 
     const result = await client.bzpopmin([key], 0);
 
-    assert.deepStrictEqual(result, [key, 'low', '1']);
+    assert.deepStrictEqual(result, [key, 'low', 1]);
     assert.deepStrictEqual(await client.zrange(key, '0', '-1'), [
       'mid',
       'high',
@@ -175,7 +246,7 @@ describe('blocking', () => {
 
     const result = await client.bzpopmax([key], 0);
 
-    assert.deepStrictEqual(result, [key, 'high', '10']);
+    assert.deepStrictEqual(result, [key, 'high', 10]);
     assert.deepStrictEqual(await client.zrange(key, '0', '-1'), ['low', 'mid']);
   });
 

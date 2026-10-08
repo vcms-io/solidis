@@ -1,3 +1,3 @@
-import { buildKeyNumberExecutor } from './utils/index.ts';
+import { buildKeyIntegerExecutor } from './utils/index.ts';
 
-export const incr = buildKeyNumberExecutor('INCR');
+export const incr = buildKeyIntegerExecutor('INCR');

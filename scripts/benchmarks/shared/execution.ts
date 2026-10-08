@@ -1,3 +1,4 @@
+import { measurePhase } from './measurement.ts';
 import { logError, logPhase, logProgress, logSuccess } from './utils.ts';
 import { VerificationError } from './verification.ts';
 
@@ -31,6 +32,7 @@ async function runCommandUnits(
   ) => Command[],
   payloadAt: PayloadAccessor,
   collected: CollectedUnit[] | null,
+  latenciesMilliseconds: Float64Array | null,
 ): Promise<void> {
   if (units <= 0) {
     return;
@@ -60,7 +62,12 @@ async function runCommandUnits(
           );
         }
 
+        const issuedAt = performance.now();
         const responses = await client.execute(commands);
+
+        if (latenciesMilliseconds) {
+          latenciesMilliseconds[unitIndex] = performance.now() - issuedAt;
+        }
 
         if (collected) {
           collected[unitIndex] = {
@@ -155,22 +162,23 @@ export function createCommandCase(
   suite: BenchmarkSuite,
   options: CommandCaseOptions,
 ): BenchmarkCase {
-  const samplePayloadAt = () => Buffer.alloc(0);
+  let readsPayload = false;
+  const samplePayloadAt = () => {
+    readsPayload = true;
+
+    return Buffer.alloc(0);
+  };
   const samplePrefix = 'solidis:bench:command-count';
   const sampleSetup = options.setup?.(samplePrefix, samplePayloadAt, 1) ?? [];
   const sampleUnit = options.unit(samplePrefix, 0, samplePayloadAt);
-  const sampledCommands = [...sampleSetup, ...sampleUnit];
-  const comparableModes = suite.getComparableModes(sampledCommands);
-  const nonComparableReason = suite.getNonComparableReason(sampledCommands);
   const commandsPerUnit = sampleUnit.length;
 
   return {
     name: options.name,
     commandsPerUnit,
-    payloadSlotsPerUnit: options.payloadSlotsPerUnit ?? 1,
+    payloadSlotsPerUnit: readsPayload ? (options.payloadSlotsPerUnit ?? 1) : 0,
     executionMode: options.executionMode,
-    comparableModes,
-    nonComparableReason,
+    sampleCommands: [...sampleSetup, ...sampleUnit],
     async run(context) {
       const executionMode = options.executionMode ?? context.config.mode;
       const clients =
@@ -214,6 +222,7 @@ export function createCommandCase(
           options.unit,
           context.payloadPool.at,
           null,
+          null,
         );
 
         logPhase(
@@ -224,22 +233,24 @@ export function createCommandCase(
         const collected: CollectedUnit[] | null = options.verify
           ? new Array(context.config.iterations)
           : null;
-
-        const startedAt = performance.now();
-
-        await runCommandUnits(
-          clients,
-          context.keyPrefix,
-          context.config.warmup,
+        const latenciesMilliseconds = new Float64Array(
           context.config.iterations,
-          context.config.concurrency,
-          commandsPerUnit,
-          options.unit,
-          context.payloadPool.at,
-          collected,
         );
 
-        const elapsedMs = performance.now() - startedAt;
+        const measurement = await measurePhase(() =>
+          runCommandUnits(
+            clients,
+            context.keyPrefix,
+            context.config.warmup,
+            context.config.iterations,
+            context.config.concurrency,
+            commandsPerUnit,
+            options.unit,
+            context.payloadPool.at,
+            collected,
+            latenciesMilliseconds,
+          ),
+        );
         let verificationError: string | undefined;
 
         if (options.verify && collected) {
@@ -252,7 +263,11 @@ export function createCommandCase(
           );
         }
 
-        return { elapsedMs, verificationError };
+        return {
+          ...measurement,
+          latenciesMilliseconds,
+          verificationError,
+        };
       } finally {
         await clients[0]?.cleanup(context.keyPrefix).catch((error) => {
           logProgress(

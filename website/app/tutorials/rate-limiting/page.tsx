@@ -156,7 +156,24 @@ export class FixedWindowRateLimiter {
         <CardContent>
           <div className="rounded-lg text-sm overflow-x-auto">
             <CodeBlock
-              code={`export class SlidingWindowRateLimiter {
+              code={`import { randomUUID } from 'node:crypto';
+import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
+
+// Trims the window, counts it and records the request in one atomic step,
+// so concurrent requests cannot all read the same count
+const SLIDING_WINDOW_SCRIPT = \`
+redis.call('ZREMRANGEBYSCORE', KEYS[1], 0, ARGV[1] - ARGV[2])
+local count = redis.call('ZCARD', KEYS[1])
+if count < tonumber(ARGV[3]) then
+  redis.call('ZADD', KEYS[1], ARGV[1], ARGV[4])
+  redis.call('PEXPIRE', KEYS[1], ARGV[2])
+  return {1, count + 1, 0}
+end
+local oldest = redis.call('ZRANGE', KEYS[1], 0, 0, 'WITHSCORES')
+return {0, count, oldest[2] + ARGV[2] - ARGV[1]}
+\`;
+
+export class SlidingWindowRateLimiter {
   private client: SolidisFeaturedClient;
   private prefix: string;
 
@@ -180,38 +197,21 @@ export class FixedWindowRateLimiter {
     limit: number,
     windowSeconds: number
   ): Promise<{ allowed: boolean; remaining: number; retryAfter: number }> {
-    const cacheKey = \`\${this.prefix}\${key}\`;
     const now = Date.now();
-    const windowStart = now - windowSeconds * 1000;
+    const reply = await this.client.eval(
+      SLIDING_WINDOW_SCRIPT,
+      [\`\${this.prefix}\${key}\`],
+      [\`\${now}\`, \`\${windowSeconds * 1000}\`, \`\${limit}\`, \`\${now}:\${randomUUID()}\`]
+    );
+    const [allowed, count, retryAfterMs] = Array.isArray(reply)
+      ? reply.map(Number)
+      : [];
 
-    // Remove old entries
-    await this.client.zremrangebyscore(cacheKey, 0, windowStart);
-
-    // Count requests in window
-    const count = await this.client.zcard(cacheKey);
-
-    const allowed = count < limit;
-
-    if (allowed) {
-      // Add current request
-      await this.client.zadd(cacheKey, now, \`\${now}\`);
-      // Set expiry
-      await this.client.expire(cacheKey, windowSeconds);
-    }
-
-    const remaining = Math.max(0, limit - count - (allowed ? 1 : 0));
-
-    // Calculate retry after (when oldest request will expire)
-    let retryAfter = 0;
-    if (!allowed && count > 0) {
-      const oldest = await this.client.zrange(cacheKey, '0', '0', { withScores: true });
-      if (oldest.length > 0) {
-        const oldestScore = oldest[0].score;
-        retryAfter = Math.ceil((oldestScore + windowSeconds * 1000 - now) / 1000);
-      }
-    }
-
-    return { allowed, remaining, retryAfter };
+    return {
+      allowed: allowed === 1,
+      remaining: Math.max(0, limit - count),
+      retryAfter: Math.ceil(retryAfterMs / 1000),
+    };
   }
 }`}
               language="typescript"
@@ -235,7 +235,29 @@ export class FixedWindowRateLimiter {
         <CardContent>
           <div className="rounded-lg text-sm overflow-x-auto">
             <CodeBlock
-              code={`export class TokenBucketRateLimiter {
+              code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
+
+// Refills and takes a token in one atomic step,
+// so concurrent requests cannot spend the same token
+const TOKEN_BUCKET_SCRIPT = \`
+local capacity = tonumber(ARGV[1])
+local refillRate = tonumber(ARGV[2])
+local now = tonumber(ARGV[3])
+local bucket = redis.call('HMGET', KEYS[1], 'tokens', 'lastRefill')
+local tokens = tonumber(bucket[1]) or capacity
+local lastRefill = tonumber(bucket[2]) or now
+tokens = math.min(capacity, tokens + (now - lastRefill) / 1000 * refillRate)
+local allowed = 0
+if tokens >= 1 then
+  tokens = tokens - 1
+  allowed = 1
+end
+redis.call('HSET', KEYS[1], 'tokens', tokens, 'lastRefill', now)
+redis.call('EXPIRE', KEYS[1], math.ceil(capacity / refillRate) + 60)
+return {allowed, tostring(tokens)}
+\`;
+
+export class TokenBucketRateLimiter {
   private client: SolidisFeaturedClient;
   private prefix: string;
 
@@ -261,36 +283,19 @@ export class FixedWindowRateLimiter {
     capacity: number,
     refillRate: number
   ): Promise<{ allowed: boolean; tokens: number; retryAfter: number }> {
-    const cacheKey = \`\${this.prefix}\${key}\`;
-    const now = Date.now();
-
-    // Get bucket state
-    const result = await this.client.hmget(cacheKey, 'tokens', 'lastRefill');
-    let tokens = result[0] ? Number.parseFloat(result[0]) : capacity;
-    let lastRefill = result[1] ? Number.parseInt(result[1]) : now;
-
-    // Calculate tokens to add
-    const timePassed = (now - lastRefill) / 1000;
-    const tokensToAdd = timePassed * refillRate;
-    tokens = Math.min(capacity, tokens + tokensToAdd);
-
-    const allowed = tokens >= 1;
-
-    if (allowed) {
-      tokens -= 1;
-    }
-
-    // Update bucket state
-    await this.client.hset(cacheKey, 'tokens', tokens.toString());
-    await this.client.hset(cacheKey, 'lastRefill', now.toString());
-    await this.client.expire(cacheKey, Math.ceil(capacity / refillRate) + 60);
-
-    const retryAfter = allowed ? 0 : Math.ceil((1 - tokens) / refillRate);
+    const reply = await this.client.eval(
+      TOKEN_BUCKET_SCRIPT,
+      [\`\${this.prefix}\${key}\`],
+      [\`\${capacity}\`, \`\${refillRate}\`, \`\${Date.now()}\`]
+    );
+    const [allowed, tokens] = Array.isArray(reply)
+      ? reply.map((value) => Number(String(value)))
+      : [];
 
     return {
-      allowed,
+      allowed: allowed === 1,
       tokens: Math.floor(tokens),
-      retryAfter,
+      retryAfter: allowed === 1 ? 0 : Math.ceil((1 - tokens) / refillRate),
     };
   }
 }`}
@@ -318,6 +323,14 @@ export class FixedWindowRateLimiter {
           <div className="rounded-lg text-sm overflow-x-auto">
             <CodeBlock
               code={`import { Request, Response, NextFunction } from 'express';
+
+declare global {
+  namespace Express {
+    interface Request {
+      user?: { id: string; role: string };
+    }
+  }
+}
 import { SlidingWindowRateLimiter } from './sliding-window-limiter';
 
 export interface RateLimitOptions {

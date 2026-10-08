@@ -12,17 +12,17 @@ interface GitHubStats {
 }
 
 const INITIAL_STATS: GitHubStats = {
-  stars: 108,
-  forks: 1,
-  watchers: 5,
-  openIssues: 3,
-  lastUpdated: new Date().toISOString(),
+  stars: 0,
+  forks: 0,
+  watchers: 0,
+  openIssues: 0,
+  lastUpdated: '',
   fallback: true,
 };
 
 export function useGitHubStats() {
   const [stats, setStats] = useState<GitHubStats>(INITIAL_STATS);
-  const [loading, setLoading] = useState(false); // Start with false since we have initial data
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {

@@ -1,13 +1,16 @@
 {
   "name": "@vcms-io/solidis",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "author": "Jay Lee <jay@vendit.co.kr>",
-  "description": "The fastest Redis client for Node.js. Zero dependencies, 2x+ faster than ioredis, battle-tested in production.",
+  "description": "The fastest Redis client for Node.js. Zero dependencies, battle-tested in production.",
   "repository": {
     "type": "git",
     "url": "https://github.com/vcms-io/solidis.git"
   },
   "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
   "type": "module",
   "scripts": {
     "prepack": "npm run build",
@@ -17,17 +20,16 @@
     "format": "biome check --write",
     "format:markdown": "prettier --write \"**/*.md\" --prose-wrap preserve --single-quote --embedded-language-formatting off",
     "check": "concurrently --raw \"tsc --noEmit\" \"tsc --noEmit --project scripts/tsconfig.json\"",
+    "lint:check": "concurrently --raw \"biome check\" \"prettier --check \\\"**/*.md\\\" --prose-wrap preserve --single-quote --embedded-language-formatting off\" \"npm run check\"",
     "node:ts": "node --import=./scripts/esm/register.js",
-    "benchmark:ioredis": "npm run --silent node:ts ./scripts/benchmarks/ioredis/benchmark.ts --",
-    "benchmark:ioredis:snapshot": "cross-env SOLIDIS_BENCH_EXPORT_SNAPSHOT=./ioredis.benchmark npm run --silent node:ts ./scripts/benchmarks/ioredis/benchmark.ts --",
-    "benchmark:redis": "npm run --silent node:ts ./scripts/benchmarks/redis/benchmark.ts --",
-    "benchmark:redis:snapshot": "cross-env SOLIDIS_BENCH_EXPORT_SNAPSHOT=./redis.benchmark npm run --silent node:ts ./scripts/benchmarks/redis/benchmark.ts --",
+    "benchmark": "npm run --silent node:ts ./scripts/benchmarks/benchmark.ts --",
+    "benchmark:snapshot": "cross-env SOLIDIS_BENCH_EXPORT_SNAPSHOT=./solidis.benchmark npm run --silent node:ts ./scripts/benchmarks/benchmark.ts --",
     "benchmark:merge": "npm run --silent node:ts ./scripts/benchmarks/shared/markdown/merge.ts --",
     "benchmark:replace:readme": "npm run --silent node:ts ./scripts/benchmarks/shared/markdown/replace.readme.ts --",
     "benchmark:replace:website": "npm run --silent node:ts ./scripts/benchmarks/shared/markdown/replace.website.ts --",
     "test": "concurrently --raw --max-processes 1 \"npm run test:commands\" \"npm run test:client\"",
-    "test:commands": "node --import=./scripts/esm/register.js --test ./scripts/tests/commands/*.test.ts",
-    "test:client": "node --import=./scripts/esm/register.js --test --test-concurrency=1 ./scripts/tests/client/**/*.test.ts",
+    "test:commands": "node --import=./scripts/esm/register.js --test --test-concurrency=1 --test-timeout=60000 ./scripts/tests/commands/*.test.ts",
+    "test:client": "node --import=./scripts/esm/register.js --test --test-concurrency=1 --test-timeout=60000 ./scripts/tests/client/**/*.test.ts",
     "test:coverage": "npm run node:ts ./scripts/tests/coverage.ts",
     "bundle": "npm run node:ts ./scripts/bundle/bundle.ts",
     "bundle:graph": "npm run node:ts ./scripts/bundle/graph.ts",
@@ -46,7 +48,7 @@
         "default": "./distributions/index.mjs"
       },
       "require": {
-        "types": "./distributions/index.d.ts",
+        "types": "./distributions/index.d.cts",
         "default": "./distributions/index.cjs"
       }
     },
@@ -56,7 +58,7 @@
         "default": "./distributions/client/featured.mjs"
       },
       "require": {
-        "types": "./distributions/client/featured.d.ts",
+        "types": "./distributions/client/featured.d.cts",
         "default": "./distributions/client/featured.cjs"
       }
     },
@@ -66,7 +68,7 @@
         "default": "./distributions/command/index.mjs"
       },
       "require": {
-        "types": "./distributions/command/index.d.ts",
+        "types": "./distributions/command/index.d.cts",
         "default": "./distributions/command/index.cjs"
       }
     },
@@ -76,29 +78,36 @@
         "default": "./distributions/command/*.mjs"
       },
       "require": {
-        "types": "./distributions/command/*.d.ts",
+        "types": "./distributions/command/*.d.cts",
         "default": "./distributions/command/*.cjs"
       }
     }
   },
   "files": [
-    "distributions/**/*.{d.ts,mjs,cjs}"
+    "distributions/**/*.{d.ts,d.cts,mjs,cjs}",
+    "!distributions/common/internal.*",
+    "!distributions/types/internal.{mjs,cjs}"
   ],
+  "sideEffects": false,
   "devDependencies": {
-    "@biomejs/biome": "2.5.14",
-    "@napi-rs/canvas": "^1.0.9",
-    "@types/node": "^26.6.3",
+    "@biomejs/biome": "2.5.15",
+    "@glidemq/speedkey": "^0.4.2",
+    "@napi-rs/canvas": "^1.0.10",
+    "@types/node": "^26.6.4",
+    "@valkey/valkey-glide": "^2.5.3",
     "c8": "^12.0.0",
     "chalk": "^6.0.1",
     "concurrently": "^10.0.5",
     "cross-env": "^10.1.0",
     "esbuild": "^0.28.2",
     "ioredis": "^6.0.0",
+    "iovalkey": "^0.4.0",
     "prettier": "^3.9.9",
-    "redis": "^6.2.1",
+    "redis": "^6.3.0",
     "typescript": "^7.0.2"
   },
   "allowScripts": {
-    "esbuild": true
+    "esbuild": true,
+    "protobufjs": false
   }
 }

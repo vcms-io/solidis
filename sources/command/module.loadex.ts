@@ -13,11 +13,7 @@ export function createCommand(
     }
   }
 
-  if (parameters?.length) {
-    command.push('ARGS', ...parameters);
-  }
-
-  return command;
+  return parameters?.length ? [...command, 'ARGS', ...parameters] : command;
 }
 
 export async function moduleLoadex<T>(

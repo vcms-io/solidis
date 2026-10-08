@@ -1,9 +1,37 @@
-import type { SolidisClientFrozenOptions } from '../index.ts';
+import {
+  SolidisArrayReplyByte,
+  SolidisAsteriskByte,
+  SolidisAttributeReplyByte,
+  SolidisBigNumberReplyByte,
+  SolidisBlobErrorReplyByte,
+  SolidisBooleanReplyByte,
+  SolidisBulkReplyByte,
+  SolidisCarriageReturnByte,
+  SolidisColonByte,
+  SolidisDollarByte,
+  SolidisDoubleReplyByte,
+  SolidisErrorReplyByte,
+  SolidisInfinityText,
+  SolidisIntegerReplyByte,
+  SolidisKilobyte,
+  SolidisLineFeedByte,
+  SolidisLowercaseFByte,
+  SolidisLowercaseTByte,
+  SolidisMapReplyByte,
+  SolidisMegabyte,
+  SolidisMinusByte,
+  SolidisNegativeInfinityText,
+  SolidisNewLine,
+  SolidisNotANumberText,
+  SolidisNullReplyByte,
+  SolidisPushReplyByte,
+  SolidisSetReplyByte,
+  SolidisStringReplyByte,
+  SolidisVerbatimStringReplyByte,
+  SolidisZeroByte,
+} from './internal.ts';
 
-const KB = 1024 as const;
-const MB = 1048576 as const;
-
-const NL = '\r\n' as const;
+import type { SolidisClientFrozenOptions } from '../types/solidis.ts';
 
 export const SolidisDefaultOptions: SolidisClientFrozenOptions = {
   authentication: { username: '', password: '' },
@@ -20,81 +48,110 @@ export const SolidisDefaultOptions: SolidisClientFrozenOptions = {
   connectionRetryDelay: 100,
   database: 0,
   debug: false,
-  debugMaxEntries: KB * 10,
   enableReadyCheck: true,
   host: '127.0.0.1',
   uri: false,
   lazyConnect: false,
   maxConnectionRetries: 20,
+  maxConnectionRetryDelay: 2000,
   maxCommandsPerPipeline: 300,
-  maxEventListenersForClient: KB * 10,
-  maxEventListenersForSocket: KB * 10,
-  maxProcessReplyBytesPerChunk: KB * 8192,
-  maxProcessRepliesPerChunk: KB * 4,
-  maxSocketWriteSizePerOnce: KB * 64,
+  maxEventListenersForClient: SolidisKilobyte * 10,
   parser: {
-    buffer: {
-      initial: MB * 4,
-      shiftThreshold: MB * 2,
-    },
-    maxBulkStringLength: MB * 512,
+    maxBulkStringLength: SolidisMegabyte * 512,
   },
   port: 6379,
   protocol: 'RESP2',
   readyCheckInterval: 100,
   maxReadyCheckRetries: 100,
   rejectOnPartialPipelineError: false,
-  socketWriteTimeout: 1000,
 } as const;
 
 export const SolidisSymbolBytes = {
-  ASTERISK: 42,
-  DOLLAR: 36,
-  CR: 13,
-  LF: 10,
-  ZERO: 48,
-  LOWER_T: 116,
-  LOWER_F: 102,
+  ASTERISK: SolidisAsteriskByte,
+  DOLLAR: SolidisDollarByte,
+  CR: SolidisCarriageReturnByte,
+  LF: SolidisLineFeedByte,
+  ZERO: SolidisZeroByte,
+  MINUS: SolidisMinusByte,
+  COLON: SolidisColonByte,
+  LOWER_T: SolidisLowercaseTByte,
+  LOWER_F: SolidisLowercaseFByte,
 } as const;
 
 export const SolidisReplyBytes = {
-  STRING: 43,
-  ERROR: 45,
-  INTEGER: 58,
-  BULK: 36,
-  ARRAY: 42,
-  MAP: 37,
-  NULL: 95,
-  BOOLEAN: 35,
-  DOUBLE: 44,
-  BIG_NUMBER: 40,
-  VERBATIM_STRING: 61,
-  BLOB_ERROR: 33,
-  SET: 126,
-  ATTRIBUTE: 124,
-  PUSH: 62,
+  STRING: SolidisStringReplyByte,
+  ERROR: SolidisErrorReplyByte,
+  INTEGER: SolidisIntegerReplyByte,
+  BULK: SolidisBulkReplyByte,
+  ARRAY: SolidisArrayReplyByte,
+  MAP: SolidisMapReplyByte,
+  NULL: SolidisNullReplyByte,
+  BOOLEAN: SolidisBooleanReplyByte,
+  DOUBLE: SolidisDoubleReplyByte,
+  BIG_NUMBER: SolidisBigNumberReplyByte,
+  VERBATIM_STRING: SolidisVerbatimStringReplyByte,
+  BLOB_ERROR: SolidisBlobErrorReplyByte,
+  SET: SolidisSetReplyByte,
+  ATTRIBUTE: SolidisAttributeReplyByte,
+  PUSH: SolidisPushReplyByte,
 } as const;
 
 export const SolidisNumberTypes = {
-  INFINITY: 'inf',
-  NEGATIVE_INFINITY: '-inf',
-  NAN: 'nan',
+  INFINITY: SolidisInfinityText,
+  NEGATIVE_INFINITY: SolidisNegativeInfinityText,
+  NAN: SolidisNotANumberText,
 } as const;
 
 export const SolidisStringSymbols = {
-  NL,
+  NL: SolidisNewLine,
 } as const;
 
-export const SolidisPubSubEventNames = [
+export const SolidisMessageEventNames = [
   'message',
   'pmessage',
   'smessage',
+] as const;
+
+export const SolidisSubscribeEventNames = [
+  'subscribe',
+  'ssubscribe',
+  'psubscribe',
+] as const;
+
+export const SolidisUnsubscribeEventNames = [
+  'unsubscribe',
+  'sunsubscribe',
+  'punsubscribe',
+] as const;
+
+export const SolidisSubscriptionEventNames = [
+  ...SolidisSubscribeEventNames,
+  ...SolidisUnsubscribeEventNames,
+] as const;
+
+export const SolidisPubSubEventNames = [
+  ...SolidisMessageEventNames,
+  ...SolidisSubscriptionEventNames,
+] as const;
+
+export const SolidisTransactionBannedCommandNames = [
+  'multi',
+  'pipeline',
+  'watch',
+  'unwatch',
   'subscribe',
   'ssubscribe',
   'psubscribe',
   'unsubscribe',
   'sunsubscribe',
   'punsubscribe',
+  'auth',
+  'hello',
+  'reset',
+  'save',
+  'shutdown',
+  'scan',
+  'hscan',
+  'sscan',
+  'zscan',
 ] as const;
-
-export const SolidisCredentialCommandNameSet = new Set(['AUTH', 'HELLO']);

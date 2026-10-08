@@ -1,92 +1,56 @@
-export class RespError extends Error {
-  constructor(message: string) {
-    super(message);
+import { wrapWithSolidisError } from './internal.ts';
 
-    this.stack = undefined;
-    this.name = 'RespError';
+export class SolidisError extends Error {
+  public name = 'SolidisError';
+
+  constructor(message: string, cause?: unknown) {
+    super(message, cause === undefined ? undefined : { cause });
   }
 }
 
-export class SolidisError extends Error {
-  #originalError?: unknown;
+export class RespError extends SolidisError {
+  public name = 'RespError';
+  public readonly code: string;
 
-  constructor(message: string, originalError?: unknown) {
+  constructor(message: string) {
+    const { stackTraceLimit } = Error;
+
+    Reflect.set(Error, 'stackTraceLimit', 0);
+
     super(message);
 
-    this.name = 'SolidisError';
-
-    this.#originalError = originalError;
-
-    if (originalError instanceof Error) {
-      this.stack = originalError.stack;
-      this.cause = originalError.cause;
-    }
-  }
-
-  public getOriginalError(): unknown {
-    return this.#originalError;
+    Reflect.set(Error, 'stackTraceLimit', stackTraceLimit);
+    this.stack = undefined;
+    this.code = message.split(' ', 1)[0];
   }
 }
 
 export class SolidisClientError extends SolidisError {
-  constructor(message: string, originalError?: unknown) {
-    super(message, originalError);
-
-    this.name = 'SolidisClientError';
-  }
+  public name = 'SolidisClientError';
 }
 
 export class SolidisCommandError extends SolidisError {
-  constructor(message: string, originalError?: unknown) {
-    super(message, originalError);
-
-    this.name = 'SolidisCommandError';
-  }
+  public name = 'SolidisCommandError';
 }
 
 export class SolidisConnectionError extends SolidisError {
-  constructor(message: string, originalError?: unknown) {
-    super(message, originalError);
-
-    this.name = 'SolidisConnectionError';
-  }
+  public name = 'SolidisConnectionError';
 }
 
 export class SolidisParserError extends SolidisError {
-  constructor(message: string, originalError?: unknown) {
-    super(message, originalError);
-
-    this.name = 'SolidisParserError';
-  }
+  public name = 'SolidisParserError';
 }
 
 export class SolidisPubSubError extends SolidisError {
-  constructor(message: string, originalError?: unknown) {
-    super(message, originalError);
-
-    this.name = 'SolidisPubSubError';
-  }
+  public name = 'SolidisPubSubError';
 }
 
 export class SolidisRequesterError extends SolidisError {
-  constructor(message: string, originalError?: unknown) {
-    super(message, originalError);
-
-    this.name = 'SolidisRequesterError';
-  }
+  public name = 'SolidisRequesterError';
 }
 
 export function wrapWithError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(`${error}`);
-}
-
-function wrapWithSolidisError<T extends SolidisError>(
-  ErrorClass: new (message: string, originalError?: unknown) => T,
-  error: unknown,
-): T {
-  return error instanceof ErrorClass
-    ? error
-    : new ErrorClass(`${error}`, error);
+  return wrapWithSolidisError(Error, error);
 }
 
 export function wrapWithSolidisClientError(error: unknown): SolidisClientError {
@@ -112,14 +76,12 @@ export function wrapWithSolidisRequesterError(
 export function unwrapSolidisError(error: unknown): Error[] {
   const errors: Error[] = [];
 
-  if (error instanceof Error) {
-    errors.push(error);
-  }
+  let current = error;
 
-  if (error instanceof SolidisError) {
-    const originalError = error.getOriginalError();
+  while (current instanceof Error && !errors.includes(current)) {
+    errors.push(current);
 
-    errors.push(...unwrapSolidisError(originalError));
+    current = current.cause;
   }
 
   return errors;

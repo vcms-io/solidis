@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'package.json'
+  workflow_dispatch:
 
 jobs:
   test:
@@ -16,6 +17,7 @@ jobs:
     name: Check Version
     needs: test
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     outputs:
       version: ${{ steps.extract.outputs.version }}
       release: ${{ steps.check.outputs.release }}
@@ -33,8 +35,10 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Package version: $VERSION"
 
-      - name: Check Version and Tag
+      - name: Check Package, Tag and Release
         id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="${{ steps.extract.outputs.version }}"
 
@@ -43,14 +47,31 @@ jobs:
             exit 0
           fi
 
-          # Check if tag already exists
+          NAME=$(node -p "require('./package.json').name")
           TAG="v$VERSION"
-          git fetch --all --tags
-          if git tag -l | grep -q "^$TAG$"; then
-            echo "Tag $TAG already exists."
+          PUBLISHED=false
+          TAGGED=false
+          RELEASED=false
+
+          if [[ -n "$(npm view "$NAME@$VERSION" version 2> /dev/null)" ]]; then
+            PUBLISHED=true
+          fi
+
+          git fetch --tags --force
+
+          if git rev-parse --quiet --verify "refs/tags/$TAG" > /dev/null; then
+            TAGGED=true
+          fi
+
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            RELEASED=true
+          fi
+
+          echo "Published: $PUBLISHED, tagged: $TAGGED, released: $RELEASED"
+
+          if [[ "$PUBLISHED" == true && "$TAGGED" == true && "$RELEASED" == true ]]; then
             echo "release=false" >> $GITHUB_OUTPUT
           else
-            echo "Tag $TAG does not exist. Will create."
             echo "release=true" >> $GITHUB_OUTPUT
           fi
 
@@ -58,17 +79,20 @@ jobs:
     name: Release Package
     needs: check-version
 
-    if: needs.check-version.outputs.release == 'true'
+    if: needs.check-version.outputs.release == 'true' && github.ref == 'refs/heads/main'
 
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     permissions:
       contents: write
-      packages: write
+      id-token: write
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -83,23 +107,76 @@ jobs:
       - name: Build Package
         run: npm run build
 
-      - name: Push Tag
+      - name: Pack Package
+        id: pack
         run: |
+          TARBALL=$(npm pack --ignore-scripts)
+          echo "tarball=$TARBALL" >> $GITHUB_OUTPUT
+
+      - name: Verify Package
+        run: npm run --silent node:ts ./scripts/workflows/release/verify.ts "${{ steps.pack.outputs.tarball }}"
+
+      - name: Check Package and Tag
+        id: state
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          VERSION="${{ needs.check-version.outputs.version }}"
+
+          if [[ -n "$(npm view "$NAME@$VERSION" version 2> /dev/null)" ]]; then
+            echo "published=true" >> $GITHUB_OUTPUT
+          fi
+
+          git fetch --tags --force
+
+          if git rev-parse --quiet --verify "refs/tags/v$VERSION" > /dev/null; then
+            echo "tagged=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Publish to NPM
+        if: steps.state.outputs.published != 'true'
+        run: npm publish "./${{ steps.pack.outputs.tarball }}" --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Push Tag
+        if: steps.state.outputs.tagged != 'true'
+        run: |
+          VERSION="${{ needs.check-version.outputs.version }}"
+
+          if [[ "${{ steps.state.outputs.published }}" == "true" ]]; then
+            BUMP=$(git log -n 1 --format=%H -G "\"version\": \"$VERSION\"" -- package.json)
+
+            if [[ "$BUMP" != "$GITHUB_SHA" ]]; then
+              echo "::error::v$VERSION is on npm without a tag, and this run is not at its version bump ($BUMP). Tag that commit by hand."
+              exit 1
+            fi
+          fi
+
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git tag -a "v${{ needs.check-version.outputs.version }}" -m "Release v${{ needs.check-version.outputs.version }}"
-          git push origin "v${{ needs.check-version.outputs.version }}"
+          git tag -a "v$VERSION" -m "Release v$VERSION"
+          git push origin "v$VERSION"
+
+      - name: Extract Release Notes
+        run: |
+          VERSION="${{ needs.check-version.outputs.version }}"
+
+          awk -v heading="## [$VERSION]" '
+            index($0, heading) == 1 { found = 1; next }
+            found && (/^## / || /^\[.*\]: /) { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md || true
+
+          if ! grep -q '[^[:space:]]' release-notes.md; then
+            echo "::warning::CHANGELOG.md has no section for $VERSION, so the release only has generated notes."
+          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ needs.check-version.outputs.version }}
           name: Release v${{ needs.check-version.outputs.version }}
+          body_path: release-notes.md
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Publish to NPM
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

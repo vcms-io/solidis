@@ -1,7 +1,5 @@
-import {
-  executeCommand,
-  tryReplyToNullableNumberArray,
-} from './utils/index.ts';
+import { appendItems, formatInteger } from '../common/utils/internal.ts';
+import { executeCommand, tryReplyToJsonNumbers } from './utils/index.ts';
 
 export function createCommand(
   key: string,
@@ -9,7 +7,7 @@ export function createCommand(
   index: number,
   ...values: string[]
 ) {
-  return ['JSON.ARRINSERT', key, path, `${index}`, ...values];
+  return ['JSON.ARRINSERT', key, path, formatInteger(index), ...values];
 }
 
 export async function jsonArrinsert<T>(
@@ -21,7 +19,7 @@ export async function jsonArrinsert<T>(
 ): Promise<(number | null)[]> {
   return await executeCommand(
     this,
-    createCommand(key, path, index, ...values),
-    tryReplyToNullableNumberArray,
+    appendItems(createCommand(key, path, index), values),
+    tryReplyToJsonNumbers,
   );
 }

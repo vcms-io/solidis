@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyOK } from './utils/index.ts';
 
 import type { StringOrBuffer } from '../index.ts';
@@ -7,7 +8,7 @@ export function createCommand(
   seconds: number,
   value: StringOrBuffer,
 ) {
-  return ['SETEX', key, `${seconds}`, value];
+  return ['SETEX', key, formatInteger(seconds), value];
 }
 
 export async function setex<T>(

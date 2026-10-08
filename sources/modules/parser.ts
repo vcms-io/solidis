@@ -1,658 +1,518 @@
 import {
-  RespError,
-  RespPush,
-  SolidisNumberTypes,
-  SolidisParserError,
-  SolidisReplyBytes,
-  SolidisSymbolBytes,
-} from '../index.ts';
+  SolidisArrayReplyByte,
+  SolidisAttributeReplyByte,
+  SolidisBigNumberMaximumLength,
+  SolidisBigNumberReplyByte,
+  SolidisBlobErrorReplyByte,
+  SolidisBooleanReplyByte,
+  SolidisBulkReplyByte,
+  SolidisCarriageReturnByte,
+  SolidisColonByte,
+  SolidisDoubleReplyByte,
+  SolidisErrorReplyByte,
+  SolidisIntegerMaximumLength,
+  SolidisIntegerReplyByte,
+  SolidisKilobyte,
+  SolidisLineFeedByte,
+  SolidisLinePreviewLength,
+  SolidisLowercaseFByte,
+  SolidisLowercaseTByte,
+  SolidisMapReplyByte,
+  SolidisMaximumNestingDepth,
+  SolidisMinusByte,
+  SolidisNullReplyByte,
+  SolidisPlusByte,
+  SolidisPushReplyByte,
+  SolidisSetReplyByte,
+  SolidisStringReplyByte,
+  SolidisVerbatimStringReplyByte,
+  SolidisZeroByte,
+} from '../common/internal.ts';
+import { RespError, SolidisParserError } from '../common/utils/error.ts';
+import { parseDouble } from '../common/utils/number.ts';
+import { RespPush } from '../types/resp.ts';
 
-import type {
-  SolidisClientFrozenOptions,
-  SolidisData,
-  SolidisParsed,
-  SolidisParsedBufferWithLength,
-  SolidisRespLengthType,
-  SolidisRespPrimitiveType,
-  SolidisRespSimpleLineType,
-  SolidisRespType,
-} from '../index.ts';
+import type { SolidisData, SolidisParserOptions } from '../types/solidis.ts';
+
+const NeedsMoreData = Symbol();
+const NoValue = Symbol();
+
+const EmptyBuffer = Buffer.alloc(0);
+
+type SolidisParserStep = SolidisData | typeof NeedsMoreData | typeof NoValue;
+
+interface SolidisParserFrame {
+  type: number;
+  items: SolidisData[];
+  remaining: number;
+}
+
+function createItems(type: number): SolidisData[] {
+  return type === SolidisPushReplyByte ? new RespPush() : [];
+}
+
+function createMap(items: SolidisData[]) {
+  const map = new Map<string, SolidisData>();
+
+  for (let index = 0; index < items.length; index += 2) {
+    const key = items[index];
+
+    if (key !== null) {
+      map.set(String(key), items[index + 1]);
+    }
+  }
+
+  return map;
+}
+
+function createAggregate(type: number, items: SolidisData[]): SolidisData {
+  if (type === SolidisMapReplyByte) {
+    return createMap(items);
+  }
+
+  if (type === SolidisSetReplyByte) {
+    return new Set(items);
+  }
+
+  return items;
+}
 
 export class SolidisParser {
-  #buffer: Buffer;
-  #initialBufferSize: number;
-  #shiftThreshold: number;
-  #maxBulkStringLength: number;
+  readonly #maxBulkStringLength: number;
 
-  #readOffset = 0;
-  #writeOffset = 0;
+  #buffer: Buffer = EmptyBuffer;
+  #offset = 0;
+  #pendingChunks: Buffer[] = [];
+  #pendingLength = 0;
+  #requiredLength = 0;
+  #frames: SolidisParserFrame[] = [];
 
-  constructor(options: SolidisClientFrozenOptions) {
-    const {
-      parser: {
-        buffer: { initial, shiftThreshold },
-        maxBulkStringLength,
-      },
-    } = options;
-
-    this.#buffer = Buffer.allocUnsafe(initial);
-    this.#initialBufferSize = initial;
-    this.#shiftThreshold = shiftThreshold;
-    this.#maxBulkStringLength = maxBulkStringLength;
+  constructor(options: SolidisParserOptions) {
+    this.#maxBulkStringLength = options.parser.maxBulkStringLength;
   }
 
-  public async queueParse(...buffers: Buffer[]): Promise<SolidisData[]> {
-    return this.#parseBuffers(buffers);
-  }
+  public parse(chunk: Buffer, replies: SolidisData[] = []): SolidisData[] {
+    const tail = chunk.length ? this.#append(chunk) : NeedsMoreData;
 
-  #parseBuffers(buffers: Buffer[]) {
-    const parsedDataArray: SolidisData[] = [];
-
-    for (let index = 0; index < buffers.length; index += 1) {
-      this.#appendBuffer(buffers[index]);
-
-      this.#parse(parsedDataArray);
+    if (tail === NeedsMoreData) {
+      return replies;
     }
 
-    return parsedDataArray;
-  }
+    while (this.#offset < this.#buffer.length) {
+      const step = this.#readStep();
 
-  #parse(parsedDataArray: SolidisData[]) {
-    while (true) {
-      const parsed: SolidisParsed = this.#tryParseOnce();
-
-      if (parsed === null) {
-        return;
+      if (step === NeedsMoreData) {
+        break;
       }
 
-      if (!parsed.ignore) {
-        parsedDataArray.push(parsed.data);
+      if (step !== NoValue) {
+        this.#collect(step, replies);
       }
-
-      this.#tryShiftInternalBuffer();
-    }
-  }
-
-  #appendBuffer(parseBuffer: Buffer) {
-    if (this.#writeOffset + parseBuffer.length > this.#buffer.length) {
-      this.#growInternalBuffer(this.#writeOffset + parseBuffer.length);
     }
 
-    parseBuffer.copy(this.#buffer, this.#writeOffset);
-
-    this.#writeOffset += parseBuffer.length;
-  }
-
-  #allocateInternalBuffer(minCapacity: number) {
-    let newCapacity = Math.max(this.#initialBufferSize, this.#buffer.length);
-
-    while (newCapacity < minCapacity) {
-      newCapacity *= 2;
+    if (this.#offset === this.#buffer.length) {
+      this.#buffer = EmptyBuffer;
+      this.#offset = 0;
     }
 
-    return Buffer.allocUnsafe(newCapacity);
+    return tail ? this.parse(tail, replies) : replies;
   }
 
-  #growInternalBuffer(minCapacity: number) {
-    const newBuffer = this.#allocateInternalBuffer(minCapacity);
-
-    this.#buffer.copy(newBuffer, 0, this.#readOffset, this.#writeOffset);
-
-    this.#writeOffset -= this.#readOffset;
-    this.#readOffset = 0;
-
-    this.#buffer = newBuffer;
-  }
-
-  #tryShiftInternalBuffer() {
-    if (this.#readOffset === this.#writeOffset) {
-      this.#readOffset = 0;
-      this.#writeOffset = 0;
+  #append(chunk: Buffer) {
+    if (!this.#buffer.length) {
+      this.#buffer = chunk;
 
       return;
     }
 
-    if (
-      this.#readOffset > this.#shiftThreshold &&
-      this.#readOffset < this.#writeOffset
-    ) {
-      const remainingBytes = this.#writeOffset - this.#readOffset;
+    const pendingChunks = this.#pendingChunks;
+    const previous = pendingChunks.at(-1) ?? this.#buffer;
 
-      this.#buffer.copy(this.#buffer, 0, this.#readOffset, this.#writeOffset);
+    pendingChunks.push(chunk);
 
-      this.#readOffset = 0;
-      this.#writeOffset = remainingBytes;
+    if (pendingChunks.length > 1 && previous.length < SolidisKilobyte) {
+      pendingChunks.push(Buffer.concat(pendingChunks.splice(-2)));
+    }
+
+    this.#pendingLength += chunk.length;
+
+    const availableLength =
+      this.#buffer.length - this.#offset + this.#pendingLength;
+
+    let length = this.#requiredLength;
+
+    if (!length) {
+      const lineFeed =
+        previous.at(-1) === SolidisCarriageReturnByte
+          ? 0
+          : chunk.indexOf(SolidisCarriageReturnByte) + 1 || chunk.length;
+
+      if (lineFeed === chunk.length) {
+        if (
+          availableLength -
+            (chunk.at(-1) === SolidisCarriageReturnByte ? 2 : 1) >
+          this.#maxBulkStringLength
+        ) {
+          throw this.#createLineLengthError();
+        }
+
+        return NeedsMoreData;
+      }
+
+      length = availableLength - chunk.length + lineFeed + 1;
+    }
+
+    if (availableLength < length) {
+      return NeedsMoreData;
+    }
+
+    this.#buffer = Buffer.concat(
+      [this.#buffer.subarray(this.#offset), ...pendingChunks],
+      length,
+    );
+    this.#offset = 0;
+    this.#pendingChunks = [];
+    this.#pendingLength = 0;
+
+    return length < availableLength
+      ? chunk.subarray(length - availableLength)
+      : undefined;
+  }
+
+  #collect(value: SolidisData, replies: SolidisData[]) {
+    let completed = value;
+
+    while (true) {
+      const frame = this.#frames.at(-1);
+
+      if (!frame) {
+        replies.push(completed);
+
+        return;
+      }
+
+      frame.items.push(completed);
+      frame.remaining -= 1;
+
+      if (frame.remaining > 0) {
+        return;
+      }
+
+      this.#frames.pop();
+
+      if (frame.type === SolidisAttributeReplyByte) {
+        return;
+      }
+
+      completed = createAggregate(frame.type, frame.items);
     }
   }
 
-  #tryParseOnce(): SolidisParsed {
-    if (this.#readOffset >= this.#writeOffset) {
-      return null;
-    }
+  #readStep(): SolidisParserStep {
+    const type = this.#buffer[this.#offset];
 
-    const prefixByte = this.#buffer[this.#readOffset];
-
-    let parsed: SolidisParsed = null;
-
-    switch (prefixByte) {
-      /** RESP2 replies */
-      case SolidisReplyBytes.BULK: {
-        parsed = this.#parseBulkString('Bulk');
-
-        break;
+    switch (type) {
+      case SolidisBulkReplyByte:
+      case SolidisVerbatimStringReplyByte:
+      case SolidisBlobErrorReplyByte: {
+        return this.#readBlob(type);
       }
 
-      case SolidisReplyBytes.STRING: {
-        parsed = this.#parseSimpleLine('SimpleString');
-
-        break;
+      case SolidisArrayReplyByte:
+      case SolidisSetReplyByte:
+      case SolidisPushReplyByte:
+      case SolidisMapReplyByte:
+      case SolidisAttributeReplyByte: {
+        return this.#readAggregate(type);
       }
 
-      case SolidisReplyBytes.ERROR: {
-        parsed = this.#parseSimpleLine('Error');
-
-        break;
-      }
-
-      case SolidisReplyBytes.INTEGER: {
-        parsed = this.#parseInteger();
-
-        break;
-      }
-
-      case SolidisReplyBytes.ARRAY: {
-        parsed = this.#parseSequence('Array');
-
-        break;
-      }
-
-      /** RESP3 replies */
-      case SolidisReplyBytes.PUSH: {
-        parsed = this.#parseSequence('Push', (items) => RespPush.from(items));
-
-        break;
-      }
-
-      case SolidisReplyBytes.NULL: {
-        parsed = this.#parseNull();
-
-        break;
-      }
-
-      case SolidisReplyBytes.BOOLEAN: {
-        parsed = this.#parseBoolean();
-
-        break;
-      }
-
-      case SolidisReplyBytes.DOUBLE: {
-        parsed = this.#parseDouble();
-
-        break;
-      }
-
-      case SolidisReplyBytes.BIG_NUMBER: {
-        parsed = this.#parseBigNumber();
-
-        break;
-      }
-
-      case SolidisReplyBytes.VERBATIM_STRING: {
-        parsed = this.#parseBulkString('VerbatimString');
-
-        break;
-      }
-
-      case SolidisReplyBytes.BLOB_ERROR: {
-        parsed = this.#parseBulkString('BlobError');
-
-        break;
-      }
-
-      case SolidisReplyBytes.SET: {
-        parsed = this.#parseSequence('Set', (items) => new Set(items));
-
-        break;
-      }
-
-      case SolidisReplyBytes.MAP: {
-        parsed = this.#parseSequence(
-          'Map',
-          (items) => {
-            const map = new Map<string, SolidisData>();
-
-            for (let index = 0; index < items.length; index += 2) {
-              const key = items[index];
-
-              if (key !== null) {
-                map.set(key.toString(), items[index + 1]);
-              }
-            }
-
-            return map;
-          },
-          true,
-        );
-
-        break;
-      }
-
-      case SolidisReplyBytes.ATTRIBUTE: {
-        const attributeParsed = this.#parseSequence('Map', undefined, true);
-
-        parsed = attributeParsed
-          ? { data: null, length: attributeParsed.length, ignore: true }
-          : null;
-
-        break;
+      case SolidisStringReplyByte:
+      case SolidisErrorReplyByte:
+      case SolidisIntegerReplyByte:
+      case SolidisNullReplyByte:
+      case SolidisBooleanReplyByte:
+      case SolidisDoubleReplyByte:
+      case SolidisBigNumberReplyByte: {
+        return this.#readSimple(type);
       }
 
       default: {
         throw new SolidisParserError(
-          `Unknown prefix '${String.fromCharCode(prefixByte)}'`,
+          `Unknown prefix '${String.fromCharCode(type)}'`,
         );
       }
     }
-
-    if (parsed === null) {
-      return null;
-    }
-
-    this.#readOffset += parsed.length;
-
-    return parsed;
   }
 
-  #parseInteger(): SolidisParsed {
-    try {
-      const parsed = this.#parseNumeric('Integer');
+  #readSimple(type: number): SolidisParserStep {
+    const start = this.#offset + 1;
+    const end = this.#findLineEnd(start);
 
-      if (parsed === null) {
-        return null;
+    if (end === -1) {
+      return NeedsMoreData;
+    }
+
+    this.#offset = end + 2;
+
+    switch (type) {
+      case SolidisStringReplyByte: {
+        return this.#buffer.toString('utf8', start, end);
       }
 
-      if (parsed.digitCount > 15 && !Number.isSafeInteger(parsed.data)) {
-        const numString = this.#buffer.toString(
-          'ascii',
-          this.#readOffset + 1,
-          this.#readOffset + parsed.length - 2,
+      case SolidisErrorReplyByte: {
+        return new RespError(this.#buffer.toString('utf8', start, end));
+      }
+
+      case SolidisIntegerReplyByte: {
+        return (
+          this.#parseInteger(start, end) ??
+          new RespError(`Integer: ${this.#describeLine(start, end)}`)
         );
-
-        return {
-          data: BigInt(numString),
-          length: parsed.length,
-        };
       }
 
-      return {
-        data: parsed.data,
-        length: parsed.length,
-      };
-    } catch {
-      const line = this.#parseLine(this.#readOffset + 1, 'Integer');
+      case SolidisNullReplyByte: {
+        if (end !== start) {
+          throw new SolidisParserError('Null: unexpected payload');
+        }
 
-      if (line === null) {
         return null;
       }
 
-      return {
-        data: new RespError(`Integer: '${line.data}'`),
-        length: line.length + 1,
-      };
-    }
-  }
-
-  #parseBulkString(type: SolidisRespLengthType): SolidisParsed {
-    const parsed = this.#parseBufferWithLength(type);
-
-    if (parsed === null) {
-      return null;
-    }
-
-    let data: SolidisData = null;
-
-    if (parsed.data) {
-      switch (type) {
-        case 'VerbatimString': {
-          data = parsed.data.toString();
-          break;
-        }
-
-        case 'BlobError': {
-          data = new RespError(parsed.data.toString());
-          break;
-        }
-
-        default: {
-          data = Buffer.from(parsed.data);
-          break;
-        }
-      }
-    }
-
-    return {
-      data,
-      length: parsed.length,
-    };
-  }
-
-  #parseSimpleLine(type: SolidisRespSimpleLineType): SolidisParsed {
-    const parsed = this.#parseLine(this.#readOffset + 1, type);
-
-    if (parsed === null) {
-      return null;
-    }
-
-    const isError = type === 'Error';
-
-    return {
-      data: isError ? new RespError(parsed.data) : parsed.data,
-      length: parsed.length + 1,
-    };
-  }
-
-  #parseNull(): SolidisParsed {
-    if (this.#writeOffset - this.#readOffset < 3) {
-      return null;
-    }
-
-    if (!this.#checkCRLF(this.#readOffset + 1, 'Null')) {
-      return null;
-    }
-
-    return {
-      data: null,
-      length: 3,
-    };
-  }
-
-  #parseBoolean(): SolidisParsed {
-    const startPosition = this.#readOffset + 1;
-
-    if (!this.#checkCRLF(startPosition + 1, 'Boolean')) {
-      return null;
-    }
-
-    const boolByte = this.#buffer[startPosition];
-
-    if (
-      boolByte !== SolidisSymbolBytes.LOWER_T &&
-      boolByte !== SolidisSymbolBytes.LOWER_F
-    ) {
-      throw new SolidisParserError(
-        `Boolean: invalid byte 0x${boolByte.toString(16)}`,
-      );
-    }
-
-    return {
-      data: boolByte === SolidisSymbolBytes.LOWER_T,
-      length: 4,
-    };
-  }
-
-  #parseDouble(): SolidisParsed {
-    const parsed = this.#parseSimpleLine('Double');
-
-    if (parsed === null || typeof parsed.data !== 'string') {
-      return null;
-    }
-
-    switch (parsed.data) {
-      case SolidisNumberTypes.INFINITY: {
-        return {
-          data: Number.POSITIVE_INFINITY,
-          length: parsed.length,
-        };
+      case SolidisBooleanReplyByte: {
+        return this.#readBoolean(start, end);
       }
 
-      case SolidisNumberTypes.NEGATIVE_INFINITY: {
-        return {
-          data: Number.NEGATIVE_INFINITY,
-          length: parsed.length,
-        };
-      }
-
-      case SolidisNumberTypes.NAN: {
-        return {
-          data: Number.NaN,
-          length: parsed.length,
-        };
+      case SolidisDoubleReplyByte: {
+        return (
+          parseDouble(this.#readText(start, end)) ??
+          new RespError(`Double: ${this.#describeLine(start, end)}`)
+        );
       }
 
       default: {
-        break;
+        return this.#readBigNumber(start, end);
       }
     }
-
-    const parsedNumber = Number.parseFloat(parsed.data);
-
-    return {
-      data: Number.isNaN(parsedNumber)
-        ? new RespError(`Double: '${parsed.data}'`)
-        : parsedNumber,
-      length: parsed.length,
-    };
   }
 
-  #parseBigNumber(): SolidisParsed {
-    const parsed = this.#parseSimpleLine('BigNumber');
+  #readBlob(type: number): SolidisParserStep {
+    const buffer = this.#buffer;
+    const start = this.#offset;
+    const lineEnd = this.#findLineEnd(start + 1);
 
-    if (parsed === null || typeof parsed.data !== 'string') {
+    if (lineEnd === -1) {
+      return NeedsMoreData;
+    }
+
+    const length = this.#readLength(
+      start + 1,
+      lineEnd,
+      type === SolidisBulkReplyByte,
+    );
+
+    if (length < 0) {
+      this.#offset = lineEnd + 2;
+
       return null;
     }
 
-    try {
-      return {
-        data: BigInt(parsed.data),
-        length: parsed.length,
-      };
-    } catch {
-      return {
-        data: new RespError(`BigNumber: '${parsed.data}'`),
-        length: parsed.length,
-      };
-    }
-  }
-
-  #nullLengthResult(lengthLength: number) {
-    return { data: null, length: 1 + lengthLength } as const;
-  }
-
-  #parseSequence<T extends SolidisData>(
-    type: SolidisRespLengthType,
-    transform?: (items: SolidisData[]) => T,
-    pairsPerEntry = false,
-  ): SolidisParsed {
-    const lengthObject = this.#parseLength(type);
-
-    if (!lengthObject) {
-      return null;
-    }
-
-    const { data: lengthData, length: lengthLength } = lengthObject;
-
-    if (lengthData < 0) {
-      return this.#nullLengthResult(lengthLength);
-    }
-
-    const totalItems = pairsPerEntry ? lengthData * 2 : lengthData;
-    const items = new Array<SolidisData>(totalItems);
-
-    const readOffsetState = this.#readOffset;
-
-    this.#readOffset += 1 + lengthLength;
-
-    for (let index = 0; index < totalItems; index += 1) {
-      if (this.#readOffset >= this.#writeOffset) {
-        this.#readOffset = readOffsetState;
-
-        return null;
-      }
-
-      const parsed: SolidisParsed = this.#tryParseOnce();
-
-      if (parsed === null) {
-        this.#readOffset = readOffsetState;
-
-        return null;
-      }
-
-      items[index] = parsed.data;
-    }
-
-    const totalLength = this.#readOffset - readOffsetState;
-
-    this.#readOffset = readOffsetState;
-
-    return {
-      data: transform ? transform(items) : items,
-      length: totalLength,
-    };
-  }
-
-  #parseNumeric(type: SolidisRespLengthType | SolidisRespPrimitiveType) {
-    const startPosition = this.#readOffset + 1;
-    const endPosition = this.#writeOffset;
-
-    if (startPosition >= endPosition) {
-      return null;
-    }
-
-    let signIndicator = 1;
-    let number = 0;
-    let digitCount = 0;
-
-    let position = startPosition;
-
-    if (this.#buffer[position] === SolidisReplyBytes.ERROR) {
-      signIndicator = -1;
-      position += 1;
-    }
-
-    while (position < endPosition) {
-      const character = this.#buffer[position];
-
-      position += 1;
-
-      if (character === SolidisSymbolBytes.CR) {
-        if (!this.#checkCRLF(position - 1, type)) {
-          return null;
-        }
-
-        return {
-          data: signIndicator * number,
-          length: position - this.#readOffset + 1,
-          digitCount,
-        };
-      }
-
-      if (
-        character < SolidisSymbolBytes.ZERO ||
-        character > SolidisSymbolBytes.ZERO + 9
-      ) {
-        throw new SolidisParserError(
-          `${type}: non-digit 0x${character.toString(16)}`,
-        );
-      }
-
-      number = number * 10 + (character - SolidisSymbolBytes.ZERO);
-      digitCount += 1;
-    }
-
-    return null;
-  }
-
-  #parseLength(type: SolidisRespLengthType) {
-    const parsed = this.#parseNumeric(type);
-
-    if (parsed === null) {
-      return null;
-    }
-
-    return {
-      data: parsed.data,
-      length: parsed.length - 1,
-    };
-  }
-
-  #parseBufferWithLength(
-    type: SolidisRespLengthType,
-  ): SolidisParsedBufferWithLength {
-    const lengthObject = this.#parseLength(type);
-
-    if (lengthObject === null) {
-      return null;
-    }
-
-    const { data: lengthData, length: lengthLength } = lengthObject;
-
-    if (lengthData < 0) {
-      return this.#nullLengthResult(lengthLength);
-    }
-
-    if (lengthData > this.#maxBulkStringLength) {
+    if (length > this.#maxBulkStringLength) {
       throw new SolidisParserError(
-        `${type} length ${lengthData} exceeds maximum allowed ${this.#maxBulkStringLength}`,
+        `Bulk length ${length} exceeds maximum allowed ${this.#maxBulkStringLength}`,
       );
     }
 
-    const startPosition = this.#readOffset + 1 + lengthLength;
-    const endPosition = startPosition + lengthData;
+    const dataStart = lineEnd + 2;
+    const dataEnd = dataStart + length;
 
-    if (endPosition + 2 > this.#writeOffset) {
-      return null;
-    }
+    if (dataEnd + 2 > buffer.length) {
+      this.#requiredLength = dataEnd + 2 - start;
 
-    const dataBuffer = this.#buffer.subarray(startPosition, endPosition);
-    const totalLength = lengthLength + lengthData + 3;
-
-    return {
-      data: dataBuffer,
-      length: totalLength,
-    };
-  }
-
-  #parseLine(startPosition: number, type: SolidisRespType) {
-    const endPosition = this.#writeOffset;
-
-    if (startPosition >= endPosition) {
-      return null;
-    }
-
-    let position = startPosition;
-
-    while (position < endPosition) {
-      const character = this.#buffer[position];
-
-      position += 1;
-
-      if (character === SolidisSymbolBytes.CR) {
-        if (!this.#checkCRLF(position - 1, type)) {
-          return null;
-        }
-
-        return {
-          data: this.#buffer.toString('utf8', startPosition, position - 1),
-          length: position - startPosition + 1,
-        };
-      }
-    }
-
-    return null;
-  }
-
-  #checkCRLF(position: number, type: SolidisRespType) {
-    if (position + 1 >= this.#writeOffset) {
-      return false;
+      return NeedsMoreData;
     }
 
     if (
-      this.#buffer[position] !== SolidisSymbolBytes.CR ||
-      this.#buffer[position + 1] !== SolidisSymbolBytes.LF
+      buffer[dataEnd] !== SolidisCarriageReturnByte ||
+      buffer[dataEnd + 1] !== SolidisLineFeedByte
     ) {
-      throw new SolidisParserError(`${type}: missing CRLF`);
+      throw new SolidisParserError('Missing CRLF');
     }
 
-    return true;
+    this.#offset = dataEnd + 2;
+
+    if (type === SolidisBlobErrorReplyByte) {
+      return new RespError(buffer.toString('utf8', dataStart, dataEnd));
+    }
+
+    if (type === SolidisVerbatimStringReplyByte) {
+      const textStart =
+        length >= 4 && buffer[dataStart + 3] === SolidisColonByte
+          ? dataStart + 4
+          : dataStart;
+
+      return buffer.toString('utf8', textStart, dataEnd);
+    }
+
+    return buffer.subarray(dataStart, dataEnd);
+  }
+
+  #readAggregate(type: number): SolidisParserStep {
+    const start = this.#offset;
+    const lineEnd = this.#findLineEnd(start + 1);
+
+    if (lineEnd === -1) {
+      return NeedsMoreData;
+    }
+
+    const count = this.#readLength(
+      start + 1,
+      lineEnd,
+      type === SolidisArrayReplyByte,
+    );
+
+    this.#offset = lineEnd + 2;
+
+    if (count < 0) {
+      return null;
+    }
+
+    if (count === 0) {
+      return type === SolidisAttributeReplyByte
+        ? NoValue
+        : createAggregate(type, createItems(type));
+    }
+
+    if (this.#frames.length >= SolidisMaximumNestingDepth) {
+      throw new SolidisParserError(
+        `Nesting exceeds maximum depth ${SolidisMaximumNestingDepth}`,
+      );
+    }
+
+    this.#frames.push({
+      type,
+      items: createItems(type),
+      remaining:
+        type === SolidisMapReplyByte || type === SolidisAttributeReplyByte
+          ? count * 2
+          : count,
+    });
+
+    return NoValue;
+  }
+
+  #findLineEnd(from: number) {
+    const buffer = this.#buffer;
+
+    let index = from;
+
+    while (
+      index < buffer.length &&
+      buffer[index] !== SolidisCarriageReturnByte
+    ) {
+      index += 1;
+    }
+
+    if (index - from > this.#maxBulkStringLength) {
+      throw this.#createLineLengthError();
+    }
+
+    if (index + 1 >= buffer.length) {
+      this.#requiredLength = 0;
+
+      return -1;
+    }
+
+    if (buffer[index + 1] !== SolidisLineFeedByte) {
+      throw new SolidisParserError('Missing CRLF');
+    }
+
+    return index;
+  }
+
+  #createLineLengthError() {
+    return new SolidisParserError(
+      `Line length exceeds maximum allowed ${this.#maxBulkStringLength}`,
+    );
+  }
+
+  #readText(start: number, end: number) {
+    return this.#buffer.toString('latin1', start, end);
+  }
+
+  #parseInteger(start: number, end: number): number | bigint | undefined {
+    const buffer = this.#buffer;
+    const sign = buffer[start];
+    const isNegative = sign === SolidisMinusByte;
+
+    let index = isNegative || sign === SolidisPlusByte ? start + 1 : start;
+    let value = 0;
+
+    if (index === end || end - start > SolidisIntegerMaximumLength) {
+      return undefined;
+    }
+
+    while (index < end) {
+      const digit = buffer[index] - SolidisZeroByte;
+
+      if (digit < 0 || digit > 9) {
+        return undefined;
+      }
+
+      value = value * 10 + digit;
+      index += 1;
+    }
+
+    if (!Number.isSafeInteger(value)) {
+      return BigInt(this.#readText(start, end));
+    }
+
+    return isNegative ? -value : value;
+  }
+
+  #readLength(start: number, end: number, isNullable: boolean) {
+    const length = this.#parseInteger(start, end);
+
+    if (typeof length !== 'number' || length < (isNullable ? -1 : 0)) {
+      throw new SolidisParserError(
+        `Invalid length ${this.#describeLine(start, end)}`,
+      );
+    }
+
+    return length;
+  }
+
+  #readBoolean(start: number, end: number) {
+    const value = this.#buffer[start];
+
+    if (
+      end !== start + 1 ||
+      (value !== SolidisLowercaseTByte && value !== SolidisLowercaseFByte)
+    ) {
+      throw new SolidisParserError(
+        `Boolean: invalid value ${this.#describeLine(start, end)}`,
+      );
+    }
+
+    return value === SolidisLowercaseTByte;
+  }
+
+  #readBigNumber(start: number, end: number) {
+    const text =
+      end - start <= SolidisBigNumberMaximumLength
+        ? this.#readText(start, end)
+        : '';
+
+    return /^[+-]?\d+$/.test(text)
+      ? BigInt(text)
+      : new RespError(`BigNumber: ${this.#describeLine(start, end)}`);
+  }
+
+  #describeLine(start: number, end: number) {
+    const text = this.#readText(
+      start,
+      Math.min(end, start + SolidisLinePreviewLength),
+    );
+
+    return `'${text}${end - start > SolidisLinePreviewLength ? '...' : ''}'`;
   }
 }

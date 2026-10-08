@@ -1,10 +1,11 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
   newCommandError,
-  tryReplyToStreamReadResultsOrNull,
+  tryReplyToStreamGroupReadResultsOrNull,
 } from './utils/index.ts';
 
-import type { RespStreamReadResult } from '../index.ts';
+import type { RespStreamGroupReadResult } from '../index.ts';
 
 export function createCommand(
   group: string,
@@ -18,20 +19,18 @@ export function createCommand(
   const command = ['XREADGROUP', 'GROUP', group, consumer];
 
   if (count !== undefined) {
-    command.push('COUNT', `${count}`);
+    command.push('COUNT', formatInteger(count));
   }
 
   if (block !== undefined) {
-    command.push('BLOCK', `${block}`);
+    command.push('BLOCK', formatInteger(block));
   }
 
   if (noack) {
     command.push('NOACK');
   }
 
-  command.push('STREAMS', ...keys, ...ids);
-
-  return command;
+  return [...command, 'STREAMS', ...keys, ...ids];
 }
 
 export async function xreadgroup<T>(
@@ -43,7 +42,7 @@ export async function xreadgroup<T>(
   count?: number,
   block?: number,
   noack?: boolean,
-): Promise<RespStreamReadResult[] | null> {
+): Promise<RespStreamGroupReadResult[] | null> {
   if (keys.length !== ids.length) {
     throw newCommandError(
       'Keys and IDs must have the same length',
@@ -54,6 +53,8 @@ export async function xreadgroup<T>(
   return await executeCommand(
     this,
     createCommand(group, consumer, keys, ids, count, block, noack),
-    tryReplyToStreamReadResultsOrNull,
+    tryReplyToStreamGroupReadResultsOrNull,
+    undefined,
+    { blockingTimeout: block },
   );
 }

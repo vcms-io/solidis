@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyNumber } from './utils/index.ts';
 
 import type { CommandStartToEndAndBitOrByteOptions } from '../index.ts';
@@ -8,12 +9,19 @@ export function createCommand(
 ) {
   const command = ['BITCOUNT', key];
 
-  if (options?.start !== undefined && options?.end !== undefined) {
-    command.push(`${options.start}`, `${options.end}`);
+  if (
+    options?.start !== undefined ||
+    options?.end !== undefined ||
+    options?.mode !== undefined
+  ) {
+    command.push(
+      formatInteger(options.start ?? 0),
+      formatInteger(options.end ?? -1),
+    );
+  }
 
-    if (options.mode) {
-      command.push(options.mode);
-    }
+  if (options?.mode) {
+    command.push(options.mode);
   }
 
   return command;

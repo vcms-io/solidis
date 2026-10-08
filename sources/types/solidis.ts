@@ -1,10 +1,15 @@
-import type net from 'node:net';
-import type tls from 'node:tls';
+import type { EventEmitter, errorMonitor } from 'node:events';
+import type { Socket } from 'node:net';
+import type { ConnectionOptions, TLSSocket } from 'node:tls';
 import type { SolidisClient } from '../client.ts';
+import type {
+  SolidisTransactionBannedCommandNames,
+  SolidisUnsubscribeEventNames,
+} from '../common/constants.ts';
 import type { RespError } from '../common/utils/error.ts';
 import type { SolidisConnection } from '../modules/connection.ts';
-import type { SolidisDebugMemory } from '../modules/debug.ts';
 import type { SolidisPubSub } from '../modules/pubsub.ts';
+import type { RespPush } from './resp.ts';
 
 export type StringOrBuffer = string | Buffer;
 
@@ -19,10 +24,6 @@ export type SolidisData =
   | SolidisData[]
   | Map<string, SolidisData>
   | Set<SolidisData>;
-
-export type SolidisRecursiveStringRecord = {
-  [key: string]: string | undefined | SolidisRecursiveStringRecord;
-};
 
 export const SolidisProtocols = {
   RESP2: 'RESP2',
@@ -54,23 +55,15 @@ export interface SolidisClientOptions {
   connectionRetryDelay?: number;
   database?: number;
   debug?: boolean;
-  debugMaxEntries?: number;
   enableReadyCheck?: boolean;
   host?: string;
   uri?: string | URL | false;
   lazyConnect?: boolean;
   maxConnectionRetries?: number;
+  maxConnectionRetryDelay?: number;
   maxCommandsPerPipeline?: number;
   maxEventListenersForClient?: number;
-  maxEventListenersForSocket?: number;
-  maxProcessReplyBytesPerChunk?: number;
-  maxProcessRepliesPerChunk?: number;
-  maxSocketWriteSizePerOnce?: number;
   parser?: {
-    buffer?: {
-      initial?: number;
-      shiftThreshold?: number;
-    };
     maxBulkStringLength?: number;
   };
   port?: number;
@@ -78,103 +71,43 @@ export interface SolidisClientOptions {
   readyCheckInterval?: number;
   maxReadyCheckRetries?: number;
   rejectOnPartialPipelineError?: boolean;
-  socketWriteTimeout?: number;
-  tls?: tls.ConnectionOptions;
+  tls?: ConnectionOptions;
 }
 
 export type SolidisClientFrozenOptions = Readonly<
   DeepRequired<Omit<SolidisClientOptions, 'tls'>> & {
-    tls?: tls.ConnectionOptions;
+    tls?: ConnectionOptions;
   }
 >;
 
 export type SolidisConnectionOptions = SolidisClientFrozenOptions & {
-  debugMemory?: SolidisDebugMemory;
+  debugHandle?: SolidisDebugHandle;
 };
+
+export type SolidisParserOptions = Pick<SolidisClientFrozenOptions, 'parser'>;
+
+export type SolidisSocket = Socket | TLSSocket;
+
+export type SolidisClientEmit = SolidisClientEventHandlers['emit'];
 
 export type SolidisRequesterOptions = SolidisClientFrozenOptions & {
   connection: SolidisConnection;
   pubSub: SolidisPubSub;
-  debugMemory?: SolidisDebugMemory;
+  emit: SolidisClientEmit;
+  debugHandle?: SolidisDebugHandle;
 };
 
-export type SolidisSocket = net.Socket | tls.TLSSocket;
-
-export type SolidisSubRequestResolveHandler = (value: SolidisData[]) => void;
-export type SolidisRequestResolveHandler = (value: SolidisData[][]) => void;
-export type SolidisRejectHandler = (reason?: unknown) => void;
-
-export type SolidisRespLengthType =
-  | 'Bulk'
-  | 'BlobError'
-  | 'Array'
-  | 'Push'
-  | 'Map'
-  | 'Set'
-  | 'VerbatimString';
-export type SolidisRespSimpleLineType =
-  | 'SimpleString'
-  | 'Error'
-  | 'Double'
-  | 'BigNumber';
-export type SolidisRespPrimitiveType = 'Integer' | 'Boolean' | 'Null';
-export type SolidisRespType =
-  | SolidisRespLengthType
-  | SolidisRespSimpleLineType
-  | SolidisRespPrimitiveType;
-
-export type SolidisParsed<T = SolidisData> = {
-  data: T | null;
-  length: number;
-  ignore?: boolean;
-} | null;
-export type SolidisParsedBufferWithLength =
-  | (Omit<NonNullable<SolidisParsed>, 'data'> & {
-      data: Buffer | null;
-    })
-  | null;
-
-export interface SolidisRequest {
-  commands: StringOrBuffer[][];
-  resolve: SolidisRequestResolveHandler;
-  reject: SolidisRejectHandler;
-  replies: SolidisData[][];
+export interface SolidisSendOptions {
+  timeout?: number;
+  blockingTimeout?: number;
 }
 
-export interface SolidisPipelineSubRequest {
-  span: number;
-  resolve: SolidisSubRequestResolveHandler;
-  reject: SolidisRejectHandler;
-}
+export type SolidisMessageEventName = 'message' | 'pmessage' | 'smessage';
 
-export interface SolidisPipelineRequest {
-  resolve: SolidisRequestResolveHandler;
-  reject: SolidisRejectHandler;
-  commandsBuffer: Buffer;
-  subRequestIndex: number;
-  currentSubReplies: SolidisData[];
-  receivedReplyCount: number;
-  expectedReplyCount: number;
-  subRequests: SolidisPipelineSubRequest[];
-  subscribeCommandCount: number;
-  timeoutId?: NodeJS.Timeout;
-  isTimedOut?: boolean;
-}
+export type SolidisSubscriptionEventName = keyof SolidisSubscribeEvents;
 
-export interface SolidisPipelineRequestChunk {
-  pipelinedCommands: StringOrBuffer[][];
-  subRequests: SolidisPipelineSubRequest[];
-  subscribeCommandCount: number;
-  expectedReplyCount: number;
-}
-
-export interface SolidisPipelineRequestChunkContext {
-  cursor: number;
-  chunks: SolidisPipelineRequestChunk[];
-  pipelinedCommands: StringOrBuffer[][];
-  subRequests: SolidisPipelineSubRequest[];
-  subscribeCommandCount: number;
-}
+export type SolidisUnsubscribeEventName =
+  (typeof SolidisUnsubscribeEventNames)[number];
 
 export interface SolidisSubscribeEvents {
   subscribe: (channel: string, count: number) => void;
@@ -191,21 +124,16 @@ export interface SolidisPubSubEvents extends SolidisSubscribeEvents {
   pmessage: (pattern: string, channel: string, message: StringOrBuffer) => void;
 }
 
-export type SolidisTranslatedPubSubReplies = [
-  string | null,
-  string | null,
-  number | StringOrBuffer | null,
-  StringOrBuffer | null,
-];
-
 export interface SolidisClientEvents extends SolidisPubSubEvents {
   connect: () => void;
   ready: () => void;
+  reconnecting: (attempt: number, delay: number) => void;
   reconnected: () => void;
-  error: (error: Error) => void;
+  close: (error: Error) => void;
   end: () => void;
+  error: (error: Error) => void;
   drain: () => void;
-  close: () => void;
+  push: (reply: RespPush) => void;
   debug: (entry: SolidisDebugLog) => void;
 }
 
@@ -214,32 +142,24 @@ export interface SolidisClientEventHandlers<T = SolidisClient> {
     event: E,
     ...parameters: Parameters<SolidisClientEvents[E]>
   ) => boolean;
-  on: <E extends keyof SolidisClientEvents>(
-    event: E,
-    listener: SolidisClientEvents[E],
-  ) => T;
-  once: <E extends keyof SolidisClientEvents>(
-    event: E,
-    listener: SolidisClientEvents[E],
-  ) => T;
+  on: {
+    <E extends keyof SolidisClientEvents>(
+      event: E,
+      listener: SolidisClientEvents[E],
+    ): T;
+    (event: typeof errorMonitor, listener: SolidisClientEvents['error']): T;
+  };
+  once: SolidisClientEventHandlers<T>['on'];
 }
-
-export type SolidisClientRecoveryStep<
-  T extends (...parameters: Parameters<T>) => Promise<unknown>,
-> = {
-  condition: boolean;
-  method: T | undefined;
-  methodName: string;
-  parameters: Parameters<T>;
-};
 
 export interface SolidisConnectionEvents {
   connect: () => void;
+  data: (chunk: Buffer) => void;
+  drain: () => void;
+  close: (error: Error) => void;
+  reconnecting: (attempt: number, delay: number) => void;
   error: (error: Error) => void;
-  close: () => void;
   end: () => void;
-  closed: (error: Error) => void;
-  reconnected: () => void;
 }
 
 export interface SolidisConnectionEventHandlers<T = SolidisConnection> {
@@ -253,48 +173,16 @@ export interface SolidisConnectionEventHandlers<T = SolidisConnection> {
   ) => T;
 }
 
-export type SolidisDebugEvents = {
-  pushed: (entry: SolidisDebugLog) => void;
-  close: () => void;
-  drain: () => void;
-  error: (error: Error) => void;
-  finish: () => void;
-  pipe: (source: NodeJS.ReadableStream) => void;
-  unpipe: (source: NodeJS.ReadableStream) => void;
-};
-
-export interface SolidisDebugMemoryEventHandlers<T = SolidisDebugMemory> {
-  write(
-    chunk: SolidisDebugLog,
-    callback?: (error: Error | null | undefined) => void,
-  ): boolean;
-  write(
-    chunk: SolidisDebugLog,
-    encoding: BufferEncoding,
-    callback?: (error: Error | null | undefined) => void,
-  ): boolean;
-  emit<E extends keyof SolidisDebugEvents>(
-    event: E,
-    ...parameters: Parameters<SolidisDebugEvents[E]>
-  ): boolean;
-  on<E extends keyof SolidisDebugEvents>(
-    event: E,
-    listener: SolidisDebugEvents[E],
-  ): T;
-}
-
-export interface SolidisSocketWriteEventHandlers {
-  onError: (error: Error) => void;
-  waitForDrain: () => Promise<void>;
-  removeEventListeners: () => void;
-  isError: boolean;
-  error: Error | null;
-}
-
 export type SolidisDebugLogType = 'error' | 'info' | 'debug' | 'warn';
 
+export type SolidisDebugHandle = (
+  type: SolidisDebugLogType,
+  message: string,
+  data?: unknown,
+) => void;
+
 export interface SolidisDebugLog {
-  timestamp?: number;
+  timestamp: number;
   type: SolidisDebugLogType;
   message: string;
   data?: unknown;
@@ -307,48 +195,44 @@ export type SolidisTransactionMethod<T> = T extends (
   : T;
 
 export type SolidisTransactionBannedMethods =
-  | 'multi'
-  | 'pipeline'
-  | 'watch'
-  | 'unwatch'
-  | 'subscribe'
-  | 'ssubscribe'
-  | 'psubscribe'
-  | 'unsubscribe'
-  | 'sunsubscribe'
-  | 'punsubscribe'
-  | 'auth'
-  | 'hello';
+  | (typeof SolidisTransactionBannedCommandNames)[number]
+  | 'connect'
+  | 'quit'
+  | 'send'
+  | 'extend'
+  | keyof EventEmitter;
+
+type SolidisFunction = (...parameters: never[]) => unknown;
+
+declare const SolidisTransactionBrand: unique symbol;
 
 export type SolidisTransactionClient<T> = {
   [K in keyof T as K extends SolidisTransactionBannedMethods
     ? never
-    : K]: SolidisTransactionMethod<T[K]>;
+    : T[K] extends (...parameters: never[]) => AsyncIterable<unknown>
+      ? never
+      : T[K] extends SolidisFunction
+        ? K
+        : never]: SolidisTransactionMethod<T[K]>;
 } & {
-  exec(): Promise<SolidisData[]>;
+  exec(): Promise<SolidisData[] | null>;
   discard(): void;
+  readonly [SolidisTransactionBrand]: true;
 };
 
 export type SolidisClientExtensions<
-  T extends Record<string, unknown> = Record<string, unknown>,
+  T extends object = Record<string, unknown>,
+  C = unknown,
 > = {
-  [K in keyof T]: K extends 'multi'
-    ? T[K] extends (...parameters: infer Parameters) => unknown
-      ? (...parameters: Parameters) => SolidisTransactionClient<T>
-      : T[K]
-    : T[K] extends (...parameters: infer Parameters) => infer R
-      ? (...parameters: Parameters) => R
-      : T[K];
+  [K in keyof T as K extends symbol | 'constructor' | '__proto__'
+    ? never
+    : T[K] extends SolidisFunction
+      ? K
+      : never]: T[K] extends (
+    ...parameters: infer Parameters
+  ) => Pick<SolidisTransactionClient<unknown>, typeof SolidisTransactionBrand>
+    ? (
+        ...parameters: Parameters
+      ) => SolidisTransactionClient<C & SolidisClientExtensions<Omit<T, K>>>
+    : OmitThisParameter<T[K]>;
 };
-
-export type SolidisSubscribeMethod = (
-  ...channels: string[]
-) => Promise<unknown>;
-
-export type SolidisSSubscribeMethod = (
-  ...channels: string[]
-) => Promise<unknown>;
-
-export type SolidisPSubscribeMethod = (
-  ...patterns: string[]
-) => Promise<unknown>;

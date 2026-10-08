@@ -1,23 +1,24 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyToNumberArray } from './utils/index.ts';
 
-import type { CommandLposOptions } from '../index.ts';
+import type { CommandLposOptions, StringOrBuffer } from '../index.ts';
 
 export function createCommand(
   key: string,
-  element: string,
+  element: StringOrBuffer,
   options?: CommandLposOptions,
 ) {
-  const command = ['LPOS', key, element];
+  const command: StringOrBuffer[] = ['LPOS', key, element];
 
   if (options) {
     if (options.rank !== undefined) {
-      command.push('RANK', `${options.rank}`);
+      command.push('RANK', formatInteger(options.rank));
     }
     if (options.count !== undefined) {
-      command.push('COUNT', `${options.count}`);
+      command.push('COUNT', formatInteger(options.count));
     }
     if (options.maxlen !== undefined) {
-      command.push('MAXLEN', `${options.maxlen}`);
+      command.push('MAXLEN', formatInteger(options.maxlen));
     }
   }
 
@@ -27,7 +28,25 @@ export function createCommand(
 export async function lpos<T>(
   this: T,
   key: string,
-  element: string,
+  element: StringOrBuffer,
+  options: CommandLposOptions & { count: number },
+): Promise<number[]>;
+export async function lpos<T>(
+  this: T,
+  key: string,
+  element: StringOrBuffer,
+  options?: CommandLposOptions & { count?: undefined },
+): Promise<number | null>;
+export async function lpos<T>(
+  this: T,
+  key: string,
+  element: StringOrBuffer,
+  options?: CommandLposOptions,
+): Promise<number | number[] | null>;
+export async function lpos<T>(
+  this: T,
+  key: string,
+  element: StringOrBuffer,
   options?: CommandLposOptions,
 ): Promise<number | number[] | null> {
   return await executeCommand(

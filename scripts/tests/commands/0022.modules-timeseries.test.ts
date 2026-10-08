@@ -6,6 +6,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
+import { RespError } from '../../../sources/index.ts';
 import {
   closeClient,
   createClient,
@@ -61,6 +62,12 @@ describe('modules-timeseries', () => {
     const latest = await client.tsGet(key);
 
     assert.deepStrictEqual(latest, [2000, 20]);
+
+    const empty = keyspace.key('latest-empty');
+
+    await client.tsCreate(empty);
+
+    assert.strictEqual(await client.tsGet(empty), null);
   });
 
   it('queries a range of samples', async (context) => {
@@ -107,7 +114,7 @@ describe('modules-timeseries', () => {
     ]);
   });
 
-  it('increments a compacted counter series', async (context) => {
+  it('increments a counter series with TS.INCRBY', async (context) => {
     if (!available) {
       context.skip('module not loaded on this server');
       return;
@@ -151,6 +158,37 @@ describe('modules-timeseries', () => {
     }
 
     assert.strictEqual(latest[1], 7);
+  });
+
+  it('writes samples at explicit and server-chosen timestamps', async (context) => {
+    if (!available) {
+      context.skip('module not loaded on this server');
+      return;
+    }
+
+    const key = keyspace.key('timestamps');
+
+    await client.tsCreate(key, { duplicatePolicy: 'LAST' });
+
+    assert.strictEqual(
+      await client.tsIncrby(key, 5, { timestamp: 1000 }),
+      1000,
+    );
+    assert.strictEqual(
+      await client.tsDecrby(key, 2, { timestamp: 1000 }),
+      1000,
+    );
+    assert.deepStrictEqual(await client.tsGet(key), [1000, 3]);
+
+    const added = await client.tsAdd(key, '*', 1);
+    const [madded] = await client.tsMadd(key, [{ timestamp: '*', value: 2 }]);
+
+    assert.ok(added > 1000);
+    assert.ok(typeof madded === 'number' && madded >= added);
+    assert.strictEqual(
+      await client.tsDel(key, '-', '+'),
+      madded === added ? 2 : 3,
+    );
   });
 
   it('deletes samples in a range with TS.DEL', async (context) => {
@@ -202,6 +240,45 @@ describe('modules-timeseries', () => {
     ]);
   });
 
+  it('reports rejected TS.MADD samples inline and keeps the stored ones', async (context) => {
+    if (!available) {
+      context.skip('module not loaded on this server');
+      return;
+    }
+
+    const key = keyspace.key('madd-partial');
+    const text = keyspace.key('madd-partial-text');
+
+    await client.tsCreate(key, { duplicatePolicy: 'BLOCK' });
+    await client.tsAdd(key, 1000, 1);
+
+    const results = await client.tsMadd(key, [
+      { timestamp: 2000, value: 2 },
+      { timestamp: 1000, value: 5 },
+      { timestamp: 3000, value: 3 },
+    ]);
+
+    assert.strictEqual(results.length, 3);
+    assert.strictEqual(results[0], 2000);
+    assert.ok(results[1] instanceof RespError);
+    assert.match(results[1].message, /DUPLICATE_POLICY|BLOCK/);
+    assert.strictEqual(results[2], 3000);
+    assert.deepStrictEqual(await client.tsRange(key, 0, 4000), [
+      { timestamp: 1000, value: 1 },
+      { timestamp: 2000, value: 2 },
+      { timestamp: 3000, value: 3 },
+    ]);
+
+    await client.set(text, 'value');
+
+    const [failure, ...rest] = await client.tsMadd(text, [
+      { timestamp: 1000, value: 1 },
+    ]);
+
+    assert.ok(failure instanceof RespError);
+    assert.deepStrictEqual(rest, []);
+  });
+
   it('queries samples in reverse with TS.REVRANGE', async (context) => {
     if (!available) {
       context.skip('module not loaded on this server');
@@ -240,18 +317,16 @@ describe('modules-timeseries', () => {
     assert.strictEqual(info.totalSamples, 1);
     assert.strictEqual(info.firstTimestamp, 1000);
     assert.strictEqual(info.lastTimestamp, 1000);
-    if (!Array.isArray(info.labels)) {
-      assert.fail('expected labels to be an array');
-    }
-    assert.deepStrictEqual(
-      info.labels.map((pair: unknown) => {
-        if (!Array.isArray(pair) || pair.length !== 2) {
-          assert.fail('expected label entry to be a [key, value] pair');
-        }
-        return [String(pair[0]), String(pair[1])];
-      }),
-      [['env', 'test']],
-    );
+    assert.deepStrictEqual(info.labels, { env: 'test' });
+    assert.strictEqual(info.chunkType, 'compressed');
+    assert.strictEqual(info.sourceKey, null);
+    assert.deepStrictEqual(info.rules, []);
+    assert.ok(info.memoryUsage > 0);
+    assert.ok(info.chunkSize > 0);
+    assert.strictEqual(info.chunkCount, 1);
+    assert.strictEqual(info.retentionTime, 0);
+    assert.strictEqual(info.ignoreMaxTimeDiff, 0);
+    assert.strictEqual(info.ignoreMaxValDiff, 0);
   });
 
   it('alters series metadata with TS.ALTER', async (context) => {
@@ -271,18 +346,7 @@ describe('modules-timeseries', () => {
 
     const altered = await client.tsInfo(key);
 
-    if (!Array.isArray(altered.labels)) {
-      assert.fail('expected labels to be an array');
-    }
-    assert.deepStrictEqual(
-      altered.labels.map((pair: unknown) => {
-        if (!Array.isArray(pair) || pair.length !== 2) {
-          assert.fail('expected label entry to be a [key, value] pair');
-        }
-        return [String(pair[0]), String(pair[1])];
-      }),
-      [['env', 'prod']],
-    );
+    assert.deepStrictEqual(altered.labels, { env: 'prod' });
   });
 
   it('creates and deletes compaction rules with TS.CREATERULE / TS.DELETERULE', async (context) => {
@@ -307,15 +371,16 @@ describe('modules-timeseries', () => {
     const sourceInfo = await client.tsInfo(sourceKey);
     const destinationInfo = await client.tsInfo(destinationKey);
 
-    if (!Array.isArray(sourceInfo.rules)) {
-      assert.fail('expected rules to be an array');
-    }
-    assert.strictEqual(sourceInfo.rules.length, 1);
-    assert.strictEqual(String(sourceInfo.rules[0][0]), destinationKey);
-    assert.strictEqual(sourceInfo.rules[0][1], 60000);
-    assert.strictEqual(sourceInfo.rules[0][2], 'AVG');
-    assert.strictEqual(sourceInfo.rules[0][3], 0);
-    assert.strictEqual(String(destinationInfo.sourceKey), sourceKey);
+    assert.deepStrictEqual(sourceInfo.rules, [
+      {
+        key: destinationKey,
+        bucketDuration: 60000,
+        aggregator: 'AVG',
+        alignment: 0,
+      },
+    ]);
+    assert.strictEqual(sourceInfo.sourceKey, null);
+    assert.strictEqual(destinationInfo.sourceKey, sourceKey);
     assert.deepStrictEqual(destinationInfo.rules, []);
 
     assert.strictEqual(
@@ -424,15 +489,20 @@ describe('modules-timeseries', () => {
       return;
     }
 
-    const key = keyspace.key('ts-get-latest');
+    const source = keyspace.key('ts-get-latest');
+    const compacted = keyspace.key('ts-get-latest', 'compacted');
 
-    await client.tsCreate(key);
-    await client.tsAdd(key, 5000, 42);
+    await client.tsCreate(source);
+    await client.tsCreate(compacted);
+    await client.tsCreaterule(source, compacted, {
+      aggregation: { type: 'sum', bucketDuration: 1000 },
+    });
+    await client.tsAdd(source, 1000, 1);
+    await client.tsAdd(source, 1500, 2);
 
-    const result = await client.tsGet(key, true);
-
-    /** TS.GET returns the most recent [timestamp, value] pair. */
-    assert.deepStrictEqual(result, [5000, 42]);
+    /** Only LATEST reports the bucket the compaction has not closed yet. */
+    assert.strictEqual(await client.tsGet(compacted), null);
+    assert.deepStrictEqual(await client.tsGet(compacted, true), [1000, 3]);
   });
 
   it('rejects TS.GET on missing key', async (context) => {
@@ -444,7 +514,7 @@ describe('modules-timeseries', () => {
     const missingKey = keyspace.key('ts-get-missing');
 
     await assert.rejects(() => client.tsGet(missingKey), {
-      message: `[TS.GET ${missingKey}] Unexpected reply: RespError: ERR TSDB: the key does not exist`,
+      message: '[TS.GET] ERR TSDB: the key does not exist',
     });
   });
 
@@ -462,21 +532,25 @@ describe('modules-timeseries', () => {
 
     assert.strictEqual(
       await client.tsCreaterule(source, destination, {
-        aggregation: { type: 'avg', bucketDuration: 60000, alignTimestamp: 0 },
+        aggregation: {
+          type: 'avg',
+          bucketDuration: 60000,
+          alignTimestamp: 1000,
+        },
       }),
       'OK',
     );
 
     const sourceInfo = await client.tsInfo(source);
 
-    if (!Array.isArray(sourceInfo.rules)) {
-      assert.fail('expected rules to be an array');
-    }
-    assert.strictEqual(sourceInfo.rules.length, 1);
-    assert.strictEqual(String(sourceInfo.rules[0][0]), destination);
-    assert.strictEqual(sourceInfo.rules[0][1], 60000);
-    assert.strictEqual(sourceInfo.rules[0][2], 'AVG');
-    assert.strictEqual(sourceInfo.rules[0][3], 0);
+    assert.deepStrictEqual(sourceInfo.rules, [
+      {
+        key: destination,
+        bucketDuration: 60000,
+        aggregator: 'AVG',
+        alignment: 1000,
+      },
+    ]);
   });
 
   it('queries TS.MGET with LATEST option', async (context) => {
@@ -485,18 +559,25 @@ describe('modules-timeseries', () => {
       return;
     }
 
-    const key = keyspace.key('ts-mget-latest');
+    const source = keyspace.key('ts-mget-latest');
+    const compacted = keyspace.key('ts-mget-latest', 'compacted');
     const label = keyspace.key('ts-mget-latest-label');
 
-    await client.tsCreate(key, { labels: { sensor: label } });
+    await client.tsCreate(source);
+    await client.tsCreate(compacted, { labels: { sensor: label } });
+    await client.tsCreaterule(source, compacted, {
+      aggregation: { type: 'sum', bucketDuration: 1000 },
+    });
+    await client.tsAdd(source, 1000, 1);
+    await client.tsAdd(source, 1500, 2);
 
-    const timestamp = Date.now();
-
-    await client.tsAdd(key, timestamp, 25);
-
-    const result = await client.tsMget({ sensor: label }, { latest: true });
-
-    assert.deepStrictEqual(result, [{ key, timestamp, value: 25 }]);
+    assert.deepStrictEqual(await client.tsMget({ sensor: label }), [
+      { key: compacted, timestamp: null, value: null },
+    ]);
+    assert.deepStrictEqual(
+      await client.tsMget({ sensor: label }, { latest: true }),
+      [{ key: compacted, timestamp: 1000, value: 3 }],
+    );
   });
 
   it('queries TS.RANGE with FILTER_BY_VALUE and COUNT', async (context) => {
@@ -516,14 +597,11 @@ describe('modules-timeseries', () => {
     await client.tsAdd(key, now - 1000, 90);
 
     const samples = await client.tsRange(key, now - 4000, now, {
-      filterByValue: [[20, 100]],
-      count: 5,
+      filterByValue: [20, 100],
+      count: 1,
     });
 
-    assert.deepStrictEqual(samples, [
-      { timestamp: now - 2000, value: 50 },
-      { timestamp: now - 1000, value: 90 },
-    ]);
+    assert.deepStrictEqual(samples, [{ timestamp: now - 2000, value: 50 }]);
   });
 
   it('queries TS.REVRANGE with LATEST and ALIGN', async (context) => {
@@ -533,22 +611,51 @@ describe('modules-timeseries', () => {
     }
 
     const key = keyspace.key('ts-revrange-opts');
+    const compacted = keyspace.key('ts-revrange-opts', 'compacted');
+    const aggregation = { type: 'sum', bucketDuration: 10 } as const;
 
     await client.tsCreate(key);
+    await client.tsCreate(compacted);
+    await client.tsCreaterule(key, compacted, { aggregation });
 
-    const now = Date.now();
+    for (const [timestamp, value] of [
+      [1005, 1],
+      [1015, 2],
+      [1025, 3],
+    ]) {
+      await client.tsAdd(key, timestamp, value);
+    }
 
-    await client.tsAdd(key, now - 2000, 5);
-    await client.tsAdd(key, now - 1000, 15);
-
-    const samples = await client.tsRevrange(key, now - 3000, now, {
-      latest: true,
-      count: 10,
-    });
-
-    assert.deepStrictEqual(samples, [
-      { timestamp: now - 1000, value: 15 },
-      { timestamp: now - 2000, value: 5 },
+    assert.deepStrictEqual(
+      await client.tsRevrange(key, 1005, 1030, {
+        count: 2,
+        aggregation,
+        align: 'start',
+      }),
+      [
+        { timestamp: 1025, value: 3 },
+        { timestamp: 1015, value: 2 },
+      ],
+    );
+    assert.deepStrictEqual(
+      await client.tsRevrange(key, 1005, 1030, { aggregation }),
+      [
+        { timestamp: 1020, value: 3 },
+        { timestamp: 1010, value: 2 },
+        { timestamp: 1000, value: 1 },
+      ],
+    );
+    assert.deepStrictEqual(
+      await client.tsRevrange(compacted, '-', '+', { latest: true }),
+      [
+        { timestamp: 1020, value: 3 },
+        { timestamp: 1010, value: 2 },
+        { timestamp: 1000, value: 1 },
+      ],
+    );
+    assert.deepStrictEqual(await client.tsRevrange(compacted, '-', '+'), [
+      { timestamp: 1010, value: 2 },
+      { timestamp: 1000, value: 1 },
     ]);
   });
 
@@ -572,7 +679,7 @@ describe('modules-timeseries', () => {
       now - 3000,
       now,
       { device: label },
-      { filterByValue: [[50, 100]], count: 10 },
+      { filterByValue: [50, 100], count: 10 },
     );
 
     assert.deepStrictEqual(results, [
@@ -594,47 +701,48 @@ describe('modules-timeseries', () => {
 
     await client.tsCreate(key, { labels: { unit: label } });
 
-    const now = Date.now();
-
-    await client.tsAdd(key, now - 3000, 10);
-    await client.tsAdd(key, now - 2000, 20);
-    await client.tsAdd(key, now - 1000, 30);
-
-    const results = await client.tsMrevrange(
-      now - 4000,
-      now,
-      { unit: label },
-      {
-        aggregation: { type: 'avg', bucketDuration: 2000 },
-        align: 0,
-      },
-    );
-
-    const bucketDuration = 2000;
-    const points = [
-      { timestamp: now - 3000, value: 10 },
-      { timestamp: now - 2000, value: 20 },
-      { timestamp: now - 1000, value: 30 },
-    ];
-    const bucketValues = new Map<number, number[]>();
-
-    for (const point of points) {
-      const bucket =
-        Math.floor(point.timestamp / bucketDuration) * bucketDuration;
-      const values = bucketValues.get(bucket) ?? [];
-
-      values.push(point.value);
-      bucketValues.set(bucket, values);
+    for (const [timestamp, value] of [
+      [1000, 10],
+      [2000, 20],
+      [3000, 30],
+    ]) {
+      await client.tsAdd(key, timestamp, value);
     }
 
-    const expectedSamples = [...bucketValues.entries()]
-      .map(([timestamp, values]) => ({
-        timestamp,
-        value: values.reduce((sum, value) => sum + value, 0) / values.length,
-      }))
-      .sort((left, right) => right.timestamp - left.timestamp);
+    const aggregation = { type: 'avg', bucketDuration: 2000 } as const;
 
-    assert.deepStrictEqual(results, [{ key, samples: expectedSamples }]);
+    assert.deepStrictEqual(
+      await client.tsMrevrange(
+        0,
+        4000,
+        { unit: label },
+        {
+          aggregation,
+          align: 500,
+        },
+      ),
+      [
+        {
+          key,
+          samples: [
+            { timestamp: 2500, value: 30 },
+            { timestamp: 500, value: 15 },
+          ],
+        },
+      ],
+    );
+    assert.deepStrictEqual(
+      await client.tsMrevrange(0, 4000, { unit: label }, { aggregation }),
+      [
+        {
+          key,
+          samples: [
+            { timestamp: 2000, value: 25 },
+            { timestamp: 0, value: 10 },
+          ],
+        },
+      ],
+    );
   });
 
   it('builds TS.RANGE createCommand with all options', async () => {
@@ -647,8 +755,8 @@ describe('modules-timeseries', () => {
       aggregation: { type: 'avg', bucketDuration: 1000 },
       latest: true,
       align: 0,
-      filterByTs: [[100, 200]],
-      filterByValue: [[0, 100]],
+      filterByTs: [100, 200],
+      filterByValue: [0, 100],
     });
 
     assert.deepStrictEqual(command, [
@@ -679,7 +787,7 @@ describe('modules-timeseries', () => {
     );
 
     const command = createCommand('key', 0, 9999, {
-      filterByValue: [[10, 50]],
+      filterByValue: [10, 50],
       aggregation: { type: 'max', bucketDuration: 2000 },
     });
 
@@ -722,14 +830,14 @@ describe('modules-timeseries', () => {
       '4096',
       'DUPLICATE_POLICY',
       'LAST',
+      'IGNORE',
+      '1000',
+      '5',
       'LABELS',
       'sensor',
       'temp',
       'location',
       'room',
-      'IGNORE',
-      '1000',
-      '5',
     ]);
   });
 

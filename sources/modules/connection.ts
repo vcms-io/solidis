@@ -1,31 +1,48 @@
-import { EventEmitter } from 'node:events';
 import net from 'node:net';
 import tls from 'node:tls';
 
+import { SolidisMaximumTimerDelay } from '../common/internal.ts';
 import {
-  generateDebugHandle,
+  SolidisClientError,
   SolidisConnectionError,
-  wrapWithSolidisConnectionError,
-} from '../index.ts';
+} from '../common/utils/error.ts';
+import {
+  resolveTimerDelay,
+  SolidisClientQuitMessage,
+  SolidisConnectionClosedMessage,
+  SolidisSocketNotConnectedMessage,
+  wrapWithSolidisError,
+} from '../common/utils/internal.ts';
+import { EventEmitter } from './internal.ts';
 
 import type {
   SolidisConnectionEventHandlers,
   SolidisConnectionOptions,
-  SolidisDebugLogType,
+  SolidisDebugHandle,
   SolidisSocket,
-} from '../index.ts';
+} from '../types/solidis.ts';
+
+interface SolidisConnectionWaiter {
+  resolve: (attempts: number) => void;
+  reject: (error: Error) => void;
+  remainingAttempts: number;
+}
 
 export class SolidisConnection extends EventEmitter {
-  #options: SolidisConnectionOptions;
-  #socket: SolidisSocket | null = null;
+  readonly #options: SolidisConnectionOptions;
+  readonly #debug?: SolidisDebugHandle;
+  readonly #retries: number;
 
+  #socket: SolidisSocket | null = null;
   #isConnected = false;
   #isQuitted = false;
-
-  #connectLock: Promise<void> | null = null;
-  #connectTimeout: NodeJS.Timeout | null = null;
-
-  #debug?: (type: SolidisDebugLogType, message: string, data?: unknown) => void;
+  #isReconnecting = false;
+  #hasConnected = false;
+  #readyAt = Number.NaN;
+  #failedAttempts = 0;
+  #remainingReconnects = 0;
+  #retryTimer: NodeJS.Timeout | undefined;
+  #waiters: SolidisConnectionWaiter[] = [];
 
   declare public emit: SolidisConnectionEventHandlers<this>['emit'];
   declare public on: SolidisConnectionEventHandlers<this>['on'];
@@ -34,12 +51,8 @@ export class SolidisConnection extends EventEmitter {
     super();
 
     this.#options = options;
-
-    this.#debug = generateDebugHandle(options.debugMemory);
-  }
-
-  public get socket() {
-    return this.#socket;
+    this.#debug = options.debugHandle;
+    this.#retries = Math.max(options.maxConnectionRetries, 0) || 0;
   }
 
   public get isConnected() {
@@ -50,278 +63,335 @@ export class SolidisConnection extends EventEmitter {
     return this.#isQuitted;
   }
 
-  public async connect() {
+  public connect(attempts = this.#retries + 1): Promise<number> {
     if (this.#isQuitted) {
-      throw new SolidisConnectionError(
-        'Cannot connect: user quit the connection.',
-      );
+      return Promise.reject(new SolidisClientError(SolidisClientQuitMessage));
     }
 
-    if (this.#isConnected && this.#socket) {
-      return;
+    if (this.#isConnected) {
+      return Promise.resolve(attempts);
     }
 
-    await this.#acquireConnectLock();
+    this.#remainingReconnects = attempts;
+
+    return new Promise<number>((resolve, reject) => {
+      this.#waiters.push({ resolve, reject, remainingAttempts: attempts });
+
+      this.#startAttempts();
+    });
   }
 
-  public cleanup() {
-    this.#isConnected = false;
-
-    if (this.#connectTimeout) {
-      clearTimeout(this.#connectTimeout);
-      this.#connectTimeout = null;
+  public reconnect() {
+    if (this.#isConnected || !(this.#remainingReconnects > 0)) {
+      return;
     }
 
+    this.#isReconnecting = true;
+
+    this.#startAttempts();
+  }
+
+  public write(buffer: Buffer): boolean {
     const socket = this.#socket;
 
-    if (!socket) {
+    if (!socket || !this.#isConnected) {
+      throw new SolidisConnectionError(SolidisSocketNotConnectedMessage);
+    }
+
+    return socket.write(buffer);
+  }
+
+  public reset(error: Error) {
+    if (!this.#isConnected) {
       return;
     }
 
-    this.#socket = null;
+    this.#debug?.('warn', 'Connection reset', error);
 
-    if (socket.destroyed) {
-      socket.removeAllListeners();
-      socket.unref();
+    this.#destroySocket();
+    this.#lose(error);
+  }
 
-      return;
-    }
-
-    socket.end(() => {
-      socket.removeAllListeners();
-      socket.destroy();
-      socket.unref();
-    });
+  public resetBackoff() {
+    this.#readyAt = performance.now();
   }
 
   public quit() {
-    this.#isQuitted = true;
-
-    this.cleanup();
-    this.emit('end');
-  }
-
-  public reset() {
-    if (this.#connectLock) {
+    if (this.#isQuitted) {
       return;
     }
 
-    const socket = this.#socket;
+    this.#isQuitted = true;
 
-    if (!socket) {
+    clearTimeout(this.#retryTimer);
+
+    this.#destroySocket();
+    this.#rejectWaiters(new SolidisClientError(SolidisClientQuitMessage));
+    this.emit('end');
+  }
+
+  #startAttempts() {
+    if (this.#isQuitted || this.#socket || this.#retryTimer) {
+      return;
+    }
+
+    if (!this.#failedAttempts && !this.#isReconnecting && !this.#hasConnected) {
+      this.#attempt();
+
+      return;
+    }
+
+    const delay = this.#getRetryDelay();
+
+    this.#retryTimer = setTimeout(() => this.#attempt(), delay);
+
+    this.emit('reconnecting', this.#failedAttempts + 1, delay);
+  }
+
+  #getRetryDelay() {
+    const { connectionRetryDelay, maxConnectionRetryDelay } = this.#options;
+
+    if (this.#failedAttempts === 0) {
+      return 0;
+    }
+
+    return resolveTimerDelay(
+      Math.round(
+        (Math.min(
+          connectionRetryDelay * 2 ** (this.#failedAttempts - 1),
+          maxConnectionRetryDelay,
+          SolidisMaximumTimerDelay,
+        ) *
+          (1 + Math.random())) /
+          2,
+      ),
+    );
+  }
+
+  #attempt() {
+    const { host, port, connectionTimeout, tls: tlsOptions } = this.#options;
+
+    let socket: SolidisSocket;
+
+    this.#retryTimer = undefined;
+
+    try {
+      socket = tlsOptions
+        ? tls.connect({
+            servername: net.isIP(host) ? undefined : host,
+            ...tlsOptions,
+            host,
+            port,
+          })
+        : net.connect({ host, port });
+    } catch (error) {
+      const failure = wrapWithSolidisError(SolidisConnectionError, error);
+
+      this.#isReconnecting = false;
+
+      if (this.#waiters.length) {
+        this.#rejectWaiters(failure);
+      } else {
+        this.emit('error', failure);
+      }
+
+      return;
+    }
+
+    const timer = resolveTimerDelay(connectionTimeout)
+      ? setTimeout(
+          () =>
+            socket.destroy(
+              new SolidisConnectionError(
+                `Connection timeout (${connectionTimeout} ms).`,
+              ),
+            ),
+          connectionTimeout,
+        )
+      : undefined;
+
+    let failure: unknown;
+
+    this.#socket = socket;
+
+    socket.once(tlsOptions ? 'secureConnect' : 'connect', () => {
+      clearTimeout(timer);
+
+      this.#onSocketConnect(socket);
+    });
+
+    socket.on('error', (error: Error) => {
+      failure = error;
+
+      this.#onSocketError(socket, error);
+    });
+
+    socket.on('close', () => {
+      clearTimeout(timer);
+
+      this.#onSocketClose(socket, failure);
+    });
+
+    socket.on('data', (chunk: Buffer) => {
+      if (socket === this.#socket) {
+        this.emit('data', chunk);
+      }
+    });
+
+    socket.on('drain', () => {
+      if (socket === this.#socket) {
+        this.emit('drain');
+      }
+    });
+  }
+
+  #onSocketConnect(socket: SolidisSocket) {
+    if (socket !== this.#socket) {
+      return;
+    }
+
+    const waiters = this.#waiters;
+
+    socket.setNoDelay(true);
+    socket.setKeepAlive(true);
+
+    this.#isConnected = true;
+    this.#hasConnected = true;
+    this.#readyAt = Number.NaN;
+    this.#waiters = [];
+
+    this.#debug?.('info', 'Connection established');
+
+    for (const waiter of waiters) {
+      waiter.resolve(waiter.remainingAttempts);
+    }
+
+    this.emit('connect');
+  }
+
+  #onSocketError(socket: SolidisSocket, error: Error) {
+    if (socket !== this.#socket) {
+      return;
+    }
+
+    this.#debug?.('error', 'Socket error', error);
+
+    if (this.#isConnected) {
+      this.emit('error', wrapWithSolidisError(SolidisConnectionError, error));
+    }
+  }
+
+  #onSocketClose(socket: SolidisSocket, failure: unknown) {
+    if (socket !== this.#socket) {
+      return;
+    }
+
+    this.#socket = null;
+
+    if (!this.#isConnected) {
+      this.#onAttemptFailed(
+        failure === undefined
+          ? new SolidisConnectionError('Socket closed before connection.')
+          : wrapWithSolidisError(SolidisConnectionError, failure),
+      );
+
       return;
     }
 
     this.#isConnected = false;
-    this.#socket = null;
 
-    socket.removeAllListeners();
-    socket.on('error', () => {});
-    socket.destroy();
+    this.#debug?.('info', 'Connection closed');
 
-    if (this.#isQuitted || !this.#options.autoReconnect) {
-      return;
-    }
-
-    void this.#tryBackgroundReconnect().catch((error) => {
-      this.#debug?.('debug', 'Failed to reset reconnect.', {
-        error,
-      });
-    });
+    this.#lose(
+      new SolidisConnectionError(SolidisConnectionClosedMessage, failure),
+    );
   }
 
-  async #tryConnectWithRetry() {
-    let attemptIndex = 0;
+  #onAttemptFailed(error: SolidisConnectionError) {
+    this.#waiters = this.#waiters.filter((waiter) => {
+      waiter.remainingAttempts -= 1;
 
-    const maxConnectionRetries = this.#options.maxConnectionRetries;
-
-    while (true) {
-      attemptIndex += 1;
-
-      try {
-        await this.#tryConnect();
-        return;
-      } catch (error) {
-        if (this.#isQuitted) {
-          throw wrapWithSolidisConnectionError(error);
-        }
-
-        if (attemptIndex > maxConnectionRetries) {
-          throw new SolidisConnectionError(
-            `Connection failed after ${maxConnectionRetries} retries.`,
-            error,
-          );
-        }
-
-        await new Promise<void>((resolve) =>
-          setTimeout(resolve, this.#options.connectionRetryDelay),
-        );
+      if (waiter.remainingAttempts > 0) {
+        return true;
       }
-    }
-  }
 
-  async #tryConnect() {
-    if (this.#isQuitted) {
-      throw new SolidisConnectionError(
-        'Cannot connect: user quit the connection.',
-      );
-    }
+      waiter.reject(this.#createRetryError(error));
 
-    if (this.#socket) {
-      this.cleanup();
-    }
-
-    return await new Promise<void>((resolve, reject) => {
-      const onFail = (reason: unknown) => {
-        this.#isConnected = false;
-
-        this.cleanup();
-
-        reject(wrapWithSolidisConnectionError(reason));
-      };
-
-      const timeoutHandle = this.#setupConnectionTimeout(
-        this.#options.connectionTimeout,
-        (reason?: unknown) => onFail(reason),
-      );
-
-      const onConnect = () => {
-        if (timeoutHandle !== null) {
-          clearTimeout(timeoutHandle);
-
-          this.#connectTimeout = null;
-        }
-
-        resolve();
-
-        this.#isConnected = true;
-
-        this.#socket?.setNoDelay(true);
-        this.#socket?.setKeepAlive(true);
-
-        this.emit('connect');
-      };
-
-      const { host, port } = this.#options;
-
-      const socket = this.#createSocket({
-        host,
-        port,
-        onConnect,
-      });
-
-      this.#setupSocketErrorHandler(socket);
-      this.#setupSocketCloseHandler(socket, onFail);
-
-      socket.setMaxListeners(this.#options.maxEventListenersForSocket);
-      this.setMaxListeners(this.#options.maxEventListenersForClient);
-
-      this.#socket = socket;
+      return false;
     });
-  }
 
-  async #tryBackgroundReconnect(): Promise<void> {
-    if (!this.#options) {
-      return;
-    }
+    const failure = this.#spendReconnect(error) ?? error;
+    const isRetrying = this.#waiters.length > 0 || this.#isReconnecting;
 
-    await this.#acquireConnectLock();
-  }
+    this.#failedAttempts = isRetrying ? this.#failedAttempts + 1 : 0;
 
-  async #acquireConnectLock(): Promise<void> {
-    if (this.#connectLock) {
-      return await this.#connectLock;
-    }
+    this.emit('error', failure);
 
-    this.#connectLock = this.#tryConnectWithRetry();
-
-    try {
-      await this.#connectLock;
-    } finally {
-      this.#connectLock = null;
+    if (isRetrying) {
+      this.#startAttempts();
     }
   }
 
-  #createSocket({
-    host,
-    port,
-    onConnect,
-  }: {
-    host: string;
-    port: number;
-    onConnect: () => void;
-  }): SolidisSocket {
-    if (this.#options.tls) {
-      return tls.connect({ ...this.#options.tls, host, port }, onConnect);
+  #lose(error: Error) {
+    const { maxConnectionRetryDelay } = this.#options;
+
+    let exhaustion: SolidisConnectionError | undefined;
+
+    if (performance.now() - this.#readyAt >= (maxConnectionRetryDelay || 0)) {
+      this.#failedAttempts = 0;
+      this.#remainingReconnects = this.#retries + 1;
+    } else {
+      exhaustion = this.#spendReconnect(error);
+
+      this.#failedAttempts = exhaustion ? 0 : this.#failedAttempts + 1;
     }
 
-    return net.connect({ host, port }, onConnect);
+    this.emit('close', error);
+
+    if (exhaustion && !this.#isQuitted) {
+      this.emit('error', exhaustion);
+    }
   }
 
-  #setupSocketErrorHandler(socket: SolidisSocket) {
-    socket.on('error', (error: unknown) => {
-      this.#debug?.('error', 'Socket error event fired.', { error });
-
-      this.emit('error', wrapWithSolidisConnectionError(error));
-    });
-  }
-
-  #setupSocketCloseHandler(
-    socket: SolidisSocket,
-    emitFail: (reason: unknown) => void,
-  ) {
-    socket.on('close', () => {
-      process.nextTick(() => {
-        if (!this.#isConnected) {
-          emitFail(
-            new SolidisConnectionError('Socket closed before connection.'),
-          );
-
-          return;
-        }
-
-        this.#debug?.('debug', 'Connection closed.');
-
-        this.cleanup();
-        this.emit('closed', new SolidisConnectionError('Connection closed.'));
-
-        if (this.#isQuitted) {
-          return;
-        }
-
-        if (!this.#options?.autoReconnect) {
-          return;
-        }
-
-        this.#tryBackgroundReconnect().catch((error) => {
-          this.#debug?.('debug', 'Failed to background reconnect.', { error });
-
-          emitFail(error);
-        });
-      });
-    });
-  }
-
-  #setupConnectionTimeout(
-    connectionTimeout: number,
-    onTimeout: (reason?: unknown) => void,
-  ): NodeJS.Timeout | null {
-    if (connectionTimeout <= 0) {
-      return null;
+  #spendReconnect(cause: unknown) {
+    if (!this.#isReconnecting) {
+      return undefined;
     }
 
-    const timer = setTimeout(() => {
-      this.cleanup();
+    this.#remainingReconnects -= 1;
 
-      const timeoutError = new SolidisConnectionError(
-        `Connection timeout (${connectionTimeout} ms).`,
-      );
+    if (this.#remainingReconnects > 0) {
+      return undefined;
+    }
 
-      onTimeout(timeoutError);
-    }, connectionTimeout);
+    this.#isReconnecting = false;
 
-    this.#connectTimeout = timer;
+    return this.#createRetryError(cause);
+  }
 
-    return timer;
+  #createRetryError(cause: unknown) {
+    return new SolidisConnectionError(
+      `Connection failed after ${this.#retries} retries.`,
+      cause,
+    );
+  }
+
+  #destroySocket() {
+    const socket = this.#socket;
+
+    this.#socket = null;
+    this.#isConnected = false;
+
+    socket?.destroy();
+  }
+
+  #rejectWaiters(error: Error) {
+    const waiters = this.#waiters;
+
+    this.#waiters = [];
+
+    for (const waiter of waiters) {
+      waiter.reject(error);
+    }
   }
 }

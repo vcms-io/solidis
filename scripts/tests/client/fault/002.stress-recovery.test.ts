@@ -5,9 +5,14 @@ import { randomUUID } from 'node:crypto';
 import { after, before, describe, it } from 'node:test';
 
 import {
+  SolidisConnectionError,
+  SolidisRequesterError,
+} from '../../../../sources/index.ts';
+import {
   closeClient,
   createClient,
   createKeyspace,
+  isBlocked,
   range,
   waitFor,
 } from '../../utils/index.ts';
@@ -50,98 +55,97 @@ describe('stress-recovery', () => {
     client.on('error', () => {});
 
     const rounds = 3;
-    const perRound = 400;
+    const perRound = 200;
 
     let resolved = 0;
     let rejected = 0;
-    const keys: string[] = [];
+    const acknowledgedKeys: string[] = [];
+    const stuckKeys: string[] = [];
+
+    const write = (key: string, value: string) =>
+      client.set(key, value).then(
+        () => {
+          resolved += 1;
+        },
+        (error: unknown) => {
+          assert.ok(
+            error instanceof Error,
+            `rejection must be an Error instance but got: ${typeof error}`,
+          );
+          rejected += 1;
+        },
+      );
 
     for (const round of range(rounds)) {
       await waitUntilReady(client);
 
       const clientId = await client.clientId();
 
-      const outcomes = range(perRound).map((index) => {
-        const key = keyspace.key('loss', round, index);
-        keys.push(key);
+      await Promise.all(
+        range(perRound).map((index) => {
+          const key = keyspace.key('loss', round, 'acknowledged', index);
 
-        return client
-          .set(key, `${round}:${index}`)
-          .then(() => {
-            resolved += 1;
-          })
-          .catch((error: unknown) => {
-            assert.ok(
-              error instanceof Error,
-              `rejection must be an Error instance but got: ${typeof error}`,
-            );
-            rejected += 1;
-          });
+          acknowledgedKeys.push(key);
+
+          return write(key, `${round}:${index}`);
+        }),
+      );
+
+      /**
+       * Redis leaves a blocked client's pipelined commands unprocessed, so
+       * every write queued behind this BLPOP is guaranteed to be in flight
+       * when the connection is killed.
+       */
+      const blocked = client
+        .blpop([keyspace.key('loss', round, 'block')], 0)
+        .then(
+          () => undefined,
+          (error: unknown) => error,
+        );
+      const stuck = range(perRound).map((index) => {
+        const key = keyspace.key('loss', round, 'stuck', index);
+
+        stuckKeys.push(key);
+
+        return write(key, `${round}:${index}`);
       });
 
-      const firstKeyOfRound = keyspace.key('loss', round, 0);
-
-      await waitFor(async () => (await killer.exists(firstKeyOfRound)) === 1, {
+      await waitFor(() => isBlocked(killer, clientId), {
         timeout: 3000,
         interval: 5,
-        description: 'at least one command reached server before kill',
+        description: 'BLPOP blocked on the server',
       });
 
       await killer.clientKill(clientId);
 
-      await Promise.all(outcomes);
+      const blockedError = await blocked;
+
+      assert.ok(blockedError instanceof SolidisConnectionError);
+      assert.strictEqual(blockedError.message, 'Connection closed.');
+
+      await Promise.all(stuck);
     }
 
     await waitUntilReady(client);
 
-    // Stress test limitation: only keys that both resolved and match the expected
-    // round:index value are counted. Partial writes with stale values are not
-    // verified individually because the volume makes full auditing impractical.
-    let persisted = 0;
-    const batchSize = 100;
-
-    for (let index = 0; index < keys.length; index += batchSize) {
-      const batch = keys.slice(index, index + batchSize);
-      const values = await client.mget(...batch);
-
-      for (let batchIndex = 0; batchIndex < values.length; batchIndex += 1) {
-        const value = values[batchIndex];
-        const keyIndex = index + batchIndex;
-        const round = Math.floor(keyIndex / perRound);
-        const position = keyIndex % perRound;
-        const expectedValue = `${round}:${position}`;
-
-        if (value === expectedValue) {
-          persisted += 1;
-        }
-      }
-    }
-
-    const total = rounds * perRound;
-    const lostButApplied = persisted - resolved;
+    const total = rounds * perRound * 2;
 
     console.log(
       `[stress-recovery] forced-disconnect: total=${total} resolved=${resolved} ` +
-        `rejected=${rejected} persisted=${persisted} ` +
-        `rejectRate=${((rejected / total) * 100).toFixed(2)}% ` +
-        `lostAck(applied-but-not-acked)=${lostButApplied}`,
+        `rejected=${rejected} rejectRate=${((rejected / total) * 100).toFixed(2)}%`,
     );
 
+    assert.strictEqual(resolved, rounds * perRound);
+    assert.strictEqual(rejected, rounds * perRound);
     assert.strictEqual(
-      resolved + rejected,
-      total,
-      'every issued command must settle exactly once',
+      await killer.exists(...acknowledgedKeys),
+      acknowledgedKeys.length,
+      'every acknowledged write must be durable',
     );
-
-    assert.ok(
-      resolved > 0,
-      'expected at least some commands to resolve successfully, ' +
-        `but all ${total} were rejected`,
-    );
-
-    assert.ok(
-      persisted >= resolved,
-      `acknowledged writes must be durable: persisted=${persisted} < resolved=${resolved}`,
+    assert.strictEqual(
+      await killer.exists(...stuckKeys),
+      0,
+      'a rejected write queued behind the killed BLPOP must never be applied',
     );
 
     assert.strictEqual(await client.set(keyspace.key('final'), 'ok'), 'OK');
@@ -150,53 +154,70 @@ describe('stress-recovery', () => {
     await closeClient(client);
   });
 
-  it('survives a spurious command-timeout storm and never returns a wrong value', async () => {
+  it('survives a command-timeout storm behind a blocking command and never returns a wrong value', async () => {
+    const commandTimeout = 100;
     const client = await createClient({
-      commandTimeout: 40,
+      commandTimeout,
       autoReconnect: true,
       maxConnectionRetries: 20,
       connectionRetryDelay: 20,
       connectionTimeout: 500,
     });
+    const closeErrors: Error[] = [];
 
     client.on('error', () => {});
+    client.on('close', (error) => closeErrors.push(error));
 
-    const total = 2000;
-    let correct = 0;
+    const wave = 300;
     let wrong = 0;
-    let rejected = 0;
     const wrongSamples: string[] = [];
 
-    await Promise.all(
-      range(total).map((index) => {
-        const token = `${index}-${randomUUID()}`;
+    const check = (token: string, reply: string) => {
+      if (reply !== token) {
+        wrong += 1;
 
-        return client
-          .echo(token)
-          .then((reply) => {
-            if (reply === token) {
-              correct += 1;
-            } else {
-              wrong += 1;
-              if (wrongSamples.length < 5) {
-                wrongSamples.push(`${token} -> ${reply}`);
-              }
-            }
-          })
-          .catch((error: unknown) => {
-            assert.ok(
-              error instanceof Error,
-              `rejection must be an Error instance but got: ${typeof error}`,
-            );
-            rejected += 1;
-          });
-      }),
+        if (wrongSamples.length < 5) {
+          wrongSamples.push(`${token} -> ${reply}`);
+        }
+      }
+
+      return reply;
+    };
+    const echo = (token: string) =>
+      client.echo(token).then((reply) => check(token, reply));
+    const echoLate = (token: string) =>
+      client
+        .send([['ECHO', token]], { timeout: 10_000 })
+        .then(([[reply]]) => check(token, String(reply)));
+
+    const before = await Promise.all(
+      range(wave).map((index) => echo(`before-${index}-${randomUUID()}`)),
     );
 
+    /**
+     * The ECHOs queued behind a BLPOP without a deadline time out while the
+     * server holds them. The next wave is written before the BLPOP is
+     * released, so their late replies arrive while that wave waits for its own.
+     */
+    const blockKey = keyspace.key('storm', 'block');
+    const blocked = client.blpop([blockKey], 0);
+    const stuck = await Promise.allSettled(
+      range(wave).map((index) => echo(`stuck-${index}-${randomUUID()}`)),
+    );
+    const waiting = Promise.all(
+      range(wave).map((index) => echoLate(`after-${index}-${randomUUID()}`)),
+    );
+
+    await new Promise((resolve) => setImmediate(resolve));
+    await killer.rpush(blockKey, 'release');
+
+    assert.deepStrictEqual(await blocked, [blockKey, 'release']);
+
+    const after = await waiting;
+
     console.log(
-      `[stress-recovery] timeout-storm: total=${total} correct=${correct} ` +
-        `wrong=${wrong} rejected=${rejected} ` +
-        `lossRate=${((rejected / total) * 100).toFixed(2)}%`,
+      `[stress-recovery] timeout-storm: before=${before.length} ` +
+        `stuck=${stuck.length} after=${after.length} wrong=${wrong}`,
     );
 
     if (wrong > 0) {
@@ -208,9 +229,24 @@ describe('stress-recovery', () => {
       0,
       'a resolved command returned a value belonging to a different command',
     );
-    assert.strictEqual(correct + rejected, total);
 
-    await waitUntilReady(client);
+    for (const result of stuck) {
+      if (result.status !== 'rejected') {
+        assert.fail('an ECHO held behind the BLPOP must time out');
+      }
+
+      assert.ok(result.reason instanceof SolidisRequesterError);
+      assert.strictEqual(
+        result.reason.message,
+        `Command(s) timed out after ${commandTimeout} ms.`,
+      );
+    }
+
+    assert.deepStrictEqual(
+      closeErrors,
+      [],
+      'the connection must stay open while the BLPOP is still in flight',
+    );
     assert.strictEqual(await client.echo('post-storm'), 'post-storm');
 
     await closeClient(client);
@@ -284,21 +320,29 @@ describe('stress-recovery', () => {
     const key = keyspace.key('stale', randomUUID());
 
     try {
+      let isBlockedSettled = false;
+
       const blocked = victim
         .blpop([key], 0)
-        .then(() => 'resolved')
-        .catch(() => 'rejected');
+        .catch((error: Error) => `THREW:${error.message}`)
+        .finally(() => {
+          isBlockedSettled = true;
+        });
 
-      await waitFor(
-        async () => {
-          try {
-            await victim.echo('probe');
-            return false;
-          } catch {
-            return true;
-          }
-        },
-        { timeout: 3000, interval: 10, description: 'blpop command timeout' },
+      // BLPOP with timeout 0 is never cut off by commandTimeout, but an
+      // ordinary command queued behind it still is. The server only answers
+      // the queued ECHO once the BLPOP is served, so its reply arrives late.
+      await assert.rejects(
+        victim.echo('STALE'),
+        (error: Error) =>
+          error instanceof SolidisRequesterError &&
+          error.message === 'Command(s) timed out after 80 ms.',
+      );
+
+      assert.strictEqual(
+        isBlockedSettled,
+        false,
+        'BLPOP with timeout 0 must still be waiting after commandTimeout',
       );
 
       const echoPromise = victim
@@ -308,12 +352,13 @@ describe('stress-recovery', () => {
 
       await new Promise<void>((resolve) => setImmediate(resolve));
 
-      await pusher.rpush(key, 'STALE-PAYLOAD');
+      await pusher.rpush(key, 'PAYLOAD');
 
       const echoed = await echoPromise;
 
-      assert.strictEqual(await blocked, 'rejected');
+      assert.deepStrictEqual(await blocked, [key, 'PAYLOAD']);
       assert.strictEqual(echoed, 'FRESH');
+      assert.strictEqual(await victim.echo('AFTER'), 'AFTER');
     } finally {
       await closeClient(pusher);
       await closeClient(victim);

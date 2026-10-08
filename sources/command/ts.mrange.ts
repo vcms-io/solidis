@@ -1,18 +1,27 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   buildTimeSeriesRangeCommand,
   executeCommand,
   tryReplyToTimeSeriesMultiRangeResults,
 } from './utils/index.ts';
 
-import type { CommandTimeSeriesRangeOptions } from '../index.ts';
+import type {
+  CommandTimeSeriesRangeOptions,
+  CommandTimeSeriesRangeParameters,
+  CommandTimeSeriesTimestamp,
+} from '../index.ts';
 
 export function createCommand(
-  fromTimestamp: number,
-  toTimestamp: number,
+  fromTimestamp: CommandTimeSeriesTimestamp,
+  toTimestamp: CommandTimeSeriesTimestamp,
   filter: Record<string, string>,
   options: CommandTimeSeriesRangeOptions,
 ) {
-  const baseCommand = ['TS.MRANGE', `${fromTimestamp}`, `${toTimestamp}`];
+  const baseCommand = [
+    'TS.MRANGE',
+    formatInteger(fromTimestamp),
+    formatInteger(toTimestamp),
+  ];
   const command = buildTimeSeriesRangeCommand(baseCommand, options);
 
   command.push('FILTER');
@@ -26,8 +35,19 @@ export function createCommand(
 
 export async function tsMrange<T>(
   this: T,
-  fromTimestamp: number,
-  toTimestamp: number,
+  ...parameters: CommandTimeSeriesRangeParameters<
+    [filter: Record<string, string>]
+  >
+): Promise<
+  Array<{
+    key: string;
+    samples: Array<{ timestamp: number; value: number }>;
+  }>
+>;
+export async function tsMrange<T>(
+  this: T,
+  fromTimestamp: CommandTimeSeriesTimestamp,
+  toTimestamp: CommandTimeSeriesTimestamp,
   filter: Record<string, string>,
   options: CommandTimeSeriesRangeOptions = {},
 ): Promise<

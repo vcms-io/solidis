@@ -1,43 +1,36 @@
 import {
   executeCommand,
-  InvalidReplyPrefix,
-  newCommandError,
+  tryReplyArray,
   tryReplyToMap,
   tryReplyToStringArray,
-  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type {
   RespAclSelector,
   RespAclUserInfo,
-  SolidisData,
   StringOrBuffer,
 } from '../index.ts';
 
-const parseSelector = (
-  selector: SolidisData,
+function formatPatterns(patterns: unknown, prefix: string) {
+  if (Array.isArray(patterns)) {
+    return patterns.map((pattern) => `${prefix}${pattern}`).join(' ');
+  }
+
+  return String(patterns ?? '');
+}
+
+function parseSelector(
+  selector: unknown,
   command: StringOrBuffer[],
-): RespAclSelector => {
-  if (selector instanceof Map) {
-    return {
-      commands: String(selector.get('commands') ?? ''),
-      keys: String(selector.get('keys') ?? ''),
-      channels: String(selector.get('channels') ?? ''),
-    };
-  }
-
-  if (!Array.isArray(selector)) {
-    throw newCommandError(`${InvalidReplyPrefix}: ${selector}`, command);
-  }
-
-  const [, commands = '', , keys = '', , channels = ''] = selector;
+): RespAclSelector {
+  const map = tryReplyToMap(selector, command);
 
   return {
-    commands: String(commands),
-    keys: String(keys),
-    channels: String(channels),
+    commands: String(map.get('commands') ?? ''),
+    keys: formatPatterns(map.get('keys'), '~'),
+    channels: formatPatterns(map.get('channels'), '&'),
   };
-};
+}
 
 export function createCommand(username: string) {
   return ['ACL', 'GETUSER', username];
@@ -55,57 +48,18 @@ export async function aclGetuser<T>(
         return null;
       }
 
-      if (!Array.isArray(reply) && !(reply instanceof Map)) {
-        throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
-      }
+      const map = tryReplyToMap(reply, command);
 
-      const result: RespAclUserInfo = {
-        flags: [],
-        passwords: [],
-        commands: '',
-        keys: '',
-        channels: '',
-        selectors: [],
+      return {
+        flags: tryReplyToStringArray(map.get('flags'), command),
+        passwords: tryReplyToStringArray(map.get('passwords'), command),
+        commands: String(map.get('commands') ?? ''),
+        keys: formatPatterns(map.get('keys'), '~'),
+        channels: formatPatterns(map.get('channels'), '&'),
+        selectors: tryReplyArray(map.get('selectors') ?? [], command).map(
+          (selector) => parseSelector(selector, command),
+        ),
       };
-
-      const map = tryReplyToMap(reply);
-
-      const flags = map.get('flags');
-      const passwords = map.get('passwords');
-      const commands = map.get('commands');
-      const keys = map.get('keys');
-      const channels = map.get('channels');
-      const selectors = map.get('selectors');
-
-      if (flags === undefined || passwords === undefined) {
-        throw newCommandError(
-          `${InvalidReplyPrefix}: flags & passwords required`,
-          command,
-        );
-      }
-
-      result.flags = tryReplyToStringArray(flags, command);
-      result.passwords = tryReplyToStringArray(passwords, command);
-
-      if (commands !== undefined) {
-        result.commands = String(commands);
-      }
-
-      if (keys !== undefined) {
-        result.keys = String(keys);
-      }
-
-      if (channels !== undefined) {
-        result.channels = String(channels);
-      }
-
-      if (selectors !== undefined) {
-        result.selectors = Array.isArray(selectors)
-          ? selectors.map((selector) => parseSelector(selector, command))
-          : [];
-      }
-
-      return result;
     },
   );
 }

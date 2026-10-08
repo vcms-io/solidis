@@ -18,6 +18,21 @@ export function createCommand(keys: string[], withScores?: boolean) {
 export async function zdiff<T>(
   this: T,
   keys: string[],
+  withScores: true,
+): Promise<RespSortedSetMember[]>;
+export async function zdiff<T>(
+  this: T,
+  keys: string[],
+  withScores?: false,
+): Promise<string[]>;
+export async function zdiff<T>(
+  this: T,
+  keys: string[],
+  withScores?: boolean,
+): Promise<string[] | RespSortedSetMember[]>;
+export async function zdiff<T>(
+  this: T,
+  keys: string[],
   withScores?: boolean,
 ): Promise<string[] | RespSortedSetMember[]> {
   return await executeCommand(

@@ -17,9 +17,11 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { useI18n } from '@/lib/i18n-context';
+import { getBenchmarkClaims } from '@/lib/utils';
 
 export default function FaqPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const claims = getBenchmarkClaims(locale);
 
   const categories = [
     {
@@ -38,6 +40,10 @@ export default function FaqPage() {
           question: t('faq.q3'),
           answer: t('faq.a3'),
         },
+        {
+          question: t('faq.q6'),
+          answer: t('faq.a6'),
+        },
       ],
     },
     {
@@ -50,11 +56,7 @@ export default function FaqPage() {
         },
         {
           question: t('faq.q5'),
-          answer: t('faq.a5'),
-        },
-        {
-          question: t('faq.q6'),
-          answer: t('faq.a6'),
+          answer: t('faq.a5', claims),
         },
       ],
     },

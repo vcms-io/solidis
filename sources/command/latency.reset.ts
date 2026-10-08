@@ -1,15 +1,20 @@
-import { executeCommand, tryReplyNumber } from './utils/index.ts';
+import {
+  executeCommand,
+  newCommandError,
+  tryReplyNumber,
+} from './utils/index.ts';
 
 import type { RespLatencyEvent } from '../index.ts';
 
 export function createCommand(events?: RespLatencyEvent[]) {
-  const command = ['LATENCY', 'RESET'];
-
-  if (events?.length) {
-    command.push(...events);
+  if (events?.length === 0) {
+    throw newCommandError(
+      'An empty list of events would reset every event',
+      'LATENCY RESET',
+    );
   }
 
-  return command;
+  return ['LATENCY', 'RESET', ...(events ?? [])];
 }
 
 export async function latencyReset<T>(

@@ -1,21 +1,29 @@
+import { formatFloat, formatInteger } from '../../common/utils/internal.ts';
+import { toCommandError } from '../../common/utils/request.ts';
 import {
-  escapeReply,
   newCommandError,
   tryReplyNumber,
   tryReplyOK,
+  tryReplyToInteger,
   tryReplyToScan,
   tryReplyToString,
   tryReplyToStringArray,
+  tryReplyToStringOrBufferArray,
+  tryReplyToStringOrBufferOrNull,
   tryReplyToStringOrNull,
-} from './index.ts';
+} from './reply.ts';
 
+import type { SolidisClient } from '../../client.ts';
 import type {
+  CommandBufferOptions,
   CommandCuckooFilterInsertOptions,
   CommandExpireMode,
   CommandGeoRadiusOptions,
   CommandGeoSearchByOptions,
   CommandGeoSearchFromOptions,
   CommandGeoSearchOptions,
+  CommandIntegerOptions,
+  CommandKeyExpireMode,
   CommandScanOptions,
   CommandSetOptions,
   CommandSortOptions,
@@ -24,32 +32,28 @@ import type {
   CommandZInterOptions,
   CommandZRangeOptions,
   CommandZRangeStoreOptions,
-  RespOK,
-  SolidisClient,
+} from '../../types/command.ts';
+import type { RespInteger, RespOK, RespString } from '../../types/resp.ts';
+import type {
   SolidisData,
+  SolidisSendOptions,
   StringOrBuffer,
-} from '../../index.ts';
+} from '../../types/solidis.ts';
+
+export function assertSender(
+  client: unknown,
+  command?: StringOrBuffer[],
+): asserts client is Pick<SolidisClient, 'send'> {
+  if (typeof Object(client).send !== 'function') {
+    throw newCommandError('Send method is not implemented', command);
+  }
+}
 
 export function guard(
   client: unknown,
   command?: StringOrBuffer[],
-): client is SolidisClient {
-  if (typeof client !== 'object' || client === null) {
-    throw newCommandError('Invalid client', command);
-  }
-
-  if (!('send' in client) || typeof client.send !== 'function') {
-    throw newCommandError('Send method is not implemented', command);
-  }
-
-  /**
-   * Returns false only when the client is in a transaction context
-   */
-  if ('pipeQueue' in client && Array.isArray(client.pipeQueue) && command) {
-    client.pipeQueue.push(command);
-
-    return false;
-  }
+): client is Pick<SolidisClient, 'send'> {
+  assertSender(client, command);
 
   return true;
 }
@@ -62,19 +66,60 @@ export async function executeCommand<T, R>(
   client: T,
   command: StringOrBuffer[],
   replyTo: (reply: SolidisData, command: StringOrBuffer[]) => R,
+  options?: undefined,
+  sendOptions?: SolidisSendOptions,
+): Promise<R>;
+export async function executeCommand<T, R, Options extends object | undefined>(
+  client: T,
+  command: StringOrBuffer[],
+  replyTo: (
+    reply: SolidisData,
+    command: StringOrBuffer[],
+    options: Options,
+  ) => R,
+  options: Options,
+  sendOptions?: SolidisSendOptions,
 ): Promise<R>;
 export async function executeCommand<T, R>(
   client: T,
   command: StringOrBuffer[],
-  replyTo?: (reply: SolidisData, command: StringOrBuffer[]) => R,
+  replyTo?: (
+    reply: SolidisData,
+    command: StringOrBuffer[],
+    options?: CommandBufferOptions & CommandIntegerOptions,
+  ) => R,
+  options?: CommandBufferOptions & CommandIntegerOptions,
+  sendOptions?: SolidisSendOptions,
 ): Promise<R | SolidisData> {
-  if (!guard(client, command)) {
-    return undefined as never;
+  assertSender(client, command);
+
+  const replyOptions = options && {
+    ...options,
+    buffer: options.buffer,
+    bigint: options.bigint,
+  };
+  const reply = (await client.send([command], sendOptions))[0]?.[0];
+
+  if (reply instanceof Error) {
+    throw toCommandError(reply, command);
   }
 
-  const reply = escapeReply(await client.send([command]));
+  return replyTo ? replyTo(reply, command, replyOptions) : reply;
+}
 
-  return replyTo ? replyTo(reply, command) : reply;
+export function appendRecordEntries(
+  command: StringOrBuffer[],
+  record: Record<string, StringOrBuffer>,
+) {
+  if (typeof record !== 'object' || record === null || Array.isArray(record)) {
+    throw newCommandError('Expected an object of names and values', command);
+  }
+
+  for (const [name, value] of Object.entries(record)) {
+    command.push(name, value);
+  }
+
+  return command;
 }
 
 export function buildCuckooFilterInsertCommand(
@@ -86,8 +131,8 @@ export function buildCuckooFilterInsertCommand(
   const result = [command, key];
 
   if (options) {
-    if (options.capacity !== undefined && options.nocreate !== true) {
-      result.push('CAPACITY', `${options.capacity}`);
+    if (options.capacity !== undefined) {
+      result.push('CAPACITY', formatInteger(options.capacity));
     }
 
     if (options.nocreate === true) {
@@ -95,9 +140,7 @@ export function buildCuckooFilterInsertCommand(
     }
   }
 
-  result.push('ITEMS', ...items);
-
-  return result;
+  return [...result, 'ITEMS', ...items];
 }
 
 function appendGeoResultOptions(
@@ -117,7 +160,7 @@ function appendGeoResultOptions(
   }
 
   if (options?.count !== undefined) {
-    command.push('COUNT', `${options.count}`);
+    command.push('COUNT', formatInteger(options.count));
     if (options.any) {
       command.push('ANY');
     }
@@ -138,11 +181,11 @@ export function buildGeoRadiusCommand(
 
   appendGeoResultOptions(command, options);
 
-  if (options?.store) {
+  if (options?.store !== undefined) {
     command.push('STORE', options.store);
   }
 
-  if (options?.storedist) {
+  if (options?.storedist !== undefined) {
     command.push('STOREDIST', options.storedist);
   }
 
@@ -157,7 +200,7 @@ export function buildGeoSearchCommand(
 ) {
   const command = [...baseCommand];
 
-  if (from.frommember) {
+  if (from.frommember !== undefined) {
     command.push('FROMMEMBER', from.frommember);
   } else if (from.fromlonlat) {
     command.push(
@@ -194,7 +237,7 @@ export function buildSetCommand(
 ) {
   const command = ['SET', key, value];
 
-  if (options !== undefined) {
+  if (options) {
     appendExpireOptions(command, options);
 
     if (options.keepOriginalTimeToLive === true) {
@@ -232,15 +275,15 @@ export function buildScanCommand(
 ) {
   const command = [...baseCommand, cursor];
 
-  if (options.count) {
-    command.push('COUNT', `${options.count}`);
+  if (options.count !== undefined) {
+    command.push('COUNT', formatInteger(options.count));
   }
 
-  if (options.match) {
+  if (options.match !== undefined) {
     command.push('MATCH', options.match);
   }
 
-  if (options.type) {
+  if (options.type !== undefined) {
     command.push('TYPE', options.type);
   }
 
@@ -253,7 +296,7 @@ export function buildTimeSeriesCommand<
   const command = [...baseCommand];
 
   if (options.retention !== undefined) {
-    command.push('RETENTION', `${options.retention}`);
+    command.push('RETENTION', formatInteger(options.retention));
   }
 
   if (options.encoding) {
@@ -261,30 +304,28 @@ export function buildTimeSeriesCommand<
   }
 
   if (options.chunkSize !== undefined) {
-    command.push('CHUNK_SIZE', `${options.chunkSize}`);
+    command.push('CHUNK_SIZE', formatInteger(options.chunkSize));
   }
 
   if (options.duplicatePolicy) {
     command.push('DUPLICATE_POLICY', options.duplicatePolicy);
   }
 
-  if ('onDuplicate' in options && options.onDuplicate) {
+  if (options.onDuplicate) {
     command.push('ON_DUPLICATE', options.onDuplicate);
-  }
-
-  if (options.labels) {
-    command.push('LABELS');
-    for (const [label, value] of Object.entries(options.labels)) {
-      command.push(label, value);
-    }
   }
 
   if (options.ignore) {
     command.push(
       'IGNORE',
-      `${options.ignore.maxTimediff}`,
+      formatInteger(options.ignore.maxTimediff),
       `${options.ignore.maxValDiff}`,
     );
+  }
+
+  if (options.labels) {
+    command.push('LABELS');
+    appendRecordEntries(command, options.labels);
   }
 
   return command;
@@ -296,31 +337,33 @@ export function buildTimeSeriesRangeCommand(
 ) {
   const command = [...baseCommand];
 
-  if (options.filterByTs?.length) {
-    for (const [start, end] of options.filterByTs) {
-      command.push('FILTER_BY_TS', `${start}`, `${end}`);
+  if (options.filterByTs) {
+    command.push('FILTER_BY_TS');
+
+    for (const timestamp of options.filterByTs) {
+      command.push(formatInteger(timestamp));
     }
   }
 
-  if (options.filterByValue?.length) {
-    for (const [min, max] of options.filterByValue) {
-      command.push('FILTER_BY_VALUE', `${min}`, `${max}`);
-    }
+  if (options.filterByValue) {
+    const [minimum, maximum] = options.filterByValue;
+
+    command.push('FILTER_BY_VALUE', `${minimum}`, `${maximum}`);
   }
 
   if (options.count !== undefined) {
-    command.push('COUNT', `${options.count}`);
+    command.push('COUNT', formatInteger(options.count));
   }
 
   if (options.align !== undefined) {
-    command.push('ALIGN', `${options.align}`);
+    command.push('ALIGN', formatInteger(options.align));
   }
 
   if (options.aggregation) {
     command.push(
       'AGGREGATION',
       options.aggregation.type,
-      `${options.aggregation.bucketDuration}`,
+      formatInteger(options.aggregation.bucketDuration),
     );
   }
 
@@ -338,8 +381,12 @@ export function buildSortedSetInterCommand(
 ) {
   const command = [...baseCommand, `${keys.length}`, ...keys];
 
-  if (options.weights?.length) {
-    command.push('WEIGHTS', ...options.weights.map((weight) => `${weight}`));
+  if (options.weights !== undefined) {
+    command.push('WEIGHTS');
+
+    for (const weight of options.weights) {
+      command.push(formatFloat(weight));
+    }
   }
 
   if (options.aggregate) {
@@ -368,7 +415,11 @@ export function buildSortedSetRangeStoreCommand(
   }
 
   if (options.limit) {
-    command.push('LIMIT', `${options.limit.offset}`, `${options.limit.count}`);
+    command.push(
+      'LIMIT',
+      formatInteger(options.limit.offset),
+      formatInteger(options.limit.count),
+    );
   }
 
   return command;
@@ -395,11 +446,27 @@ export function buildHelpExecutor(group: string) {
 
 export function buildPubSubExecutor(commandName: string) {
   return async function <T>(this: T, ...channels: string[]): Promise<void> {
-    if (!guard(this)) {
-      return undefined as never;
-    }
+    await executeCommand(this, [commandName, ...channels]);
+  };
+}
 
-    await this.send([[commandName, ...channels]]);
+export async function executeIntegerCommand<
+  T,
+  Options extends CommandIntegerOptions | undefined,
+>(
+  client: T,
+  command: StringOrBuffer[],
+  options: Options | undefined,
+): Promise<RespInteger<Options>> {
+  return await executeCommand(client, command, tryReplyToInteger, options);
+}
+
+export function buildKeyIntegerExecutor(commandName: string) {
+  return async function <
+    T,
+    Options extends CommandIntegerOptions | undefined = undefined,
+  >(this: T, key: string, options?: Options): Promise<RespInteger<Options>> {
+    return await executeIntegerCommand(this, [commandName, key], options);
   };
 }
 
@@ -423,6 +490,82 @@ export function buildKeyStringOrNullExecutor(...commandParts: string[]) {
       tryReplyToStringOrNull,
     );
   };
+}
+
+export function buildKeyStringOrBufferExecutor(commandName: string) {
+  return async function <
+    T,
+    Options extends CommandBufferOptions | undefined = undefined,
+  >(
+    this: T,
+    key: string,
+    options?: Options,
+  ): Promise<RespString<Options> | null> {
+    return await executeCommand(
+      this,
+      [commandName, key],
+      tryReplyToStringOrBufferOrNull,
+      options,
+    );
+  };
+}
+
+export function buildKeyPopExecutor(commandName: string) {
+  async function pop<
+    T,
+    Options extends CommandBufferOptions | undefined = undefined,
+  >(
+    this: T,
+    key: string,
+    count?: undefined,
+    options?: Options,
+  ): Promise<RespString<Options> | null>;
+  async function pop<
+    T,
+    Options extends CommandBufferOptions | undefined = undefined,
+  >(
+    this: T,
+    key: string,
+    count: number,
+    options?: Options,
+  ): Promise<RespString<Options>[] | null>;
+  async function pop<T, Options extends CommandBufferOptions | undefined>(
+    this: T,
+    key: string,
+    count?: number,
+    options?: Options,
+  ): Promise<RespString<Options> | RespString<Options>[] | null>;
+  async function pop<T, Options extends CommandBufferOptions | undefined>(
+    this: T,
+    key: string,
+    count?: number,
+    options?: Options,
+  ): Promise<RespString<Options> | RespString<Options>[] | null> {
+    const command = [commandName, key];
+
+    if (count !== undefined) {
+      command.push(formatInteger(count));
+    }
+
+    return await executeCommand(
+      this,
+      command,
+      (reply, commandName, replyOptions) => {
+        if (count === undefined || reply === null) {
+          return tryReplyToStringOrBufferOrNull(
+            reply,
+            commandName,
+            replyOptions,
+          );
+        }
+
+        return tryReplyToStringOrBufferArray(reply, commandName, replyOptions);
+      },
+      options,
+    );
+  }
+
+  return pop;
 }
 
 export function buildKeysNumberExecutor(...commandParts: string[]) {
@@ -488,15 +631,25 @@ export function buildHashFieldExpireCommand(
   fields: string[],
   mode?: CommandExpireMode,
 ) {
-  const command = [commandName, key, `${value}`];
+  const command = [commandName, key, formatInteger(value)];
 
   if (mode) {
     command.push(mode);
   }
 
-  command.push('FIELDS', `${fields.length}`, ...fields);
+  return [...command, 'FIELDS', `${fields.length}`, ...fields];
+}
 
-  return command;
+export function buildKeyExpireCommand(commandName: string) {
+  return (key: string, time: number, mode?: CommandKeyExpireMode) => {
+    const command = [commandName, key, formatInteger(time)];
+
+    if (mode) {
+      command.push(...mode.split(' '));
+    }
+
+    return command;
+  };
 }
 
 export function buildScriptCommand(
@@ -511,7 +664,7 @@ export function buildScriptCommand(
 export function buildSortCommand(
   commandName: string,
   key: string,
-  options?: CommandSortOptions,
+  options?: Omit<CommandSortOptions, 'store'>,
 ) {
   const command = [commandName, key];
 
@@ -523,8 +676,8 @@ export function buildSortCommand(
     if (options.limit) {
       command.push(
         'LIMIT',
-        `${options.limit.offset}`,
-        `${options.limit.count}`,
+        formatInteger(options.limit.offset),
+        formatInteger(options.limit.count),
       );
     }
 
@@ -570,19 +723,19 @@ export function appendExpireOptions(
   },
 ) {
   if (options.expireInSeconds !== undefined) {
-    command.push('EX', `${options.expireInSeconds}`);
+    command.push('EX', formatInteger(options.expireInSeconds));
   }
 
   if (options.expireInMilliseconds !== undefined) {
-    command.push('PX', `${options.expireInMilliseconds}`);
+    command.push('PX', formatInteger(options.expireInMilliseconds));
   }
 
   if (options.expireAtSeconds !== undefined) {
-    command.push('EXAT', `${options.expireAtSeconds}`);
+    command.push('EXAT', formatInteger(options.expireAtSeconds));
   }
 
   if (options.expireAtMilliseconds !== undefined) {
-    command.push('PXAT', `${options.expireAtMilliseconds}`);
+    command.push('PXAT', formatInteger(options.expireAtMilliseconds));
   }
 }
 
@@ -601,30 +754,39 @@ export function appendValueConditionOptions(
     command.push('IFNE', valueNotEquals);
   }
 
-  if (digestEquals !== undefined) {
-    command.push('IFDEQ', digestEquals);
-  }
+  for (const [keyword, digest] of [
+    ['IFDEQ', digestEquals],
+    ['IFDNE', digestNotEquals],
+  ] as const) {
+    if (digest !== undefined) {
+      if (!/^[\da-f]{16}$/i.test(digest)) {
+        throw newCommandError('Digests must be 16 hexadecimal digits', command);
+      }
 
-  if (digestNotEquals !== undefined) {
-    command.push('IFDNE', digestNotEquals);
+      command.push(keyword, digest);
+    }
   }
 }
 
-export async function* createScanIterator<T, R>(
+export function createScanIterator<T, R>(
   client: T,
   baseCommand: string[],
-  options: CommandScanOptions,
+  { count, match, type }: CommandScanOptions,
   parseElements: (elements: unknown, commandName: StringOrBuffer[]) => R,
 ): AsyncGenerator<R> {
-  let cursor = '0';
+  const options = { count, match, type };
 
-  do {
-    const command = buildScanCommand(baseCommand, cursor, options);
-    const reply = await executeCommand(client, command);
-    const [newCursor, elements] = tryReplyToScan(reply);
+  return (async function* () {
+    let cursor = '0';
 
-    cursor = newCursor;
+    do {
+      const command = buildScanCommand(baseCommand, cursor, options);
+      const reply = await executeCommand(client, command);
+      const [newCursor, elements] = tryReplyToScan(reply, command);
 
-    yield parseElements(elements, command);
-  } while (cursor !== '0');
+      cursor = newCursor;
+
+      yield parseElements(elements, command);
+    } while (cursor !== '0');
+  })();
 }

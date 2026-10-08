@@ -1,22 +1,34 @@
-import { executeCommand, tryReplyToStringOrNull } from './utils/index.ts';
+import { formatBlockingTimeout } from '../common/utils/internal.ts';
+import {
+  executeCommand,
+  tryReplyToStringOrBufferOrNull,
+} from './utils/index.ts';
+
+import type { CommandBufferOptions, RespString } from '../index.ts';
 
 export function createCommand(
   source: string,
   destination: string,
   timeout: number,
 ) {
-  return ['BRPOPLPUSH', source, destination, `${timeout}`];
+  return ['BRPOPLPUSH', source, destination, formatBlockingTimeout(timeout)];
 }
 
-export async function brpoplpush<T>(
+export async function brpoplpush<
+  T,
+  Options extends CommandBufferOptions | undefined = undefined,
+>(
   this: T,
   source: string,
   destination: string,
   timeout: number,
-): Promise<string | null> {
+  options?: Options,
+): Promise<RespString<Options> | null> {
   return await executeCommand(
     this,
     createCommand(source, destination, timeout),
-    tryReplyToStringOrNull,
+    tryReplyToStringOrBufferOrNull,
+    options,
+    { blockingTimeout: timeout * 1000 },
   );
 }

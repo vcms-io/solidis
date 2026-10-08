@@ -19,17 +19,31 @@ export type MockDataHandler = (
   server: MockRedisServer,
 ) => void;
 
+const listeningServers = new Set<MockRedisServer>();
+
 export class MockRedisServer {
   #server: net.Server;
   #port = 0;
   #sockets = new Set<net.Socket>();
   #handler?: MockDataHandler;
+  #acceptedCount = 0;
+
+  /** Destroys every new connection as soon as it is accepted. */
+  public closesOnAccept = false;
 
   /** Every chunk received from every connection, in arrival order. */
   public readonly received: Buffer[] = [];
 
   constructor() {
     this.#server = net.createServer((socket) => {
+      this.#acceptedCount += 1;
+
+      if (this.closesOnAccept) {
+        socket.destroy();
+
+        return;
+      }
+
       this.#sockets.add(socket);
 
       socket.on('data', (data: Buffer) => {
@@ -59,9 +73,18 @@ export class MockRedisServer {
     return this.#sockets.size;
   }
 
-  listen(): Promise<number> {
-    return new Promise((resolve) => {
-      this.#server.listen(0, '127.0.0.1', () => {
+  /** Every connection accepted so far, including the ones already closed. */
+  get acceptedCount(): number {
+    return this.#acceptedCount;
+  }
+
+  listen(port = 0): Promise<number> {
+    listeningServers.add(this);
+
+    return new Promise((resolve, reject) => {
+      this.#server.once('error', reject);
+      this.#server.listen(port, '127.0.0.1', () => {
+        this.#server.off('error', reject);
         this.#port = (this.#server.address() as net.AddressInfo).port;
         resolve(this.#port);
       });
@@ -85,7 +108,7 @@ export class MockRedisServer {
     }
   }
 
-  /** Hard-closes every client socket without a graceful FIN. */
+  /** Destroys every client socket at once. */
   destroySockets(): void {
     for (const socket of this.#sockets) {
       socket.destroy();
@@ -95,12 +118,20 @@ export class MockRedisServer {
   }
 
   async close(): Promise<void> {
+    listeningServers.delete(this);
     this.destroySockets();
 
     await new Promise<void>((resolve) => {
       this.#server.close(() => resolve());
     });
   }
+}
+
+/** Closes every mock server a test left listening, also after a failure. */
+export async function closeAllServers(): Promise<void> {
+  await Promise.all(
+    Array.from(listeningServers).map((server) => server.close()),
+  );
 }
 
 /**

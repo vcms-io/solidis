@@ -1,7 +1,6 @@
 import {
   executeCommand,
-  newCommandError,
-  UnexpectedReplyPrefix,
+  tryReplyToStringOrBufferOrNull,
 } from './utils/index.ts';
 
 export function createCommand(key: string) {
@@ -12,15 +11,7 @@ export async function getBuffer<T>(
   this: T,
   key: string,
 ): Promise<Buffer | null> {
-  return await executeCommand(this, createCommand(key), (reply, command) => {
-    if (reply === null) {
-      return null;
-    }
-
-    if (reply instanceof Buffer) {
-      return reply;
-    }
-
-    throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
-  });
+  return await executeCommand(this, createCommand(key), (reply, command) =>
+    tryReplyToStringOrBufferOrNull(reply, command, { buffer: true }),
+  );
 }

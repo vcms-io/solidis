@@ -1,31 +1,14 @@
-import {
-  guard,
-  newCommandError,
-  UnexpectedReplyPrefix,
-} from './utils/index.ts';
+import { assertSender } from './utils/index.ts';
 
 import type { SolidisData, StringOrBuffer } from '../index.ts';
 
 export async function pipeline<T>(
   this: T,
-  commands: StringOrBuffer[][],
+  commands: readonly (readonly StringOrBuffer[])[],
 ): Promise<SolidisData[]> {
-  if (!guard(this)) {
-    return undefined as never;
-  }
+  assertSender(this);
 
-  const reply = await this.send(commands);
-  const lastReply = reply.at(-1);
+  const replies = await this.send(commands);
 
-  if (Array.isArray(lastReply)) {
-    const [results] = lastReply;
-
-    if (Array.isArray(results)) {
-      return results;
-    }
-
-    return lastReply;
-  }
-
-  throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, 'PIPELINE');
+  return replies.map((reply) => (reply.length > 1 ? reply : reply[0]));
 }

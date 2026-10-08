@@ -1,3 +1,4 @@
+import { appendItems, formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyToString } from './utils/index.ts';
 
 export function createCommand(
@@ -7,14 +8,10 @@ export function createCommand(
   const command = ['LOLWUT'];
 
   if (version !== undefined) {
-    command.push('VERSION', `${version}`);
+    command.push('VERSION', formatInteger(version));
   }
 
-  if (optionalArguments.length) {
-    command.push(...optionalArguments);
-  }
-
-  return command;
+  return [...command, ...optionalArguments];
 }
 
 export async function lolwut<T>(
@@ -24,7 +21,7 @@ export async function lolwut<T>(
 ): Promise<string> {
   return await executeCommand(
     this,
-    createCommand(version, ...optionalArguments),
+    appendItems(createCommand(version), optionalArguments),
     tryReplyToString,
   );
 }

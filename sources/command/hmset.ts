@@ -1,4 +1,8 @@
-import { executeCommand, tryReplyOK } from './utils/index.ts';
+import {
+  appendRecordEntries,
+  executeCommand,
+  tryReplyOK,
+} from './utils/index.ts';
 
 import type { StringOrBuffer } from '../index.ts';
 
@@ -6,13 +10,7 @@ export function createCommand(
   key: string,
   mapping: Record<string, StringOrBuffer>,
 ) {
-  const command: StringOrBuffer[] = ['HMSET', key];
-
-  for (const [field, value] of Object.entries(mapping)) {
-    command.push(field, value);
-  }
-
-  return command;
+  return appendRecordEntries(['HMSET', key], mapping);
 }
 
 /**

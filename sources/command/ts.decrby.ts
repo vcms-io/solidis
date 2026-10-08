@@ -1,3 +1,4 @@
+import { formatFloat, formatInteger } from '../common/utils/internal.ts';
 import {
   buildTimeSeriesCommand,
   executeCommand,
@@ -11,7 +12,13 @@ export function createCommand(
   decrement: number,
   options: CommandTimeSeriesIncrDecrOptions,
 ) {
-  return buildTimeSeriesCommand(['TS.DECRBY', key, `${decrement}`], options);
+  const command = ['TS.DECRBY', key, formatFloat(decrement)];
+
+  if (options.timestamp !== undefined) {
+    command.push('TIMESTAMP', formatInteger(options.timestamp));
+  }
+
+  return buildTimeSeriesCommand(command, options);
 }
 
 export async function tsDecrby<T>(

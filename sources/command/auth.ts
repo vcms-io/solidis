@@ -1,23 +1,27 @@
 import { executeCommand, tryReplyOK } from './utils/index.ts';
 
-export function createCommand(username?: string, password?: string) {
-  const commands = ['AUTH'];
+import type { StringOrBuffer } from '../index.ts';
 
-  if (username && password) {
-    commands.push(username, password);
-  } else if (password) {
-    commands.push('default', password);
-  } else if (username) {
+export function createCommand(
+  username?: StringOrBuffer,
+  password?: StringOrBuffer,
+) {
+  const commands: StringOrBuffer[] = ['AUTH'];
+
+  if (password !== undefined) {
+    commands.push(username?.length ? username : 'default', password);
+  } else if (username !== undefined) {
     commands.push(username);
   }
 
   return commands;
 }
 
-export async function auth<T>(this: T, username?: string, password?: string) {
-  return await executeCommand(
-    this,
-    createCommand(username, password),
-    tryReplyOK,
-  );
+export async function auth<T>(
+  this: T,
+  ...parameters:
+    | [password: StringOrBuffer]
+    | [username: StringOrBuffer | undefined, password: StringOrBuffer]
+) {
+  return await executeCommand(this, createCommand(...parameters), tryReplyOK);
 }

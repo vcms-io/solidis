@@ -1,202 +1,148 @@
-import { SolidisPubSubError } from '../index.ts';
+import {
+  SolidisSubscribeEventNames,
+  SolidisSubscriptionEventNames,
+} from '../common/constants.ts';
+import { SolidisPubSubError } from '../common/utils/error.ts';
+import { isStringOrBuffer, readText } from '../common/utils/internal.ts';
+import { isUnsubscribeEventName } from '../common/utils/reply.ts';
+import { RespPush } from '../types/resp.ts';
 
 import type {
-  SolidisClientEventHandlers,
+  SolidisClientEmit,
+  SolidisClientEvents,
   SolidisData,
-  SolidisSubscribeEvents,
-  SolidisTranslatedPubSubReplies,
-} from '../index.ts';
+  SolidisMessageEventName,
+  SolidisSubscriptionEventName,
+} from '../types/solidis.ts';
 
 export class SolidisPubSub {
-  #subscribedChannels: Set<string> = new Set();
-  #subscribedShardChannels: Set<string> = new Set();
-  #psubscribedPatterns: Set<string> = new Set();
+  readonly #subscriptions = SolidisSubscribeEventNames.map(
+    () => new Map<string, Buffer>(),
+  );
+  readonly #emit: SolidisClientEmit;
 
-  #subscriptionChannelMap: Record<string, Set<string>> = {
-    subscribe: this.#subscribedChannels,
-    ssubscribe: this.#subscribedShardChannels,
-    psubscribe: this.#psubscribedPatterns,
-    unsubscribe: this.#subscribedChannels,
-    sunsubscribe: this.#subscribedShardChannels,
-    punsubscribe: this.#psubscribedPatterns,
-  };
-
-  public get subscribedChannels(): ReadonlySet<string> {
-    return this.#subscribedChannels;
-  }
-
-  public get subscribedShardChannels(): ReadonlySet<string> {
-    return this.#subscribedShardChannels;
-  }
-
-  public get subscribedPatterns(): ReadonlySet<string> {
-    return this.#psubscribedPatterns;
-  }
-
-  public getChannelsForUnsubscribeCommand(
-    commandName: string,
-  ): ReadonlySet<string> | undefined {
-    const lower = commandName.toLowerCase();
-
-    if (!lower.includes('unsubscribe')) {
-      return undefined;
-    }
-
-    return this.#subscriptionChannelMap[lower];
-  }
-
-  public clearSubscribedChannels() {
-    this.#subscribedChannels.clear();
-  }
-
-  public clearSubscribedShardChannels() {
-    this.#subscribedShardChannels.clear();
-  }
-
-  public clearSubscribedPatterns() {
-    this.#psubscribedPatterns.clear();
+  constructor(emit: SolidisClientEmit) {
+    this.#emit = emit;
   }
 
   public get hasActiveSubscriptions() {
-    return (
-      this.#subscribedChannels.size > 0 ||
-      this.#subscribedShardChannels.size > 0 ||
-      this.#psubscribedPatterns.size > 0
-    );
+    return this.#subscriptions.some((subscriptions) => subscriptions.size);
   }
 
-  public dispatchPubSubEvent(
+  public getSubscriptions(eventName: SolidisSubscriptionEventName): Buffer[] {
+    return [...this.#getSubscriptions(eventName).values()];
+  }
+
+  public countSubscriptions(eventName: SolidisSubscriptionEventName) {
+    return this.#getSubscriptions(eventName).size;
+  }
+
+  public clearSubscriptions(eventName: SolidisSubscriptionEventName) {
+    this.#getSubscriptions(eventName).clear();
+  }
+
+  public clear() {
+    for (const subscriptions of this.#subscriptions) {
+      subscriptions.clear();
+    }
+  }
+
+  public dispatchPush(reply: RespPush) {
+    this.#notify('push', reply);
+  }
+
+  public dispatchMessage(
+    eventName: SolidisMessageEventName,
     reply: SolidisData[],
-    emit: SolidisClientEventHandlers['emit'],
   ) {
-    const pubSubReply = this.#translateRepliesForPubSub(reply);
+    const isPattern = eventName === 'pmessage';
+    const pattern = readText(reply[1]);
+    const channel = isPattern ? readText(reply[2]) : pattern;
+    const message = isPattern ? reply[3] : reply[2];
 
-    const event = pubSubReply[0];
+    if (
+      channel === '__redis__:invalidate' &&
+      (message === null || Array.isArray(message))
+    ) {
+      this.dispatchPush(
+        RespPush.of<SolidisData>(Buffer.from('invalidate'), message),
+      );
 
-    switch (event) {
-      case 'message':
-      case 'smessage': {
-        this.#dispatchMessage(event, pubSubReply, emit);
-
-        return;
-      }
-
-      case 'pmessage': {
-        this.#dispatchPmessage(pubSubReply, emit);
-
-        return;
-      }
+      return;
     }
 
-    this.#dispatchSubscriptionChange(pubSubReply, emit);
+    if (
+      pattern === undefined ||
+      channel === undefined ||
+      !isStringOrBuffer(message)
+    ) {
+      this.#emitMalformedEventError(eventName);
+
+      return;
+    }
+
+    if (isPattern) {
+      this.#notify(eventName, pattern, channel, message);
+    } else {
+      this.#notify(eventName, channel, message);
+    }
   }
 
-  #translateRepliesForPubSub(
+  public dispatchSubscriptionChange(
+    eventName: SolidisSubscriptionEventName,
     reply: SolidisData[],
-  ): SolidisTranslatedPubSubReplies {
-    return [
-      reply[0]?.toString() ?? null,
-      reply[1]?.toString() ?? null,
-      typeof reply[2] === 'number' ? reply[2] : this.#toMessage(reply[2]),
-      this.#toMessage(reply[3]),
+  ) {
+    const channel = reply[1];
+    const count = reply[2];
+
+    if (typeof count !== 'number') {
+      this.#emitMalformedEventError(eventName);
+
+      return;
+    }
+
+    if (!isStringOrBuffer(channel)) {
+      return;
+    }
+
+    const subscriptions = this.#getSubscriptions(eventName);
+    const bytes = Buffer.from(channel);
+    const key = bytes.toString('latin1');
+
+    if (isUnsubscribeEventName(eventName)) {
+      subscriptions.delete(key);
+    } else {
+      subscriptions.set(key, bytes);
+    }
+
+    this.#notify(eventName, bytes.toString(), count);
+  }
+
+  #getSubscriptions(eventName: SolidisSubscriptionEventName) {
+    return this.#subscriptions[
+      SolidisSubscriptionEventNames.indexOf(eventName) %
+        this.#subscriptions.length
     ];
   }
 
-  #toMessage(reply: SolidisData | undefined) {
-    if (typeof reply === 'string' || Buffer.isBuffer(reply)) {
-      return reply;
+  #notify<E extends keyof SolidisClientEvents>(
+    eventName: E,
+    ...parameters: Parameters<SolidisClientEvents[E]>
+  ) {
+    try {
+      this.#emit(eventName, ...parameters);
+    } catch (error) {
+      this.#emit(
+        'error',
+        new SolidisPubSubError(`A '${eventName}' listener threw`, error),
+      );
     }
-
-    return reply?.toString() ?? null;
   }
 
-  #dispatchPubSubError(
-    error: unknown,
-    pubSubReply: SolidisTranslatedPubSubReplies,
-    emit: SolidisClientEventHandlers['emit'],
-  ) {
-    emit(
+  #emitMalformedEventError(eventName: string) {
+    this.#emit(
       'error',
-      new SolidisPubSubError(String(error), {
-        error,
-        pubSubReply,
-      }),
+      new SolidisPubSubError(`Malformed '${eventName}' event`),
     );
-  }
-
-  #dispatchMessage(
-    event: 'message' | 'smessage',
-    pubSubReply: SolidisTranslatedPubSubReplies,
-    emit: SolidisClientEventHandlers['emit'],
-  ) {
-    const channel = pubSubReply[1];
-    const message = pubSubReply[2];
-
-    if (
-      typeof channel !== 'string' ||
-      !(typeof message === 'string' || Buffer.isBuffer(message))
-    ) {
-      this.#dispatchPubSubError(`${event}:type`, pubSubReply, emit);
-
-      return;
-    }
-
-    emit(event, channel, message);
-  }
-
-  #dispatchPmessage(
-    pubSubReply: SolidisTranslatedPubSubReplies,
-    emit: SolidisClientEventHandlers['emit'],
-  ) {
-    const pattern = pubSubReply[1];
-    const channel = pubSubReply[2]?.toString();
-    const message = pubSubReply[3];
-
-    if (
-      typeof pattern !== 'string' ||
-      typeof channel !== 'string' ||
-      !(typeof message === 'string' || Buffer.isBuffer(message))
-    ) {
-      this.#dispatchPubSubError('pmessage:type', pubSubReply, emit);
-
-      return;
-    }
-
-    emit('pmessage', pattern, channel, message);
-  }
-
-  #isSubscriptionEvent(event: string): event is keyof SolidisSubscribeEvents {
-    return event in this.#subscriptionChannelMap;
-  }
-
-  #dispatchSubscriptionChange(
-    pubSubReply: SolidisTranslatedPubSubReplies,
-    emit: SolidisClientEventHandlers['emit'],
-  ) {
-    const event = pubSubReply[0];
-    const channel = pubSubReply[1];
-    const count = pubSubReply[2];
-
-    if (!event || !channel || typeof count !== 'number') {
-      this.#dispatchPubSubError(`${event}:type`, pubSubReply, emit);
-
-      return;
-    }
-
-    if (!this.#isSubscriptionEvent(event)) {
-      this.#dispatchPubSubError(`${event}:event`, pubSubReply, emit);
-
-      return;
-    }
-
-    const channelSet = this.#subscriptionChannelMap[event];
-
-    if (event.includes('unsubscribe')) {
-      channelSet.delete(channel);
-    } else {
-      channelSet.add(channel);
-    }
-
-    emit(event, channel, count);
   }
 }

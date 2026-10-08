@@ -1,6 +1,15 @@
-import { executeCommand, tryReplyToNumberArray } from './utils/index.ts';
+import { formatInteger } from '../common/utils/internal.ts';
+import {
+  executeCommand,
+  tryReplyArray,
+  tryReplyToInteger,
+} from './utils/index.ts';
 
-import type { CommandBitfieldRoGetOperationOption } from '../index.ts';
+import type {
+  CommandBitfieldRoGetOperationOption,
+  CommandIntegerOptions,
+  RespInteger,
+} from '../index.ts';
 
 export function createCommand(
   key: string,
@@ -9,20 +18,28 @@ export function createCommand(
   const command = ['BITFIELD_RO', key];
 
   for (const operation of operations) {
-    command.push('GET', operation.type, `${operation.offset}`);
+    command.push('GET', operation.type, formatInteger(operation.offset));
   }
 
   return command;
 }
 
-export async function bitfieldRo<T>(
+export async function bitfieldRo<
+  T,
+  Options extends CommandIntegerOptions | undefined = undefined,
+>(
   this: T,
   key: string,
   operations: CommandBitfieldRoGetOperationOption[],
-): Promise<number[]> {
+  options?: Options,
+): Promise<RespInteger<Options>[]> {
   return await executeCommand(
     this,
     createCommand(key, operations),
-    tryReplyToNumberArray,
+    (reply, command, replyOptions) =>
+      tryReplyArray(reply, command).map((value) =>
+        tryReplyToInteger(value, command, replyOptions),
+      ),
+    options,
   );
 }

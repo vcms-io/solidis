@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyOK } from './utils/index.ts';
 
 export function createCommand(
@@ -9,7 +10,7 @@ export function createCommand(
   const command = ['XGROUP', 'SETID', key, groupname, id];
 
   if (entriesRead !== undefined) {
-    command.push('ENTRIESREAD', `${entriesRead}`);
+    command.push('ENTRIESREAD', formatInteger(entriesRead));
   }
 
   return command;

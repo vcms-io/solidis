@@ -5,7 +5,6 @@ import {
   settlePingSamples,
 } from './constants.ts';
 import { createCommandCase } from './execution.ts';
-import { createSampleRunOrder } from './results.ts';
 import { jitterPercent, logPhase, logWarn, sleep } from './utils.ts';
 
 import type { BenchmarkClientAdapter } from './client.ts';
@@ -14,7 +13,7 @@ import type {
   BenchConfig,
   BenchmarkCase,
   BenchmarkMode,
-  Command,
+  BenchmarkNote,
   CommandCaseOptions,
   ConnectionTarget,
   LibraryName,
@@ -22,14 +21,10 @@ import type {
 
 export abstract class BenchmarkSuite {
   abstract readonly name: string;
-  abstract readonly baselineLibrary: LibraryName;
+  abstract readonly subjectLibrary: LibraryName;
   abstract readonly adapters: readonly BenchmarkClientAdapter[];
 
   private benchmarkCaseCache?: BenchmarkCase[];
-
-  get libraries(): readonly LibraryName[] {
-    return this.adapters.map((adapter) => adapter.name);
-  }
 
   get benchmarkCases(): BenchmarkCase[] {
     if (!this.benchmarkCaseCache) {
@@ -49,6 +44,42 @@ export abstract class BenchmarkSuite {
     }
 
     return adapter;
+  }
+
+  resolveLibraries(config: BenchConfig): LibraryName[] {
+    const requested = config.libraries;
+
+    for (const library of requested ?? []) {
+      this.getAdapter(library);
+    }
+
+    return this.adapters.flatMap((adapter) => {
+      if (requested && !requested.has(adapter.name)) {
+        return [];
+      }
+
+      const reason = adapter.getUnavailableReason();
+
+      if (reason && requested) {
+        throw new Error(reason);
+      }
+
+      if (reason) {
+        logWarn(`skipping ${adapter.name}: ${reason}`);
+
+        return [];
+      }
+
+      return [adapter.name];
+    });
+  }
+
+  getNonComparableReason(
+    benchmarkCase: BenchmarkCase,
+    library: LibraryName,
+    mode: BenchmarkMode,
+  ): BenchmarkNote | undefined {
+    return this.getAdapter(library).getNonComparableReason(benchmarkCase, mode);
   }
 
   async createBenchClientPool(
@@ -74,30 +105,44 @@ export abstract class BenchmarkSuite {
     return createCommandCase(this, options);
   }
 
-  sampleRunOrder(caseIndex: number, sampleIndex: number): LibraryName[] {
-    return createSampleRunOrder(this.libraries)(caseIndex, sampleIndex);
-  }
-
-  abstract getComparableModes(commands: Command[]): ReadonlySet<BenchmarkMode>;
-  abstract getNonComparableReason(commands: Command[]): string | undefined;
   abstract buildBenchmarkCases(): BenchmarkCase[];
-  abstract printFairnessPolicy(config: BenchConfig): void;
+  abstract describeFairness(): string[];
 
-  async smokeTest(config: BenchConfig): Promise<void> {
+  async smokeTest(
+    config: BenchConfig,
+    libraries: readonly LibraryName[],
+  ): Promise<void> {
     await Promise.all(
-      this.adapters.map((adapter) => adapter.smokeTestPing(config.target)),
+      libraries.map((library) =>
+        this.getAdapter(library).smokeTestPing(config.target),
+      ),
     );
   }
 
   async flushDb(config: BenchConfig): Promise<void> {
-    await this.getAdapter(this.baselineLibrary).flushDb(config.target);
+    await this.getAdapter(this.subjectLibrary).flushDb(config.target);
+  }
+
+  async readServerInfo(config: BenchConfig): Promise<string> {
+    const client = await this.getAdapter(this.subjectLibrary).createBenchClient(
+      config.target,
+      'batch',
+    );
+
+    try {
+      const [reply] = await client.execute([['INFO', 'server']]);
+
+      return Buffer.isBuffer(reply) ? reply.toString() : String(reply);
+    } finally {
+      await client.close();
+    }
   }
 
   async waitForServerSettle(config: BenchConfig): Promise<void> {
     logPhase('settle', `cooldown ${config.cooldownMs}ms`);
     await sleep(config.cooldownMs);
 
-    const settleAdapter = this.getAdapter(this.baselineLibrary);
+    const settleAdapter = this.getAdapter(this.subjectLibrary);
     const client = await settleAdapter
       .createBenchClient(config.target, 'batch')
       .catch(() => undefined);

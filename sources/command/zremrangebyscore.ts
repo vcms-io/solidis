@@ -1,14 +1,20 @@
 import { executeCommand, tryReplyNumber } from './utils/index.ts';
 
-export function createCommand(key: string, min: number, max: number) {
+import type { CommandScoreBound } from '../index.ts';
+
+export function createCommand(
+  key: string,
+  min: CommandScoreBound,
+  max: CommandScoreBound,
+) {
   return ['ZREMRANGEBYSCORE', key, `${min}`, `${max}`];
 }
 
 export async function zremrangebyscore<T>(
   this: T,
   key: string,
-  min: number,
-  max: number,
+  min: CommandScoreBound,
+  max: CommandScoreBound,
 ): Promise<number> {
   return await executeCommand(
     this,

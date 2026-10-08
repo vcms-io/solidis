@@ -1,8 +1,7 @@
 import {
   executeCommand,
-  newCommandError,
+  tryReplyArray,
   tryReplyToModuleInfo,
-  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 import type { RespModuleInfo } from '../index.ts';
@@ -12,11 +11,9 @@ export function createCommand() {
 }
 
 export async function moduleList<T>(this: T): Promise<RespModuleInfo[]> {
-  return await executeCommand(this, createCommand(), (reply, command) => {
-    if (!Array.isArray(reply)) {
-      throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
-    }
-
-    return reply.map(tryReplyToModuleInfo);
-  });
+  return await executeCommand(this, createCommand(), (reply, command) =>
+    tryReplyArray(reply, command).map((item) =>
+      tryReplyToModuleInfo(item, command),
+    ),
+  );
 }

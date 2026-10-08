@@ -11,12 +11,12 @@ export function createCommand(
 ) {
   const command = ['JSON.DEBUG', subcommand];
 
-  if (subcommand === 'MEMORY' && key !== undefined) {
+  if (key !== undefined) {
     command.push(key);
+  }
 
-    if (path !== undefined) {
-      command.push(path);
-    }
+  if (path !== undefined) {
+    command.push(path);
   }
 
   return command;
@@ -32,6 +32,10 @@ export async function jsonDebug<T>(
   key: string,
   path?: string,
 ): Promise<number | (number | null)[] | null>;
+export async function jsonDebug<T>(
+  this: T,
+  ...parameters: ['HELP'] | ['MEMORY', key: string, path?: string]
+): Promise<string[] | number | (number | null)[] | null>;
 export async function jsonDebug<T>(
   this: T,
   subcommand: 'MEMORY' | 'HELP',

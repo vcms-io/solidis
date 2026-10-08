@@ -7,6 +7,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
+import { RespError } from '../../../sources/index.ts';
 import {
   closeClient,
   createClient,
@@ -58,14 +59,15 @@ describe('modules-bloom-cuckoo', () => {
 
     const key = keyspace.key('bloom-bulk');
 
-    assert.deepStrictEqual(
-      await client.bfMadd(key, ['a', 'b', 'c']),
-      [1, 1, 1],
-    );
+    assert.deepStrictEqual(await client.bfMadd(key, ['a', 'b', 'c']), [
+      true,
+      true,
+      true,
+    ]);
 
     const exists = await client.bfMexists(key, ['a', 'b', 'absent']);
 
-    assert.deepStrictEqual(exists, [1, 1, 0]);
+    assert.deepStrictEqual(exists, [true, true, false]);
   });
 
   it('reserves a Bloom filter with a target error rate', async (context) => {
@@ -106,7 +108,7 @@ describe('modules-bloom-cuckoo', () => {
 
     assert.deepStrictEqual(
       checks,
-      Array.from({ length: 2000 }, () => 1),
+      Array.from({ length: 2000 }, () => true),
     );
   });
 
@@ -177,10 +179,52 @@ describe('modules-bloom-cuckoo', () => {
       error: 0.01,
     });
 
-    assert.deepStrictEqual(results, [1, 1, 1]);
+    assert.deepStrictEqual(results, [true, true, true]);
     assert.strictEqual(await client.bfExists(key, 'x'), true);
     assert.strictEqual(await client.bfExists(key, 'y'), true);
     assert.strictEqual(await client.bfExists(key, 'z'), true);
+  });
+
+  it('reports items rejected by a full non-scaling filter inline', async (context) => {
+    if (!bloomAvailable) {
+      context.skip('RedisBloom not loaded');
+      return;
+    }
+
+    const key = keyspace.key('bloom-full');
+
+    assert.strictEqual(
+      await client.bfReserve(key, 0.0001, 2, undefined, true),
+      'OK',
+    );
+
+    const added = await client.bfMadd(key, [...'abcdefgh']);
+    const inserted = await client.bfInsert(key, [...'ijklmnop'], {
+      nocreate: true,
+    });
+
+    assert.strictEqual(added.length, 8);
+    assert.strictEqual(inserted.length, 8);
+
+    for (const results of [added, inserted]) {
+      const failureIndex = results.findIndex(
+        (result) => result instanceof RespError,
+      );
+      const failure = results[failureIndex];
+
+      assert.ok(failure instanceof RespError);
+      assert.match(failure.message, /full/);
+      assert.ok(
+        results
+          .slice(0, failureIndex)
+          .every((result) => typeof result === 'boolean'),
+      );
+      assert.ok(
+        results.slice(failureIndex).every((result) => result === failure),
+      );
+    }
+
+    assert.strictEqual(await client.bfExists(key, 'a'), true);
   });
 
   it('adds only if not existing with CF.ADDNX', async (context) => {
@@ -211,12 +255,12 @@ describe('modules-bloom-cuckoo', () => {
     assert.deepStrictEqual(info, {
       size: 1080,
       numberOfBuckets: 512,
-      numberOfFilter: 0,
+      numberOfFilter: 1,
       numberOfItemsInserted: 1,
       numberOfItemsDeleted: 0,
       bucketSize: 2,
       expansionRate: 1,
-      maxIteration: 0,
+      maxIteration: 20,
     });
   });
 
@@ -396,14 +440,14 @@ describe('modules-bloom-cuckoo', () => {
 
     const key = keyspace.key('bloom-reserve-opts');
 
-    assert.strictEqual(await client.bfReserve(key, 0.01, 500, 2), 'OK');
+    assert.strictEqual(await client.bfReserve(key, 0.01, 500, 4), 'OK');
 
     const reserveInfo = await client.bfInfo(key);
 
     assert.strictEqual(reserveInfo.capacity, 500);
     assert.strictEqual(reserveInfo.numberOfFilters, 1);
     assert.strictEqual(reserveInfo.numberOfItemsInserted, 0);
-    assert.strictEqual(reserveInfo.expansionRate, 2);
+    assert.strictEqual(reserveInfo.expansionRate, 4);
     if (capabilities.isValkey) {
       assert.strictEqual(reserveInfo.size, 864);
     } else {
@@ -444,14 +488,15 @@ describe('modules-bloom-cuckoo', () => {
       expansion: 4,
     });
 
-    assert.deepStrictEqual(results, [1, 1]);
+    assert.deepStrictEqual(results, [true, true]);
+    assert.strictEqual((await client.bfInfo(key)).expansionRate, 4);
 
     const nocreateKey = keyspace.key('bloom-nocreate-missing');
 
     await assert.rejects(
       () => client.bfInsert(nocreateKey, ['x'], { nocreate: true }),
       {
-        message: `[BF.INSERT ${nocreateKey} NOCREATE ITEMS x] Invalid reply: RespError: ERR not found`,
+        message: '[BF.INSERT] ERR not found',
       },
     );
   });
@@ -469,12 +514,12 @@ describe('modules-bloom-cuckoo', () => {
     assert.deepStrictEqual(await client.cfInfo(key), {
       size: 1080,
       numberOfBuckets: 256,
-      numberOfFilter: 0,
+      numberOfFilter: 1,
       numberOfItemsInserted: 0,
       numberOfItemsDeleted: 0,
       bucketSize: 4,
       expansionRate: 2,
-      maxIteration: 0,
+      maxIteration: 20,
     });
   });
 
@@ -501,13 +546,12 @@ describe('modules-bloom-cuckoo', () => {
     ]);
   });
 
-  it('builds CF.INSERT with NOCREATE option (ignores capacity)', async () => {
+  it('builds CF.INSERT with NOCREATE option', async () => {
     const { buildCuckooFilterInsertCommand } = await import(
       '../../../sources/command/utils/command.ts'
     );
 
     const command = buildCuckooFilterInsertCommand('CF.INSERT', 'key', ['a'], {
-      capacity: 500,
       nocreate: true,
     });
 

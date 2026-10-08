@@ -1,7 +1,7 @@
 import {
   buildCuckooFilterInsertCommand,
   executeCommand,
-  tryReplyToBooleanArray,
+  tryReplyToCuckooFilterInsertResults,
 } from './utils/index.ts';
 
 import type { CommandCuckooFilterInsertOptions } from '../index.ts';
@@ -19,10 +19,13 @@ export async function cfInsert<T>(
   key: string,
   items: string[],
   options?: CommandCuckooFilterInsertOptions,
-): Promise<boolean[]> {
+): Promise<(boolean | null)[]> {
   return await executeCommand(
     this,
     createCommand(key, items, options),
-    tryReplyToBooleanArray,
+    (reply, command) =>
+      tryReplyToCuckooFilterInsertResults(reply, command).map(
+        (result) => result || null,
+      ),
   );
 }

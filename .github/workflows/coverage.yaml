@@ -7,37 +7,35 @@ on:
       - ".github/workflows/coverage.yaml"
       - "sources/**"
       - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "biome.json"
   pull_request:
     branches: [main]
     paths:
       - ".github/workflows/coverage.yaml"
       - "sources/**"
       - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "biome.json"
 
 concurrency:
   group: coverage-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  lint:
-    name: Lint & type-check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm install
-      - run: npm run lint
-
   coverage:
     name: Coverage
-    needs: lint
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
     services:
       server:
-        image: redis/redis-stack-server:latest
+        image: redis:8-alpine
         ports:
           - 6379:6379
         options: >-
@@ -45,8 +43,48 @@ jobs:
           --health-interval 2s
           --health-timeout 3s
           --health-retries 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Run coverage
+        run: |
+          set -o pipefail
+          npm run test:coverage 2>&1 | tee coverage.txt
+        env:
+          SOLIDIS_TEST_HOST: 127.0.0.1
+          SOLIDIS_TEST_PORT: 6379
+      - name: Generate report
+        if: ${{ !cancelled() }}
+        run: npm run --silent node:ts ./scripts/workflows/coverage/report.ts coverage.txt coverage.md
+      - name: Job summary
+        if: ${{ !cancelled() }}
+        run: cat coverage.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage
+          path: |
+            coverage.txt
+            coverage.md
+          retention-days: 1
+
+  publish:
+    name: Publish coverage
+    needs: coverage
+    if: >-
+      !cancelled() && needs.coverage.result != 'skipped' && (
+        (github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository) ||
+        (github.event_name == 'push' && github.ref == 'refs/heads/main'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
-      contents: read
+      contents: write
       pull-requests: write
     steps:
       - uses: actions/checkout@v6
@@ -54,27 +92,39 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm install
-      - name: Run coverage
-        run: |
-          set -o pipefail
-          npm run test:coverage 2>&1 | tee /tmp/coverage.txt
-        env:
-          SOLIDIS_TEST_HOST: 127.0.0.1
-          SOLIDIS_TEST_PORT: 6379
-      - name: Generate report
-        if: always()
-        run: npm run --silent node:ts ./scripts/workflows/coverage/report.ts /tmp/coverage.txt /tmp/coverage.md
-      - name: Job summary
-        if: always()
-        run: cat /tmp/coverage.md >> "$GITHUB_STEP_SUMMARY"
+      - run: npm ci
+      - name: Download report
+        uses: actions/download-artifact@v8
+        with:
+          name: coverage
       - name: PR comment
-        if: >-
-          always() && github.event_name == 'pull_request' &&
-          github.event.pull_request.head.repo.full_name == github.repository
+        if: github.event_name == 'pull_request'
         run: >-
           npm run node:ts ./scripts/workflows/coverage/comment.ts
-          /tmp/coverage.md
+          coverage.md
           ${{ github.repository }}
           ${{ github.event.pull_request.number }}
           ${{ github.token }}
+      - name: Update badge
+        if: github.event_name == 'push'
+        run: >-
+          npm run --silent node:ts ./scripts/workflows/coverage/badge.ts
+          coverage.txt README.md README.ko.md
+      - name: Create pull request
+        if: github.event_name == 'push'
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "docs: update coverage badge"
+          branch: coverage/update
+          delete-branch: true
+          title: "docs: update coverage badge"
+          body: |
+            Automated coverage badge update triggered by changes on `main`.
+
+            - Ran the coverage suite against `redis:8-alpine`
+            - Updated the coverage badge in `README.md` and `README.ko.md` to the line coverage, rounded down to one decimal
+          labels: coverage,automated
+          add-paths: |
+            README.md
+            README.ko.md

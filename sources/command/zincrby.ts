@@ -1,7 +1,8 @@
+import { formatFloat } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyToNumber } from './utils/index.ts';
 
 export function createCommand(key: string, increment: number, member: string) {
-  return ['ZINCRBY', key, `${increment}`, member];
+  return ['ZINCRBY', key, formatFloat(increment), member];
 }
 
 export async function zincrby<T>(

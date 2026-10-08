@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyToStringArray } from './utils/index.ts';
 
 import type { CommandLimitOptions } from '../index.ts';
@@ -11,7 +12,11 @@ export function createCommand(
   const command = ['ZRANGEBYLEX', key, min, max];
 
   if (limit) {
-    command.push('LIMIT', `${limit.offset}`, `${limit.count}`);
+    command.push(
+      'LIMIT',
+      formatInteger(limit.offset),
+      formatInteger(limit.count),
+    );
   }
 
   return command;

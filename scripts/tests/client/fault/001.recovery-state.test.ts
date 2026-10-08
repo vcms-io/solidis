@@ -7,6 +7,7 @@ import {
   closeClient,
   createClient,
   createKeyspace,
+  nextEvent,
   waitFor,
 } from '../../utils/index.ts';
 
@@ -47,7 +48,7 @@ describe('recovery-state', () => {
     target: FeaturedClient,
     clientId: number,
   ): Promise<void> => {
-    const ready = new Promise<void>((resolve) => target.once('ready', resolve));
+    const ready = nextEvent(target, 'ready');
 
     await killer.clientKill(clientId);
     await ready;

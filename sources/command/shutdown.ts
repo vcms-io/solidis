@@ -1,3 +1,5 @@
+import { SolidisConnectionClosedMessage } from '../common/utils/internal.ts';
+import { RespOK } from '../types/resp.ts';
 import { executeCommand, tryReplyOK } from './utils/index.ts';
 
 import type { CommandShutdownOptions } from '../index.ts';
@@ -29,5 +31,25 @@ export function createCommand(options?: CommandShutdownOptions) {
 }
 
 export async function shutdown<T>(this: T, options?: CommandShutdownOptions) {
-  return await executeCommand(this, createCommand(options), tryReplyOK);
+  const abort = options?.abort;
+
+  try {
+    return await executeCommand(
+      this,
+      createCommand(options),
+      tryReplyOK,
+      undefined,
+      { blockingTimeout: abort ? undefined : 0 },
+    );
+  } catch (error) {
+    if (
+      abort ||
+      !(error instanceof Error) ||
+      error.message !== SolidisConnectionClosedMessage
+    ) {
+      throw error;
+    }
+
+    return RespOK;
+  }
 }

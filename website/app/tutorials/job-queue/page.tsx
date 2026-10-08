@@ -5,7 +5,13 @@ import Link from 'next/link';
 
 import { CodeBlock } from '@/components/code-block';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { useI18n } from '@/lib/i18n-context';
 
 export default function JobQueueTutorial() {
@@ -76,7 +82,7 @@ export default function JobQueueTutorial() {
           <div className="rounded-lg text-sm overflow-x-auto">
             <CodeBlock
               code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 
 export interface Job<T = any> {
   id: string;
@@ -109,6 +115,10 @@ export class JobQueue {
     await this.client.connect();
   }
 
+  disconnect(): void {
+    this.client.quit();
+  }
+
   /**
    * Add a job to the queue
    */
@@ -118,7 +128,7 @@ export class JobQueue {
     options: { priority?: number; maxAttempts?: number } = {}
   ): Promise<string> {
     const job: Job<T> = {
-      id: uuidv4(),
+      id: randomUUID(),
       type,
       data,
       priority: options.priority || 0,
@@ -128,11 +138,7 @@ export class JobQueue {
     };
 
     // Add to sorted set with priority as score (higher = more priority)
-    await this.client.zadd(
-      this.queueName,
-      -job.priority, // Negative for descending order
-      JSON.stringify(job)
-    );
+    await this.client.zadd(this.queueName, job.priority, JSON.stringify(job));
 
     return job.id;
   }
@@ -185,11 +191,7 @@ export class JobQueue {
       await this.client.hdel(this.processingName, jobId);
     } else {
       // Retry: move back to main queue
-      await this.client.zadd(
-        this.queueName,
-        -job.priority,
-        JSON.stringify(job)
-      );
+      await this.client.zadd(this.queueName, job.priority, JSON.stringify(job));
       await this.client.hdel(this.processingName, jobId);
     }
   }
@@ -338,6 +340,10 @@ export class JobWorker {
               code={`import { JobQueue } from './job-queue';
 import { JobWorker } from './job-worker';
 
+declare function sendEmail(to: string, subject: string): Promise<void>;
+declare function processImage(url: string): Promise<void>;
+declare function generateReport(userId: string): Promise<void>;
+
 // Create queue
 const queue = new JobQueue({
   host: '127.0.0.1',
@@ -367,7 +373,7 @@ worker.register('generate-report', async (data: { userId: string }) => {
 });
 
 // Start worker
-worker.start();
+const running = worker.start();
 
 // Add jobs from your application
 await queue.addJob('send-email', {
@@ -388,8 +394,10 @@ const stats = await queue.getStats();
 console.log('Queue stats:', stats);
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   worker.stop();
+  await running;
+  queue.disconnect();
 });`}
               language="typescript"
               showLineNumbers={true}
@@ -404,31 +412,12 @@ process.on('SIGTERM', () => {
             <Layers className="h-5 w-5 text-amber-500" />
             {t('tutorialJobQueue.advancedFeatures')}
           </CardTitle>
+          <CardDescription>
+            {t('tutorialJobQueue.advancedFeaturesDesc')}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <ul className="space-y-3">
-            <li className="flex items-start gap-2">
-              <span className="text-emerald-600 mt-1">✓</span>
-              <div>
-                <div className="font-medium">
-                  {t('tutorialJobQueue.delayedJobs')}
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  {t('tutorialJobQueue.delayedJobsDesc')}
-                </div>
-              </div>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-emerald-600 mt-1">✓</span>
-              <div>
-                <div className="font-medium">
-                  {t('tutorialJobQueue.progressTracking')}
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  {t('tutorialJobQueue.progressTrackingDesc')}
-                </div>
-              </div>
-            </li>
             <li className="flex items-start gap-2">
               <span className="text-emerald-600 mt-1">✓</span>
               <div>
@@ -441,7 +430,29 @@ process.on('SIGTERM', () => {
               </div>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-emerald-600 mt-1">✓</span>
+              <span className="text-muted-foreground mt-1">+</span>
+              <div>
+                <div className="font-medium">
+                  {t('tutorialJobQueue.delayedJobs')}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {t('tutorialJobQueue.delayedJobsDesc')}
+                </div>
+              </div>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-muted-foreground mt-1">+</span>
+              <div>
+                <div className="font-medium">
+                  {t('tutorialJobQueue.progressTracking')}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {t('tutorialJobQueue.progressTrackingDesc')}
+                </div>
+              </div>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-muted-foreground mt-1">+</span>
               <div>
                 <div className="font-medium">
                   {t('tutorialJobQueue.deduplication')}

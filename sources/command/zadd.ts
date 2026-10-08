@@ -1,7 +1,8 @@
+import { formatFloat } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyNumber } from './utils/index.ts';
 
 export function createCommand(key: string, score: number, member: string) {
-  return ['ZADD', key, `${score}`, member];
+  return ['ZADD', key, formatFloat(score), member];
 }
 
 export async function zadd<T>(

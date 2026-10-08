@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
   tryReplyToKeySortedSetMembersOrNull,
@@ -14,7 +15,7 @@ export function createCommand(
   const command = ['BZMPOP', `${timeout}`, `${keys.length}`, ...keys, where];
 
   if (count !== undefined) {
-    command.push('COUNT', `${count}`);
+    command.push('COUNT', formatInteger(count));
   }
 
   return command;
@@ -34,5 +35,7 @@ export async function bzmpop<T>(
     this,
     createCommand(timeout, keys, where, count),
     tryReplyToKeySortedSetMembersOrNull,
+    undefined,
+    { blockingTimeout: timeout * 1000 },
   );
 }

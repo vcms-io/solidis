@@ -1,11 +1,15 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
-  tryReplyToNullableNumberArray,
+  tryReplyArray,
+  tryReplyToInteger,
 } from './utils/index.ts';
 
 import type {
   CommandBitfieldOperationOption,
+  CommandIntegerOptions,
   RespBitfieldOverflow,
+  RespInteger,
 } from '../index.ts';
 
 export function createCommand(
@@ -22,33 +26,35 @@ export function createCommand(
   for (const operation of operations) {
     command.push(operation.operation);
     command.push(operation.type);
-    command.push(`${operation.offset}`);
+    command.push(formatInteger(operation.offset));
 
     if (operation.operation === 'SET') {
-      command.push(`${operation.value}`);
+      command.push(formatInteger(operation.value));
     } else if (operation.operation === 'INCRBY') {
-      command.push(`${operation.increment}`);
+      command.push(formatInteger(operation.increment));
     }
   }
 
   return command;
 }
 
-export async function bitfield<T>(
+export async function bitfield<
+  T,
+  Options extends CommandIntegerOptions | undefined = undefined,
+>(
   this: T,
   key: string,
   operations: CommandBitfieldOperationOption[],
   overflow?: RespBitfieldOverflow,
-): Promise<(number | null)[] | null> {
+  options?: Options,
+): Promise<(RespInteger<Options> | null)[]> {
   return await executeCommand(
     this,
     createCommand(key, operations, overflow),
-    (reply, command) => {
-      if (reply === null) {
-        return null;
-      }
-
-      return tryReplyToNullableNumberArray(reply, command);
-    },
+    (reply, command, replyOptions) =>
+      tryReplyArray(reply, command).map((value) =>
+        value === null ? null : tryReplyToInteger(value, command, replyOptions),
+      ),
+    options,
   );
 }

@@ -1,39 +1,34 @@
 /** Connection/client lifecycle edge branches (TLS, RESP3, lazy connect, no-reconnect, debug). */
 
 import assert from 'node:assert/strict';
-import { after, describe, it } from 'node:test';
+import { describe, it } from 'node:test';
 
 import { SolidisFeaturedClient } from '../../../../sources/client/featured.ts';
+import { get } from '../../../../sources/command/get.ts';
+import { set } from '../../../../sources/command/set.ts';
 import {
+  SolidisClient,
   SolidisClientError,
   SolidisConnectionError,
 } from '../../../../sources/index.ts';
 import {
   buildClientOptions,
-  closeClient,
   createClient,
+  delay,
+  formatTargetAddress,
   MockRedisServer,
   mockClientOptions,
-  resolveConnectionTarget,
+  nextEvent,
+  track,
   waitFor,
+  withTimeout,
 } from '../../utils/index.ts';
 
-import type { FeaturedClient } from '../../utils/index.ts';
+import type { StringOrBuffer } from '../../../../sources/index.ts';
 
 describe('lifecycle-edge', () => {
-  const tracked: FeaturedClient[] = [];
-
-  const track = (client: FeaturedClient): FeaturedClient => {
-    tracked.push(client);
-    return client;
-  };
-
-  after(async () => {
-    await Promise.all(tracked.map((client) => closeClient(client)));
-  });
-
   it('negotiates RESP3 and round-trips typed replies', async () => {
-    const client = track(await createClient({ protocol: 'RESP3' }));
+    const client = await createClient({ protocol: 'RESP3' });
 
     assert.strictEqual(await client.ping(), 'PONG');
 
@@ -41,46 +36,35 @@ describe('lifecycle-edge', () => {
     await client.hset(key, 'a', '1');
 
     const all = await client.hgetall(key);
+    const [[raw]] = await client.send([['HGETALL', key]]);
+
     assert.deepStrictEqual(all, { a: '1' });
+    assert.deepStrictEqual(raw, new Map([['a', Buffer.from('1')]]));
 
     await client.del(key);
   });
 
   it('drives the TLS socket constructor (handshake fails against a plain server)', async () => {
-    const client = new SolidisFeaturedClient(
-      buildClientOptions({
-        tls: {},
-        lazyConnect: true,
-        connectionTimeout: 500,
-        maxConnectionRetries: 0,
-      }),
+    const client = track(
+      new SolidisFeaturedClient(
+        buildClientOptions({
+          tls: {},
+          lazyConnect: true,
+          connectionTimeout: 500,
+          maxConnectionRetries: 0,
+        }),
+      ),
     );
 
     client.on('error', () => {});
 
-    // TLS against a plain TCP endpoint fails after retries in this environment
-    // because no TLS listener is bound on SOLIDIS_TEST_HOST.
+    // The test server speaks plain TCP, so the TLS handshake fails.
     await assert.rejects(
       () => client.connect(),
-      (error: Error) => {
-        if (error instanceof SolidisClientError) {
-          if (error.message === 'Connection failed after 0 retries.') {
-            const original = error.getOriginalError();
-
-            return (
-              original instanceof SolidisConnectionError &&
-              original.message === 'Connection timeout (500 ms).'
-            );
-          }
-
-          return false;
-        }
-
-        return (
-          error instanceof SolidisConnectionError &&
-          error.message === 'Connection failed after 0 retries.'
-        );
-      },
+      (error: Error) =>
+        error instanceof SolidisConnectionError &&
+        error.message === 'Connection failed after 0 retries.' &&
+        error.cause instanceof SolidisConnectionError,
     );
 
     client.quit();
@@ -113,12 +97,10 @@ describe('lifecycle-edge', () => {
   });
 
   it('does not reconnect after a kill when autoReconnect is disabled', async () => {
-    const client = track(
-      await createClient({
-        autoReconnect: false,
-        maxConnectionRetries: 0,
-      }),
-    );
+    const client = await createClient({
+      autoReconnect: false,
+      maxConnectionRetries: 0,
+    });
 
     client.on('error', () => {});
 
@@ -127,9 +109,12 @@ describe('lifecycle-edge', () => {
     client.on('ready', () => {
       backgroundReconnectCount += 1;
     });
+    client.on('reconnecting', () => {
+      backgroundReconnectCount += 1;
+    });
 
     const clientId = await client.clientId();
-    const killer = track(await createClient());
+    const killer = await createClient();
 
     const killResult = await killer.clientKill(clientId);
 
@@ -145,9 +130,7 @@ describe('lifecycle-edge', () => {
       description: 'killed client no longer exists on server',
     });
 
-    for (let tick = 0; tick < 50; tick += 1) {
-      await new Promise<void>((resolve) => setImmediate(resolve));
-    }
+    await delay(500);
 
     assert.strictEqual(
       backgroundReconnectCount,
@@ -157,21 +140,19 @@ describe('lifecycle-edge', () => {
   });
 
   it('survives rapid repeated disconnects (idempotent recovery)', async () => {
-    const client = track(
-      await createClient({
-        autoReconnect: true,
-        maxConnectionRetries: 10,
-        connectionRetryDelay: 25,
-        connectionTimeout: 500,
-      }),
-    );
+    const client = await createClient({
+      autoReconnect: true,
+      maxConnectionRetries: 10,
+      connectionRetryDelay: 25,
+      connectionTimeout: 500,
+    });
 
     client.on('error', () => {});
 
     const key = `solidis:test:rapidkill:${Date.now()}`;
     await client.set(key, 'stable');
 
-    const killer = track(await createClient());
+    const killer = await createClient();
 
     for (let round = 0; round < 2; round += 1) {
       const id = await waitFor(
@@ -207,9 +188,7 @@ describe('lifecycle-edge', () => {
   });
 
   it('streams debug entries and survives a debug-enabled command flow', async () => {
-    const client = track(
-      await createClient({ debug: true, debugMaxEntries: 64 }),
-    );
+    const client = await createClient({ debug: true });
 
     const entries: unknown[] = [];
     client.on('debug', (entry) => entries.push(entry));
@@ -224,7 +203,7 @@ describe('lifecycle-edge', () => {
             typeof entry === 'object' &&
             entry !== null &&
             'message' in entry &&
-            String(entry.message).includes('$3\r\nSET\r\n'),
+            String(entry.message).endsWith(' bytes: SET'),
         ),
       {
         timeout: 1000,
@@ -239,28 +218,24 @@ describe('lifecycle-edge', () => {
     );
 
     assert.ok(
-      messages.some(
-        (message) =>
-          message.startsWith('Requester serialized:') &&
-          message.includes('$3\r\nSET\r\n'),
+      messages.some((message) =>
+        /^Requester serialized \d+ bytes: SET$/.test(message),
       ),
     );
     assert.ok(
       messages.some(
-        (message) => message === 'Requester serialized: *1\r\n$4\r\nPING\r\n',
+        (message) => message === 'Requester serialized 14 bytes: PING',
       ),
     );
   });
 
   it('emits the "reconnected" event after a successful reconnection', async () => {
-    const client = track(
-      await createClient({
-        autoReconnect: true,
-        maxConnectionRetries: 10,
-        connectionRetryDelay: 25,
-        connectionTimeout: 500,
-      }),
-    );
+    const client = await createClient({
+      autoReconnect: true,
+      maxConnectionRetries: 10,
+      connectionRetryDelay: 25,
+      connectionTimeout: 500,
+    });
 
     let reconnectedFired = false;
 
@@ -268,12 +243,10 @@ describe('lifecycle-edge', () => {
       reconnectedFired = true;
     });
 
-    const killer = track(await createClient());
+    const killer = await createClient();
     const clientId = await client.clientId();
 
-    const readyPromise = new Promise<void>((resolve) => {
-      client.once('ready', resolve);
-    });
+    const readyPromise = nextEvent(client, 'ready');
 
     await killer.clientKill(clientId);
 
@@ -287,7 +260,6 @@ describe('lifecycle-edge', () => {
   });
 
   it('does not expose credentials in the uri getter', () => {
-    const target = resolveConnectionTarget();
     const client = track(
       new SolidisFeaturedClient(
         buildClientOptions({
@@ -299,13 +271,25 @@ describe('lifecycle-edge', () => {
 
     assert.strictEqual(
       client.uri,
-      `redis://admin:***@${target.host}:${target.port}`,
+      `redis://admin:***@${formatTargetAddress()}`,
     );
   });
 
+  it('lets extend() shadow uri like any other member', () => {
+    const client = track(
+      new SolidisFeaturedClient(buildClientOptions({ lazyConnect: true })),
+    ).extend({
+      uri() {
+        return 'custom';
+      },
+    });
+
+    assert.strictEqual(client.uri(), 'custom');
+  });
+
   it('rejects connect() after the client has been quit', async () => {
-    const client = new SolidisFeaturedClient(
-      buildClientOptions({ lazyConnect: true }),
+    const client = track(
+      new SolidisFeaturedClient(buildClientOptions({ lazyConnect: true })),
     );
 
     client.on('error', () => {});
@@ -315,12 +299,12 @@ describe('lifecycle-edge', () => {
       () => client.connect(),
       (error: Error) =>
         error instanceof SolidisClientError &&
-        error.message === 'Cannot connect after the client was closed.',
+        error.message === 'The client was quit.',
     );
   });
 
   it('returns immediately when connect() is called on an already-connected client', async () => {
-    const client = track(await createClient());
+    const client = await createClient();
 
     const idBefore = await client.clientId();
 
@@ -337,49 +321,46 @@ describe('lifecycle-edge', () => {
   });
 
   it('does not background-reconnect after quit closes the transport socket', async () => {
-    const client = track(
-      await createClient({
-        autoReconnect: true,
-        maxConnectionRetries: 5,
-        connectionRetryDelay: 50,
-      }),
-    );
-
-    let readyAfterQuit = false;
-
-    client.on('ready', () => {
-      readyAfterQuit = true;
+    const client = await createClient({
+      autoReconnect: true,
+      maxConnectionRetries: 5,
+      connectionRetryDelay: 50,
     });
+
+    const events: string[] = [];
 
     await client.ping();
 
-    const ended = new Promise<void>((resolve) => client.once('end', resolve));
+    client.on('reconnecting', () => events.push('reconnecting'));
+    client.on('connect', () => events.push('connect'));
+    client.on('ready', () => events.push('ready'));
+
+    const ended = nextEvent(client, 'end');
 
     client.quit();
 
     await ended;
+    await delay(500);
 
-    for (let tick = 0; tick < 20; tick += 1) {
-      await new Promise<void>((resolve) => setImmediate(resolve));
-    }
-
-    assert.strictEqual(
-      readyAfterQuit,
-      false,
+    assert.deepStrictEqual(
+      events,
+      [],
       'quit must set isQuitted so the socket close handler skips reconnect',
     );
   });
 
-  it('emits an error when non-lazy connect targets an unreachable port', async () => {
+  it('emits an error when a non-lazy connect is refused', async () => {
     const errorPromise = new Promise<Error>((resolve) => {
-      const client = new SolidisFeaturedClient(
-        buildClientOptions({
-          host: '127.0.0.1',
-          port: 1,
-          lazyConnect: false,
-          maxConnectionRetries: 0,
-          connectionTimeout: 200,
-        }),
+      const client = track(
+        new SolidisFeaturedClient(
+          buildClientOptions({
+            host: '127.0.0.1',
+            port: 1,
+            lazyConnect: false,
+            maxConnectionRetries: 0,
+            connectionTimeout: 200,
+          }),
+        ),
       );
 
       client.on('error', (error) => {
@@ -388,15 +369,70 @@ describe('lifecycle-edge', () => {
       });
     });
 
-    const error = await errorPromise;
+    const error = await withTimeout(errorPromise, 'The first error');
 
-    if (!(error instanceof SolidisClientError)) {
-      assert.fail('expected SolidisClientError for connection refusal');
+    if (!(error instanceof SolidisConnectionError)) {
+      assert.fail('expected SolidisConnectionError for connection refusal');
     }
-    assert.strictEqual(
-      error.message,
-      'SolidisConnectionError: Error: connect ECONNREFUSED 127.0.0.1:1',
-    );
+    assert.strictEqual(error.message, 'connect ECONNREFUSED 127.0.0.1:1');
+  });
+
+  it('answers an empty or refused send() without connecting', async () => {
+    const server = new MockRedisServer();
+
+    await server.listen();
+
+    const clients = [
+      track(new SolidisFeaturedClient(mockClientOptions(server.port))),
+      track(new SolidisFeaturedClient(mockClientOptions(1))),
+    ];
+    const notArray: StringOrBuffer[][] = JSON.parse('"GET"');
+    const notText: StringOrBuffer[][] = JSON.parse('[["GET", 1]]');
+    const refusals: [StringOrBuffer[][], string][] = [
+      [
+        [['MONITOR']],
+        'MONITOR is not supported: it breaks the pairing of requests and replies.',
+      ],
+      [
+        [['PING'], ['AUTH', 'secret']],
+        'AUTH must come first in a batch: it breaks the pairing of requests and replies.',
+      ],
+      [
+        [['SET', 'k', 'v', 'IFDEQ', 'xyz', 'GET']],
+        'SET with GET needs 16-byte digests: it breaks the pairing of requests and replies.',
+      ],
+      [[[]], 'Cannot send an empty or non-array command.'],
+      [notArray, 'Cannot send an empty or non-array command.'],
+      [notText, 'GET takes only strings and Buffers.'],
+    ];
+
+    try {
+      for (const client of clients) {
+        client.on('error', () => {});
+
+        assert.deepStrictEqual(await client.send([]), []);
+
+        for (const [commands, message] of refusals) {
+          await assert.rejects(client.send(commands), {
+            name: 'SolidisRequesterError',
+            message,
+          });
+        }
+      }
+
+      assert.strictEqual(server.acceptedCount, 0);
+
+      for (const client of clients) {
+        client.quit();
+
+        await assert.rejects(client.send([]), {
+          name: 'SolidisClientError',
+          message: 'The client was quit.',
+        });
+      }
+    } finally {
+      await server.close();
+    }
   });
 
   it('guarantees initialization completes before a concurrent connect resolves', async () => {
@@ -414,13 +450,14 @@ describe('lifecycle-edge', () => {
       }
     });
 
-    const client = new SolidisFeaturedClient(
-      mockClientOptions(server.port, {
-        enableReadyCheck: true,
-      }),
+    const client = track(
+      new SolidisFeaturedClient(
+        mockClientOptions(server.port, {
+          enableReadyCheck: true,
+        }),
+      ),
     );
 
-    track(client);
     client.on('error', () => {});
 
     try {
@@ -491,15 +528,16 @@ describe('lifecycle-edge', () => {
       socket.write(Buffer.from('+OK\r\n', 'latin1'));
     });
 
-    const client = new SolidisFeaturedClient(
-      mockClientOptions(server.port, {
-        protocol: 'RESP3',
-        authentication: { username: 'testuser', password: 'testpass' },
-        enableReadyCheck: false,
-      }),
+    const client = track(
+      new SolidisFeaturedClient(
+        mockClientOptions(server.port, {
+          protocol: 'RESP3',
+          authentication: { username: 'testuser', password: 'testpass' },
+          enableReadyCheck: false,
+        }),
+      ),
     );
 
-    track(client);
     client.on('error', () => {});
 
     await client.connect();
@@ -520,5 +558,64 @@ describe('lifecycle-edge', () => {
 
     client.quit();
     await server.close();
+  });
+
+  it('binds extension functions to a bare client and skips everything else', async () => {
+    const bare = track(
+      new SolidisClient(buildClientOptions({ lazyConnect: true })),
+    );
+    const key = `solidis:test:extend:${Date.now()}`;
+
+    bare.on('error', () => {});
+
+    const extended = bare.extend({
+      get,
+      set,
+      label: 'not a function',
+      constructor() {
+        return 'replaced';
+      },
+    });
+
+    try {
+      assert.strictEqual(extended, bare);
+      assert.strictEqual(extended.constructor, SolidisClient);
+      assert.strictEqual('label' in extended, false);
+      assert.strictEqual(await extended.set(key, 'value'), 'OK');
+
+      const { get: detachedGet } = extended;
+
+      assert.strictEqual(await detachedGet(key), 'value');
+
+      class StaticExtensions {
+        static ping() {
+          return 'PONG';
+        }
+      }
+
+      const hidden = Object.defineProperty({}, 'whoAmI', {
+        value(this: unknown) {
+          return this;
+        },
+      });
+
+      Reflect.apply(bare.extend, bare, [StaticExtensions]);
+      Reflect.apply(bare.extend, bare, [hidden]);
+
+      assert.strictEqual(Object.hasOwn(bare, 'call'), false);
+      assert.strictEqual(Object.hasOwn(bare, 'bind'), false);
+
+      for (const [name, result] of [
+        ['ping', 'PONG'],
+        ['whoAmI', bare],
+      ] as const) {
+        const method: unknown = Reflect.get(bare, name);
+
+        assert.ok(typeof method === 'function', name);
+        assert.strictEqual(Reflect.apply(method, undefined, []), result, name);
+      }
+    } finally {
+      bare.quit();
+    }
   });
 });

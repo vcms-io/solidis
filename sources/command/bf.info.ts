@@ -6,13 +6,13 @@ import {
 
 import type { RespBloomFilterInfo } from '../index.ts';
 
-const infoKeyMap: Record<string, keyof RespBloomFilterInfo> = {
-  Capacity: 'capacity',
-  Size: 'size',
-  'Number of filters': 'numberOfFilters',
-  'Number of items inserted': 'numberOfItemsInserted',
-  'Expansion rate': 'expansionRate',
-};
+const infoKeyMap = new Map<string, keyof RespBloomFilterInfo>([
+  ['Capacity', 'capacity'],
+  ['Size', 'size'],
+  ['Number of filters', 'numberOfFilters'],
+  ['Number of items inserted', 'numberOfItemsInserted'],
+  ['Expansion rate', 'expansionRate'],
+]);
 
 export function createCommand(key: string) {
   return ['BF.INFO', key];
@@ -34,7 +34,7 @@ export async function bfInfo<T>(
     const map = tryReplyToMap(reply, command);
 
     for (const [key, value] of map) {
-      const resultKey = infoKeyMap[String(key)];
+      const resultKey = infoKeyMap.get(String(key));
 
       if (!resultKey || !value) {
         continue;

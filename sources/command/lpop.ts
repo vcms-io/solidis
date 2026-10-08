@@ -1,3 +1,3 @@
-import { buildKeyStringOrNullExecutor } from './utils/index.ts';
+import { buildKeyPopExecutor } from './utils/index.ts';
 
-export const lpop = buildKeyStringOrNullExecutor('LPOP');
+export const lpop = buildKeyPopExecutor('LPOP');

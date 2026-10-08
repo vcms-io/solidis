@@ -1,8 +1,9 @@
 import {
   executeCommand,
-  newCommandError,
+  tryReplyArray,
+  tryReplyNumber,
   tryReplyToMap,
-  UnexpectedReplyPrefix,
+  tryReplyToNumberOrNull,
 } from './utils/index.ts';
 
 import type { RespStreamConsumerInfo } from '../index.ts';
@@ -19,22 +20,19 @@ export async function xinfoConsumers<T>(
   return await executeCommand(
     this,
     createCommand(key, group),
-    (reply, command) => {
-      if (!Array.isArray(reply)) {
-        throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
-      }
-
-      return reply.map((info) => {
-        /** Each consumer is a flat field/value array (RESP2) or a map (RESP3). */
+    (reply, command) =>
+      tryReplyArray(reply, command).map((info) => {
         const result = tryReplyToMap(info, command);
 
         return {
           name: String(result.get('name')),
-          pending: Number(result.get('pending')),
-          idle: Number(result.get('idle')),
-          inactive: Number(result.get('inactive')),
+          pending: tryReplyNumber(result.get('pending'), command),
+          idle: tryReplyNumber(result.get('idle'), command),
+          inactive: tryReplyToNumberOrNull(
+            result.get('inactive') ?? null,
+            command,
+          ),
         };
-      });
-    },
+      }),
   );
 }

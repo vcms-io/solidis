@@ -1,28 +1,22 @@
-import { executeCommand, tryReplyNumber } from './utils/index.ts';
+import {
+  buildKeyExpireCommand,
+  executeCommand,
+  tryReplyNumber,
+} from './utils/index.ts';
 
-export function createCommand(
-  key: string,
-  timestamp: number,
-  options?: { notExists?: boolean },
-) {
-  const command = ['EXPIREAT', key, `${timestamp}`];
+import type { CommandKeyExpireMode } from '../index.ts';
 
-  if (options?.notExists) {
-    command.push('NX');
-  }
-
-  return command;
-}
+export const createCommand = buildKeyExpireCommand('EXPIREAT');
 
 export async function expireat<T>(
   this: T,
   key: string,
   timestamp: number,
-  options?: { notExists?: boolean },
+  mode?: CommandKeyExpireMode,
 ): Promise<number> {
   return await executeCommand(
     this,
-    createCommand(key, timestamp, options),
+    createCommand(key, timestamp, mode),
     tryReplyNumber,
   );
 }

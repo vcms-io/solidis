@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyOK } from './utils/index.ts';
 
 export function createCommand(
@@ -14,7 +15,7 @@ export function createCommand(
   }
 
   if (entriesRead !== undefined) {
-    command.push('ENTRIESREAD', `${entriesRead}`);
+    command.push('ENTRIESREAD', formatInteger(entriesRead));
   }
 
   return command;

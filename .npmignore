@@ -1,9 +1,0 @@
-*
-
-!LICENSE
-!README.md
-!package.json
-
-!distributions/**
-
-distributions/tsconfig.tsbuildinfo

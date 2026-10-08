@@ -1,11 +1,14 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
-  InvalidReplyPrefix,
-  newCommandError,
-  UnexpectedReplyPrefix,
+  tryReplyArray,
+  tryReplyNumber,
+  tryReplyToInteger,
+  tryReplyTuple,
 } from './utils/index.ts';
 
 import type {
+  CommandXpendingRange,
   RespStreamPendingEntry,
   RespStreamPendingInfo,
 } from '../index.ts';
@@ -13,20 +16,18 @@ import type {
 export function createCommand(
   key: string,
   group: string,
-  start?: string,
-  end?: string,
-  count?: number,
-  consumer?: string,
-  idleTime?: number,
+  ...range: [] | CommandXpendingRange
 ) {
   const command = ['XPENDING', key, group];
 
-  if (start !== undefined) {
+  if (range.length !== 0) {
+    const [start, end, count, consumer, idleTime] = range;
+
     if (idleTime !== undefined) {
-      command.push('IDLE', `${idleTime}`);
+      command.push('IDLE', formatInteger(idleTime));
     }
 
-    command.push(start, end ?? '+', count === undefined ? '10' : `${count}`);
+    command.push(start, end, formatInteger(count));
 
     if (consumer !== undefined) {
       command.push(consumer);
@@ -40,80 +41,70 @@ export async function xpending<T>(
   this: T,
   key: string,
   group: string,
-  start?: string,
-  end?: string,
-  count?: number,
-  consumer?: string,
-  idleTime?: number,
+): Promise<RespStreamPendingInfo>;
+export async function xpending<T>(
+  this: T,
+  key: string,
+  group: string,
+  ...range: CommandXpendingRange
+): Promise<RespStreamPendingEntry[]>;
+export async function xpending<T>(
+  this: T,
+  key: string,
+  group: string,
+  ...range: [] | CommandXpendingRange
+): Promise<RespStreamPendingInfo | RespStreamPendingEntry[]>;
+export async function xpending<T>(
+  this: T,
+  key: string,
+  group: string,
+  ...range: [] | CommandXpendingRange
 ): Promise<RespStreamPendingInfo | RespStreamPendingEntry[]> {
   return await executeCommand(
     this,
-    createCommand(key, group, start, end, count, consumer, idleTime),
+    createCommand(key, group, ...range),
     (reply, command) => {
-      if (!Array.isArray(reply)) {
-        throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
-      }
-
-      if (start === undefined) {
-        if (reply.length !== 4) {
-          throw newCommandError(`${InvalidReplyPrefix}: ${reply}`, command);
-        }
-
-        const [pending, minId, maxId, consumers] = reply;
-
-        /**
-         * When the group has no pending entries the server replies with a nil
-         * id range and a nil consumers list, which is a valid (empty) summary.
-         */
-        if (consumers === null) {
-          return {
-            pending: Number(pending),
-            minId: minId === null ? null : String(minId),
-            maxId: maxId === null ? null : String(maxId),
-            consumers: [],
-          };
-        }
-
-        if (!Array.isArray(consumers)) {
-          throw newCommandError(`${InvalidReplyPrefix}: ${consumers}`, command);
-        }
-
-        return {
-          pending: Number(pending),
-          minId: minId === null ? null : String(minId),
-          maxId: maxId === null ? null : String(maxId),
-          consumers: consumers.map((consumer) => {
-            if (!Array.isArray(consumer) || consumer.length !== 2) {
-              throw newCommandError(
-                `${InvalidReplyPrefix}: ${consumer}`,
-                command,
-              );
-            }
-
-            const [name, count] = consumer;
+      if (range.length !== 0) {
+        return tryReplyArray(reply, command).map(
+          (entry): RespStreamPendingEntry => {
+            const [id, owner, deliveryTime, deliveryCount] = tryReplyTuple(
+              entry,
+              4,
+              command,
+            );
 
             return {
-              name: String(name),
-              count: Number(count),
+              id: String(id),
+              consumer: String(owner),
+              deliveryTime: tryReplyNumber(deliveryTime, command),
+              deliveryCount: tryReplyNumber(deliveryCount, command),
             };
-          }),
-        };
+          },
+        );
       }
 
-      return reply.map((entry): RespStreamPendingEntry => {
-        if (!Array.isArray(entry) || entry.length !== 4) {
-          throw newCommandError(`${InvalidReplyPrefix}: ${entry}`, command);
-        }
+      const [pending, minId, maxId, consumers] = tryReplyTuple(
+        reply,
+        4,
+        command,
+      );
 
-        const [id, consumer, deliveryTime, deliveryCount] = entry;
+      return {
+        pending: tryReplyNumber(pending, command),
+        minId: minId === null ? null : String(minId),
+        maxId: maxId === null ? null : String(maxId),
+        consumers:
+          consumers === null
+            ? []
+            : tryReplyArray(consumers, command).map((entry) => {
+                const [name, total] = tryReplyTuple(entry, 2, command);
 
-        return {
-          id: String(id),
-          consumer: String(consumer),
-          deliveryTime: Number(deliveryTime),
-          deliveryCount: Number(deliveryCount),
-        };
-      });
+                return {
+                  name: String(name),
+                  count: tryReplyToInteger(total, command),
+                };
+              }),
+      };
     },
   );
 }

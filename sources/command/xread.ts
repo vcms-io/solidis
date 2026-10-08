@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
   newCommandError,
@@ -15,16 +16,14 @@ export function createCommand(
   const command = ['XREAD'];
 
   if (count !== undefined) {
-    command.push('COUNT', `${count}`);
+    command.push('COUNT', formatInteger(count));
   }
 
   if (block !== undefined) {
-    command.push('BLOCK', `${block}`);
+    command.push('BLOCK', formatInteger(block));
   }
 
-  command.push('STREAMS', ...keys, ...ids);
-
-  return command;
+  return [...command, 'STREAMS', ...keys, ...ids];
 }
 
 export async function xread<T>(
@@ -42,5 +41,7 @@ export async function xread<T>(
     this,
     createCommand(keys, ids, count, block),
     tryReplyToStreamReadResultsOrNull,
+    undefined,
+    { blockingTimeout: block },
   );
 }

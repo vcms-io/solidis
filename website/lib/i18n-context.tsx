@@ -18,7 +18,7 @@ interface I18nContextType {
   locale: Locale;
   messages: Messages;
   setLocale: (locale: Locale) => void;
-  t: (key: string) => string;
+  t: (key: string, values?: Record<string, string | number>) => string;
 }
 
 const I18nContext = createContext<I18nContextType | undefined>(undefined);
@@ -32,19 +32,28 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>('en');
 
   useEffect(() => {
-    // Load saved locale from localStorage
-    const saved = localStorage.getItem('locale') as Locale;
-    if (saved && (saved === 'en' || saved === 'ko')) {
-      setLocaleState(saved);
-    }
+    try {
+      const saved = localStorage.getItem('locale');
+
+      if (saved === 'en' || saved === 'ko') {
+        setLocaleState(saved);
+      }
+    } catch {}
   }, []);
+
+  useEffect(() => {
+    document.documentElement.lang = locale;
+  }, [locale]);
 
   const setLocale = (newLocale: Locale) => {
     setLocaleState(newLocale);
-    localStorage.setItem('locale', newLocale);
+
+    try {
+      localStorage.setItem('locale', newLocale);
+    } catch {}
   };
 
-  const t = (key: string): string => {
+  const t = (key: string, values?: Record<string, string | number>): string => {
     const keys = key.split('.');
     let value: unknown = translations[locale];
 
@@ -56,7 +65,11 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    return typeof value === 'string' ? value : key;
+    return typeof value === 'string'
+      ? value.replace(/\{(\w+)\}/g, (placeholder, name: string) =>
+          String(values?.[name] ?? placeholder),
+        )
+      : key;
   };
 
   return (

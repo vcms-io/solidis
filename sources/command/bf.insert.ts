@@ -1,6 +1,11 @@
-import { executeCommand, tryReplyToNumberArray } from './utils/index.ts';
+import { formatInteger } from '../common/utils/internal.ts';
+import {
+  executeCommand,
+  tryReplyToBoolean,
+  tryReplyToValueOrErrorArray,
+} from './utils/index.ts';
 
-import type { CommandBloomFilterInsertOptions } from '../index.ts';
+import type { CommandBloomFilterInsertOptions, RespError } from '../index.ts';
 
 export function createCommand(
   key: string,
@@ -11,7 +16,7 @@ export function createCommand(
 
   if (options) {
     if (options.capacity !== undefined) {
-      command.push('CAPACITY', `${options.capacity}`);
+      command.push('CAPACITY', formatInteger(options.capacity));
     }
 
     if (options.error !== undefined) {
@@ -19,7 +24,7 @@ export function createCommand(
     }
 
     if (options.expansion !== undefined) {
-      command.push('EXPANSION', `${options.expansion}`);
+      command.push('EXPANSION', formatInteger(options.expansion));
     }
 
     if (options.nonScaling) {
@@ -31,9 +36,7 @@ export function createCommand(
     }
   }
 
-  command.push('ITEMS', ...items);
-
-  return command;
+  return [...command, 'ITEMS', ...items];
 }
 
 export async function bfInsert<T>(
@@ -41,10 +44,13 @@ export async function bfInsert<T>(
   key: string,
   items: string[],
   options?: CommandBloomFilterInsertOptions,
-): Promise<number[]> {
+): Promise<(boolean | RespError)[]> {
+  const count = items.length;
+
   return await executeCommand(
     this,
     createCommand(key, items, options),
-    tryReplyToNumberArray,
+    (reply, command) =>
+      tryReplyToValueOrErrorArray(reply, command, count, tryReplyToBoolean),
   );
 }

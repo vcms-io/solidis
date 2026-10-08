@@ -1,3 +1,4 @@
+import { appendItems } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyNumber } from './utils/index.ts';
 
 export function createCommand(key: string, ...fields: string[]) {
@@ -11,7 +12,7 @@ export async function hdel<T>(
 ): Promise<number> {
   return await executeCommand(
     this,
-    createCommand(key, ...fields),
+    appendItems(createCommand(key), fields),
     tryReplyNumber,
   );
 }

@@ -1,4 +1,4 @@
-/** Reply race: fire-and-forget dispatch in resolveRepliesInChunks desynchronises reply correlation. */
+/** Reply race: replies split across socket chunks must stay attributed to their own pipelines. */
 
 import assert from 'node:assert/strict';
 import { afterEach, describe, it } from 'node:test';
@@ -37,7 +37,7 @@ describe('reply-race', () => {
     }
   });
 
-  it('attributes every reply to the correct pipeline across chunked processing', async () => {
+  it('attributes every reply to the correct pipeline across socket chunks', async () => {
     const server = await startMockServer();
 
     const commandCount = 200;
@@ -65,8 +65,6 @@ describe('reply-race', () => {
     const client = trackMockClient(
       new SolidisFeaturedClient(
         mockClientOptions(server.port, {
-          maxProcessRepliesPerChunk: 1,
-          maxProcessReplyBytesPerChunk: 12,
           maxCommandsPerPipeline: commandCount,
           commandTimeout: 10000,
         }),
@@ -97,7 +95,7 @@ describe('reply-race', () => {
     assert.deepStrictEqual(secondaryReplies, [['b']]);
   });
 
-  it('preserves reply order under a different byte-chunk alignment', async () => {
+  it('preserves reply order when a chunk ends inside a reply', async () => {
     const server = await startMockServer();
 
     const commandCount = 100;
@@ -113,20 +111,18 @@ describe('reply-race', () => {
 
       socket.setNoDelay(true);
 
-      const repliesForPrimary = '+x\r\n'.repeat(commandCount);
+      const repliesForPrimary = '+x\r\n'.repeat(commandCount - 1);
 
-      socket.write(Buffer.from(repliesForPrimary, 'latin1'));
+      socket.write(Buffer.from(`${repliesForPrimary}+x\r`, 'latin1'));
 
       setTimeout(() => {
-        socket.write(Buffer.from('+y\r\n', 'latin1'));
+        socket.write(Buffer.from('\n+y\r\n', 'latin1'));
       }, 0);
     });
 
     const client = trackMockClient(
       new SolidisFeaturedClient(
         mockClientOptions(server.port, {
-          maxProcessRepliesPerChunk: 1,
-          maxProcessReplyBytesPerChunk: 14,
           maxCommandsPerPipeline: commandCount,
           commandTimeout: 10000,
         }),

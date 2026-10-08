@@ -1,12 +1,13 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
-  newCommandError,
+  processPairedArray,
+  tryReplyArray,
+  tryReplyToString,
   tryReplyToStringArray,
-  tryReplyToStringRecord,
-  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
-import type { RespHashField } from '../index.ts';
+import type { RespHashEntry, StringOrBuffer } from '../index.ts';
 
 export function createCommand(
   key: string,
@@ -15,23 +16,59 @@ export function createCommand(
 ) {
   const command = ['HRANDFIELD', key];
 
-  if (count !== undefined) {
-    command.push(`${count}`);
+  if (count !== undefined || withvalues) {
+    command.push(formatInteger(count ?? 1));
+  }
 
-    if (withvalues) {
-      command.push('WITHVALUES');
-    }
+  if (withvalues) {
+    command.push('WITHVALUES');
   }
 
   return command;
 }
 
+function tryReplyToHashEntries(reply: unknown, command: StringOrBuffer[]) {
+  const entries: RespHashEntry[] = [];
+
+  processPairedArray(
+    tryReplyArray(reply, command).flat(),
+    (field, value) => {
+      entries.push({ field, value: tryReplyToString(value, command) });
+    },
+    command,
+  );
+
+  return entries;
+}
+
+export async function hrandfield<T>(
+  this: T,
+  key: string,
+): Promise<string | null>;
+export async function hrandfield<T>(
+  this: T,
+  key: string,
+  count: number,
+  withvalues?: false,
+): Promise<string[]>;
+export async function hrandfield<T>(
+  this: T,
+  key: string,
+  count: number | undefined,
+  withvalues: true,
+): Promise<RespHashEntry[]>;
 export async function hrandfield<T>(
   this: T,
   key: string,
   count?: number,
   withvalues?: boolean,
-): Promise<string[] | RespHashField | string | null> {
+): Promise<string | string[] | RespHashEntry[] | null>;
+export async function hrandfield<T>(
+  this: T,
+  key: string,
+  count?: number,
+  withvalues?: boolean,
+): Promise<string | string[] | RespHashEntry[] | null> {
   return await executeCommand(
     this,
     createCommand(key, count, withvalues),
@@ -40,20 +77,15 @@ export async function hrandfield<T>(
         return null;
       }
 
-      if (typeof reply === 'string' || reply instanceof Buffer) {
-        return `${reply}`;
+      if (withvalues) {
+        return tryReplyToHashEntries(reply, command);
       }
 
-      if (Array.isArray(reply)) {
-        if (withvalues && count !== undefined) {
-          /** RESP3 nests each field/value as a pair; flatten to match RESP2. */
-          return tryReplyToStringRecord(reply.flat(), 'HRANDFIELD');
-        }
-
-        return tryReplyToStringArray(reply, command);
+      if (count === undefined) {
+        return tryReplyToString(reply, command);
       }
 
-      throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
+      return tryReplyToStringArray(reply, command);
     },
   );
 }

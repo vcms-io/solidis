@@ -1,10 +1,9 @@
 import {
   buildJsonKeyPathCommand,
   executeCommand,
-  newCommandError,
+  tryReplyArray,
+  tryReplyToNullableStringArray,
   tryReplyToString,
-  tryReplyToStringArray,
-  UnexpectedReplyPrefix,
 } from './utils/index.ts';
 
 export function createCommand(key: string, path?: string) {
@@ -14,32 +13,37 @@ export function createCommand(key: string, path?: string) {
 export async function jsonObjkeys<T>(
   this: T,
   key: string,
-): Promise<(string | null)[]>;
+): Promise<(string | null)[] | null>;
 export async function jsonObjkeys<T>(
   this: T,
   key: string,
   path: string,
-): Promise<(string | null)[] | ((string | null)[] | null)[]>;
+): Promise<(string | null)[] | ((string | null)[] | null)[] | null>;
 export async function jsonObjkeys<T>(
   this: T,
   key: string,
   path?: string,
-): Promise<(string | (string | null)[] | null)[]> {
+): Promise<(string | (string | null)[] | null)[] | null>;
+export async function jsonObjkeys<T>(
+  this: T,
+  key: string,
+  path?: string,
+): Promise<(string | (string | null)[] | null)[] | null> {
   return await executeCommand(
     this,
     createCommand(key, path),
     (reply, command) => {
-      if (!Array.isArray(reply)) {
-        throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
+      if (reply === null) {
+        return null;
       }
 
-      return reply.map((entry) => {
+      return tryReplyArray(reply, command).map((entry) => {
         if (entry === null) {
           return null;
         }
 
         if (Array.isArray(entry)) {
-          return tryReplyToStringArray(entry, command, true);
+          return tryReplyToNullableStringArray(entry, command);
         }
 
         return tryReplyToString(entry, command);

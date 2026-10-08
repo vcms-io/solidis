@@ -19,7 +19,7 @@ function makePayload(size: number, seed: number): Buffer {
     payload[offset] = state >>> 24;
   }
 
-  if (size > 0) {
+  if (size >= 4) {
     payload.writeUInt32LE(state, 0);
   }
 

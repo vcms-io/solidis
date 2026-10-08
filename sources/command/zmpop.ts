@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
   tryReplyToKeySortedSetMembersOrNull,
@@ -13,7 +14,7 @@ export function createCommand(
   const command = ['ZMPOP', `${keys.length}`, ...keys, where];
 
   if (count !== undefined) {
-    command.push('COUNT', `${count}`);
+    command.push('COUNT', formatInteger(count));
   }
 
   return command;

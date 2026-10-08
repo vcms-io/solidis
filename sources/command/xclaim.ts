@@ -1,18 +1,13 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
   tryReplyToStreamEntries,
   tryReplyToStringArray,
 } from './utils/index.ts';
 
-import type { RespStreamEntry } from '../index.ts';
+import type { RespStreamEntry, XclaimOptions } from '../index.ts';
 
-export interface XclaimOptions {
-  idle?: number;
-  time?: number;
-  retrycount?: number;
-  force?: boolean;
-  justid?: boolean;
-}
+export type { XclaimOptions };
 
 export function createCommand(
   key: string,
@@ -22,18 +17,25 @@ export function createCommand(
   ids: string[],
   options?: XclaimOptions,
 ) {
-  const command = ['XCLAIM', key, group, consumer, `${minIdleTime}`, ...ids];
+  const command = [
+    'XCLAIM',
+    key,
+    group,
+    consumer,
+    formatInteger(minIdleTime),
+    ...ids,
+  ];
 
   if (options?.idle !== undefined) {
-    command.push('IDLE', `${options.idle}`);
+    command.push('IDLE', formatInteger(options.idle));
   }
 
   if (options?.time !== undefined) {
-    command.push('TIME', `${options.time}`);
+    command.push('TIME', formatInteger(options.time));
   }
 
   if (options?.retrycount !== undefined) {
-    command.push('RETRYCOUNT', `${options.retrycount}`);
+    command.push('RETRYCOUNT', formatInteger(options.retrycount));
   }
 
   if (options?.force) {
@@ -54,17 +56,38 @@ export async function xclaim<T>(
   consumer: string,
   minIdleTime: number,
   ids: string[],
+  options: XclaimOptions & { justid: true },
+): Promise<string[]>;
+export async function xclaim<T>(
+  this: T,
+  key: string,
+  group: string,
+  consumer: string,
+  minIdleTime: number,
+  ids: string[],
+  options?: XclaimOptions & { justid?: false },
+): Promise<RespStreamEntry[]>;
+export async function xclaim<T>(
+  this: T,
+  key: string,
+  group: string,
+  consumer: string,
+  minIdleTime: number,
+  ids: string[],
+  options?: XclaimOptions,
+): Promise<RespStreamEntry[] | string[]>;
+export async function xclaim<T>(
+  this: T,
+  key: string,
+  group: string,
+  consumer: string,
+  minIdleTime: number,
+  ids: string[],
   options?: XclaimOptions,
 ): Promise<RespStreamEntry[] | string[]> {
-  return await executeCommand(
+  return await executeCommand<T, RespStreamEntry[] | string[]>(
     this,
     createCommand(key, group, consumer, minIdleTime, ids, options),
-    (reply, command) => {
-      if (options?.justid) {
-        return tryReplyToStringArray(reply, command);
-      }
-
-      return tryReplyToStreamEntries(reply, command);
-    },
+    options?.justid ? tryReplyToStringArray : tryReplyToStreamEntries,
   );
 }

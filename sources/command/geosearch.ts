@@ -1,3 +1,4 @@
+import { readGeoReplyOptions } from '../common/utils/internal.ts';
 import {
   buildGeoSearchCommand,
   executeCommand,
@@ -30,6 +31,7 @@ export async function geosearch<T>(
   return await executeCommand(
     this,
     createCommand(key, from, by, options),
-    (reply) => tryReplyToGeoRadius(reply, 'GEOSEARCH', options),
+    tryReplyToGeoRadius,
+    readGeoReplyOptions(options),
   );
 }

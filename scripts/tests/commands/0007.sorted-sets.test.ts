@@ -168,6 +168,7 @@ describe('sorted-sets', () => {
       'd',
     ]);
     assert.strictEqual(await client.zlexcount(key, '-', '+'), 4);
+    assert.strictEqual(await client.zlexcount(key, '[b', '(d'), 2);
   });
 
   it('stores a range into a new key with ZRANGESTORE', async () => {

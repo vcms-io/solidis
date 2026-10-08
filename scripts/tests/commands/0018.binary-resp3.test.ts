@@ -50,7 +50,7 @@ describe('binary-resp3', () => {
 
   it('preserves multi-byte UTF-8 strings', async () => {
     const key = keyspace.key('utf8');
-    const value = '?�녕?�세???�� ?�ん?�ち??Ω';
+    const value = '안녕하세요 세계 こんにちは Ω 😀';
 
     await client.set(key, value);
 
@@ -69,7 +69,7 @@ describe('binary-resp3', () => {
     assert.deepStrictEqual(value, payload);
   });
 
-  it('stores binary field names and values in hashes', async () => {
+  it('stores binary values in hash fields', async () => {
     const key = keyspace.key('hash-binary');
     const field = 'binary-field';
     const payload = randomBuffer(256);
@@ -87,6 +87,8 @@ describe('binary-resp3', () => {
     try {
       const key = keyspace.key('resp3', 'string');
 
+      assert.strictEqual((await resp3.hello()).proto, 3);
+
       assert.strictEqual(await resp3.set(key, 'value'), 'OK');
       assert.strictEqual(await resp3.get(key), 'value');
       assert.strictEqual(await resp3.incr(keyspace.key('resp3', 'counter')), 1);
@@ -101,6 +103,8 @@ describe('binary-resp3', () => {
     try {
       const key = keyspace.key('resp3', 'hash');
 
+      assert.strictEqual((await resp3.hello()).proto, 3);
+
       await resp3.hmset(key, { one: '1', two: '2' });
 
       assert.deepStrictEqual(await resp3.hgetall(key), { one: '1', two: '2' });
@@ -114,6 +118,8 @@ describe('binary-resp3', () => {
 
     try {
       const key = keyspace.key('resp3', 'set');
+
+      assert.strictEqual((await resp3.hello()).proto, 3);
 
       await resp3.sadd(key, 'a', 'b', 'c');
 
@@ -132,6 +138,8 @@ describe('binary-resp3', () => {
 
     try {
       const key = keyspace.key('resp3', 'zset');
+
+      assert.strictEqual((await resp3.hello()).proto, 3);
 
       await resp3.zadd(key, 3.14, 'pi');
 

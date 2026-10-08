@@ -1,3 +1,4 @@
+import { readGeoReplyOptions } from '../common/utils/internal.ts';
 import {
   buildGeoRadiusCommand,
   executeCommand,
@@ -38,12 +39,43 @@ export async function georadius<T>(
   latitude: number,
   radius: number,
   unit: CommandGeoUnitOption,
+  options: CommandGeoRadiusOptions &
+    ({ store: string } | { storedist: string }),
+): Promise<number>;
+export async function georadius<T>(
+  this: T,
+  key: string,
+  longitude: number,
+  latitude: number,
+  radius: number,
+  unit: CommandGeoUnitOption,
+  options?: CommandGeoRadiusOptions & {
+    store?: undefined;
+    storedist?: undefined;
+  },
+): Promise<RespGeoRadius[]>;
+export async function georadius<T>(
+  this: T,
+  key: string,
+  longitude: number,
+  latitude: number,
+  radius: number,
+  unit: CommandGeoUnitOption,
+  options?: CommandGeoRadiusOptions,
+): Promise<RespGeoRadius[] | number>;
+export async function georadius<T>(
+  this: T,
+  key: string,
+  longitude: number,
+  latitude: number,
+  radius: number,
+  unit: CommandGeoUnitOption,
   options?: CommandGeoRadiusOptions,
 ): Promise<RespGeoRadius[] | number> {
   return await executeCommand(
     this,
     createCommand(key, longitude, latitude, radius, unit, options),
-    (reply, command) =>
-      tryReplyToGeoRadiusOrStoreCount(reply, command, options),
+    tryReplyToGeoRadiusOrStoreCount,
+    readGeoReplyOptions(options),
   );
 }

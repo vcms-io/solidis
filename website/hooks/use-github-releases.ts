@@ -27,7 +27,6 @@ export function useGitHubReleases() {
     fallback: true,
   });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchReleases() {
@@ -42,13 +41,11 @@ export function useGitHubReleases() {
 
         const releaseData = await response.json();
         setData(releaseData);
-        setError(null);
       } catch (error) {
         console.warn(
           'Failed to fetch GitHub releases, using fallback data:',
           error,
         );
-        setError(error instanceof Error ? error.message : 'Unknown error');
       } finally {
         setLoading(false);
       }
@@ -59,5 +56,5 @@ export function useGitHubReleases() {
     }
   }, []);
 
-  return { ...data, loading, error };
+  return { ...data, loading };
 }

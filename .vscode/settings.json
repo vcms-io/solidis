@@ -7,8 +7,6 @@
   "editor.codeActionsOnSave": {
     "source.fixAll.biome": "explicit"
   },
-  "typescript.preferences.importModuleSpecifierEnding": "js",
   "typescript.preferences.quoteStyle": "single",
-  "typescript.preferences.includePackageJsonAutoImports": "on",
-  "typescript.tsdk": "node_modules/typescript/lib"
+  "typescript.preferences.includePackageJsonAutoImports": "on"
 }

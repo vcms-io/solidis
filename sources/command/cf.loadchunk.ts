@@ -1,7 +1,8 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyOK } from './utils/index.ts';
 
 export function createCommand(key: string, iterator: number, data: Buffer) {
-  return ['CF.LOADCHUNK', key, `${iterator}`, data];
+  return ['CF.LOADCHUNK', key, formatInteger(iterator), data];
 }
 
 export async function cfLoadchunk<T>(

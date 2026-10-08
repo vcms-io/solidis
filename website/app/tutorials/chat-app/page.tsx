@@ -89,7 +89,10 @@ export interface Message {
 export class ChatManager {
   private publisher: SolidisFeaturedClient;
   private subscriber: SolidisFeaturedClient;
-  private messageHandlers: Map<string, (message: Message) => void>;
+  private messageHandlers: Map<
+    string,
+    Map<string, (message: Message) => void>
+  >;
 
   constructor(options: { host?: string; port?: number } = {}) {
     // Separate clients for pub and sub
@@ -115,8 +118,7 @@ export class ChatManager {
       const roomId = channel.replace('chat:', '');
       const data = JSON.parse(message.toString()) as Message;
 
-      const handler = this.messageHandlers.get(roomId);
-      if (handler) {
+      for (const handler of this.messageHandlers.get(roomId)?.values() ?? []) {
         handler(data);
       }
     });
@@ -127,18 +129,31 @@ export class ChatManager {
    */
   async joinRoom(
     roomId: string,
+    subscriberId: string,
     onMessage: (message: Message) => void
   ): Promise<void> {
     const channel = \`chat:\${roomId}\`;
-    this.messageHandlers.set(roomId, onMessage);
-    await this.subscriber.subscribe(channel);
+    const handlers = this.messageHandlers.get(roomId) ?? new Map();
+
+    handlers.set(subscriberId, onMessage);
+    this.messageHandlers.set(roomId, handlers);
+
+    if (handlers.size === 1) {
+      await this.subscriber.subscribe(channel);
+    }
   }
 
   /**
    * Leave a chat room
    */
-  async leaveRoom(roomId: string): Promise<void> {
+  async leaveRoom(roomId: string, subscriberId: string): Promise<void> {
     const channel = \`chat:\${roomId}\`;
+    const handlers = this.messageHandlers.get(roomId);
+
+    if (!handlers?.delete(subscriberId) || handlers.size > 0) {
+      return;
+    }
+
     this.messageHandlers.delete(roomId);
     await this.subscriber.unsubscribe(channel);
   }
@@ -188,7 +203,7 @@ export class ChatManager {
     // Get last N messages
     const messages = await this.publisher.zrange(key, \`\${-limit}\`, '-1');
 
-    return (messages as string[]).map((msg) => JSON.parse(msg) as Message);
+    return messages.map((message) => JSON.parse(message) as Message);
   }
 
   /**
@@ -237,7 +252,7 @@ export class ChatManager {
             <CodeBlock
               code={`import { WebSocketServer, WebSocket } from 'ws';
 import { ChatManager, Message } from './chat-manager';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 
 interface ClientData {
   userId: string;
@@ -264,7 +279,7 @@ export class ChatServer {
 
       // Initialize client data
       this.clients.set(ws, {
-        userId: uuidv4(),
+        userId: randomUUID(),
         username: 'Anonymous',
         roomId: null,
       });
@@ -282,7 +297,7 @@ export class ChatServer {
       ws.on('close', async () => {
         const client = this.clients.get(ws);
         if (client?.roomId) {
-          await this.chat.leaveRoom(client.roomId);
+          await this.chat.leaveRoom(client.roomId, client.userId);
           await this.chat.removeUser(client.roomId, client.userId);
         }
         this.clients.delete(ws);
@@ -325,7 +340,8 @@ export class ChatServer {
   ) {
     // Leave current room if any
     if (client.roomId) {
-      await this.chat.leaveRoom(client.roomId);
+      await this.chat.leaveRoom(client.roomId, client.userId);
+      await this.chat.removeUser(client.roomId, client.userId);
     }
 
     // Update client data
@@ -333,7 +349,7 @@ export class ChatServer {
     client.username = username || 'Anonymous';
 
     // Join new room
-    await this.chat.joinRoom(roomId, (message) => {
+    await this.chat.joinRoom(roomId, client.userId, (message) => {
       this.sendToClient(ws, {
         type: 'message',
         data: message,
@@ -360,7 +376,7 @@ export class ChatServer {
 
   private async handleLeave(ws: WebSocket, client: ClientData) {
     if (client.roomId) {
-      await this.chat.leaveRoom(client.roomId);
+      await this.chat.leaveRoom(client.roomId, client.userId);
       await this.chat.removeUser(client.roomId, client.userId);
       client.roomId = null;
 
@@ -379,7 +395,7 @@ export class ChatServer {
     }
 
     const message: Message = {
-      id: uuidv4(),
+      id: randomUUID(),
       roomId: client.roomId,
       userId: client.userId,
       username: client.username,
@@ -487,6 +503,7 @@ ws.onmessage = (event) => {
   switch (data.type) {
     case 'joined':
       console.log('Joined room:', data.roomId);
+      sendMessage('Hello, everyone!');
       break;
 
     case 'message':
@@ -500,14 +517,12 @@ ws.onmessage = (event) => {
 };
 
 // Send a message
-function sendMessage(content) {
+function sendMessage(content: string) {
   ws.send(JSON.stringify({
     type: 'message',
     content,
   }));
-}
-
-sendMessage('Hello, everyone!');`}
+}`}
               language="typescript"
               showLineNumbers={true}
             />

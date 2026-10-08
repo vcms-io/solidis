@@ -1,9 +1,14 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
-  InvalidReplyPrefix,
-  newCommandError,
+  tryReplyArray,
+  tryReplyNumber,
   tryReplyToMap,
+  tryReplyToNumberOrNull,
+  tryReplyToStreamEntries,
   tryReplyToStreamEntry,
+  tryReplyToStringOrNull,
+  tryReplyTuple,
 } from './utils/index.ts';
 
 import type {
@@ -23,7 +28,7 @@ export function createCommand(key: string, full?: boolean, count?: number) {
     command.push('FULL');
 
     if (count !== undefined) {
-      command.push('COUNT', `${count}`);
+      command.push('COUNT', formatInteger(count));
     }
   }
 
@@ -36,30 +41,29 @@ function parseConsumer(
 ): RespStreamGroupConsumer {
   const result = tryReplyToMap(info, command);
 
-  const pending = result.get('pending');
-
-  if (!Array.isArray(pending)) {
-    throw newCommandError(`${InvalidReplyPrefix}: ${pending}`, command);
-  }
-
   return {
     name: String(result.get('name')),
-    seenTime: Number(result.get('seen-time')),
-    activeTime: Number(result.get('active-time')),
-    pelCount: Number(result.get('pel-count')),
-    pending: pending.map((entry): RespStreamConsumerPending => {
-      if (!Array.isArray(entry) || entry.length !== 3) {
-        throw newCommandError(`${InvalidReplyPrefix}: ${entry}`, command);
-      }
+    seenTime: tryReplyNumber(result.get('seen-time'), command),
+    activeTime: tryReplyToNumberOrNull(
+      result.get('active-time') ?? null,
+      command,
+    ),
+    pelCount: tryReplyNumber(result.get('pel-count'), command),
+    pending: tryReplyArray(result.get('pending'), command).map(
+      (entry): RespStreamConsumerPending => {
+        const [id, deliveryTime, deliveryCount] = tryReplyTuple(
+          entry,
+          3,
+          command,
+        );
 
-      const [id, deliveryTime, deliveryCount] = entry;
-
-      return {
-        id: String(id),
-        deliveryTime: Number(deliveryTime),
-        deliveryCount: Number(deliveryCount),
-      };
-    }),
+        return {
+          id: String(id),
+          deliveryTime: tryReplyNumber(deliveryTime, command),
+          deliveryCount: tryReplyNumber(deliveryCount, command),
+        };
+      },
+    ),
   };
 }
 
@@ -69,42 +73,53 @@ function parseGroup(
 ): RespStreamGroupDetail {
   const result = tryReplyToMap(info, command);
 
-  const pending = result.get('pending');
-
-  if (!Array.isArray(pending)) {
-    throw newCommandError(`${InvalidReplyPrefix}: ${pending}`, command);
-  }
-
-  const consumers = result.get('consumers');
-
-  if (!Array.isArray(consumers)) {
-    throw newCommandError(`${InvalidReplyPrefix}: ${consumers}`, command);
-  }
-
   return {
     name: String(result.get('name')),
     lastDeliveredId: String(result.get('last-delivered-id')),
-    entriesRead: Number(result.get('entries-read')),
-    lag: result.get('lag') === null ? null : Number(result.get('lag')),
-    pelCount: Number(result.get('pel-count')),
-    pending: pending.map((entry): RespStreamGroupPending => {
-      if (!Array.isArray(entry) || entry.length !== 4) {
-        throw newCommandError(`${InvalidReplyPrefix}: ${entry}`, command);
-      }
+    entriesRead: tryReplyToNumberOrNull(
+      result.get('entries-read') ?? null,
+      command,
+    ),
+    lag: tryReplyToNumberOrNull(result.get('lag') ?? null, command),
+    pelCount: tryReplyNumber(result.get('pel-count'), command),
+    pending: tryReplyArray(result.get('pending'), command).map(
+      (entry): RespStreamGroupPending => {
+        const [id, consumer, deliveryTime, deliveryCount] = tryReplyTuple(
+          entry,
+          4,
+          command,
+        );
 
-      const [id, consumer, deliveryTime, deliveryCount] = entry;
-
-      return {
-        id: String(id),
-        consumer: String(consumer),
-        deliveryTime: Number(deliveryTime),
-        deliveryCount: Number(deliveryCount),
-      };
-    }),
-    consumers: consumers.map((consumer) => parseConsumer(consumer, command)),
+        return {
+          id: String(id),
+          consumer: String(consumer),
+          deliveryTime: tryReplyNumber(deliveryTime, command),
+          deliveryCount: tryReplyNumber(deliveryCount, command),
+        };
+      },
+    ),
+    consumers: tryReplyArray(result.get('consumers'), command).map((consumer) =>
+      parseConsumer(consumer, command),
+    ),
   };
 }
 
+export async function xinfoStream<T>(
+  this: T,
+  key: string,
+  full?: false,
+): Promise<RespStreamInfo>;
+export async function xinfoStream<T>(
+  this: T,
+  key: string,
+  full: true,
+  count?: number,
+): Promise<RespStreamInfoFull>;
+export async function xinfoStream<T>(
+  this: T,
+  key: string,
+  ...parameters: [full?: boolean] | [full: true, count?: number]
+): Promise<RespStreamInfo | RespStreamInfoFull>;
 export async function xinfoStream<T>(
   this: T,
   key: string,
@@ -117,16 +132,19 @@ export async function xinfoStream<T>(
     (reply, command) => {
       const result = tryReplyToMap(reply, command);
 
-      const baseInformation = {
-        length: Number(result.get('length')),
-        radixTreeKeys: Number(result.get('radix-tree-keys')),
-        radixTreeNodes: Number(result.get('radix-tree-nodes')),
+      const information = {
+        length: tryReplyNumber(result.get('length'), command),
+        radixTreeKeys: tryReplyNumber(result.get('radix-tree-keys'), command),
+        radixTreeNodes: tryReplyNumber(result.get('radix-tree-nodes'), command),
         lastGeneratedId: String(result.get('last-generated-id')),
-        maxDeletedEntryId: String(result.get('max-deleted-entry-id')),
-        entriesAdded: Number(result.get('entries-added')),
-        firstEntry: null,
-        lastEntry: null,
-        groups: Number(result.get('groups')),
+        maxDeletedEntryId: tryReplyToStringOrNull(
+          result.get('max-deleted-entry-id') ?? null,
+          command,
+        ),
+        entriesAdded: tryReplyToNumberOrNull(
+          result.get('entries-added') ?? null,
+          command,
+        ),
       };
 
       if (!full) {
@@ -134,29 +152,27 @@ export async function xinfoStream<T>(
         const lastEntry = result.get('last-entry');
 
         return {
-          ...baseInformation,
-          firstEntry: firstEntry ? tryReplyToStreamEntry(firstEntry) : null,
-          lastEntry: lastEntry ? tryReplyToStreamEntry(lastEntry) : null,
+          ...information,
+          firstEntry: firstEntry
+            ? tryReplyToStreamEntry(firstEntry, command)
+            : null,
+          lastEntry: lastEntry
+            ? tryReplyToStreamEntry(lastEntry, command)
+            : null,
+          groups: tryReplyNumber(result.get('groups'), command),
         };
       }
 
-      const entries = result.get('entries');
-
-      if (!Array.isArray(entries)) {
-        throw newCommandError(`${InvalidReplyPrefix}: ${entries}`, command);
-      }
-
-      const groups = result.get('groups');
-
-      if (!Array.isArray(groups)) {
-        throw newCommandError(`${InvalidReplyPrefix}: ${groups}`, command);
-      }
-
       return {
-        ...baseInformation,
-        recordedFirstEntryId: String(result.get('recorded-first-entry-id')),
-        entries: entries.map(tryReplyToStreamEntry),
-        groups: groups.map((group) => parseGroup(group, command)),
+        ...information,
+        recordedFirstEntryId: tryReplyToStringOrNull(
+          result.get('recorded-first-entry-id') ?? null,
+          command,
+        ),
+        entries: tryReplyToStreamEntries(result.get('entries'), command),
+        groups: tryReplyArray(result.get('groups'), command).map((group) =>
+          parseGroup(group, command),
+        ),
       };
     },
   );

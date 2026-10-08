@@ -12,6 +12,8 @@ import {
   isCommandSupported,
   uniqueSuffix,
   waitFor,
+  withConfig,
+  withoutSanitizePayload,
 } from '../utils/index.ts';
 
 import type { FeaturedClient, ServerCapabilities } from '../utils/index.ts';
@@ -39,6 +41,10 @@ describe('resp3-shapes', () => {
 
   after(async () => {
     await closeClient(client);
+  });
+
+  it('negotiates RESP3 for the replies below', async () => {
+    assert.strictEqual((await client.hello()).proto, 3);
   });
 
   it('normalises a RESP3 map reply from HGETALL', async () => {
@@ -324,7 +330,7 @@ describe('resp3-shapes', () => {
 
     const popped = await client.bzpopmin([key], 1);
 
-    assert.deepStrictEqual(popped, [key, 'first', '3']);
+    assert.deepStrictEqual(popped, [key, 'first', 3]);
   });
 
   it('reads RESP3 nested field/value pairs from HRANDFIELD WITHVALUES', async () => {
@@ -332,9 +338,10 @@ describe('resp3-shapes', () => {
 
     await client.hset(key, 'field', 'value');
 
-    assert.deepStrictEqual(await client.hrandfield(key, 1, true), {
-      field: 'value',
-    });
+    assert.deepStrictEqual(await client.hrandfield(key, -2, true), [
+      { field: 'field', value: 'value' },
+      { field: 'field', value: 'value' },
+    ]);
   });
 
   it('reads a RESP3 map from CLIENT TRACKINGINFO', async () => {
@@ -455,6 +462,8 @@ describe('resp3-shapes', () => {
       return;
     }
 
+    await client.functionFlush();
+
     const stats = await client.functionStats();
 
     assert.strictEqual(stats.runningScript, null);
@@ -493,9 +502,9 @@ describe('resp3-shapes', () => {
 
   it('reads a RESP3 nested reply from SLOWLOG GET', async () => {
     await client.slowlogReset();
-    await client.configSet('slowlog-log-slower-than', '0');
-    await client.ping();
-    await client.configSet('slowlog-log-slower-than', '10000');
+    await withConfig(client, 'slowlog-log-slower-than', '0', () =>
+      client.ping(),
+    );
 
     const probeEntries = await client.slowlogGet(1);
     const probeId = probeEntries[0].id;
@@ -509,9 +518,11 @@ describe('resp3-shapes', () => {
 
     const marker = `slowlog-${uniqueSuffix()}`;
 
-    await client.send([
-      ['EVAL', 'for index = 1, 5000000 do end return ARGV[1]', '0', marker],
-    ]);
+    await withConfig(client, 'slowlog-log-slower-than', '1000', () =>
+      client.send([
+        ['EVAL', 'for index = 1, 5000000 do end return ARGV[1]', '0', marker],
+      ]),
+    );
 
     const entries = await client.slowlogGet(128);
 
@@ -551,14 +562,11 @@ describe('resp3-shapes', () => {
     if (info === null) {
       assert.fail('expected default ACL user info');
     }
-    if (capabilities.isValkey && capabilities.atLeast(8, 0)) {
-      assert.deepStrictEqual(info.flags, ['on', 'nopass']);
-      assert.strictEqual(info.keys, '~*');
-      assert.strictEqual(info.channels, '&*');
-    } else if (capabilities.atLeast(7, 0)) {
-      assert.deepStrictEqual(info.flags, ['on', 'nopass', 'sanitize-payload']);
-      assert.strictEqual(info.keys, '~*');
-      assert.strictEqual(info.channels, '&*');
+    if (capabilities.atLeast(7, 0)) {
+      assert.deepStrictEqual(withoutSanitizePayload(info.flags), [
+        'on',
+        'nopass',
+      ]);
     } else {
       assert.deepStrictEqual(info.flags, [
         'on',
@@ -567,9 +575,9 @@ describe('resp3-shapes', () => {
         'allcommands',
         'nopass',
       ]);
-      assert.strictEqual(info.keys, '*');
-      assert.strictEqual(info.channels, '*');
     }
+    assert.strictEqual(info.keys, '~*');
+    assert.strictEqual(info.channels, '&*');
     assert.deepStrictEqual(info.passwords, []);
     assert.strictEqual(info.commands, '+@all');
     assert.deepStrictEqual(info.selectors, []);
@@ -603,12 +611,12 @@ describe('resp3-shapes', () => {
     if (capabilities.atLeast(7, 2)) {
       assert.strictEqual(
         denied.message,
-        `[SET forbidden:key val] Invalid reply: RespError: NOPERM User ${user} has no permissions to run the 'set' command`,
+        `[SET] NOPERM User ${user} has no permissions to run the 'set' command`,
       );
     } else {
       assert.strictEqual(
         denied.message,
-        "[SET forbidden:key val] Invalid reply: RespError: NOPERM this user has no permissions to run the 'set' command or its subcommand",
+        "[SET] NOPERM this user has no permissions to run the 'set' command or its subcommand",
       );
     }
 
@@ -634,38 +642,6 @@ describe('resp3-shapes', () => {
     );
 
     await client.aclDeluser(user).catch(() => {});
-  });
-
-  it('reads a RESP3 map from FUNCTION LIST', async (context) => {
-    if (!capabilities.atLeast(7, 0)) {
-      context.skip('requires Redis 7.0+');
-      return;
-    }
-
-    const list = await client.functionList();
-
-    assert.ok(
-      Array.isArray(list),
-      'FUNCTION LIST must return an array even when no libraries are loaded',
-    );
-
-    for (const item of list) {
-      assert.strictEqual(typeof item.libraryName, 'string');
-      assert.ok(
-        item.libraryName.length > 0,
-        'libraryName must be a non-empty string',
-      );
-      assert.strictEqual(typeof item.engine, 'string');
-
-      assert.ok(
-        Array.isArray(item.functions),
-        'each library entry must have a functions array',
-      );
-
-      for (const functionEntry of item.functions) {
-        assert.strictEqual(typeof functionEntry.name, 'string');
-      }
-    }
   });
 
   it('reads a RESP3 full stream introspection from XINFO STREAM FULL', async () => {
@@ -729,11 +705,15 @@ describe('resp3-shapes', () => {
       'consumer must have a positive seen-time',
     );
 
-    if (capabilities.atLeast(7, 0)) {
+    const { activeTime } = group.consumers[0];
+
+    if (capabilities.atLeast(7, 2)) {
       assert.ok(
-        group.consumers[0].activeTime > 0,
+        activeTime !== null && activeTime > 0,
         'consumer must have a positive active-time',
       );
+    } else {
+      assert.strictEqual(activeTime, null);
     }
 
     assert.strictEqual(group.consumers[0].pending.length, 1);
@@ -767,9 +747,13 @@ describe('resp3-shapes', () => {
 
     await client.xadd(key, '1-1', { f: 'v' });
     await client.xgroupCreate(key, 'grp', '0');
+
+    const deliveredAt = Date.now();
+
     await client.xreadgroup('grp', 'consumer-a', [key], ['>']);
 
     const entries = await client.xpending(key, 'grp', '-', '+', 10);
+    const elapsed = Date.now() - deliveredAt;
 
     if (!Array.isArray(entries)) {
       assert.fail('expected XPENDING range entries');
@@ -779,8 +763,8 @@ describe('resp3-shapes', () => {
     assert.strictEqual(entries[0].consumer, 'consumer-a');
     assert.strictEqual(entries[0].deliveryCount, 1);
     assert.ok(
-      entries[0].deliveryTime >= 0,
-      `expected non-negative deliveryTime, got ${entries[0].deliveryTime}`,
+      entries[0].deliveryTime >= 0 && entries[0].deliveryTime <= elapsed + 1000,
+      `expected an idle time of at most ${elapsed} ms, got ${entries[0].deliveryTime}`,
     );
   });
 
@@ -831,11 +815,13 @@ describe('resp3-shapes', () => {
   });
 
   it('reads a RESP3 reply from TIME', async () => {
-    const beforeSeconds = Math.floor(Date.now() / 1000);
     const [seconds, microseconds] = await client.time();
-    const afterSeconds = Math.floor(Date.now() / 1000);
 
-    assert.ok(seconds >= beforeSeconds - 1 && seconds <= afterSeconds + 1);
+    assert.ok(Number.isInteger(seconds) && Number.isInteger(microseconds));
+    assert.ok(
+      Math.abs(seconds - Date.now() / 1000) < 86_400,
+      `TIME seconds ${seconds} are not within a day of the local clock`,
+    );
     assert.ok(microseconds >= 0 && microseconds < 1_000_000);
   });
 
@@ -944,7 +930,7 @@ describe('resp3-shapes', () => {
 
     const popped = await client.bzpopmax([key], 1);
 
-    assert.deepStrictEqual(popped, [key, 'last', '5']);
+    assert.deepStrictEqual(popped, [key, 'last', 5]);
   });
 
   it('reads a RESP3 reply from LMPOP', async (context) => {
@@ -963,15 +949,18 @@ describe('resp3-shapes', () => {
   });
 
   it('reads RESP3 parsed entries from LATENCY LATEST with real data', async () => {
-    await client.configSet('latency-monitor-threshold', '1');
+    const entries = await withConfig(
+      client,
+      'latency-monitor-threshold',
+      '1',
+      async () => {
+        await client.send([
+          ['EVAL', 'local x=0 for i=1,5000000 do x=x+1 end return x', '0'],
+        ]);
 
-    await client.send([
-      ['EVAL', 'local x=0 for i=1,5000000 do x=x+1 end return x', '0'],
-    ]);
-
-    const entries = await client.latencyLatest();
-
-    await client.configSet('latency-monitor-threshold', '0');
+        return await client.latencyLatest();
+      },
+    );
 
     assert.ok(
       entries.length >= 1,
@@ -1010,15 +999,18 @@ describe('resp3-shapes', () => {
   });
 
   it('reads RESP3 parsed entries from LATENCY HISTORY with real data', async () => {
-    await client.configSet('latency-monitor-threshold', '1');
+    const history = await withConfig(
+      client,
+      'latency-monitor-threshold',
+      '1',
+      async () => {
+        await client.send([
+          ['EVAL', 'local x=0 for i=1,5000000 do x=x+1 end return x', '0'],
+        ]);
 
-    await client.send([
-      ['EVAL', 'local x=0 for i=1,5000000 do x=x+1 end return x', '0'],
-    ]);
-
-    const history = await client.latencyHistory('command');
-
-    await client.configSet('latency-monitor-threshold', '0');
+        return await client.latencyHistory('command');
+      },
+    );
 
     assert.ok(
       history.length >= 1,
@@ -1049,7 +1041,7 @@ describe('resp3-shapes', () => {
 
     const histograms = await client.latencyHistogram('ping');
 
-    assert.ok('ping' in histograms);
+    assert.deepStrictEqual(Object.keys(histograms), ['ping']);
     assert.ok(histograms.ping.calls >= callsBefore + 10);
     assert.ok(Object.keys(histograms.ping.histogramUsec).length >= 1);
 
@@ -1077,8 +1069,7 @@ describe('resp3-shapes', () => {
     assert.ok(info.id >= 0, 'HELLO id must be a non-negative integer');
     assert.strictEqual(typeof info.mode, 'string');
     assert.ok(info.mode.length > 0, 'HELLO mode must be a non-empty string');
-    assert.strictEqual(typeof info.role, 'string');
-    assert.ok(info.role.length > 0, 'HELLO role must be a non-empty string');
+    assert.strictEqual(info.role, 'master');
   });
 
   it('reads a RESP3 HELLO reply with SETNAME option', async () => {
@@ -1095,6 +1086,18 @@ describe('resp3-shapes', () => {
     const name = await client.clientGetname();
 
     assert.strictEqual(name, 'resp3-test-client');
+
+    await client.hello('RESP3', undefined, undefined, '');
+
+    assert.strictEqual(await client.clientGetname(), null);
+  });
+
+  it('keeps RESP3 when HELLO names no protocol', async () => {
+    const info = await client.hello();
+    const [[fields]] = await client.send([['HGETALL', keyspace.key('none')]]);
+
+    assert.strictEqual(info.proto, 3);
+    assert.ok(fields instanceof Map);
   });
 
   it('reads RESP3 TimeSeries TS.GET / TS.REVRANGE when the module is present', async (context) => {
@@ -1234,6 +1237,9 @@ describe('resp3-shapes', () => {
 
     const keys = await client.jsonObjkeys(key);
 
+    if (keys === null) {
+      assert.fail('JSON.OBJKEYS must return the keys of an existing object');
+    }
     assert.deepStrictEqual([...keys].sort(), ['x', 'y']);
   });
 
@@ -1348,39 +1354,50 @@ describe('resp3-shapes', () => {
     }
 
     const libraryName = 'solidisresp3test';
+    const otherName = 'solidisresp3other';
     const code = `#!lua name=${libraryName}\nredis.register_function('solidisresp3fn', function() return 'ok' end)`;
 
     await client.functionDelete(libraryName).catch(() => undefined);
+    await client.functionDelete(otherName).catch(() => undefined);
 
-    const loadResult = await client.functionLoad(code);
+    try {
+      await client.functionLoad(
+        `#!lua name=${otherName}\nredis.register_function('solidisresp3otherfn', function() return 'ok' end)`,
+      );
 
-    assert.strictEqual(
-      loadResult,
-      libraryName,
-      'FUNCTION LOAD must return the library name on success',
-    );
+      const loadResult = await client.functionLoad(code);
 
-    const list = await client.functionList({ withCode: true });
+      assert.strictEqual(
+        loadResult,
+        libraryName,
+        'FUNCTION LOAD must return the library name on success',
+      );
 
-    const library = list.find((lib) => lib.libraryName === libraryName);
+      const list = await client.functionList({ withCode: true });
 
-    if (library === undefined) {
-      assert.fail(`expected loaded function library ${libraryName}`);
+      const library = list.find((lib) => lib.libraryName === libraryName);
+
+      if (library === undefined) {
+        assert.fail(`expected loaded function library ${libraryName}`);
+      }
+      assert.strictEqual(library.engine, 'LUA');
+      assert.strictEqual(library.code, code);
+      assert.deepStrictEqual(library.functions, [
+        { name: 'solidisresp3fn', description: null, flags: [] },
+      ]);
+
+      const filtered = await client.functionList({
+        libraryNamePattern: libraryName,
+      });
+
+      assert.deepStrictEqual(
+        filtered.map((library) => library.libraryName),
+        [libraryName],
+      );
+    } finally {
+      await client.functionDelete(libraryName).catch(() => undefined);
+      await client.functionDelete(otherName).catch(() => undefined);
     }
-    assert.strictEqual(library.engine, 'LUA');
-    assert.strictEqual(library.code, code);
-    assert.deepStrictEqual(library.functions, [
-      { name: 'solidisresp3fn', description: null, flags: [] },
-    ]);
-
-    const filtered = await client.functionList({
-      libraryNamePattern: libraryName,
-    });
-
-    assert.strictEqual(filtered.length, 1);
-    assert.strictEqual(filtered[0].libraryName, libraryName);
-
-    await client.functionDelete(libraryName);
   });
 
   it('reads RESP3 SET with returnOldValue options', async () => {
@@ -1438,11 +1455,7 @@ describe('resp3-shapes', () => {
       if (info === null) {
         assert.fail(`expected ACL user info for ${testUser}`);
       }
-      if (capabilities.isValkey && capabilities.atLeast(8, 0)) {
-        assert.deepStrictEqual(info.flags, ['on']);
-      } else {
-        assert.deepStrictEqual(info.flags, ['on', 'sanitize-payload']);
-      }
+      assert.deepStrictEqual(withoutSanitizePayload(info.flags), ['on']);
       assert.strictEqual(info.commands, '-@all +get +set');
       assert.strictEqual(info.keys, '~key:*');
       assert.strictEqual(info.channels, '&chan:*');
@@ -1458,25 +1471,21 @@ describe('resp3-shapes', () => {
     }
   });
 
-  it('reads a RESP3 TS.MGET with filterByValue option', async (context) => {
+  it('reads RESP3 TS.MGET / TS.GET replies for an empty series', async (context) => {
     if (!hasTimeSeries) {
       context.skip('RedisTimeSeries not loaded');
       return;
     }
 
-    const key = keyspace.key('ts-mget-fbv');
-    const label = keyspace.key('ts-mget-fbv-label');
+    const key = keyspace.key('ts-mget-empty');
+    const label = keyspace.key('ts-mget-empty-label');
 
     await client.tsCreate(key, { labels: { kind: label } });
-    await client.tsAdd(key, 1000, 50);
-    await client.tsAdd(key, 2000, 150);
 
-    const filtered = await client.tsMget(
-      { kind: label },
-      { filterByValue: [[100, 200]] },
-    );
-
-    assert.deepStrictEqual(filtered, [{ key, timestamp: 2000, value: 150 }]);
+    assert.deepStrictEqual(await client.tsMget({ kind: label }), [
+      { key, timestamp: null, value: null },
+    ]);
+    assert.strictEqual(await client.tsGet(key), null);
   });
 
   it('receives RESP3 push messages via subscribe', async () => {

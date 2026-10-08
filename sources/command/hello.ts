@@ -1,32 +1,31 @@
-import { SolidisProtocols } from '../index.ts';
+import { SolidisProtocols } from '../types/solidis.ts';
 import {
   executeCommand,
-  InvalidReplyPrefix,
-  newCommandError,
+  tryReplyArray,
   tryReplyToMap,
   tryReplyToModuleInfo,
+  tryReplyToNumber,
 } from './utils/index.ts';
 
-import type { RespHelloInfo } from '../index.ts';
+import type {
+  CommandHelloParameters,
+  RespHelloInfo,
+  StringOrBuffer,
+} from '../index.ts';
 
 export function createCommand(
-  protocol: SolidisProtocols,
-  username?: string,
-  password?: string,
-  clientName?: string,
+  ...[protocol, username, password, clientName]: CommandHelloParameters
 ) {
-  const command = ['HELLO'];
+  const command: StringOrBuffer[] = ['HELLO'];
 
   if (protocol !== undefined) {
     command.push(protocol === SolidisProtocols.RESP3 ? '3' : '2');
 
-    if (username && password) {
-      command.push('AUTH', username, password);
-    } else if (password) {
-      command.push('AUTH', 'default', password);
+    if (password !== undefined) {
+      command.push('AUTH', username?.length ? username : 'default', password);
     }
 
-    if (clientName) {
+    if (clientName !== undefined) {
       command.push('SETNAME', clientName);
     }
   }
@@ -36,31 +35,27 @@ export function createCommand(
 
 export async function hello<T>(
   this: T,
-  protocol: SolidisProtocols,
-  username?: string,
-  password?: string,
-  clientName?: string,
+  ...parameters: CommandHelloParameters
 ): Promise<RespHelloInfo> {
   return await executeCommand(
     this,
-    createCommand(protocol, username, password, clientName),
+    createCommand(...parameters),
     (reply, command) => {
-      const map = tryReplyToMap(reply);
-
-      const modules = map.get('modules');
-
-      if (!Array.isArray(modules)) {
-        throw newCommandError(`${InvalidReplyPrefix}: ${modules}`, command);
-      }
+      const map = tryReplyToMap(reply, command);
+      const toText = (key: string) => String(map.get(key));
+      const toNumber = (key: string) =>
+        tryReplyToNumber(map.get(key) ?? Number.NaN, command);
 
       return {
-        server: String(map.get('server')),
-        version: String(map.get('version')),
-        proto: Number(map.get('proto')),
-        id: Number(map.get('id')),
-        mode: String(map.get('mode')),
-        role: String(map.get('role')),
-        modules: modules.map(tryReplyToModuleInfo),
+        server: toText('server'),
+        version: toText('version'),
+        proto: toNumber('proto'),
+        id: toNumber('id'),
+        mode: toText('mode'),
+        role: map.has('role') ? toText('role') : null,
+        modules: tryReplyArray(map.get('modules') ?? [], command).map((item) =>
+          tryReplyToModuleInfo(item, command),
+        ),
       };
     },
   );

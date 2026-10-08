@@ -20,12 +20,35 @@ export async function zrange<T>(
   key: string,
   min: string,
   max: string,
+  options: CommandZRangeOptions & { withScores: true },
+): Promise<RespSortedSetMember[]>;
+export async function zrange<T>(
+  this: T,
+  key: string,
+  min: string,
+  max: string,
+  options?: CommandZRangeOptions & { withScores?: false },
+): Promise<string[]>;
+export async function zrange<T>(
+  this: T,
+  key: string,
+  min: string,
+  max: string,
+  options?: CommandZRangeOptions,
+): Promise<string[] | RespSortedSetMember[]>;
+export async function zrange<T>(
+  this: T,
+  key: string,
+  min: string,
+  max: string,
   options: CommandZRangeOptions = {},
 ): Promise<string[] | RespSortedSetMember[]> {
+  const withScores = options.withScores;
+
   return await executeCommand(
     this,
     createCommand(key, min, max, options),
     (reply, command) =>
-      tryReplyToStringsOrSortedSetMembers(reply, command, options.withScores),
+      tryReplyToStringsOrSortedSetMembers(reply, command, withScores),
   );
 }

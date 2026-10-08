@@ -1,7 +1,8 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyToScanDump } from './utils/index.ts';
 
 export function createCommand(key: string, iterator: number) {
-  return ['CF.SCANDUMP', key, `${iterator}`];
+  return ['CF.SCANDUMP', key, formatInteger(iterator)];
 }
 
 export async function cfScandump<T>(

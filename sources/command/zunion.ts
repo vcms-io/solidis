@@ -25,12 +25,29 @@ export function createCommand(
 export async function zunion<T>(
   this: T,
   keys: string[],
+  options: CommandZInterWithScoreOptions & { withScores: true },
+): Promise<RespSortedSetMember[]>;
+export async function zunion<T>(
+  this: T,
+  keys: string[],
+  options?: CommandZInterWithScoreOptions & { withScores?: false },
+): Promise<string[]>;
+export async function zunion<T>(
+  this: T,
+  keys: string[],
+  options?: CommandZInterWithScoreOptions,
+): Promise<string[] | RespSortedSetMember[]>;
+export async function zunion<T>(
+  this: T,
+  keys: string[],
   options: CommandZInterWithScoreOptions = {},
 ): Promise<string[] | RespSortedSetMember[]> {
+  const withScores = options.withScores;
+
   return await executeCommand(
     this,
     createCommand(keys, options),
     (reply, command) =>
-      tryReplyToStringsOrSortedSetMembers(reply, command, options.withScores),
+      tryReplyToStringsOrSortedSetMembers(reply, command, withScores),
   );
 }

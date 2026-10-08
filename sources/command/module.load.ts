@@ -1,13 +1,7 @@
 import { executeCommand, tryReplyOK } from './utils/index.ts';
 
 export function createCommand(path: string, parameters?: string[]) {
-  const command = ['MODULE', 'LOAD', path];
-
-  if (parameters?.length) {
-    command.push(...parameters);
-  }
-
-  return command;
+  return ['MODULE', 'LOAD', path, ...(parameters ?? [])];
 }
 
 export async function moduleLoad<T>(

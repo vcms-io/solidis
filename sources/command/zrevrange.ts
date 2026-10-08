@@ -1,7 +1,8 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyToStringArray } from './utils/index.ts';
 
 export function createCommand(key: string, start: number, stop: number) {
-  return ['ZREVRANGE', key, `${start}`, `${stop}`];
+  return ['ZREVRANGE', key, formatInteger(start), formatInteger(stop)];
 }
 
 export async function zrevrange<T>(

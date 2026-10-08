@@ -8,6 +8,7 @@ import {
   createClient,
   createKeyspace,
   detectServerCapabilities,
+  readServerTime,
 } from '../utils/index.ts';
 
 import type { FeaturedClient } from '../utils/index.ts';
@@ -101,6 +102,10 @@ describe('hashes', () => {
     const floatValue = await client.hincrbyfloat(key, 'ratio', 1.5);
 
     assert.strictEqual(floatValue, '1.5');
+    assert.strictEqual(
+      await client.hincrbyfloat(key, 'large', 1e22),
+      '10000000000000000000000',
+    );
   });
 
   it('sets a field only if absent with HSETNX', async () => {
@@ -118,16 +123,13 @@ describe('hashes', () => {
 
     const single = await client.hrandfield(key);
 
-    if (single === null || typeof single !== 'string') {
-      assert.fail('expected non-null string from hrandfield');
+    if (single === null) {
+      assert.fail('expected a field from hrandfield');
     }
     assert.ok(['a', 'b', 'c'].includes(single));
 
     const several = await client.hrandfield(key, 2);
 
-    if (several === null || !Array.isArray(several)) {
-      assert.fail('expected non-null array from hrandfield');
-    }
     assert.strictEqual(several.length, 2);
     for (const field of several) {
       assert.ok(['a', 'b', 'c'].includes(field));
@@ -136,7 +138,41 @@ describe('hashes', () => {
 
     const withValues = await client.hrandfield(key, 3, true);
 
-    assert.deepStrictEqual(withValues, { a: '1', b: '2', c: '3' });
+    assert.deepStrictEqual(
+      withValues.toSorted((left, right) =>
+        left.field.localeCompare(right.field),
+      ),
+      [
+        { field: 'a', value: '1' },
+        { field: 'b', value: '2' },
+        { field: 'c', value: '3' },
+      ],
+    );
+
+    const repeated = await client.hrandfield(key, -12, true);
+    const values: Record<string, string> = { a: '1', b: '2', c: '3' };
+
+    assert.strictEqual(repeated.length, 12);
+    for (const { field, value } of repeated) {
+      assert.strictEqual(values[field], value);
+    }
+
+    assert.deepStrictEqual(
+      await client
+        .hrandfield(key, undefined, true)
+        .then((entries) =>
+          entries.map(({ field, value }) => values[field] === value),
+        ),
+      [true],
+    );
+    assert.strictEqual(
+      await client.hrandfield(keyspace.key('randfield-missing')),
+      null,
+    );
+    assert.deepStrictEqual(
+      await client.hrandfield(keyspace.key('randfield-missing'), 2, true),
+      [],
+    );
   });
 
   it('iterates a large hash with HSCAN', async () => {
@@ -156,6 +192,22 @@ describe('hashes', () => {
     }
 
     assert.deepStrictEqual(collected, mapping);
+  });
+
+  it('decodes field names as UTF-8', async () => {
+    const key = keyspace.key('field-names');
+    const fields = { café: '1', naïve: '2', 日本: '3' };
+
+    await client.hset(key, fields);
+
+    const scanned: Record<string, string> = {};
+
+    for await (const batch of client.hscan(key)) {
+      Object.assign(scanned, batch);
+    }
+
+    assert.deepStrictEqual(await client.hgetall(key), fields);
+    assert.deepStrictEqual(scanned, fields);
   });
 
   it('preserves binary values in hash fields', async () => {
@@ -221,7 +273,7 @@ describe('hashes', () => {
     }
 
     const key = keyspace.key('hexpireat');
-    const future = Math.floor(Date.now() / 1000) + 1000;
+    const future = Math.floor((await readServerTime(client)) / 1000) + 1000;
 
     await client.hset(key, 'field', 'value');
 
@@ -247,7 +299,7 @@ describe('hashes', () => {
 
     assert.ok(
       unchangedTtl >= 90 && unchangedTtl <= 100,
-      `HTTL after NX no-op must still be close to 100s, got ${unchangedTtl}`,
+      `HTTL after the refused GT must still be close to 100s, got ${unchangedTtl}`,
     );
 
     assert.deepStrictEqual(
@@ -286,7 +338,7 @@ describe('hashes', () => {
     }
 
     const key = keyspace.key('hpexpireat');
-    const futureMs = Date.now() + 600_000;
+    const futureMs = (await readServerTime(client)) + 600_000;
 
     await client.hset(key, 'field', 'value');
 
@@ -307,8 +359,9 @@ describe('hashes', () => {
     }
 
     const key = keyspace.key('hexpireat-gt');
-    const farFuture = Math.floor(Date.now() / 1000) + 120;
-    const nearFuture = Math.floor(Date.now() / 1000) + 60;
+    const now = Math.floor((await readServerTime(client)) / 1000);
+    const farFuture = now + 120;
+    const nearFuture = now + 60;
 
     await client.hset(key, 'field', 'value');
     await client.hexpireat(key, farFuture, ['field']);
@@ -328,8 +381,9 @@ describe('hashes', () => {
     }
 
     const key = keyspace.key('hexpireat-lt');
-    const farFuture = Math.floor(Date.now() / 1000) + 120;
-    const nearFuture = Math.floor(Date.now() / 1000) + 60;
+    const now = Math.floor((await readServerTime(client)) / 1000);
+    const farFuture = now + 120;
+    const nearFuture = now + 60;
 
     await client.hset(key, 'field', 'value');
     await client.hexpireat(key, farFuture, ['field']);
@@ -361,7 +415,7 @@ describe('hashes', () => {
 
     assert.ok(
       unchangedMilliseconds >= 110000 && unchangedMilliseconds <= 120000,
-      `HPTTL after NX no-op must still be close to 120000ms, got ${unchangedMilliseconds}`,
+      `HPTTL after the refused GT must still be close to 120000ms, got ${unchangedMilliseconds}`,
     );
   });
 
@@ -395,8 +449,9 @@ describe('hashes', () => {
     }
 
     const key = keyspace.key('hpexpireat-gt');
-    const farFuture = Date.now() + 120000;
-    const nearFuture = Date.now() + 60000;
+    const now = await readServerTime(client);
+    const farFuture = now + 120000;
+    const nearFuture = now + 60000;
 
     await client.hset(key, 'field', 'value');
     await client.hpexpireat(key, farFuture, ['field']);
@@ -416,8 +471,9 @@ describe('hashes', () => {
     }
 
     const key = keyspace.key('hpexpireat-lt');
-    const farFuture = Date.now() + 120000;
-    const nearFuture = Date.now() + 60000;
+    const now = await readServerTime(client);
+    const farFuture = now + 120000;
+    const nearFuture = now + 60000;
 
     await client.hset(key, 'field', 'value');
     await client.hpexpireat(key, farFuture, ['field']);

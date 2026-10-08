@@ -1,15 +1,19 @@
+import { toBinaryBuffer } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyOK } from './utils/index.ts';
 
-import type { CommandFunctionRestoreOptions } from '../index.ts';
+import type {
+  CommandFunctionRestoreOptions,
+  StringOrBuffer,
+} from '../index.ts';
 
 export function createCommand(
-  dump: string,
+  dump: StringOrBuffer,
   options?: CommandFunctionRestoreOptions,
 ) {
-  const command: (string | Buffer)[] = [
+  const command: StringOrBuffer[] = [
     'FUNCTION',
     'RESTORE',
-    Buffer.from(dump, 'latin1'),
+    toBinaryBuffer(dump),
   ];
 
   if (options?.replace) {
@@ -29,7 +33,7 @@ export function createCommand(
 
 export async function functionRestore<T>(
   this: T,
-  dump: string,
+  dump: StringOrBuffer,
   options?: CommandFunctionRestoreOptions,
 ) {
   return await executeCommand(this, createCommand(dump, options), tryReplyOK);

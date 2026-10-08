@@ -1,104 +1,133 @@
-import { pipeline } from './pipeline.ts';
-import { newCommandError } from './utils/index.ts';
+import { SolidisClient } from '../client.ts';
+import { SolidisTransactionBannedCommandNames } from '../common/constants.ts';
+import { SolidisRequesterError } from '../common/utils/error.ts';
+import { appendItems } from '../common/utils/internal.ts';
+import { copyCommands, inspectCommand } from '../modules/internal.ts';
+import {
+  assertSender,
+  newCommandError,
+  newUnexpectedReplyError,
+} from './utils/index.ts';
 
 import type {
-  SolidisClient,
-  SolidisClientExtensions,
+  SolidisData,
   SolidisTransactionClient,
   StringOrBuffer,
 } from '../index.ts';
 
-const SolidisExtensions: {
-  pipeline: typeof pipeline;
-  pipeQueue?: StringOrBuffer[][];
-} = {
-  pipeline,
-  pipeQueue: [],
-} satisfies SolidisClientExtensions;
+const bannedCommandNames: ReadonlySet<unknown> = new Set(
+  SolidisTransactionBannedCommandNames,
+);
 
-function guard(thisValue: object): asserts thisValue is SolidisClient {
-  if (!('extend' in thisValue) || typeof thisValue.extend !== 'function') {
-    throw newCommandError('Extend method is not implemented', 'MULTI');
-  }
+function unwatch(client: Pick<SolidisClient, 'send'>) {
+  client.send([['UNWATCH']]).catch(() => {});
 }
 
-function clearPipeline(commands: StringOrBuffer[][]) {
-  commands.splice(0, commands.length);
+async function exec(
+  client: Pick<SolidisClient, 'send'>,
+  transactionQueue: StringOrBuffer[][],
+  failedCalls: Promise<unknown>[],
+): Promise<SolidisData[] | null> {
+  const commands = transactionQueue.splice(0);
+  const failures = failedCalls.splice(0);
+  const refusal = commands
+    .map((command) => inspectCommand(command, true))
+    .find((kind) => kind instanceof SolidisRequesterError);
+
+  if (failures.length > 0 || refusal) {
+    unwatch(client);
+
+    await Promise.all(failures);
+
+    throw refusal ?? newCommandError('A call queued no command', 'EXEC');
+  }
+
+  const replies = await client.send([['MULTI'], ...commands, ['EXEC']]);
+  const [[accepted]] = replies;
+  const reply = replies[replies.length - 1][0];
+
+  if (accepted instanceof Error) {
+    throw newCommandError(accepted.message, 'MULTI', accepted);
+  }
+
+  if (reply instanceof Error) {
+    throw newCommandError(reply.message, 'EXEC', reply);
+  }
+
+  if (reply !== null && !Array.isArray(reply)) {
+    throw newUnexpectedReplyError(reply, 'EXEC');
+  }
+
+  return reply;
 }
 
 export function multi<T extends object>(this: T): SolidisTransactionClient<T> {
-  const pipeQueue: StringOrBuffer[][] = [];
-  const commandPromises: Promise<unknown>[] = [];
+  const client = this;
+  const transactionQueue: StringOrBuffer[][] = [];
+  const failedCalls: Promise<unknown>[] = [];
 
-  guard(this);
+  assertSender(client, ['MULTI']);
 
-  const client = this.extend(SolidisExtensions);
+  const queue = (commands: readonly (readonly StringOrBuffer[])[]) => {
+    const batch = copyCommands(commands);
 
-  const proxyHandler: ProxyHandler<T> = {
+    appendItems(transactionQueue, batch);
+
+    return batch.length > 0
+      ? new Promise<never>(() => {})
+      : Promise.resolve([]);
+  };
+  const proxyHandler: ProxyHandler<object> = {
     get(_, property) {
       switch (property) {
         case 'exec': {
-          return async () => {
-            const results = await Promise.allSettled(commandPromises);
-            const rejected = results.find(
-              (result) => result.status === 'rejected',
-            );
-
-            if (rejected && rejected.status === 'rejected') {
-              clearPipeline(pipeQueue);
-              commandPromises.length = 0;
-
-              throw rejected.reason;
-            }
-
-            commandPromises.length = 0;
-
-            if (pipeQueue.length < 1) {
-              return [];
-            }
-
-            const pipelined = client.pipeline([
-              ['MULTI'],
-              ...pipeQueue,
-              ['EXEC'],
-            ]);
-
-            clearPipeline(pipeQueue);
-
-            return await pipelined;
-          };
+          return () => exec(client, transactionQueue, failedCalls);
         }
 
         case 'discard': {
           return () => {
-            if (pipeQueue.length < 1) {
-              return;
-            }
+            transactionQueue.length = 0;
+            failedCalls.length = 0;
 
-            clearPipeline(pipeQueue);
-            commandPromises.length = 0;
+            unwatch(client);
           };
         }
 
         default: {
-          const method = client[property as keyof T];
+          const method = Reflect.get(client, property);
 
-          if (typeof method === 'function') {
-            return (...parameters: unknown[]) => {
-              try {
-                client.pipeQueue = pipeQueue;
-
-                const promise = method(...parameters);
-
-                commandPromises.push(promise);
-                promise.catch(() => {});
-              } finally {
-                client.pipeQueue = undefined;
-              }
-            };
+          if (
+            typeof method !== 'function' ||
+            property in SolidisClient.prototype ||
+            bannedCommandNames.has(property)
+          ) {
+            return undefined;
           }
 
-          return undefined;
+          return (...parameters: unknown[]) => {
+            const length = transactionQueue.length;
+            const { send } = client;
+            const target: { send?: unknown } = client;
+            const call = (async () => {
+              client.send = queue;
+
+              try {
+                return Reflect.apply(method, client, parameters);
+              } finally {
+                delete target.send;
+
+                if (client.send !== send) {
+                  client.send = send;
+                }
+              }
+            })();
+
+            call.catch(() => {});
+
+            if (transactionQueue.length === length) {
+              failedCalls.push(call);
+            }
+          };
         }
       }
     },

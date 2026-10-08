@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
   tryReplyToStringArray,
@@ -8,12 +9,26 @@ export function createCommand(key: string, count?: number) {
   const command = ['SRANDMEMBER', key];
 
   if (count !== undefined) {
-    command.push(`${count}`);
+    command.push(formatInteger(count));
   }
 
   return command;
 }
 
+export async function srandmember<T>(
+  this: T,
+  key: string,
+): Promise<string | null>;
+export async function srandmember<T>(
+  this: T,
+  key: string,
+  count: number,
+): Promise<string[]>;
+export async function srandmember<T>(
+  this: T,
+  key: string,
+  count?: number,
+): Promise<string | string[] | null>;
 export async function srandmember<T>(
   this: T,
   key: string,

@@ -3,12 +3,15 @@ import { resolve } from 'node:path';
 
 import { build } from 'esbuild';
 
+import { buildDistributions } from '../build/distributions.ts';
+import { formatKilobytes } from './format.ts';
+
 const OUTPUT_DIRECTORY = resolve('.bundle');
 
 const ENTRY_SOLIDIS = `\
-import { SolidisClient } from '../sources/client.ts';
-import { get } from '../sources/command/get.ts';
-import { set } from '../sources/command/set.ts';
+import { SolidisClient } from './distributions/client.mjs';
+import { get } from './distributions/command/get.mjs';
+import { set } from './distributions/command/set.mjs';
 const client = new SolidisClient();
 client.extend({ get, set });
 export { client };
@@ -101,6 +104,7 @@ async function bundleTarget(target: BundleTarget): Promise<BundleResult> {
 
 await rm(OUTPUT_DIRECTORY, { recursive: true, force: true });
 await mkdir(OUTPUT_DIRECTORY, { recursive: true });
+await buildDistributions(resolve(OUTPUT_DIRECTORY, 'distributions'));
 
 const results: BundleResult[] = [];
 
@@ -112,14 +116,6 @@ for (const target of targets) {
 const snapshotPath = resolve(OUTPUT_DIRECTORY, 'snapshot.json');
 await writeFile(snapshotPath, JSON.stringify(results, null, 2), 'utf-8');
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) {
-    return `${bytes} B`;
-  }
-
-  return `${(bytes / 1024).toFixed(1)} KB`;
-}
-
 console.log('\nBundle Size Comparison:');
 console.log('─'.repeat(56));
 console.log(
@@ -129,7 +125,7 @@ console.log('─'.repeat(56));
 
 for (const result of results) {
   console.log(
-    `${result.name.padEnd(16)} ${formatBytes(result.bundleBytes).padStart(12)} ${formatBytes(result.sourceMapBytes).padStart(12)}`,
+    `${result.name.padEnd(16)} ${formatKilobytes(result.bundleBytes).padStart(12)} ${formatKilobytes(result.sourceMapBytes).padStart(12)}`,
   );
 }
 

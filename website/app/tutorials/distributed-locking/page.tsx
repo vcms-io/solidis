@@ -80,12 +80,15 @@ export default function DistributedLockingTutorial() {
             </div>
             {t('tutorialLocking.simpleLock')}
           </CardTitle>
+          <CardDescription>
+            {t('tutorialLocking.simpleLockRequirement')}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="rounded-lg text-sm overflow-x-auto">
             <CodeBlock
               code={`import { SolidisFeaturedClient } from '@vcms-io/solidis/featured';
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 
 export class DistributedLock {
   private client: SolidisFeaturedClient;
@@ -214,7 +217,13 @@ export class DistributedLock {
         <CardContent>
           <div className="rounded-lg text-sm overflow-x-auto">
             <CodeBlock
-              code={`import { DistributedLock } from './distributed-lock';
+              code={`import type { CacheManager } from './cache-manager';
+import { DistributedLock } from './distributed-lock';
+
+declare const db: any;
+declare const paymentGateway: any;
+declare const cache: CacheManager;
+declare function generateDailyReport(): Promise<void>;
 
 const lock = new DistributedLock();
 await lock.connect();
@@ -262,7 +271,7 @@ async function updateUserProfile(userId: string, data: any) {
     const user = await db.getUser(userId);
     const updatedUser = { ...user, ...data };
     await db.updateUser(userId, updatedUser);
-    await cache.invalidate(\`user:\${userId}\`);
+    await cache.delete(\`user:\${userId}\`);
   });
 }`}
               language="typescript"

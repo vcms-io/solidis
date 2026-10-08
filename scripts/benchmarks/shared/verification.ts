@@ -15,14 +15,78 @@ function toDisplayString(value: unknown): string {
   return inspect(value, { depth: 1, maxStringLength: 64 });
 }
 
-export function assertOk(value: unknown, label: string): void {
-  const text = Buffer.isBuffer(value) ? value.toString() : String(value);
+function toText(value: unknown): string {
+  return Buffer.isBuffer(value) ? value.toString() : String(value);
+}
 
-  if (text !== 'OK') {
+function* walkReply(value: unknown): Generator<unknown> {
+  yield value;
+
+  if (Buffer.isBuffer(value) || value === null || typeof value !== 'object') {
+    return;
+  }
+
+  const items =
+    value instanceof Map
+      ? [...value].flat()
+      : Array.isArray(value) || value instanceof Set
+        ? [...value]
+        : Object.entries(value).flat();
+
+  for (const item of items) {
+    yield* walkReply(item);
+  }
+}
+
+export function assertSimpleString(
+  value: unknown,
+  expected: string,
+  label: string,
+): void {
+  if (toText(value) !== expected) {
     throw new VerificationError(
-      `${label}: expected OK, got ${toDisplayString(value)}`,
+      `${label}: expected ${expected}, got ${toDisplayString(value)}`,
     );
   }
+}
+
+export function assertOk(value: unknown, label: string): void {
+  assertSimpleString(value, 'OK', label);
+}
+
+export function assertTextIncludes(
+  value: unknown,
+  expected: string,
+  label: string,
+): void {
+  if (
+    !(Buffer.isBuffer(value) || typeof value === 'string') ||
+    !toText(value).includes(expected)
+  ) {
+    throw new VerificationError(
+      `${label}: expected text with '${expected}', got ${toDisplayString(value)}`,
+    );
+  }
+}
+
+export function assertContains(
+  value: unknown,
+  expected: Buffer | string,
+  label: string,
+): void {
+  for (const item of walkReply(value)) {
+    if (
+      Buffer.isBuffer(expected)
+        ? Buffer.isBuffer(item) && item.equals(expected)
+        : toText(item) === expected
+    ) {
+      return;
+    }
+  }
+
+  throw new VerificationError(
+    `${label}: ${toDisplayString(expected)} not found in ${toDisplayString(value)}`,
+  );
 }
 
 export function assertBufferEquals(
@@ -127,6 +191,26 @@ export function assertHashContains(
     throw new VerificationError(
       `${label}: expected hash, got ${hgetallResult}`,
     );
+  }
+
+  if (
+    Array.isArray(hgetallResult) &&
+    hgetallResult.length > 0 &&
+    hgetallResult.every(
+      (entry) => typeof entry === 'object' && entry !== null && 'key' in entry,
+    )
+  ) {
+    assertHashContains(
+      hgetallResult.flatMap((entry) => [
+        Reflect.get(entry, 'key'),
+        Reflect.get(entry, 'value'),
+      ]),
+      field,
+      expectedValue,
+      label,
+    );
+
+    return;
   }
 
   if (Array.isArray(hgetallResult)) {

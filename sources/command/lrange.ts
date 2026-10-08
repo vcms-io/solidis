@@ -1,18 +1,29 @@
-import { executeCommand, tryReplyToStringArray } from './utils/index.ts';
+import { formatInteger } from '../common/utils/internal.ts';
+import {
+  executeCommand,
+  tryReplyToStringOrBufferArray,
+} from './utils/index.ts';
+
+import type { CommandBufferOptions, RespString } from '../index.ts';
 
 export function createCommand(key: string, start: number, stop: number) {
-  return ['LRANGE', key, `${start}`, `${stop}`];
+  return ['LRANGE', key, formatInteger(start), formatInteger(stop)];
 }
 
-export async function lrange<T>(
+export async function lrange<
+  T,
+  Options extends CommandBufferOptions | undefined = undefined,
+>(
   this: T,
   key: string,
   start: number,
   stop: number,
-): Promise<string[]> {
+  options?: Options,
+): Promise<RespString<Options>[]> {
   return await executeCommand(
     this,
     createCommand(key, start, stop),
-    tryReplyToStringArray,
+    tryReplyToStringOrBufferArray,
+    options,
   );
 }

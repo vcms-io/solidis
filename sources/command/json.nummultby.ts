@@ -1,7 +1,8 @@
-import { executeCommand, tryReplyToStringOrNull } from './utils/index.ts';
+import { formatNumber } from '../common/utils/internal.ts';
+import { executeCommand, tryReplyToJsonNumberText } from './utils/index.ts';
 
 export function createCommand(key: string, path: string, value: number) {
-  return ['JSON.NUMMULTBY', key, path, `${value}`];
+  return ['JSON.NUMMULTBY', key, path, formatNumber(value)];
 }
 
 export async function jsonNummultby<T>(
@@ -9,10 +10,10 @@ export async function jsonNummultby<T>(
   key: string,
   path: string,
   value: number,
-): Promise<string | null> {
+): Promise<string> {
   return await executeCommand(
     this,
     createCommand(key, path, value),
-    tryReplyToStringOrNull,
+    (reply, command) => tryReplyToJsonNumberText(reply, path, command),
   );
 }

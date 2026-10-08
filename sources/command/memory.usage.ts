@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyToNumberOrNull } from './utils/index.ts';
 
 import type { RespMemoryUsage } from '../index.ts';
@@ -6,7 +7,7 @@ export function createCommand(key: string, samples?: number) {
   const command = ['MEMORY', 'USAGE', key];
 
   if (samples !== undefined) {
-    command.push('SAMPLES', `${samples}`);
+    command.push('SAMPLES', formatInteger(samples));
   }
 
   return command;

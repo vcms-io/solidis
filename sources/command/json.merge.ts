@@ -1,15 +1,7 @@
 import { executeCommand, tryReplyOK } from './utils/index.ts';
 
 export function createCommand(key: string, value: string, path?: string) {
-  const command = ['JSON.MERGE', key];
-
-  if (path !== undefined) {
-    command.push(path);
-  }
-
-  command.push(value);
-
-  return command;
+  return ['JSON.MERGE', key, path ?? '$', value];
 }
 
 export async function jsonMerge<T>(

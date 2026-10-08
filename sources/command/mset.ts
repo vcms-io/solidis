@@ -1,15 +1,13 @@
-import { executeCommand, tryReplyOK } from './utils/index.ts';
+import {
+  appendRecordEntries,
+  executeCommand,
+  tryReplyOK,
+} from './utils/index.ts';
 
 import type { StringOrBuffer } from '../index.ts';
 
 export function createCommand(mapping: Record<string, StringOrBuffer>) {
-  const command: StringOrBuffer[] = ['MSET'];
-
-  for (const [key, value] of Object.entries(mapping)) {
-    command.push(key, value);
-  }
-
-  return command;
+  return appendRecordEntries(['MSET'], mapping);
 }
 
 export async function mset<T>(

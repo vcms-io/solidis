@@ -1,8 +1,8 @@
 import {
   buildSortCommand,
   executeCommand,
+  tryReplyToNullableStringArray,
   tryReplyToNumber,
-  tryReplyToStringArray,
 } from './utils/index.ts';
 
 import type { CommandSortOptions, CommandSortStoreOptions } from '../index.ts';
@@ -13,7 +13,7 @@ export function createCommand(
 ) {
   const command = buildSortCommand('SORT', key, options);
 
-  if (options && 'store' in options) {
+  if (options?.store !== undefined) {
     command.push('STORE', options.store);
   }
 
@@ -23,27 +23,28 @@ export function createCommand(
 export async function sort<T>(
   this: T,
   key: string,
-  options?: CommandSortOptions,
-): Promise<(string | null)[]>;
-export async function sort<T>(
-  this: T,
-  key: string,
   options: CommandSortStoreOptions,
 ): Promise<number>;
 export async function sort<T>(
   this: T,
   key: string,
+  options?: CommandSortOptions,
+): Promise<(string | null)[]>;
+export async function sort<T>(
+  this: T,
+  key: string,
+  options?: CommandSortOptions | CommandSortStoreOptions,
+): Promise<(string | null)[] | number>;
+export async function sort<T>(
+  this: T,
+  key: string,
   options?: CommandSortOptions | CommandSortStoreOptions,
 ): Promise<(string | null)[] | number> {
-  return await executeCommand(
+  return await executeCommand<T, (string | null)[] | number>(
     this,
     createCommand(key, options),
-    (reply, command) => {
-      if (options && 'store' in options) {
-        return tryReplyToNumber(reply, command);
-      }
-
-      return tryReplyToStringArray(reply, command, true);
-    },
+    options?.store === undefined
+      ? tryReplyToNullableStringArray
+      : tryReplyToNumber,
   );
 }

@@ -1,7 +1,8 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
-  newCommandError,
-  UnexpectedReplyPrefix,
+  tryReplyNumber,
+  tryReplyTuple,
 } from './utils/index.ts';
 
 import type { RespWaitAOF } from '../index.ts';
@@ -11,7 +12,12 @@ export function createCommand(
   numreplicas: number,
   timeout: number,
 ) {
-  return ['WAITAOF', `${numlocal}`, `${numreplicas}`, `${timeout}`];
+  return [
+    'WAITAOF',
+    formatInteger(numlocal),
+    formatInteger(numreplicas),
+    formatInteger(timeout),
+  ];
 }
 
 export async function waitaof<T>(
@@ -24,21 +30,18 @@ export async function waitaof<T>(
     this,
     createCommand(numlocal, numreplicas, timeout),
     (reply, command) => {
-      if (Array.isArray(reply) && reply.length === 2) {
-        const [localFsynced, replicasAcknowledged] = reply;
+      const [localFsynced, replicasAcknowledged] = tryReplyTuple(
+        reply,
+        2,
+        command,
+      );
 
-        if (
-          typeof localFsynced === 'number' &&
-          typeof replicasAcknowledged === 'number'
-        ) {
-          return {
-            localFsynced,
-            replicasAcknowledged,
-          };
-        }
-      }
-
-      throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
+      return {
+        localFsynced: tryReplyNumber(localFsynced, command),
+        replicasAcknowledged: tryReplyNumber(replicasAcknowledged, command),
+      };
     },
+    undefined,
+    { blockingTimeout: timeout },
   );
 }

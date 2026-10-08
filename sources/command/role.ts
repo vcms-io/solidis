@@ -1,8 +1,12 @@
 import {
   executeCommand,
-  InvalidReplyPrefix,
-  newCommandError,
-  UnexpectedReplyPrefix,
+  newUnexpectedReplyError,
+  tryReplyArray,
+  tryReplyNumber,
+  tryReplyToInteger,
+  tryReplyToString,
+  tryReplyToStringArray,
+  tryReplyTuple,
 } from './utils/index.ts';
 
 import type { RespRole } from '../index.ts';
@@ -13,47 +17,48 @@ export function createCommand() {
 
 export async function role<T>(this: T): Promise<RespRole> {
   return await executeCommand(this, createCommand(), (reply, command) => {
-    if (Array.isArray(reply) && reply.length >= 1) {
-      const role = `${reply[0]}`;
+    const name = tryReplyToString(tryReplyArray(reply, command)[0], command);
 
-      if (role === 'master' && reply.length === 3) {
-        const [, replicationOffset, slaves] = reply;
+    if (name === 'master') {
+      const [, replicationOffset, replicas] = tryReplyTuple(reply, 3, command);
 
-        if (typeof replicationOffset !== 'number' || !Array.isArray(slaves)) {
-          throw newCommandError(`${InvalidReplyPrefix}: ${reply}`, command);
-        }
+      return {
+        role: 'master',
+        replicationOffset: tryReplyNumber(replicationOffset, command),
+        slaves: tryReplyArray(replicas, command).map((replica) => {
+          const [ip, port, offset] = tryReplyTuple(replica, 3, command);
 
-        return {
-          role: 'master',
-          replicationOffset,
-          slaves: slaves.map((slave) => {
-            if (!Array.isArray(slave) || slave.length !== 3) {
-              throw newCommandError(`${InvalidReplyPrefix}: ${reply}`, command);
-            }
-            const [ip, port, offset] = slave;
-            return {
-              ip: String(ip),
-              port: Number(port),
-              offset: Number(offset),
-            };
-          }),
-        };
-      }
-
-      if (role === 'slave' && reply.length === 5) {
-        const [, masterHost, masterPort, replicationState, replicationOffset] =
-          reply;
-
-        return {
-          role: 'slave',
-          masterHost: String(masterHost),
-          masterPort: Number(masterPort),
-          replicationState: String(replicationState),
-          replicationOffset: Number(replicationOffset),
-        };
-      }
+          return {
+            ip: String(ip),
+            port: tryReplyToInteger(port, command),
+            offset: tryReplyToInteger(offset, command),
+          };
+        }),
+      };
     }
 
-    throw newCommandError(`${UnexpectedReplyPrefix}: ${reply}`, command);
+    if (name === 'slave') {
+      const [, masterHost, masterPort, replicationState, replicationOffset] =
+        tryReplyTuple(reply, 5, command);
+
+      return {
+        role: 'slave',
+        masterHost: String(masterHost),
+        masterPort: tryReplyNumber(masterPort, command),
+        replicationState: String(replicationState),
+        replicationOffset: tryReplyNumber(replicationOffset, command),
+      };
+    }
+
+    if (name === 'sentinel') {
+      const [, masterNames] = tryReplyTuple(reply, 2, command);
+
+      return {
+        role: 'sentinel',
+        masterNames: tryReplyToStringArray(masterNames, command),
+      };
+    }
+
+    throw newUnexpectedReplyError(reply, command);
   });
 }

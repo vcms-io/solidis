@@ -1,43 +1,67 @@
 /**
  * Resolves connection settings from the environment so the same suite can run
- * against a locally launched server, the docker-compose topology, or the
- * continuous-integration matrix (Redis and Valkey) without code changes.
+ * against a locally launched server or the continuous-integration matrix
+ * (Redis and Valkey) without code changes.
  */
+
+import { SolidisProtocols } from '../../../sources/index.ts';
 
 import type { SolidisClientOptions } from '../../../sources/index.ts';
 
 export interface TestConnectionTarget {
-  label: string;
   host: string;
   port: number;
-  username?: string;
-  password?: string;
+  protocol?: SolidisProtocols;
 }
 
-function readNumber(value: string | undefined, fallback: number): number {
+function readProtocol(value: string | undefined) {
   if (value === undefined || value.trim() === '') {
-    return fallback;
+    return undefined;
   }
 
-  const parsed = Number.parseInt(value, 10);
+  const protocol = value.trim().toUpperCase();
 
-  return Number.isNaN(parsed) ? fallback : parsed;
+  if (
+    protocol !== SolidisProtocols.RESP2 &&
+    protocol !== SolidisProtocols.RESP3
+  ) {
+    throw new Error(
+      `SOLIDIS_TEST_PROTOCOL must be RESP2 or RESP3, got '${value}'`,
+    );
+  }
+
+  return protocol;
+}
+
+function readPort(value: string | undefined) {
+  const text = value?.trim() ?? '';
+  const port = Number(text);
+
+  if (!/^\d+$/.test(text) || port < 1 || port > 65_535) {
+    throw new Error(
+      'Set SOLIDIS_TEST_PORT to the port of a disposable server: the suites flush its data.',
+    );
+  }
+
+  return port;
 }
 
 export function resolveConnectionTarget(): TestConnectionTarget {
   const host = process.env.SOLIDIS_TEST_HOST ?? '127.0.0.1';
-  const port = readNumber(process.env.SOLIDIS_TEST_PORT, 6379);
-  const username = process.env.SOLIDIS_TEST_USERNAME;
-  const password = process.env.SOLIDIS_TEST_PASSWORD;
-  const label = process.env.SOLIDIS_TEST_LABEL ?? `${host}:${port}`;
+  const port = readPort(process.env.SOLIDIS_TEST_PORT);
 
   return {
-    label,
     host,
     port,
-    username: username && username.length > 0 ? username : undefined,
-    password: password && password.length > 0 ? password : undefined,
+    protocol: readProtocol(process.env.SOLIDIS_TEST_PROTOCOL),
   };
+}
+
+/** The test server as a URI writes it: an IPv6 address goes in brackets. */
+export function formatTargetAddress() {
+  const { host, port } = resolveConnectionTarget();
+
+  return `${host.includes(':') ? `[${host}]` : host}:${port}`;
 }
 
 export function buildClientOptions(
@@ -45,15 +69,10 @@ export function buildClientOptions(
 ): SolidisClientOptions {
   const target = resolveConnectionTarget();
 
-  const authentication =
-    target.username || target.password
-      ? { username: target.username, password: target.password }
-      : undefined;
-
   return {
     host: target.host,
     port: target.port,
-    authentication,
+    protocol: target.protocol,
     ...overrides,
   };
 }

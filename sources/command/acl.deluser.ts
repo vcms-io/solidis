@@ -1,3 +1,4 @@
+import { appendItems } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyNumber } from './utils/index.ts';
 
 export function createCommand(...usernames: string[]) {
@@ -7,7 +8,7 @@ export function createCommand(...usernames: string[]) {
 export async function aclDeluser<T>(this: T, ...usernames: string[]) {
   return await executeCommand(
     this,
-    createCommand(...usernames),
+    appendItems(createCommand(), usernames),
     tryReplyNumber,
   );
 }

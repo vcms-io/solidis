@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyOK } from './utils/index.ts';
 
 import type { CommandClientPauseOptions } from '../index.ts';
@@ -6,7 +7,7 @@ export function createCommand(
   timeout: number,
   options?: CommandClientPauseOptions,
 ) {
-  const command = ['CLIENT', 'PAUSE', `${timeout}`];
+  const command = ['CLIENT', 'PAUSE', formatInteger(timeout)];
 
   if (options?.mode) {
     command.push(options.mode);

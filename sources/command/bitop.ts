@@ -1,4 +1,8 @@
-import { executeCommand, tryReplyNumber } from './utils/index.ts';
+import {
+  executeCommand,
+  newCommandError,
+  tryReplyNumber,
+} from './utils/index.ts';
 
 import type { RespBitOperation } from '../index.ts';
 
@@ -8,7 +12,7 @@ export function createCommand(
   keys: string[],
 ) {
   if (operation === 'NOT' && keys.length !== 1) {
-    throw new Error('BITOP NOT accepts exactly one source key');
+    throw newCommandError('NOT accepts exactly one source key', 'BITOP');
   }
 
   return ['BITOP', operation, destkey, ...keys];

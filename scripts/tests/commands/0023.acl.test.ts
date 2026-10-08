@@ -6,11 +6,14 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
+import { RespError, SolidisCommandError } from '../../../sources/index.ts';
 import {
   closeClient,
   createClient,
   detectServerCapabilities,
+  resolveConnectionTarget,
   uniqueSuffix,
+  withoutSanitizePayload,
 } from '../utils/index.ts';
 
 import type { FeaturedClient } from '../utils/index.ts';
@@ -50,16 +53,8 @@ describe('acl', () => {
   });
 
   it('reports the current user with ACL WHOAMI', async () => {
-    const whoami = await client.aclWhoami();
-
-    /**
-     * The test harness connects either anonymously or with explicit
-     * credentials; in both cases redis reports the `default` user unless a
-     * dedicated username is supplied, which the environment helper exposes.
-     */
-    const expected = process.env.SOLIDIS_TEST_USERNAME || 'default';
-
-    assert.strictEqual(whoami, expected);
+    /** The suites connect without credentials, as the default user. */
+    assert.strictEqual(await client.aclWhoami(), 'default');
   });
 
   it('lists ACL categories with ACL CAT', async () => {
@@ -122,28 +117,20 @@ describe('acl', () => {
       assert.fail('ACL GETUSER must return user info for an active user');
     }
 
-    if (isValkey && atLeast8) {
-      assert.deepStrictEqual(info, {
-        flags: ['on'],
-        passwords: [
-          '9b8769a4a742959a2d0298c36fb70623f2dfacda8436237df08d8dfd5b37374c',
-        ],
-        commands: '+@all',
-        keys: '~*',
-        channels: '',
-        selectors: [],
-      });
-    } else if (atLeast7) {
-      assert.deepStrictEqual(info, {
-        flags: ['on', 'sanitize-payload'],
-        passwords: [
-          '9b8769a4a742959a2d0298c36fb70623f2dfacda8436237df08d8dfd5b37374c',
-        ],
-        commands: '+@all',
-        keys: '~*',
-        channels: '',
-        selectors: [],
-      });
+    if (atLeast7) {
+      assert.deepStrictEqual(
+        { ...info, flags: withoutSanitizePayload(info.flags) },
+        {
+          flags: ['on'],
+          passwords: [
+            '9b8769a4a742959a2d0298c36fb70623f2dfacda8436237df08d8dfd5b37374c',
+          ],
+          commands: '+@all',
+          keys: '~*',
+          channels: '',
+          selectors: [],
+        },
+      );
     } else {
       assert.deepStrictEqual(info, {
         flags: ['on', 'allkeys', 'allchannels', 'allcommands'],
@@ -151,8 +138,8 @@ describe('acl', () => {
           '9b8769a4a742959a2d0298c36fb70623f2dfacda8436237df08d8dfd5b37374c',
         ],
         commands: '+@all',
-        keys: '*',
-        channels: '*',
+        keys: '~*',
+        channels: '&*',
         selectors: [],
       });
     }
@@ -162,6 +149,71 @@ describe('acl', () => {
     const deleted = await client.aclGetuser(user);
 
     assert.strictEqual(deleted, null);
+  });
+
+  it('authenticates a binary username byte for byte with AUTH and HELLO', async () => {
+    const name = Buffer.from([0x75, 0xff]);
+    const password = `binary-${uniqueSuffix()}`;
+    const protocol = resolveConnectionTarget().protocol ?? 'RESP2';
+    const user = await createClient();
+
+    await client.send([
+      ['ACL', 'SETUSER', name, 'on', `>${password}`, '~*', '+@all'],
+    ]);
+
+    try {
+      for (const attempt of [
+        user.auth(name.toString(), password),
+        user.hello(protocol, name.toString(), password),
+      ]) {
+        await assert.rejects(attempt, (error: unknown) => {
+          assert.ok(error instanceof SolidisCommandError);
+          assert.ok(error.cause instanceof RespError);
+          assert.strictEqual(error.cause.code, 'WRONGPASS');
+
+          return true;
+        });
+      }
+
+      assert.strictEqual(await user.auth(name, password), 'OK');
+      assert.strictEqual(
+        (await user.hello(protocol, name, password)).proto,
+        protocol === 'RESP3' ? 3 : 2,
+      );
+    } finally {
+      await closeClient(user);
+      await client.send([['ACL', 'DELUSER', name]]);
+    }
+  });
+
+  it('answers a failed AUTH and HELLO with AUTH sent between other commands', async () => {
+    const key = `solidis-test-auth-${uniqueSuffix()}`;
+    const protocol = resolveConnectionTarget().protocol ?? 'RESP2';
+    const user = await createClient();
+
+    try {
+      const [pong, auth, hello, set] = await Promise.allSettled([
+        user.ping(),
+        user.auth('solidis-missing-user', 'wrong'),
+        user.hello(protocol, 'solidis-missing-user', 'wrong'),
+        user.set(key, 'v'),
+      ]);
+
+      assert.deepStrictEqual(pong, { status: 'fulfilled', value: 'PONG' });
+
+      for (const result of [auth, hello]) {
+        assert.strictEqual(result.status, 'rejected');
+        assert.ok(result.reason instanceof SolidisCommandError);
+        assert.ok(result.reason.cause instanceof RespError);
+        assert.strictEqual(result.reason.cause.code, 'WRONGPASS');
+      }
+
+      assert.deepStrictEqual(set, { status: 'fulfilled', value: 'OK' });
+      assert.strictEqual(await user.get(key), 'v');
+    } finally {
+      await user.del(key);
+      await closeClient(user);
+    }
   });
 
   it('returns null from ACL GETUSER for non-existent user', async () => {
@@ -224,12 +276,12 @@ describe('acl', () => {
     if (atLeast72) {
       assert.strictEqual(
         denied.message,
-        `[SET forbidden:key val] Invalid reply: RespError: NOPERM User ${user} has no permissions to run the 'set' command`,
+        `[SET] NOPERM User ${user} has no permissions to run the 'set' command`,
       );
     } else {
       assert.strictEqual(
         denied.message,
-        "[SET forbidden:key val] Invalid reply: RespError: NOPERM this user has no permissions to run the 'set' command or its subcommand",
+        "[SET] NOPERM this user has no permissions to run the 'set' command or its subcommand",
       );
     }
 
@@ -270,21 +322,32 @@ describe('acl', () => {
     });
 
     try {
-      await restricted.set('forbidden:key', 'val');
-      assert.fail('expected NOPERM rejection for restricted user');
-    } catch (error) {
-      assert.ok(
-        error instanceof Error && error.message.includes('NOPERM'),
-        `expected NOPERM error but got: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      for (const denied of [
+        restricted.set('forbidden:key', 'val'),
+        restricted.get('forbidden:key'),
+      ]) {
+        await assert.rejects(
+          denied,
+          (error: unknown) =>
+            error instanceof SolidisCommandError &&
+            error.cause instanceof RespError &&
+            error.cause.code === 'NOPERM',
+        );
+      }
     } finally {
       await closeClient(restricted);
     }
 
-    const log = await client.aclLog(5);
+    const all = await client.aclLog();
+    const latest = await client.aclLog(1);
 
-    assert.strictEqual(log.length, 1);
-    assert.strictEqual(log[0].username, user);
+    assert.strictEqual(all.length, 2);
+    assert.strictEqual(latest.length, 1);
+    assert.strictEqual(latest[0].username, user);
+    assert.deepStrictEqual(
+      [latest[0].reason, latest[0].object],
+      [all[0].reason, all[0].object],
+    );
   });
 
   it('resets the ACL log', async () => {
@@ -293,7 +356,7 @@ describe('acl', () => {
     assert.deepStrictEqual(log, []);
   });
 
-  it('persists ACL rules with ACL SAVE', async () => {
+  it('refuses ACL SAVE without an ACL file and accepts it with one', async () => {
     /**
      * ACL SAVE returns OK when the server is configured with an aclfile; with
      * the default in-memory configuration it must fail with a *specific* error
@@ -302,15 +365,18 @@ describe('acl', () => {
     const result = await client.aclSave().catch((error: Error) => error);
 
     if (result instanceof Error) {
+      assert.ok(result instanceof SolidisCommandError);
+      assert.ok(result.cause instanceof RespError);
+      assert.strictEqual(result.cause.code, 'ERR');
       if (isValkey && atLeast8) {
         assert.strictEqual(
           result.message,
-          '[ACL SAVE] Invalid reply: RespError: ERR This instance is not configured to use an ACL file. You may want to specify users via the ACL SETUSER command and then issue a CONFIG REWRITE (assuming you have a configuration file set) in order to store users in the configuration.',
+          '[ACL SAVE] ERR This instance is not configured to use an ACL file. You may want to specify users via the ACL SETUSER command and then issue a CONFIG REWRITE (assuming you have a configuration file set) in order to store users in the configuration.',
         );
       } else {
         assert.strictEqual(
           result.message,
-          '[ACL SAVE] Invalid reply: RespError: ERR This Redis instance is not configured to use an ACL file. You may want to specify users via the ACL SETUSER command and then issue a CONFIG REWRITE (assuming you have a Redis configuration file set) in order to store users in the Redis configuration.',
+          '[ACL SAVE] ERR This Redis instance is not configured to use an ACL file. You may want to specify users via the ACL SETUSER command and then issue a CONFIG REWRITE (assuming you have a Redis configuration file set) in order to store users in the Redis configuration.',
         );
       }
       return;

@@ -26,24 +26,30 @@ const requestHeaders = {
 
 const apiBase = `https://api.github.com/repos/${owner}/${repositoryName}`;
 
-const commentsResponse = await fetch(
-  `${apiBase}/issues/${issueNumber}/comments?per_page=100`,
-  { headers: requestHeaders },
-);
+let existingComment: { id: number; body?: string } | undefined;
 
-if (!commentsResponse.ok) {
-  console.error(`Failed to list comments: ${commentsResponse.status}`);
-  process.exit(1);
+for (let page = 1; !existingComment; page += 1) {
+  const commentsResponse = await fetch(
+    `${apiBase}/issues/${issueNumber}/comments?per_page=100&page=${page}`,
+    { headers: requestHeaders },
+  );
+
+  if (!commentsResponse.ok) {
+    console.error(`Failed to list comments: ${commentsResponse.status}`);
+    process.exit(1);
+  }
+
+  const comments = (await commentsResponse.json()) as {
+    id: number;
+    body?: string;
+  }[];
+
+  existingComment = comments.find((comment) => comment.body?.includes(MARKER));
+
+  if (comments.length < 100) {
+    break;
+  }
 }
-
-const comments = (await commentsResponse.json()) as {
-  id: number;
-  body?: string;
-}[];
-
-const existingComment = comments.find((comment) =>
-  comment.body?.includes(MARKER),
-);
 
 if (existingComment) {
   const response = await fetch(

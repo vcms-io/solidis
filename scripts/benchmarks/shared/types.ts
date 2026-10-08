@@ -1,7 +1,14 @@
 export type LibraryName = string;
 export type BenchmarkMode = 'autopipeline' | 'batch';
-export type SerializedBenchConfig = Omit<BenchConfig, 'operations'> & {
+export type BenchmarkNote =
+  | { kind: 'resp3PubSub' | 'atomicTransactions' | 'batchedOperations' }
+  | { kind: 'noAutoPipeline'; commands: string[] };
+export type SerializedBenchConfig = Omit<
+  BenchConfig,
+  'operations' | 'libraries'
+> & {
   operations?: string[];
+  libraries?: string[];
 };
 export interface BenchWorkerData {
   config: SerializedBenchConfig;
@@ -17,8 +24,6 @@ export type Command = CommandArgument[];
 export interface ConnectionTarget {
   host: string;
   port: number;
-  username?: string;
-  password?: string;
 }
 
 export interface BenchConfig {
@@ -32,6 +37,7 @@ export interface BenchConfig {
   repeats: number;
   cooldownMs: number;
   operations?: Set<string>;
+  libraries?: Set<string>;
 }
 
 export interface BenchContext {
@@ -55,32 +61,56 @@ export interface BenchResult {
   commandsPerUnit: number;
   elapsedMs: number | null;
   spreadPercent: number | null;
+  latencyPercentile50Milliseconds?: number;
+  latencyPercentile95Milliseconds?: number;
+  latencyPercentile99Milliseconds?: number;
+  latencyPercentile999Milliseconds?: number;
+  cpuMicrosecondsPerUnit?: number;
+  gcMicrosecondsPerUnit?: number;
+  peakMemoryBytes?: number;
   unitsPerSecond: number | null;
   commandsPerSecond: number | null;
   samplesMs: number[];
   caseWallMs?: number;
   comparable: boolean;
-  nonComparableReason?: string;
+  nonComparableReason?: BenchmarkNote;
   verificationError?: string;
   error?: string;
 }
 
-export interface ComparedResult extends BenchResult {
-  baselineLibrary: LibraryName;
-  baselineUnitsPerSecond: number | null;
-  ratioVsBaseline: number | null;
+export interface LibraryInfo {
+  name: LibraryName;
+  packageName: string;
+  version: string;
+  hasNativeCore: boolean;
+}
+
+export interface BenchEnvironment {
+  platform: string;
+  arch: string;
+  osRelease: string;
+  cpuModel: string;
+  cpuCount: number;
+  totalMemoryBytes: number;
+  nodeVersion: string;
+  server: string;
 }
 
 export interface BenchmarkSnapshot {
   suiteName: string;
-  baselineLibrary: LibraryName;
+  libraries: LibraryInfo[];
+  environments: BenchEnvironment[];
   configuration: SerializedBenchConfig;
-  results: ComparedResult[];
+  results: BenchResult[];
   createdAt: string;
 }
 
 export interface CaseRunResult {
   elapsedMs: number;
+  cpuMicroseconds: number;
+  gcMilliseconds: number;
+  peakMemoryBytes: number;
+  latenciesMilliseconds: Float64Array;
   verificationError?: string;
 }
 
@@ -89,8 +119,7 @@ export interface BenchmarkCase {
   commandsPerUnit: number;
   payloadSlotsPerUnit: number;
   executionMode?: BenchmarkMode;
-  comparableModes: ReadonlySet<BenchmarkMode>;
-  nonComparableReason?: string;
+  sampleCommands: Command[];
   run(context: BenchContext): Promise<CaseRunResult>;
 }
 

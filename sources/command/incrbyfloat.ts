@@ -1,7 +1,8 @@
+import { formatNumber } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyToNumber } from './utils/index.ts';
 
 export function createCommand(key: string, increment: number) {
-  return ['INCRBYFLOAT', key, `${increment}`];
+  return ['INCRBYFLOAT', key, formatNumber(increment)];
 }
 
 export async function incrbyfloat<T>(

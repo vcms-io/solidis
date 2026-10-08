@@ -1,10 +1,12 @@
 import {
   executeCommand,
-  InvalidReplyPrefix,
   newCommandError,
   processPairedArray,
+  setRecordEntry,
+  tryReplyArray,
   tryReplyToMap,
-  tryReplyToStringRecordRecursively,
+  tryReplyToStringArray,
+  tryReplyTuple,
 } from './utils/index.ts';
 
 import type {
@@ -14,76 +16,78 @@ import type {
 } from '../index.ts';
 
 export function createCommand(commands?: string[]) {
-  const command = ['COMMAND', 'DOCS'];
-
-  if (commands?.length) {
-    command.push(...commands);
+  if (commands?.length === 0) {
+    throw newCommandError(
+      'An empty list of commands would return every command',
+      'COMMAND DOCS',
+    );
   }
 
-  return command;
+  return ['COMMAND', 'DOCS', ...(commands ?? [])];
+}
+
+function parseCommandDocs(
+  reply: unknown,
+  command: StringOrBuffer[],
+): Record<string, RespCommandDoc> {
+  const result: Record<string, RespCommandDoc> = {};
+
+  processPairedArray(
+    reply,
+    (key, value) => {
+      setRecordEntry(result, key, parseCommandDoc(value, command));
+    },
+    command,
+  );
+
+  return result;
 }
 
 function parseCommandDoc(
   reply: unknown,
   command: StringOrBuffer[],
 ): RespCommandDoc {
-  const result = tryReplyToMap(reply, command);
+  const result: RespCommandDoc = {};
 
-  const summary = result.get('summary');
-  const since = result.get('since');
-  const group = result.get('group');
-  const complexity = result.get('complexity');
-  const docFlags = result.get('doc_flags');
-  const deprecatedSince = result.get('deprecated_since');
-  const replacedBy = result.get('replaced_by');
-  const history = result.get('history');
-  const subArguments = result.get('arguments');
-  const subcommands = result.get('subcommands');
+  for (const [key, value] of tryReplyToMap(reply, command)) {
+    if (
+      key === 'summary' ||
+      key === 'since' ||
+      key === 'group' ||
+      key === 'complexity'
+    ) {
+      result[key] = String(value);
+    } else if (key === 'deprecated_since') {
+      result.deprecatedSince = String(value);
+    } else if (key === 'replaced_by') {
+      result.replacedBy = String(value);
+    } else if (key === 'doc_flags') {
+      result.docFlags = parseDocFlags(value, command);
+    } else if (key === 'history') {
+      result.history = parseHistory(value, command);
+    } else if (key === 'arguments') {
+      result.arguments = parseArguments(value, command);
+    } else if (key === 'subcommands') {
+      result.subcommands = parseCommandDocs(value, command);
+    }
+  }
 
-  return {
-    summary: summary ? String(summary) : undefined,
-    since: since ? String(since) : undefined,
-    group: group ? String(group) : undefined,
-    complexity: complexity ? String(complexity) : undefined,
-    docFlags: docFlags ? parseDocFlags(docFlags) : undefined,
-    deprecatedSince: deprecatedSince ? String(deprecatedSince) : undefined,
-    replacedBy: replacedBy ? String(replacedBy) : undefined,
-    history: history ? parseHistory(history, command) : undefined,
-    arguments: subArguments ? parseArguments(subArguments, command) : undefined,
-    subcommands: subcommands
-      ? tryReplyToStringRecordRecursively(subcommands, command)
-      : undefined,
-  };
+  return result;
 }
 
 function parseDocFlags(
   flags: unknown,
-): Array<'deprecated' | 'syscmd'> | undefined {
-  if (!Array.isArray(flags)) {
-    return undefined;
-  }
-
-  return flags
-    .map((flag) => String(flag))
-    .filter((flag): flag is 'deprecated' | 'syscmd' =>
-      ['deprecated', 'syscmd'].includes(flag),
-    );
+  command: StringOrBuffer[],
+): Array<'deprecated' | 'syscmd'> {
+  return tryReplyToStringArray(flags, command).filter(
+    (flag): flag is 'deprecated' | 'syscmd' =>
+      flag === 'deprecated' || flag === 'syscmd',
+  );
 }
 
-function parseHistory(
-  history: unknown,
-  command: StringOrBuffer[],
-): string[] | undefined {
-  if (!Array.isArray(history)) {
-    return undefined;
-  }
-
-  return history.map((entry) => {
-    if (!Array.isArray(entry) || entry.length !== 2) {
-      throw newCommandError(`${InvalidReplyPrefix}: ${entry}`, command);
-    }
-
-    const [version, description] = entry;
+function parseHistory(history: unknown, command: StringOrBuffer[]) {
+  return tryReplyArray(history, command).map((entry) => {
+    const [version, description] = tryReplyTuple(entry, 2, command);
 
     return `${String(version)}: ${String(description)}`;
   });
@@ -92,26 +96,23 @@ function parseHistory(
 function parseArguments(
   parameters: unknown,
   command: StringOrBuffer[],
-): RespCommandArgument[] | undefined {
-  if (!Array.isArray(parameters)) {
-    return undefined;
-  }
-
-  return parameters.map((parameter) => {
-    const result = tryReplyToMap(parameter, command);
-    const name = result.get('name');
-    const type = result.get('type');
-    const optional = result.get('optional') === true;
-    const multiple = result.get('multiple') === true;
-    const subArguments = result.get('arguments');
-
-    return {
-      name: String(name),
-      type: String(type),
-      optional,
-      multiple,
-      arguments: parseArguments(subArguments, command),
+): RespCommandArgument[] {
+  return tryReplyArray(parameters, command).map((parameter) => {
+    const map = tryReplyToMap(parameter, command);
+    const flags = tryReplyArray(map.get('flags') ?? [], command);
+    const subArguments = map.get('arguments');
+    const result: RespCommandArgument = {
+      name: String(map.get('name')),
+      type: String(map.get('type')),
+      optional: flags.some((flag) => String(flag) === 'optional'),
+      multiple: flags.some((flag) => String(flag) === 'multiple'),
     };
+
+    if (subArguments !== undefined) {
+      result.arguments = parseArguments(subArguments, command);
+    }
+
+    return result;
   });
 }
 
@@ -119,25 +120,5 @@ export async function commandDocs<T>(
   this: T,
   commands?: string[],
 ): Promise<Record<string, RespCommandDoc>> {
-  return await executeCommand(
-    this,
-    createCommand(commands),
-    (reply, command) => {
-      const result: Record<string, RespCommandDoc> = {};
-
-      processPairedArray(
-        reply,
-        (key, value) => {
-          const parsedDoc = parseCommandDoc(value, command);
-
-          if (typeof key === 'string') {
-            result[key] = parsedDoc;
-          }
-        },
-        command,
-      );
-
-      return result;
-    },
-  );
+  return await executeCommand(this, createCommand(commands), parseCommandDocs);
 }

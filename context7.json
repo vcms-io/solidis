@@ -3,15 +3,15 @@
   "url": "https://context7.com/vcms-io/solidis",
   "public_key": "pk_1lc6uDRxBDTW0y1JAkFSR",
   "projectTitle": "Solidis",
-  "description": "The fastest Redis & Valkey client for Node.js. Zero dependencies, full RESP2/RESP3 support, TypeScript-first.",
+  "description": "The fastest Redis client for Node.js; works with Valkey. Zero dependencies, RESP2 and RESP3, TypeScript-first.",
   "folders": [],
   "excludeFolders": ["website", "sources", "scripts", "assets"],
   "excludeFiles": ["README.ko.md"],
   "rules": [
     "Install with: npm install @vcms-io/solidis",
-    "Import SolidisFeaturedClient from '@vcms-io/solidis/featured' for the full Redis command set",
+    "Import SolidisFeaturedClient from '@vcms-io/solidis/featured' for all 384 built-in commands; send any other command with send()",
     "For minimal bundle size, import SolidisClient from '@vcms-io/solidis' and add only needed commands via .extend()",
     "Solidis has zero dependencies — do not add other Redis client libraries alongside it",
-    "All commands return Promises and are fully typed; prefer TypeScript strict mode"
+    "Commands return Promises, except multi(), which returns a transaction, and the scan iterators, which are async generators; all are fully typed; prefer TypeScript strict mode"
   ]
 }

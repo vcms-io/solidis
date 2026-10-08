@@ -3,13 +3,17 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
+import { SolidisFeaturedClient } from '../../../sources/client/featured.ts';
+import { RespError, SolidisCommandError } from '../../../sources/index.ts';
 import {
+  buildClientOptions,
   closeClient,
   createClient,
   createKeyspace,
   delay,
 } from '../utils/index.ts';
 
+import type { StringOrBuffer } from '../../../sources/index.ts';
 import type { FeaturedClient } from '../utils/index.ts';
 
 describe('transactions', () => {
@@ -41,11 +45,7 @@ describe('transactions', () => {
      * EXEC must return each queued command's reply in submission order; a
      * misaligned or mistyped reply array would slip past a length-only check.
      */
-    assert.strictEqual(results.length, 4);
-    assert.strictEqual(results[0], 'OK');
-    assert.strictEqual(results[1], 1);
-    assert.strictEqual(results[2], 2);
-    assert.deepStrictEqual(results[3], Buffer.from('hello'));
+    assert.deepStrictEqual(results, ['OK', 1, 2, Buffer.from('hello')]);
     assert.strictEqual(await client.get(counter), '2');
     assert.strictEqual(await client.get(value), 'hello');
   });
@@ -70,6 +70,33 @@ describe('transactions', () => {
     assert.strictEqual(await client.get(key), 'original');
   });
 
+  it('keeps accepting commands after a discard', async () => {
+    const discarded = keyspace.key('reuse', 'discarded');
+    const committed = keyspace.key('reuse', 'committed');
+
+    const transaction = client.multi();
+
+    transaction.set(discarded, 'no');
+    transaction.set(discarded, 'no', { setIfDigestEquals: 'not a digest' });
+    transaction.discard();
+    transaction.set(committed, 'yes');
+
+    assert.deepStrictEqual(await transaction.exec(), ['OK']);
+    assert.strictEqual(await client.get(discarded), null);
+    assert.strictEqual(await client.get(committed), 'yes');
+  });
+
+  it('empties the queue once exec has run', async () => {
+    const key = keyspace.key('drained');
+    const transaction = client.multi();
+
+    transaction.incr(key);
+
+    assert.deepStrictEqual(await transaction.exec(), [1]);
+    assert.deepStrictEqual(await transaction.exec(), []);
+    assert.strictEqual(await client.get(key), '1');
+  });
+
   it('aborts EXEC when a watched key changes', async () => {
     const key = keyspace.key('watch', 'changed');
 
@@ -85,13 +112,7 @@ describe('transactions', () => {
       const transaction = lockClient.multi();
       transaction.set(key, 'should-not-apply');
 
-      const results = await transaction.exec();
-
-      /**
-       * A WATCH-aborted EXEC replies with a nil array, surfaced here as a
-       * single null entry rather than the per-command reply list.
-       */
-      assert.deepStrictEqual(results, [null]);
+      assert.strictEqual(await transaction.exec(), null);
       assert.strictEqual(await client.get(key), 'modified-by-other');
     } finally {
       await closeClient(lockClient);
@@ -115,6 +136,34 @@ describe('transactions', () => {
 
       assert.deepStrictEqual(results, [2]);
       assert.strictEqual(await client.get(key), '2');
+    } finally {
+      await closeClient(lockClient);
+    }
+  });
+
+  it('distinguishes an aborted EXEC from a committed transaction of nulls', async () => {
+    const key = keyspace.key('watch', 'null-reply');
+    const missing = keyspace.key('watch', 'missing');
+
+    const transaction = client.multi();
+
+    transaction.get(missing);
+
+    assert.deepStrictEqual(await transaction.exec(), [null]);
+
+    await client.set(key, '1');
+
+    const lockClient = await createClient();
+
+    try {
+      await lockClient.watch(key);
+      await client.set(key, '2');
+
+      const aborted = lockClient.multi();
+
+      aborted.get(missing);
+
+      assert.strictEqual(await aborted.exec(), null);
     } finally {
       await closeClient(lockClient);
     }
@@ -147,6 +196,7 @@ describe('transactions', () => {
 
   it('implements a safe compare-and-swap loop with WATCH', async () => {
     const key = keyspace.key('cas');
+    const workerCount = 5;
 
     await client.set(key, '0');
 
@@ -161,11 +211,9 @@ describe('transactions', () => {
 
         const results = await transaction.exec();
 
-        /**
-         * Success yields the per-command reply list; a WATCH abort yields a
-         * single null entry, in which case we retry the read-modify-write.
-         */
-        if (results.length === 1 && results[0] === 'OK') {
+        if (results !== null) {
+          assert.deepStrictEqual(results, ['OK']);
+
           return;
         }
 
@@ -174,23 +222,103 @@ describe('transactions', () => {
     };
 
     const workers = await Promise.all(
-      Array.from({ length: 5 }, () => createClient()),
+      Array.from({ length: workerCount }, () => createClient()),
     );
 
     try {
       await Promise.all(workers.map((worker) => increment(worker)));
 
-      assert.strictEqual(await client.get(key), '5');
+      assert.strictEqual(await client.get(key), `${workerCount}`);
     } finally {
       await Promise.all(workers.map((worker) => closeClient(worker)));
     }
   });
 
-  it('multi guard rejects on object without extend method', async () => {
+  it('keeps runtime errors inline in the EXEC reply', async () => {
+    const key = keyspace.key('runtime-error');
+    const transaction = client.multi();
+
+    transaction.set(key, 'text');
+    transaction.incr(key);
+    transaction.get(key);
+
+    const results = await transaction.exec();
+
+    if (results === null) {
+      assert.fail('an unwatched transaction must not abort');
+    }
+
+    assert.strictEqual(results.length, 3);
+    assert.strictEqual(results[0], 'OK');
+    assert.ok(results[1] instanceof RespError);
+    assert.strictEqual(results[1].code, 'ERR');
+    assert.deepStrictEqual(results[2], Buffer.from('text'));
+  });
+
+  it('rejects EXEC when the server discards the transaction at queue time', async () => {
+    const key = keyspace.key('execabort');
+    const transaction = client.multi();
+
+    transaction.set(key, 'never');
+    transaction.del();
+
+    await assert.rejects(transaction.exec(), (error: unknown) => {
+      assert.ok(error instanceof SolidisCommandError);
+      assert.match(error.message, /^\[EXEC\] EXECABORT /);
+      assert.ok(error.cause instanceof RespError);
+      assert.strictEqual(error.cause.code, 'EXECABORT');
+
+      return true;
+    });
+
+    assert.strictEqual(await client.get(key), null);
+    assert.strictEqual(await client.ping(), 'PONG');
+  });
+
+  it('never queues direct client calls made while a transaction is open', async () => {
+    const key = keyspace.key('direct');
+    const transaction = client.multi();
+
+    transaction.set(key, 'queued');
+
+    assert.strictEqual(await client.set(key, 'direct'), 'OK');
+    assert.strictEqual(await client.get(key), 'direct');
+    assert.deepStrictEqual(await transaction.exec(), ['OK']);
+    assert.strictEqual(await client.get(key), 'queued');
+  });
+
+  it('keeps interleaved transactions on one client separate', async () => {
+    const first = keyspace.key('interleaved', 'first');
+    const second = keyspace.key('interleaved', 'second');
+
+    const left = client.multi();
+    const right = client.multi();
+
+    for (let index = 0; index < 10; index += 1) {
+      left.incr(first);
+      right.incrby(second, 2);
+    }
+
+    const [leftResults, rightResults] = await Promise.all([
+      left.exec(),
+      right.exec(),
+    ]);
+
+    assert.deepStrictEqual(
+      leftResults,
+      Array.from({ length: 10 }, (_, index) => index + 1),
+    );
+    assert.deepStrictEqual(
+      rightResults,
+      Array.from({ length: 10 }, (_, index) => (index + 1) * 2),
+    );
+  });
+
+  it('multi rejects an object without a send method', async () => {
     const { multi } = await import('../../../sources/command/multi.ts');
 
     assert.throws(() => multi.call({}), {
-      message: '[MULTI] Extend method is not implemented',
+      message: '[MULTI] Send method is not implemented',
     });
   });
 
@@ -206,9 +334,10 @@ describe('transactions', () => {
     });
 
     assert.strictEqual(await client.get(key), null);
+    assert.deepStrictEqual(await transaction.exec(), []);
   });
 
-  it('handles discard on an empty pipeline gracefully', async () => {
+  it('handles discard on an empty transaction', async () => {
     const transaction = client.multi();
 
     transaction.discard();
@@ -218,8 +347,342 @@ describe('transactions', () => {
 
   it('returns undefined when accessing a non-function property through the transaction proxy', () => {
     const transaction = client.multi();
-    const value = (transaction as Record<string, unknown>).nonExistentProperty;
 
-    assert.strictEqual(value, undefined);
+    for (const name of ['uri', '_events', 'nonExistentProperty']) {
+      assert.strictEqual(Reflect.get(transaction, name), undefined, name);
+    }
+  });
+
+  it('rejects an EXEC reply that is neither a reply list nor null', async () => {
+    const { multi } = await import('../../../sources/command/multi.ts');
+    const { set } = await import('../../../sources/command/set.ts');
+
+    const sender = {
+      multi,
+      set,
+      send: async (commands: StringOrBuffer[][]) =>
+        commands.map((_, index) => [
+          index === commands.length - 1 ? 'unexpected' : 'QUEUED',
+        ]),
+    };
+    const transaction = sender.multi();
+
+    transaction.set('key', 'value');
+
+    await assert.rejects(transaction.exec(), {
+      name: 'SolidisCommandError',
+      message: '[EXEC] Unexpected reply: string',
+    });
+  });
+
+  it('reports a MULTI the server refuses, after which the queued commands ran alone', async () => {
+    const user = `solidis-txn-${Date.now()}`;
+    const counter = keyspace.key('refused-multi');
+
+    await client.aclSetuser(
+      user,
+      'reset',
+      'on',
+      '>pw',
+      '~*',
+      '&*',
+      '+@read',
+      '+@write',
+    );
+
+    const restricted = await createClient({
+      authentication: { username: user, password: 'pw' },
+    });
+
+    try {
+      const transaction = restricted.multi();
+
+      transaction.incr(counter);
+
+      await assert.rejects(transaction.exec(), (error: unknown) => {
+        assert.ok(error instanceof SolidisCommandError);
+        assert.match(error.message, /^\[MULTI\] NOPERM /);
+
+        return true;
+      });
+      assert.strictEqual(await client.get(counter), '1');
+    } finally {
+      await closeClient(restricted);
+      await client.aclDeluser(user);
+    }
+  });
+
+  it('queues the methods that a client subclass defines', async () => {
+    class SessionClient extends SolidisFeaturedClient {
+      touchSession(key: string) {
+        return this.expire(key, 60);
+      }
+    }
+
+    const session = new SessionClient(
+      buildClientOptions({ lazyConnect: true }),
+    );
+    const key = keyspace.key('session');
+
+    session.on('error', () => {});
+
+    try {
+      await session.connect();
+
+      const transaction = session.multi();
+
+      transaction.set(key, 'value');
+      transaction.touchSession(key);
+
+      assert.deepStrictEqual(await transaction.exec(), ['OK', 1]);
+      assert.ok((await client.ttl(key)) > 0);
+    } finally {
+      session.quit();
+    }
+  });
+
+  it('queues copies of the commands a method sends, so the method can reuse one array', async () => {
+    class PairClient extends SolidisFeaturedClient {
+      setPairs(pairs: [string, string][]) {
+        const command = ['SET', '', ''];
+
+        for (const [key, value] of pairs) {
+          command[1] = key;
+          command[2] = value;
+
+          this.send([command]);
+        }
+      }
+    }
+
+    const paired = new PairClient(buildClientOptions({ lazyConnect: true }));
+    const first = keyspace.key('pairs', 'first');
+    const second = keyspace.key('pairs', 'second');
+
+    paired.on('error', () => {});
+
+    try {
+      await paired.connect();
+
+      const transaction = paired.multi();
+
+      transaction.setPairs([
+        [first, '1'],
+        [second, '2'],
+      ]);
+
+      assert.deepStrictEqual(await transaction.exec(), ['OK', 'OK']);
+      assert.deepStrictEqual(await client.mget(first, second), ['1', '2']);
+    } finally {
+      paired.quit();
+    }
+  });
+
+  it('keeps the place of exec() among the commands sent after it', async () => {
+    const counter = keyspace.key('order', 'counter');
+    const value = keyspace.key('order', 'value');
+    const watched = keyspace.key('order', 'watched');
+    const other = await createClient();
+
+    try {
+      await client.set(counter, '0');
+
+      const counting = client.multi();
+
+      counting.incr(counter);
+
+      const executed = counting.exec();
+      const read = client.get(counter);
+
+      assert.deepStrictEqual(await executed, [1]);
+      assert.strictEqual(await read, '1');
+
+      const overwriting = client.multi();
+
+      overwriting.set(value, 'from-transaction');
+
+      await Promise.all([overwriting.exec(), client.set(value, 'after')]);
+
+      assert.strictEqual(await client.get(value), 'after');
+
+      const reused = client.multi();
+
+      reused.set(value, 'first');
+
+      const first = reused.exec();
+
+      reused.set(value, 'second');
+
+      assert.deepStrictEqual(await first, ['OK']);
+      assert.deepStrictEqual(await reused.exec(), ['OK']);
+      assert.strictEqual(await client.get(value), 'second');
+
+      const guarding = client.multi();
+
+      guarding.set(value, 'guarded');
+
+      await Promise.all([guarding.exec(), client.watch(watched)]);
+      await other.set(watched, 'changed');
+
+      const aborted = client.multi();
+
+      aborted.set(value, 'lost');
+
+      assert.strictEqual(await aborted.exec(), null);
+      assert.strictEqual(await client.get(value), 'guarded');
+
+      const failing = client.multi();
+
+      failing.xread(['a', 'b'], ['0']);
+
+      const rejected = failing.exec();
+      const watching = client.watch(watched);
+
+      await assert.rejects(rejected, {
+        message: '[XREAD] Keys and IDs must have the same length',
+      });
+      await watching;
+      await other.set(watched, 'changed again');
+
+      const guarded = client.multi();
+
+      guarded.set(value, 'lost again');
+
+      assert.strictEqual(await guarded.exec(), null);
+      assert.strictEqual(await client.get(value), 'guarded');
+    } finally {
+      await closeClient(other);
+    }
+  });
+
+  it('refuses a queued command whose argument is not a string, and ends the WATCH', async () => {
+    const watched = keyspace.key('refused', 'watched');
+    const target = keyspace.key('refused', 'target');
+    const other = await createClient();
+
+    try {
+      await client.watch(watched);
+
+      const refused = client.multi();
+
+      refused.mset({ [target]: 'v', missing: undefined as unknown as string });
+
+      await assert.rejects(refused.exec(), {
+        name: 'SolidisRequesterError',
+        message: 'MSET takes only strings and Buffers.',
+      });
+      await other.set(watched, 'changed');
+
+      const next = client.multi();
+
+      next.set(target, 'committed');
+
+      assert.deepStrictEqual(await next.exec(), ['OK']);
+    } finally {
+      await closeClient(other);
+    }
+  });
+
+  it('refuses a queued subscription command before sending the transaction, and ends the WATCH', async () => {
+    const watched = keyspace.key('subscribing', 'watched');
+    const target = keyspace.key('subscribing', 'target');
+    const other = await createClient();
+    const extended = (await createClient()).extend({
+      listen(this: FeaturedClient, channel: string) {
+        return this.subscribe(channel);
+      },
+    });
+
+    try {
+      await extended.watch(watched);
+
+      const refused = extended.multi();
+
+      refused.set(target, 'refused');
+      refused.listen(keyspace.key('subscribing', 'channel'));
+
+      await assert.rejects(refused.exec(), {
+        name: 'SolidisRequesterError',
+        message:
+          'SUBSCRIBE is not supported inside a transaction: it breaks the pairing of requests and replies.',
+      });
+      await other.set(watched, 'changed');
+
+      assert.strictEqual(await other.get(target), null);
+
+      const next = extended.multi();
+
+      next.set(target, 'committed');
+
+      assert.deepStrictEqual(await next.exec(), ['OK']);
+    } finally {
+      await closeClient(extended);
+      await closeClient(other);
+    }
+  });
+
+  it('rejects exec() when a queued call queues no command', async () => {
+    const extended = (await createClient()).extend({
+      async idle() {},
+      async sendNothing() {
+        assert.deepStrictEqual(await this.send([]), []);
+      },
+    });
+
+    try {
+      for (const call of ['idle', 'sendNothing'] as const) {
+        const transaction = extended.multi();
+
+        transaction[call]();
+
+        await assert.rejects(transaction.exec(), {
+          name: 'SolidisCommandError',
+          message: '[EXEC] A call queued no command',
+        });
+      }
+    } finally {
+      await closeClient(extended);
+    }
+  });
+
+  it('ends a WATCH that an empty exec, a discard or a rejected exec leaves behind', async () => {
+    const watched = keyspace.key('armed', 'watched');
+    const target = keyspace.key('armed', 'target');
+    const other = await createClient();
+    const abandonments = [
+      async () => {
+        assert.strictEqual(await client.multi().exec(), null);
+      },
+      () => {
+        const transaction = client.multi();
+
+        transaction.set(target, 'discarded');
+        transaction.discard();
+      },
+      async () => {
+        const transaction = client.multi();
+
+        transaction.xread(['a', 'b'], ['0']);
+
+        await assert.rejects(transaction.exec());
+      },
+    ];
+
+    try {
+      for (const [index, abandon] of abandonments.entries()) {
+        await client.watch(watched);
+        await other.set(watched, `${index}`);
+        await abandon();
+
+        const next = client.multi();
+
+        next.set(target, `${index}`);
+
+        assert.deepStrictEqual(await next.exec(), ['OK'], `${index}`);
+        assert.strictEqual(await client.get(target), `${index}`);
+      }
+    } finally {
+      await closeClient(other);
+    }
   });
 });

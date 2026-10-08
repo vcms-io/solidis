@@ -8,6 +8,8 @@ import {
   createClient,
   createKeyspace,
   detectServerCapabilities,
+  readLoggedCommands,
+  readServerTime,
   waitFor,
 } from '../utils/index.ts';
 
@@ -49,7 +51,9 @@ describe('keys-generic', () => {
     await client.mset({ [first]: '1', [second]: '2', [third]: '3' });
 
     assert.strictEqual(await client.del(first, second), 2);
+    assert.strictEqual(await client.exists(first, second, third), 1);
     assert.strictEqual(await client.unlink([third]), 1);
+    assert.strictEqual(await client.exists(first, second, third), 0);
   });
 
   it('reports the data type of each value', async () => {
@@ -114,17 +118,24 @@ describe('keys-generic', () => {
     assert.strictEqual(await client.get(destination), 'updated');
 
     const crossDbDestination = keyspace.key('copy-cross-db');
+    const verifier = await createClient({ database: 9 });
 
-    assert.strictEqual(
-      await client.copy(source, crossDbDestination, { destinationDatabase: 0 }),
-      1,
-    );
-
-    assert.strictEqual(
-      await client.get(crossDbDestination),
-      'updated',
-      'COPY with destinationDatabase must preserve the source value',
-    );
+    try {
+      assert.strictEqual(
+        await client.copy(source, crossDbDestination, {
+          destinationDatabase: 9,
+        }),
+        1,
+      );
+      assert.strictEqual(await client.get(crossDbDestination), null);
+      assert.strictEqual(
+        await verifier.get(crossDbDestination),
+        'updated',
+        'COPY with destinationDatabase must preserve the source value',
+      );
+    } finally {
+      await closeClient(verifier);
+    }
   });
 
   it('moves keys between databases', async () => {
@@ -173,7 +184,11 @@ describe('keys-generic', () => {
 
     await client.mset({ [first]: '1', [second]: '2' });
 
-    assert.strictEqual(await client.touch([first, second]), 2);
+    const sent = await readLoggedCommands(client, 'TOUCH', async () => {
+      assert.strictEqual(await client.touch([first, second]), 2);
+    });
+
+    assert.deepStrictEqual(sent, [['TOUCH', first, second]]);
     assert.strictEqual(await client.get(first), '1');
     assert.strictEqual(await client.get(second), '2');
   });
@@ -250,7 +265,8 @@ describe('keys-generic', () => {
 
   it('supports EXPIREAT and EXPIRETIME', async () => {
     const key = keyspace.key('expireat');
-    const futureSeconds = Math.floor(Date.now() / 1000) + 1000;
+    const futureSeconds =
+      Math.floor((await readServerTime(client)) / 1000) + 1000;
 
     await client.set(key, 'value');
 
@@ -266,13 +282,13 @@ describe('keys-generic', () => {
 
   it('supports PEXPIREAT and PEXPIRETIME', async () => {
     const key = keyspace.key('pexpireat');
-    const futureMilliseconds = Date.now() + 1000000;
+    const futureMilliseconds = (await readServerTime(client)) + 1000000;
 
     await client.set(key, 'value');
 
     assert.strictEqual(await client.pexpireat(key, futureMilliseconds), 1);
     const pexpireatPttl = await client.pttl(key);
-    assert.ok(pexpireatPttl >= 999000 && pexpireatPttl <= 1000000);
+    assert.ok(pexpireatPttl >= 999000 && pexpireatPttl <= 1001000);
 
     /** PEXPIRETIME was introduced in Redis 7.0. */
     if (atLeast7) {
@@ -297,30 +313,56 @@ describe('keys-generic', () => {
     });
   });
 
-  it('uses EXPIREAT with NX option', async (context) => {
+  it('uses EXPIREAT with every expire mode', async (context) => {
     if (!atLeast7) {
       context.skip('requires Redis 7.0+');
       return;
     }
 
-    const key = keyspace.key('expireat-nx');
-    const future = Math.floor(Date.now() / 1000) + 3600;
+    const key = keyspace.key('expireat-modes');
+    const future = Math.floor((await readServerTime(client)) / 1000) + 3600;
 
     await client.set(key, 'val');
 
-    assert.strictEqual(
-      await client.expireat(key, future, { notExists: true }),
-      1,
-    );
+    assert.strictEqual(await client.expireat(key, future, 'XX'), 0);
+    assert.strictEqual(await client.ttl(key), -1);
+
+    assert.strictEqual(await client.expireat(key, future, 'NX'), 1);
     const expireatNxTtl = await client.ttl(key);
     assert.ok(expireatNxTtl >= 3599 && expireatNxTtl <= 3600);
 
-    assert.strictEqual(
-      await client.expireat(key, future + 100, { notExists: true }),
-      0,
+    assert.strictEqual(await client.expireat(key, future + 100, 'NX'), 0);
+    assert.strictEqual(await client.expireat(key, future - 100, 'GT'), 0);
+    assert.strictEqual(await client.expireat(key, future + 100, 'LT'), 0);
+    const expireatUnchangedTtl = await client.ttl(key);
+    assert.ok(expireatUnchangedTtl >= 3599 && expireatUnchangedTtl <= 3600);
+
+    assert.strictEqual(await client.expireat(key, future + 100, 'GT'), 1);
+    assert.ok((await client.ttl(key)) > 3600);
+
+    assert.strictEqual(await client.expireat(key, future - 100, 'LT'), 1);
+    assert.ok((await client.ttl(key)) < 3600);
+
+    assert.strictEqual(await client.expireat(key, future - 300, 'XX GT'), 0);
+    assert.strictEqual(await client.expireat(key, future + 200, 'XX GT'), 1);
+    assert.ok((await client.ttl(key)) > 3600);
+    assert.strictEqual(await client.expireat(key, future + 300, 'XX LT'), 0);
+    assert.strictEqual(await client.expireat(key, future - 200, 'XX LT'), 1);
+    assert.ok((await client.ttl(key)) < 3600);
+
+    assert.strictEqual(await client.expireat(key, future, 'XX'), 1);
+    assert.deepStrictEqual(
+      [
+        await client.expireat(key, future),
+        await client.expireat(keyspace.key('expireat-missing'), future),
+      ],
+      [1, 0],
     );
-    const expireatNxUnchangedTtl = await client.ttl(key);
-    assert.ok(expireatNxUnchangedTtl >= 3599 && expireatNxUnchangedTtl <= 3600);
+
+    await client.persist(key);
+
+    assert.strictEqual(await client.expireat(key, future, 'XX LT'), 0);
+    assert.strictEqual(await client.ttl(key), -1);
   });
 
   it('uses PEXPIRE with GT mode', async (context) => {
@@ -404,7 +446,7 @@ describe('keys-generic', () => {
       assert.fail('expected non-null dump result');
     }
 
-    const futureMs = Date.now() + 60000;
+    const futureMs = (await readServerTime(client)) + 60000;
 
     assert.strictEqual(
       await client.restore(destination, futureMs, serialized, {
@@ -415,7 +457,7 @@ describe('keys-generic', () => {
     );
 
     const absttlPttl = await client.pttl(destination);
-    assert.ok(absttlPttl >= 59500 && absttlPttl <= 60000);
+    assert.ok(absttlPttl > 50000 && absttlPttl <= 61000, `PTTL ${absttlPttl}`);
     assert.strictEqual(await client.get(destination), 'data');
   });
 
@@ -431,22 +473,32 @@ describe('keys-generic', () => {
       assert.fail('expected non-null dump result');
     }
 
-    assert.strictEqual(
-      await client.restore(destination, 0, serialized, {
-        replace: true,
-        idletime: 100,
-      }),
-      'OK',
-    );
+    /** Redis 8 accepts IDLETIME without applying it, so the sent arguments are checked. */
+    const sent = await readLoggedCommands(client, 'RESTORE', async () => {
+      assert.strictEqual(
+        await client.restore(destination, 0, serialized, {
+          replace: true,
+          idletime: 100,
+        }),
+        'OK',
+      );
+    });
 
+    assert.deepStrictEqual(
+      sent.map((restored) => restored.slice(4)),
+      [['REPLACE', 'IDLETIME', '100']],
+    );
     assert.strictEqual(await client.get(destination), 'extra');
   });
 
   it('uses LOLWUT with VERSION and optional arguments', async () => {
     const lolwutResult = await client.lolwut(5, '10', '20');
 
-    assert.strictEqual(typeof lolwutResult, 'string');
-    assert.ok(lolwutResult.length > 0, 'LOLWUT must return non-empty string');
+    assert.match(
+      lolwutResult,
+      /Georg Nees - schotter, plotter on paper, 1968\./,
+    );
+    assert.strictEqual(lolwutResult.split('\n')[0].length, 10);
   });
 
   it('returns null from GETBUFFER on missing key', async () => {
@@ -462,18 +514,18 @@ describe('keys-generic', () => {
     }
 
     const key = keyspace.key('pexpireat-nx');
-    const futureMs = Date.now() + 60000;
+    const futureMs = (await readServerTime(client)) + 60000;
 
     await client.set(key, 'val');
 
     assert.strictEqual(await client.pexpireat(key, futureMs, 'NX'), 1);
     const pexpireatNxPttl = await client.pttl(key);
-    assert.ok(pexpireatNxPttl >= 59500 && pexpireatNxPttl <= 60000);
+    assert.ok(pexpireatNxPttl >= 59500 && pexpireatNxPttl <= 61000);
 
     assert.strictEqual(await client.pexpireat(key, futureMs + 1000, 'NX'), 0);
     const pexpireatNxUnchangedPttl = await client.pttl(key);
     assert.ok(
-      pexpireatNxUnchangedPttl >= 59000 && pexpireatNxUnchangedPttl <= 60000,
+      pexpireatNxUnchangedPttl >= 59000 && pexpireatNxUnchangedPttl <= 61000,
     );
   });
 

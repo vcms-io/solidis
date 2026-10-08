@@ -1,17 +1,24 @@
-import { executeCommand, tryReplyNumber } from './utils/index.ts';
+import { formatInteger } from '../common/utils/internal.ts';
+import { executeIntegerCommand } from './utils/index.ts';
 
-export function createCommand(key: string, decrement: number) {
-  return ['DECRBY', key, `${decrement}`];
+import type { CommandIntegerOptions, RespInteger } from '../index.ts';
+
+export function createCommand(key: string, decrement: number | bigint) {
+  return ['DECRBY', key, formatInteger(decrement)];
 }
 
-export async function decrby<T>(
+export async function decrby<
+  T,
+  Options extends CommandIntegerOptions | undefined = undefined,
+>(
   this: T,
   key: string,
-  decrement: number,
-): Promise<number> {
-  return await executeCommand(
+  decrement: number | bigint,
+  options?: Options,
+): Promise<RespInteger<Options>> {
+  return await executeIntegerCommand(
     this,
     createCommand(key, decrement),
-    tryReplyNumber,
+    options,
   );
 }

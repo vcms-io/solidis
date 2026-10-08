@@ -1,3 +1,4 @@
+import { appendItems } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyOK } from './utils/index.ts';
 
 export function createCommand(username: string, ...rules: string[]) {
@@ -11,7 +12,7 @@ export async function aclSetuser<T>(
 ) {
   return await executeCommand(
     this,
-    createCommand(username, ...rules),
+    appendItems(createCommand(username), rules),
     tryReplyOK,
   );
 }

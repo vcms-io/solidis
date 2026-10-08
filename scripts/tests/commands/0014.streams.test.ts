@@ -8,6 +8,9 @@ import {
   createClient,
   createKeyspace,
   detectServerCapabilities,
+  isBlocked,
+  readServerTime,
+  waitFor,
 } from '../utils/index.ts';
 
 import type { FeaturedClient, ServerCapabilities } from '../utils/client.ts';
@@ -64,6 +67,26 @@ describe('streams', () => {
     assert.deepStrictEqual(reverse[0].fields, { value: 'c' });
     assert.deepStrictEqual(reverse[1].fields, { value: 'b' });
     assert.deepStrictEqual(reverse[2].fields, { value: 'a' });
+    assert.deepStrictEqual(
+      (await client.xrange(key, '2-1', '3-1')).map((entry) => entry.id),
+      ['2-1', '3-1'],
+    );
+    assert.deepStrictEqual(
+      (await client.xrevrange(key, '2-1', '-')).map((entry) => entry.id),
+      ['2-1', '1-1'],
+    );
+  });
+
+  it('decodes field names as UTF-8 and keeps the last value of a repeated field', async () => {
+    const key = keyspace.key('field-names');
+
+    await client.xadd(key, '1-1', { café: 'a', naïve: 'b' });
+    await client.send([['XADD', key, '2-1', 'f', 'first', 'f', 'last']]);
+
+    const [first, second] = await client.xrange(key, '-', '+');
+
+    assert.deepStrictEqual(first.fields, { café: 'a', naïve: 'b' });
+    assert.deepStrictEqual(second.fields, { f: 'last' });
   });
 
   it('reads new entries with XREAD', async () => {
@@ -207,6 +230,19 @@ describe('streams', () => {
     await client.xgroupCreate(key, group, '0');
     await client.xreadgroup(group, 'worker-1', [key], ['>']);
 
+    assert.deepStrictEqual(
+      (await client.xpending(key, group, '2-0', '+', 10)).map(
+        (entry) => entry.id,
+      ),
+      ['2-1'],
+    );
+    assert.deepStrictEqual(
+      (await client.xautoclaim(key, group, 'worker-2', 0, '2-0')).entries.map(
+        (entry) => entry.id,
+      ),
+      ['2-1'],
+    );
+
     const result = await client.xautoclaim(key, group, 'worker-2', 0, '0-0');
 
     assert.strictEqual(result.nextId, '0-0');
@@ -225,10 +261,17 @@ describe('streams', () => {
       await client.xgroupCreateconsumer(key, group, 'new-consumer'),
       1,
     );
+    assert.deepStrictEqual(
+      (await client.xinfoConsumers(key, group)).map(({ name }) => name),
+      ['new-consumer'],
+    );
+
+    await client.xreadgroup(group, 'new-consumer', [key], ['>']);
 
     const deleted = await client.xgroupDelconsumer(key, group, 'new-consumer');
 
-    assert.strictEqual(deleted, 0);
+    assert.strictEqual(deleted, 1);
+    assert.deepStrictEqual(await client.xinfoConsumers(key, group), []);
   });
 
   it('destroys a group with XGROUP DESTROY', async () => {
@@ -296,6 +339,7 @@ describe('streams', () => {
     await client.xadd(key, '5-0', { value: 'a' });
 
     assert.strictEqual(await client.xsetid(key, '10-0'), 'OK');
+    assert.strictEqual((await client.xinfoStream(key)).lastGeneratedId, '10-0');
 
     const id = await client.xadd(key, '*', { value: 'b' });
 
@@ -368,7 +412,7 @@ describe('streams', () => {
       consumer.seenTime > 0,
       'consumer seenTime must be a positive timestamp',
     );
-    if (!Number.isNaN(consumer.activeTime)) {
+    if (consumer.activeTime !== null) {
       assert.ok(
         consumer.activeTime > 0,
         'consumer activeTime must be a positive timestamp',
@@ -420,13 +464,13 @@ describe('streams', () => {
     await client.xadd(keyA, '2-1', { source: 'a' });
     await client.xadd(keyB, '1-1', { source: 'b' });
 
-    const result = await client.xread([keyA, keyB], ['0', '0'], 10);
+    const result = await client.xread([keyA, keyB], ['0', '0'], 1);
 
     if (result === null) {
       assert.fail('expected non-null xread result');
     }
     assert.strictEqual(result.length, 2);
-    assert.strictEqual(result[0].entries.length, 2);
+    assert.strictEqual(result[0].entries.length, 1);
     assert.deepStrictEqual(result[0].entries[0].fields, { source: 'a' });
     assert.strictEqual(result[1].entries.length, 1);
     assert.deepStrictEqual(result[1].entries[0].fields, { source: 'b' });
@@ -490,22 +534,27 @@ describe('streams', () => {
 
     await client.xadd(key, '1-1', { task: 'a' });
     await client.xgroupCreate(key, group, '0');
-    await client.xreadgroup(group, 'worker-1', [key], ['>']);
+
+    assert.deepStrictEqual(
+      await client.xclaim(key, group, 'worker-2', 0, ['1-1']),
+      [],
+      'an entry nobody read is claimed only with FORCE',
+    );
 
     const claimed = await client.xclaim(key, group, 'worker-2', 0, ['1-1'], {
-      idle: 0,
+      idle: 60_000,
       force: true,
     });
 
-    assert.strictEqual(claimed.length, 1);
+    assert.deepStrictEqual(claimed, [{ id: '1-1', fields: { task: 'a' } }]);
 
-    const entry = claimed[0];
+    const [pending] = await client.xpending(key, group, '-', '+', 10);
 
-    if (typeof entry === 'string') {
-      assert.fail('expected stream entry object, not id string');
-    }
-    assert.strictEqual(entry.id, '1-1');
-    assert.deepStrictEqual(entry.fields, { task: 'a' });
+    assert.strictEqual(pending.consumer, 'worker-2');
+    assert.ok(
+      pending.deliveryTime >= 60_000,
+      `IDLE sets the idle time, got ${pending.deliveryTime}`,
+    );
   });
 
   it('auto-claims entries with COUNT option', async () => {
@@ -590,6 +639,10 @@ describe('streams', () => {
     await client.xadd(key, '2-1', { task: 'b' });
     await client.xgroupCreate(key, group, '0');
     await client.xreadgroup(group, 'worker', [key], ['>']);
+    await client.xclaim(key, group, 'worker', 0, ['1-1'], {
+      idle: 60_000,
+      justid: true,
+    });
 
     const entries = await client.xpending(
       key,
@@ -598,16 +651,15 @@ describe('streams', () => {
       '+',
       10,
       undefined,
-      0,
+      30_000,
     );
 
     if (!Array.isArray(entries)) {
       assert.fail('expected xpending entries array, not summary');
     }
-    assert.strictEqual(entries.length, 2);
     assert.deepStrictEqual(
       entries.map((entry) => entry.id),
-      ['1-1', '2-1'],
+      ['1-1'],
     );
   });
 
@@ -620,7 +672,7 @@ describe('streams', () => {
     await client.xreadgroup(group, 'worker-1', [key], ['>']);
 
     const claimed = await client.xclaim(key, group, 'worker-2', 0, ['1-1'], {
-      time: Date.now(),
+      time: (await readServerTime(client)) - 60_000,
       retrycount: 5,
     });
 
@@ -638,41 +690,69 @@ describe('streams', () => {
     }
     assert.strictEqual(pending[0].consumer, 'worker-2');
     assert.strictEqual(pending[0].deliveryCount, 5);
+    assert.ok(
+      pending[0].deliveryTime >= 60_000,
+      `TIME sets the last delivery, got an idle time of ${pending[0].deliveryTime}`,
+    );
   });
 
   it('reads from group with BLOCK timeout', async () => {
     const key = keyspace.key('xreadgroup-block');
     const group = 'grp';
+    const reader = await createClient();
 
     await client.xadd(key, '1-1', { val: 'a' });
     await client.xgroupCreate(key, group, '0');
+    await client.xreadgroup(group, 'worker', [key], ['>']);
 
-    const result = await client.xreadgroup(
-      group,
-      'worker',
-      [key],
-      ['>'],
-      10,
-      10,
-    );
+    try {
+      const readerId = await reader.clientId();
+      const reading = reader.xreadgroup(
+        group,
+        'worker',
+        [key],
+        ['>'],
+        10,
+        5000,
+      );
 
-    if (result === null) {
-      assert.fail('expected non-null xreadgroup result');
+      await waitFor(() => isBlocked(client, readerId), {
+        description: 'XREADGROUP blocked on the server',
+      });
+      await client.xadd(key, '2-1', { val: 'b' });
+
+      const result = await reading;
+
+      if (result === null) {
+        assert.fail('expected the entry added while XREADGROUP blocked');
+      }
+      assert.strictEqual(result.length, 1);
+      assert.deepStrictEqual(result[0].entries, [
+        { id: '2-1', fields: { val: 'b' } },
+      ]);
+    } finally {
+      await closeClient(reader);
     }
-    assert.strictEqual(result.length, 1);
-    assert.deepStrictEqual(result[0].entries, [
-      { id: '1-1', fields: { val: 'a' } },
-    ]);
   });
 
   it('returns null from XREAD with BLOCK on empty stream', async () => {
     const key = keyspace.key('xread-block-empty');
+    const reader = await createClient();
 
     await client.xadd(key, '1-1', { val: 'a' });
 
-    const result = await client.xread([key], ['$'], undefined, 10);
+    try {
+      const readerId = await reader.clientId();
+      const reading = reader.xread([key], ['$'], undefined, 1500);
 
-    assert.strictEqual(result, null);
+      await waitFor(() => isBlocked(client, readerId), {
+        description: 'XREAD blocked on the server',
+      });
+
+      assert.strictEqual(await reading, null);
+    } finally {
+      await closeClient(reader);
+    }
   });
 
   it('throws on mismatched XREAD keys/ids', async () => {
@@ -691,20 +771,31 @@ describe('streams', () => {
     const key = keyspace.key('xreadgroup-block-null');
     const group = 'grp';
 
+    const reader = await createClient();
+
     await client.xadd(key, '1-1', { val: 'a' });
     await client.xgroupCreate(key, group, '0');
     await client.xreadgroup(group, 'w', [key], ['>']);
 
-    const result = await client.xreadgroup(
-      group,
-      'w',
-      [key],
-      ['>'],
-      undefined,
-      10,
-    );
+    try {
+      const readerId = await reader.clientId();
+      const reading = reader.xreadgroup(
+        group,
+        'w',
+        [key],
+        ['>'],
+        undefined,
+        1500,
+      );
 
-    assert.strictEqual(result, null);
+      await waitFor(() => isBlocked(client, readerId), {
+        description: 'XREADGROUP blocked on the server',
+      });
+
+      assert.strictEqual(await reading, null);
+    } finally {
+      await closeClient(reader);
+    }
   });
 
   it('sets group id with ENTRIESREAD option', async (context) => {
@@ -777,33 +868,49 @@ describe('streams', () => {
     const key = keyspace.key('xpending-consumer-idle');
     const group = 'workers';
 
-    await client.xadd(key, '1-1', { val: 'a' });
-    await client.xadd(key, '2-1', { val: 'b' });
-    await client.xgroupCreate(key, group, '0');
-    await client.xreadgroup(group, 'w1', [key], ['>']);
+    for (const id of ['1-1', '2-1', '3-1']) {
+      await client.xadd(key, id, { val: id });
+    }
 
-    const pending = await client.xpending(key, group, '-', '+', 10, 'w1');
+    await client.xgroupCreate(key, group, '0');
+    await client.xreadgroup(group, 'w1', [key], ['>'], 2);
+    await client.xreadgroup(group, 'w2', [key], ['>']);
+
+    for (const [consumer, id] of [
+      ['w1', '1-1'],
+      ['w2', '3-1'],
+    ]) {
+      await client.xclaim(key, group, consumer, 0, [id], {
+        idle: 60_000,
+        justid: true,
+      });
+    }
+
+    const pending = await client.xpending(
+      key,
+      group,
+      '-',
+      '+',
+      10,
+      'w1',
+      30_000,
+    );
 
     if (!Array.isArray(pending)) {
       assert.fail('expected xpending entries array, not summary');
     }
-    assert.strictEqual(pending.length, 2);
     assert.deepStrictEqual(
       pending.map(({ id, consumer, deliveryCount }) => ({
         id,
         consumer,
         deliveryCount,
       })),
-      [
-        { id: '1-1', consumer: 'w1', deliveryCount: 1 },
-        { id: '2-1', consumer: 'w1', deliveryCount: 1 },
-      ],
+      [{ id: '1-1', consumer: 'w1', deliveryCount: 1 }],
     );
-    assert.strictEqual(pending[0].deliveryTime, pending[1].deliveryTime);
-    assert.strictEqual(pending[0].deliveryCount, 1);
-    assert.strictEqual(pending[1].deliveryCount, 1);
-    assert.strictEqual(typeof pending[0].deliveryTime, 'number');
-    assert.strictEqual(typeof pending[1].deliveryTime, 'number');
+    assert.ok(
+      pending[0].deliveryTime >= 60_000,
+      `expected an idle time of at least 60 s, got ${pending[0].deliveryTime}`,
+    );
   });
 
   it('returns XPENDING summary with consumer breakdown', async () => {

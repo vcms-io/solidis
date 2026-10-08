@@ -1,4 +1,8 @@
-import { executeCommand, tryReplyToString } from './utils/index.ts';
+import {
+  appendRecordEntries,
+  executeCommand,
+  tryReplyToString,
+} from './utils/index.ts';
 
 import type { StringOrBuffer } from '../index.ts';
 
@@ -7,7 +11,7 @@ export function createCommand(
   id: string,
   fields: Record<string, StringOrBuffer>,
 ) {
-  return ['XADD', key, id, ...Object.entries(fields).flat()];
+  return appendRecordEntries(['XADD', key, id], fields);
 }
 
 export async function xadd<T>(

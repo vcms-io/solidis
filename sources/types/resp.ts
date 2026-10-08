@@ -1,4 +1,5 @@
-import type { SolidisData, SolidisRecursiveStringRecord } from './solidis.ts';
+import type { CommandExclusiveOptions } from './command.ts';
+import type { SolidisData } from './solidis.ts';
 
 export const RespDataTypes = {
   STRING: 'STRING',
@@ -25,30 +26,42 @@ export type RespDuplicatePolicy =
   | 'MAX'
   | 'SUM';
 export type RespBit = 0 | 1;
-export type RespBitOperation = 'AND' | 'OR' | 'XOR' | 'NOT';
+export type RespBitOperation =
+  | 'AND'
+  | 'OR'
+  | 'XOR'
+  | 'NOT'
+  | 'DIFF'
+  | 'DIFF1'
+  | 'ANDOR'
+  | 'ONE';
 export type RespBitfield = `i${number}` | `u${number}`;
 export type RespBitfieldOverflow = 'WRAP' | 'SAT' | 'FAIL';
-export type RespClientReplyMode = RespOnOrOff | 'SKIP';
 export type RespHashField = Record<string, string>;
+type RespOptionResult<Options, Key extends string, Enabled, Disabled> =
+  Options extends Record<Key, true>
+    ? Enabled
+    : Options extends object
+      ? Key extends keyof Options
+        ? true extends Options[Key]
+          ? Enabled | Disabled
+          : Disabled
+        : Disabled
+      : Disabled;
+export type RespInteger<Options> = RespOptionResult<
+  Options,
+  'bigint',
+  bigint,
+  number
+>;
+export type RespString<Options> = RespOptionResult<
+  Options,
+  'buffer',
+  Buffer,
+  string
+>;
 export type RespSetMember = string;
 export type RespListMember = string;
-export type RespAclLogKey =
-  | 'count'
-  | 'reason'
-  | 'context'
-  | 'object'
-  | 'username'
-  | 'age-seconds'
-  | 'client-info'
-  | 'entry-id'
-  | 'timestamp-created'
-  | 'timestamp-last-updated';
-export type RespAclLogNumberKey =
-  | 'count'
-  | 'ageSeconds'
-  | 'entryId'
-  | 'timestampCreated'
-  | 'timestampLastUpdated';
 export const RespJsonType = [
   'null',
   'boolean',
@@ -63,7 +76,7 @@ export type RespJsonType = (typeof RespJsonType)[number];
 export type RespLatencyEvent =
   | 'active-defrag-cycle'
   | 'aof-fsync-always'
-  | 'aof-stat'
+  | 'aof-fstat'
   | 'aof-rewrite-diff-write'
   | 'aof-rename'
   | 'aof-write'
@@ -72,11 +85,16 @@ export type RespLatencyEvent =
   | 'aof-write-pending-fsync'
   | 'command'
   | 'expire-cycle'
+  | 'expire-del'
   | 'eviction-cycle'
   | 'eviction-del'
+  | 'eviction-lazyfree'
   | 'fast-command'
   | 'fork'
-  | 'rdb-unlink-temp-file';
+  | 'module-acquire-GIL'
+  | 'rdb-unlink-temp-file'
+  | 'while-blocked-cron'
+  | (string & {});
 
 export interface RespAclLogEntry {
   count: number;
@@ -86,9 +104,9 @@ export interface RespAclLogEntry {
   username: string;
   ageSeconds: number;
   clientInfo: string;
-  entryId: number;
-  timestampCreated: number;
-  timestampLastUpdated: number;
+  entryId: number | null;
+  timestampCreated: number | null;
+  timestampLastUpdated: number | null;
 }
 export interface RespAclSelector {
   commands: string;
@@ -117,7 +135,7 @@ export interface RespCommandArgument {
   multiple?: boolean;
   arguments?: RespCommandArgument[];
 }
-export type RespCommandSubcommands = SolidisRecursiveStringRecord;
+export type RespCommandSubcommands = Record<string, RespCommandDoc>;
 export interface RespCommandDoc {
   summary?: string;
   since?: string;
@@ -134,11 +152,9 @@ export interface RespCommandKeyFlag {
   key: string;
   flags: string[];
 }
-export interface RespCommandListFilter {
-  module?: string;
-  aclcat?: string;
-  pattern?: string;
-}
+export type RespCommandListFilter = CommandExclusiveOptions<
+  { module?: string } | { aclcat?: string } | { pattern?: string }
+>;
 export interface RespCuckooFilterInfo {
   size: number;
   numberOfBuckets: number;
@@ -163,7 +179,7 @@ export interface RespFunctionListItem {
 export interface RespFunctionStats {
   runningScript: {
     name: string;
-    command: string;
+    command: string[];
     duration: number;
   } | null;
   engines: Array<{
@@ -182,13 +198,17 @@ export interface RespGeoRadius {
   hash?: number;
   position?: RespGeoPosition;
 }
+export interface RespHashEntry {
+  field: string;
+  value: string;
+}
 export interface RespHelloInfo {
   server: string;
   version: string;
   proto: number;
   id: number;
   mode: string;
-  role: string;
+  role: string | null;
   modules: RespModuleInfo[];
 }
 export interface RespLatencyHistogram {
@@ -214,9 +234,9 @@ export interface RespLCSMatches {
   matches: RespLCSMatch[];
   length: number;
 }
-export interface RespLmpop {
+export interface RespLmpop<Element = string> {
   key: string;
-  elements: string[];
+  elements: Element[];
 }
 export interface RespMemoryStats {
   peak: {
@@ -245,7 +265,17 @@ export interface RespMemoryStats {
   functions: {
     caches: number;
   };
-  db: Record<string, number>;
+  db: Record<
+    string,
+    {
+      overhead: {
+        hashtable: {
+          main: number;
+          expires: number;
+        };
+      };
+    }
+  >;
   overhead: {
     total: number;
     db: {
@@ -315,7 +345,11 @@ export interface RespRoleSlave {
   replicationState: string;
   replicationOffset: number;
 }
-export type RespRole = RespRoleMaster | RespRoleSlave;
+export interface RespRoleSentinel {
+  role: 'sentinel';
+  masterNames: string[];
+}
+export type RespRole = RespRoleMaster | RespRoleSlave | RespRoleSentinel;
 export interface RespSlowLogEntry {
   id: number;
   timestamp: number;
@@ -331,12 +365,13 @@ export interface RespSortedSetMember {
 export interface RespStreamAutoClaimResult {
   nextId: string;
   entries: RespStreamEntry[];
+  deletedIds: string[];
 }
 export interface RespStreamConsumerInfo {
   name: string;
   pending: number;
   idle: number;
-  inactive: number;
+  inactive: number | null;
 }
 export interface RespStreamConsumerPending {
   id: string;
@@ -347,18 +382,22 @@ export interface RespStreamEntry {
   id: string;
   fields: Record<string, string>;
 }
+export interface RespStreamDeletedEntry {
+  id: string;
+  fields: null;
+}
 export interface RespStreamGroupInfo {
   name: string;
   consumers: number;
   pending: number;
   lastDeliveredId: string;
-  entriesRead: number;
-  lag: number;
+  entriesRead: number | null;
+  lag: number | null;
 }
 export interface RespStreamGroupConsumer {
   name: string;
   seenTime: number;
-  activeTime: number;
+  activeTime: number | null;
   pelCount: number;
   pending: RespStreamConsumerPending[];
 }
@@ -371,7 +410,7 @@ export interface RespStreamGroupPending {
 export interface RespStreamGroupDetail {
   name: string;
   lastDeliveredId: string;
-  entriesRead: number;
+  entriesRead: number | null;
   lag: number | null;
   pelCount: number;
   pending: RespStreamGroupPending[];
@@ -382,16 +421,16 @@ export interface RespStreamInfoBase {
   radixTreeKeys: number;
   radixTreeNodes: number;
   lastGeneratedId: string;
-  maxDeletedEntryId: string;
-  entriesAdded: number;
-  firstEntry: RespStreamEntry | null;
-  lastEntry: RespStreamEntry | null;
+  maxDeletedEntryId: string | null;
+  entriesAdded: number | null;
 }
 export interface RespStreamInfo extends RespStreamInfoBase {
+  firstEntry: RespStreamEntry | null;
+  lastEntry: RespStreamEntry | null;
   groups: number;
 }
 export interface RespStreamInfoFull extends RespStreamInfoBase {
-  recordedFirstEntryId: string;
+  recordedFirstEntryId: string | null;
   entries: RespStreamEntry[];
   groups: RespStreamGroupDetail[];
 }
@@ -413,6 +452,32 @@ export interface RespStreamPendingInfo {
 export interface RespStreamReadResult {
   stream: string;
   entries: RespStreamEntry[];
+}
+export interface RespStreamGroupReadResult {
+  stream: string;
+  entries: (RespStreamEntry | RespStreamDeletedEntry)[];
+}
+export interface RespTimeSeriesInfo {
+  totalSamples: number;
+  memoryUsage: number;
+  firstTimestamp: number;
+  lastTimestamp: number;
+  retentionTime: number;
+  chunkCount: number;
+  chunkSize: number;
+  chunkType: string;
+  duplicatePolicy: string | null;
+  labels: Record<string, string>;
+  sourceKey: string | null;
+  rules: RespTimeSeriesRule[];
+  ignoreMaxTimeDiff: number;
+  ignoreMaxValDiff: number;
+}
+export interface RespTimeSeriesRule {
+  key: string;
+  bucketDuration: number;
+  aggregator: string;
+  alignment: number;
 }
 export interface RespWaitAOF {
   localFsynced: number;

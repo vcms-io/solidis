@@ -1,7 +1,8 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyNumber } from './utils/index.ts';
 
 export function createCommand(key: string, offset: number) {
-  return ['GETBIT', key, `${offset}`];
+  return ['GETBIT', key, formatInteger(offset)];
 }
 
 export async function getbit<T>(

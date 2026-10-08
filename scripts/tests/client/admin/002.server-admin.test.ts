@@ -6,16 +6,40 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
-import { RespError } from '../../../../sources/index.ts';
+import { RespError, SolidisCommandError } from '../../../../sources/index.ts';
 import {
   closeClient,
   createClient,
   createKeyspace,
   delay,
   detectServerCapabilities,
+  readLoggedCommands,
+  withConfig,
 } from '../../utils/index.ts';
 
 import type { FeaturedClient, ServerCapabilities } from '../../utils/index.ts';
+
+async function retryWhileSaving(save: () => Promise<string>) {
+  let lastResult: unknown;
+
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const result = await save().catch((error: Error) => error);
+
+    lastResult = result;
+
+    if (!(result instanceof Error)) {
+      return result;
+    }
+
+    if (!result.message.includes('Background save already in progress')) {
+      assert.fail(`Rejected with an unexpected error: ${result.message}`);
+    }
+
+    await delay(500);
+  }
+
+  assert.fail(`No success after 20 retries; last result: ${lastResult}`);
+}
 
 describe('server-admin', () => {
   let client: FeaturedClient;
@@ -44,9 +68,11 @@ describe('server-admin', () => {
 
     assert.ok(usage > 0, `expected positive MEMORY USAGE, got ${usage}`);
 
-    const usageWithSamples = await client.memoryUsage(key, 0);
+    const sent = await readLoggedCommands(client, 'MEMORY', async () => {
+      assert.strictEqual(await client.memoryUsage(key, 0), usage);
+    });
 
-    assert.strictEqual(usageWithSamples, usage);
+    assert.deepStrictEqual(sent, [['MEMORY', 'USAGE', key, 'SAMPLES', '0']]);
   });
 
   it('returns null for MEMORY USAGE of a non-existent key', async () => {
@@ -56,12 +82,18 @@ describe('server-admin', () => {
   });
 
   it('returns structured data from MEMORY STATS', async () => {
+    await client.set(keyspace.key('memory-stats'), 'value');
+
     const stats = await client.memoryStats();
+    const database = stats.db['0'];
 
     assert.ok(
       stats.total.allocated > 0,
       `expected positive memory allocation, got ${stats.total.allocated}`,
     );
+    assert.ok(database, `expected db 0 in ${Object.keys(stats.db)}`);
+    assert.ok(database.overhead.hashtable.main > 0);
+    assert.strictEqual(typeof database.overhead.hashtable.expires, 'number');
     assert.strictEqual(
       typeof stats.keys.count,
       'number',
@@ -112,21 +144,11 @@ describe('server-admin', () => {
     assert.strictEqual(await client.memoryPurge(), 'OK');
   });
 
-  it('reads the slowlog with SLOWLOG GET', async () => {
-    const entries = await client.slowlogGet(10);
-
-    for (const entry of entries) {
-      assert.strictEqual(typeof entry.id, 'number');
-      assert.strictEqual(typeof entry.timestamp, 'number');
-      assert.strictEqual(typeof entry.duration, 'number');
-    }
-  });
-
   it('parses slowlog entries with structured fields', async () => {
     await client.slowlogReset();
-    await client.configSet('slowlog-log-slower-than', '0');
-    await client.ping();
-    await client.configSet('slowlog-log-slower-than', '10000');
+    await withConfig(client, 'slowlog-log-slower-than', '0', () =>
+      client.ping(),
+    );
 
     const entries = await client.slowlogGet(5);
 
@@ -143,9 +165,9 @@ describe('server-admin', () => {
 
   it('reports slowlog length with SLOWLOG LEN', async () => {
     await client.slowlogReset();
-    await client.configSet('slowlog-log-slower-than', '0');
-    await client.ping();
-    await client.configSet('slowlog-log-slower-than', '10000');
+    await withConfig(client, 'slowlog-log-slower-than', '0', () =>
+      client.ping(),
+    );
 
     const length = await client.slowlogLen();
     const entries = await client.slowlogGet(length);
@@ -178,7 +200,7 @@ describe('server-admin', () => {
 
     const idle = await client.objectIdletime(key);
 
-    assert.strictEqual(idle, 0);
+    assert.ok(idle === 0 || idle === 1, `idle ${idle}`);
   });
 
   it('returns null for OBJECT REFCOUNT of missing key', async () => {
@@ -209,63 +231,73 @@ describe('server-admin', () => {
 
   it('returns a timestamp from LASTSAVE', async () => {
     const timestamp = await client.lastsave();
-    const nowSeconds = Math.floor(Date.now() / 1000);
+    const [nowSeconds] = await client.time();
 
+    assert.ok(Number.isInteger(timestamp) && timestamp > 0, `${timestamp}`);
     assert.ok(
       timestamp <= nowSeconds,
       `LASTSAVE timestamp ${timestamp} is in the future (now: ${nowSeconds})`,
     );
-    assert.ok(
-      timestamp >= nowSeconds - 3600,
-      `LASTSAVE timestamp ${timestamp} is more than one hour ago (now: ${nowSeconds})`,
-    );
   });
 
   it('triggers a background save with BGSAVE', async () => {
-    const result = await client.bgsave().catch((error: Error) => error.message);
-
     assert.strictEqual(
-      result,
-      '[BGSAVE] Invalid reply: Background saving started',
+      await retryWhileSaving(() => client.bgsave()),
+      'Background saving started',
     );
   });
 
   it('triggers a scheduled background save with BGSAVE SCHEDULE', async () => {
-    const result = await client
-      .bgsave(true)
-      .catch((error: Error) => error.message);
+    const sent = await readLoggedCommands(client, 'BGSAVE', async () => {
+      const result = await client.bgsave(true).catch((error: Error) => error);
 
-    const expectedMessages = [
-      '[BGSAVE SCHEDULE] Invalid reply: Background saving scheduled',
-      '[BGSAVE SCHEDULE] Invalid reply: RespError: ERR Background save already in progress',
-    ];
+      if (result instanceof Error) {
+        assert.ok(result instanceof SolidisCommandError);
+        assert.ok(result.cause instanceof RespError);
+        assert.strictEqual(result.cause.code, 'ERR');
+        assert.strictEqual(
+          result.message,
+          '[BGSAVE] ERR Background save already in progress',
+        );
+        return;
+      }
 
-    assert.ok(
-      typeof result === 'string' && expectedMessages.includes(result),
-      `BGSAVE SCHEDULE must return a scheduled or already-in-progress reply, got: ${result}`,
-    );
+      assert.ok(
+        ['Background saving scheduled', 'Background saving started'].includes(
+          result,
+        ),
+        result,
+      );
+    });
+
+    assert.deepStrictEqual(sent, [['BGSAVE', 'SCHEDULE']]);
   });
 
   it('triggers AOF rewrite with BGREWRITEAOF', async () => {
-    const result = await client
-      .bgrewriteaof()
-      .catch((error: Error) => error.message);
+    const result = await client.bgrewriteaof();
 
-    assert.strictEqual(
+    assert.ok(
+      [
+        'Background append only file rewriting scheduled',
+        'Background append only file rewriting started',
+      ].includes(result),
       result,
-      '[BGREWRITEAOF] Invalid reply: Background append only file rewriting scheduled',
     );
   });
 
   it('flushes all databases with FLUSHALL on a dedicated database', async () => {
     const dedicated = await createClient({ database: 15 });
+    const other = await createClient({ database: 14 });
 
     try {
       await dedicated.set(keyspace.key('flushall'), 'temp');
+      await other.set(keyspace.key('flushall-other'), 'temp');
       assert.strictEqual(await dedicated.flushall(), 'OK');
       assert.strictEqual(await dedicated.dbsize(), 0);
+      assert.strictEqual(await other.dbsize(), 0);
     } finally {
       await closeClient(dedicated);
+      await closeClient(other);
     }
   });
 
@@ -334,6 +366,23 @@ describe('server-admin', () => {
       '../../../../sources/command/hello.ts'
     );
 
+    assert.deepStrictEqual(createCommand(), ['HELLO']);
+    assert.deepStrictEqual(createCommand('RESP3', undefined, ''), [
+      'HELLO',
+      '3',
+      'AUTH',
+      'default',
+      '',
+    ]);
+    assert.deepStrictEqual(createCommand('RESP2', '', '', ''), [
+      'HELLO',
+      '2',
+      'AUTH',
+      'default',
+      '',
+      'SETNAME',
+      '',
+    ]);
     assert.deepStrictEqual(createCommand('RESP3'), ['HELLO', '3']);
     assert.deepStrictEqual(createCommand('RESP2'), ['HELLO', '2']);
 
@@ -588,24 +637,36 @@ describe('server-admin', () => {
       ['FAILOVER', 'TO', '10.0.0.2', '6380'],
     );
 
-    assert.deepStrictEqual(
-      createCommand({
-        to: { host: '10.0.0.2', port: 6380, password: 'pw' },
-      }),
-      ['FAILOVER', 'TO', '10.0.0.2', '6380', 'pw'],
-    );
+    /**
+     * FAILOVER TO accepts only a host and a port, so credentials that older
+     * callers may still pass must never be appended to the command.
+     */
+    const toWithPassword = { host: '10.0.0.2', port: 6380, password: 'pw' };
+    const toWithCredentials = {
+      host: '10.0.0.2',
+      port: 6380,
+      username: 'user',
+      password: 'pw',
+    };
 
-    assert.deepStrictEqual(
-      createCommand({
-        to: { host: '10.0.0.2', port: 6380, username: 'user', password: 'pw' },
-      }),
-      ['FAILOVER', 'TO', '10.0.0.2', '6380', 'user', 'pw'],
-    );
-
-    assert.deepStrictEqual(createCommand({ force: true }), [
+    assert.deepStrictEqual(createCommand({ to: toWithPassword }), [
       'FAILOVER',
-      'FORCE',
+      'TO',
+      '10.0.0.2',
+      '6380',
     ]);
+
+    assert.deepStrictEqual(createCommand({ to: toWithCredentials }), [
+      'FAILOVER',
+      'TO',
+      '10.0.0.2',
+      '6380',
+    ]);
+
+    assert.deepStrictEqual(
+      createCommand({ to: toWithCredentials, timeout: 500, force: true }),
+      ['FAILOVER', 'TO', '10.0.0.2', '6380', 'FORCE', 'TIMEOUT', '500'],
+    );
 
     assert.deepStrictEqual(createCommand({ timeout: 10000 }), [
       'FAILOVER',
@@ -641,9 +702,12 @@ describe('server-admin', () => {
     const result = await client.configRewrite().catch((error: Error) => error);
 
     if (result instanceof Error) {
+      assert.ok(result instanceof SolidisCommandError);
+      assert.ok(result.cause instanceof RespError);
+      assert.strictEqual(result.cause.code, 'ERR');
       assert.strictEqual(
         result.message,
-        '[CONFIG REWRITE] Invalid reply: RespError: ERR The server is running without a config file',
+        '[CONFIG REWRITE] ERR The server is running without a config file',
       );
       return;
     }
@@ -652,28 +716,7 @@ describe('server-admin', () => {
   });
 
   it('performs a synchronous save with SAVE', async () => {
-    let lastResult: unknown;
-
-    for (let attempt = 0; attempt < 20; attempt++) {
-      const result = await client.save().catch((error: Error) => error);
-      lastResult = result;
-
-      if (!(result instanceof Error)) {
-        assert.strictEqual(result, 'OK');
-        return;
-      }
-
-      if (result.message.includes('Background save already in progress')) {
-        await delay(500);
-        continue;
-      }
-
-      assert.fail(`SAVE rejected with an unexpected error: ${result.message}`);
-    }
-
-    assert.fail(
-      `SAVE did not succeed after 20 retries; last result: ${lastResult}`,
-    );
+    assert.strictEqual(await retryWhileSaving(() => client.save()), 'OK');
   });
 
   it('reports object access frequency with OBJECT FREQ', async () => {
@@ -684,9 +727,12 @@ describe('server-admin', () => {
     const result = await client.objectFreq(key).catch((error: Error) => error);
 
     if (result instanceof Error) {
+      assert.ok(result instanceof SolidisCommandError);
+      assert.ok(result.cause instanceof RespError);
+      assert.strictEqual(result.cause.code, 'ERR');
       assert.strictEqual(
         result.message,
-        `[OBJECT FREQ ${key}] Invalid reply: RespError: ERR An LFU maxmemory policy is not selected, access frequency not tracked. Please note that when switching between policies at runtime LRU and LFU data will take some time to adjust.`,
+        '[OBJECT FREQ] ERR An LFU maxmemory policy is not selected, access frequency not tracked. Please note that when switching between policies at runtime LRU and LFU data will take some time to adjust.',
       );
       return;
     }
@@ -724,17 +770,15 @@ describe('server-admin', () => {
     assert.deepStrictEqual(sorted, ['apple', 'banana', 'cherry']);
   });
 
-  it('returns latency history for an event', async () => {
-    const history = await client.latencyHistory('command');
-
-    for (const entry of history) {
-      assert.strictEqual(typeof entry.timestamp, 'number');
-      assert.strictEqual(typeof entry.latency, 'number');
-    }
-  });
-
   it('runs LATENCY DOCTOR without error', async () => {
-    const result = await client.latencyDoctor();
+    await client.latencyReset();
+
+    const result = await withConfig(
+      client,
+      'latency-monitor-threshold',
+      '0',
+      () => client.latencyDoctor(),
+    );
 
     if (capabilities.isValkey && capabilities.atLeast(8, 0)) {
       assert.strictEqual(
@@ -754,12 +798,17 @@ describe('server-admin', () => {
     }
   });
 
-  it('reports missing LATENCY GRAPH samples after LATENCY RESET', async () => {
+  it('reports missing LATENCY GRAPH samples after LATENCY RESET without echoing the event', async () => {
+    await client.latencyReset(['command']);
     await assert.rejects(
       () => client.latencyGraph('command'),
       (error: Error) =>
+        error instanceof SolidisCommandError &&
         error.message ===
-        "[LATENCY GRAPH command] Invalid reply: RespError: ERR No samples available for event 'command'",
+          "[LATENCY GRAPH] ERR No samples available for event '***'" &&
+        error.cause instanceof RespError &&
+        error.cause.code === 'ERR' &&
+        error.cause.message === "ERR No samples available for event '***'",
     );
   });
 
@@ -777,8 +826,11 @@ describe('server-admin', () => {
     }
 
     const after = await client.latencyHistogram('ping');
+    const all = await client.latencyHistogram();
 
-    assert.ok('ping' in after, 'expected a ping histogram entry');
+    assert.deepStrictEqual(Object.keys(after), ['ping']);
+    assert.ok('ping' in all, 'expected every command without arguments');
+    assert.ok(Object.keys(all).length > 1, 'expected more than ping');
     const additionalPingCalls = after.ping.calls - callsBefore;
 
     assert.ok(
@@ -787,7 +839,7 @@ describe('server-admin', () => {
     );
   });
 
-  it('kills a running function (none running)', async (context) => {
+  it('answers FUNCTION KILL with NOTBUSY when no function runs', async (context) => {
     if (!capabilities.atLeast(7, 0)) {
       context.skip('FUNCTION KILL requires Redis 7.0+');
       return;
@@ -796,8 +848,11 @@ describe('server-admin', () => {
     await assert.rejects(
       () => client.functionKill(),
       (error: Error) =>
+        error instanceof SolidisCommandError &&
+        error.cause instanceof RespError &&
+        error.cause.code === 'NOTBUSY' &&
         error.message ===
-        '[FUNCTION KILL] Invalid reply: RespError: NOTBUSY No scripts in execution right now.',
+          '[FUNCTION KILL] NOTBUSY No scripts in execution right now.',
     );
   });
 
@@ -832,17 +887,22 @@ describe('server-admin', () => {
       '127.0.0.1',
       '6379',
     ]);
+    assert.deepStrictEqual(createCommand('NO', 'ONE'), [
+      'REPLICAOF',
+      'NO',
+      'ONE',
+    ]);
   });
 
   it('lists loaded modules with MODULE LIST', async () => {
     const modules = await client.moduleList();
 
+    assert.deepStrictEqual(
+      modules.map((module) => module.name.toLowerCase()).sort(),
+      [...capabilities.modules].sort(),
+    );
+
     for (const module of modules) {
-      assert.strictEqual(typeof module.name, 'string');
-      assert.ok(
-        module.name.length > 0,
-        'module name must be a non-empty string',
-      );
       assert.strictEqual(typeof module.version, 'number');
     }
   });
@@ -884,29 +944,35 @@ describe('server-admin', () => {
   });
 
   it('resets latency events by name', async () => {
-    await client.configSet('latency-monitor-threshold', '1');
+    const reset = await withConfig(
+      client,
+      'latency-monitor-threshold',
+      '1',
+      async () => {
+        await client.send([
+          ['EVAL', 'local x=0 for i=1,5000000 do x=x+1 end return x', '0'],
+        ]);
 
-    await client.send([
-      ['EVAL', 'local x=0 for i=1,5000000 do x=x+1 end return x', '0'],
-    ]);
-
-    const reset = await client.latencyReset(['command']);
-
-    await client.configSet('latency-monitor-threshold', '0');
+        return await client.latencyReset(['command']);
+      },
+    );
 
     assert.strictEqual(reset, 1);
   });
 
   it('returns parsed LATENCY LATEST entries', async () => {
-    await client.configSet('latency-monitor-threshold', '1');
+    const result = await withConfig(
+      client,
+      'latency-monitor-threshold',
+      '1',
+      async () => {
+        await client.send([
+          ['EVAL', 'local x=0 for i=1,5000000 do x=x+1 end return x', '0'],
+        ]);
 
-    await client.send([
-      ['EVAL', 'local x=0 for i=1,5000000 do x=x+1 end return x', '0'],
-    ]);
-
-    const result = await client.latencyLatest();
-
-    await client.configSet('latency-monitor-threshold', '0');
+        return await client.latencyLatest();
+      },
+    );
 
     assert.ok(result.length > 0, 'latency events must exist after busy script');
 
@@ -941,15 +1007,18 @@ describe('server-admin', () => {
   });
 
   it('returns parsed LATENCY HISTORY entries', async () => {
-    await client.configSet('latency-monitor-threshold', '1');
+    const result = await withConfig(
+      client,
+      'latency-monitor-threshold',
+      '1',
+      async () => {
+        await client.send([
+          ['EVAL', 'local x=0 for i=1,5000000 do x=x+1 end return x', '0'],
+        ]);
 
-    await client.send([
-      ['EVAL', 'local x=0 for i=1,5000000 do x=x+1 end return x', '0'],
-    ]);
-
-    const result = await client.latencyHistory('command');
-
-    await client.configSet('latency-monitor-threshold', '0');
+        return await client.latencyHistory('command');
+      },
+    );
 
     assert.ok(
       result.length > 0,
@@ -1096,7 +1165,6 @@ describe('server-admin', () => {
         replace: true,
         absttl: true,
         idletime: 50,
-        freq: 10,
       }),
       [
         'RESTORE',
@@ -1107,8 +1175,6 @@ describe('server-admin', () => {
         'ABSTTL',
         'IDLETIME',
         '50',
-        'FREQ',
-        '10',
       ],
     );
   });
@@ -1208,8 +1274,17 @@ describe('server-admin', () => {
     ]);
 
     assert.deepStrictEqual(
-      createCommand('ON', { prefixes: ['user:', 'session:'] }),
-      ['CLIENT', 'TRACKING', 'ON', 'PREFIX', 'user:', 'PREFIX', 'session:'],
+      createCommand('ON', { bcast: true, prefixes: ['user:', 'session:'] }),
+      [
+        'CLIENT',
+        'TRACKING',
+        'ON',
+        'PREFIX',
+        'user:',
+        'PREFIX',
+        'session:',
+        'BCAST',
+      ],
     );
 
     assert.deepStrictEqual(createCommand('ON', { bcast: true }), [

@@ -6,6 +6,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
+import { RespError } from '../../../sources/index.ts';
 import {
   closeClient,
   createClient,
@@ -97,15 +98,13 @@ describe('bitmaps-hyperloglog', () => {
 
     const key = keyspace.key('bitpos-bit-mode');
 
-    await client.set(key, Buffer.from([0xf0]));
+    await client.set(key, Buffer.from([0xff, 0xf0]));
 
-    const result = await client.bitpos(key, 0, {
-      start: 0,
-      end: 7,
-      mode: 'BIT',
-    });
-
-    assert.strictEqual(result, 4);
+    assert.strictEqual(
+      await client.bitpos(key, 0, { start: 8, end: 15, mode: 'BIT' }),
+      12,
+    );
+    assert.strictEqual(await client.bitpos(key, 0, { start: 8, end: 15 }), -1);
   });
 
   it('combines bitmaps with BITOP', async () => {
@@ -130,9 +129,50 @@ describe('bitmaps-hyperloglog', () => {
 
     const { createCommand } = await import('../../../sources/command/bitop.ts');
 
-    assert.throws(() => createCommand('NOT', 'dest', ['a', 'b']), {
-      message: 'BITOP NOT accepts exactly one source key',
-    });
+    for (const keys of [[], ['a', 'b']]) {
+      assert.throws(() => createCommand('NOT', 'dest', keys), {
+        name: 'SolidisCommandError',
+        message: '[BITOP] NOT accepts exactly one source key',
+      });
+    }
+  });
+
+  it('combines bitmaps with the BITOP operators of Redis 8.2', async (context) => {
+    const first = keyspace.key('bitop-8.2', 'a');
+    const second = keyspace.key('bitop-8.2', 'b');
+    const destination = keyspace.key('bitop-8.2', 'dest');
+
+    await client.set(first, Buffer.from([0xf0]));
+    await client.set(second, Buffer.from([0x3c]));
+
+    const [[probe]] = await client.send([
+      ['BITOP', 'DIFF', destination, first, second],
+    ]);
+
+    if (probe instanceof RespError) {
+      context.skip('BITOP DIFF, DIFF1, ANDOR and ONE require Redis 8.2+');
+
+      return;
+    }
+
+    const results: [Parameters<typeof client.bitop>[0], number][] = [
+      ['DIFF', 0xc0],
+      ['DIFF1', 0x0c],
+      ['ANDOR', 0x30],
+      ['ONE', 0xcc],
+    ];
+
+    for (const [operation, bits] of results) {
+      assert.strictEqual(
+        await client.bitop(operation, destination, [first, second]),
+        1,
+      );
+      assert.deepStrictEqual(
+        await client.getBuffer(destination),
+        Buffer.from([bits]),
+        operation,
+      );
+    }
   });
 
   it('manipulates packed integers with BITFIELD', async () => {
@@ -161,18 +201,19 @@ describe('bitmaps-hyperloglog', () => {
   });
 
   it('honours BITFIELD overflow strategies', async () => {
-    const key = keyspace.key('bitfield', 'overflow');
+    const overflow = (strategy: 'WRAP' | 'SAT' | 'FAIL') =>
+      client.bitfield(
+        keyspace.key('bitfield', 'overflow', strategy),
+        [
+          { operation: 'SET', type: 'u8', offset: 0, value: 255 },
+          { operation: 'INCRBY', type: 'u8', offset: 0, increment: 10 },
+        ],
+        strategy,
+      );
 
-    const result = await client.bitfield(
-      key,
-      [
-        { operation: 'SET', type: 'u8', offset: 0, value: 255 },
-        { operation: 'INCRBY', type: 'u8', offset: 0, increment: 10 },
-      ],
-      'SAT',
-    );
-
-    assert.deepStrictEqual(result, [0, 255]);
+    assert.deepStrictEqual(await overflow('WRAP'), [0, 9]);
+    assert.deepStrictEqual(await overflow('SAT'), [0, 255]);
+    assert.deepStrictEqual(await overflow('FAIL'), [0, null]);
   });
 
   it('estimates cardinality with HyperLogLog', async () => {

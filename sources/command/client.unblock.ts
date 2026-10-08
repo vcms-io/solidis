@@ -1,3 +1,4 @@
+import { formatInteger } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyNumber } from './utils/index.ts';
 
 import type { CommandClientUnblockOptions } from '../index.ts';
@@ -6,7 +7,7 @@ export function createCommand(
   clientId: number,
   options?: CommandClientUnblockOptions,
 ) {
-  const command = ['CLIENT', 'UNBLOCK', `${clientId}`];
+  const command = ['CLIENT', 'UNBLOCK', formatInteger(clientId)];
 
   if (options) {
     if (options.timeout) {

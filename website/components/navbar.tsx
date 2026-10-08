@@ -55,7 +55,7 @@ export function Navbar() {
         >
           <img
             src="https://resources.vcms.io/assets/solidis.png"
-            alt="Solidis Logo"
+            alt={t('nav.logo')}
             className="h-5 w-5"
           />
           <span className="text-[15px] font-semibold tracking-tight text-foreground">
@@ -81,6 +81,7 @@ export function Navbar() {
             href="https://github.com/vcms-io/solidis"
             target="_blank"
             rel="noopener noreferrer"
+            aria-label="GitHub"
             className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground hover:bg-secondary/60"
           >
             <GithubIcon className="h-4 w-4" />
@@ -89,15 +90,21 @@ export function Navbar() {
 
           <Sheet open={isOpen} onOpenChange={setIsOpen}>
             <SheetTrigger asChild className="md:hidden">
-              <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                aria-label={t('nav.openMenu')}
+              >
                 <Menu className="h-4 w-4" />
               </Button>
             </SheetTrigger>
             <SheetContent
               side="right"
               className="w-72 bg-background border-border"
+              closeLabel={t('nav.close')}
             >
-              <SheetTitle className="sr-only">Navigation</SheetTitle>
+              <SheetTitle className="sr-only">{t('nav.menu')}</SheetTitle>
               <nav className="flex flex-col gap-0.5 pt-8">
                 {mobileNavigation.map((item) => (
                   <Link

@@ -168,13 +168,13 @@ export class CacheManager {
     const cacheKey = this.getKey(key);
     const value = await this.client.get(cacheKey);
 
-    if (value) {
-      this.hits++;
-      return JSON.parse(value) as T;
+    if (value === null) {
+      this.misses++;
+      return null;
     }
 
-    this.misses++;
-    return null;
+    this.hits++;
+    return JSON.parse(value) as T;
   }
 
   /**
@@ -209,9 +209,12 @@ export class CacheManager {
       return cached;
     }
 
-    // Cache miss - fetch from source
+    // Cache miss - fetch from source, and cache only a value that exists
     const value = await fetchFn();
-    await this.set(key, value, options);
+
+    if (value !== null) {
+      await this.set(key, value, options);
+    }
 
     return value;
   }
@@ -312,7 +315,7 @@ export class CacheManager {
             <CodeBlock
               code={`import { CacheManager } from './cache-manager';
 
-interface User {
+export interface User {
   id: string;
   username: string;
   email: string;
@@ -394,8 +397,8 @@ export class UserRepository {
   async updateUser(userId: string, data: Partial<User>): Promise<User> {
     // Update database
     const result = await this.db.query(
-      'UPDATE users SET username = $1, email = $2, name = $3 WHERE id = $4 RETURNING *',
-      [data.username, data.email, data.name, userId]
+      'UPDATE users SET username = COALESCE($1, username), email = COALESCE($2, email), name = COALESCE($3, name) WHERE id = $4 RETURNING *',
+      [data.username ?? null, data.email ?? null, data.name ?? null, userId]
     );
 
     const user = result.rows[0];
@@ -464,7 +467,10 @@ export class UserRepository {
         <CardContent>
           <div className="rounded-lg text-sm overflow-x-auto">
             <CodeBlock
-              code={`export class CacheWarmer {
+              code={`import { CacheManager } from './cache-manager';
+import type { User } from './user-repository';
+
+export class CacheWarmer {
   private cache: CacheManager;
   private db: any;
 
@@ -569,6 +575,17 @@ const warmer = new CacheWarmer(cache, db);
 
 app.use(express.json());
 
+// Search users endpoint (with cached results)
+app.get('/api/users/search', async (req, res) => {
+  try {
+    const query = req.query.q as string;
+    const users = await userRepo.searchUsers(query);
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Get user endpoint (with caching)
 app.get('/api/users/:id', async (req, res) => {
   try {
@@ -589,17 +606,6 @@ app.put('/api/users/:id', async (req, res) => {
   try {
     const user = await userRepo.updateUser(req.params.id, req.body);
     res.json(user);
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Search users endpoint (with cached results)
-app.get('/api/users/search', async (req, res) => {
-  try {
-    const query = req.query.q as string;
-    const users = await userRepo.searchUsers(query);
-    res.json(users);
   } catch (error) {
     res.status(500).json({ error: 'Internal server error' });
   }

@@ -3,6 +3,8 @@ import { resolve } from 'node:path';
 
 import { createCanvas } from '@napi-rs/canvas';
 
+import { formatKilobytes } from './format.ts';
+
 const SNAPSHOT_PATH = resolve('.bundle', 'snapshot.json');
 const OUTPUT_PATH = resolve('assets', 'bundle.png');
 
@@ -24,12 +26,6 @@ const COLORS = {
   nodeRedis: { bundle: '#8b5cf6', map: '#a78bfa' },
 } as const;
 
-const DISPLAY_NAMES: Record<string, string> = {
-  solidis: 'solidis',
-  ioredis: 'ioredis',
-  'node-redis': 'redis',
-};
-
 type ColorPair = { bundle: string; map: string };
 
 const BAR_COLORS: Record<string, ColorPair> = {
@@ -37,10 +33,6 @@ const BAR_COLORS: Record<string, ColorPair> = {
   ioredis: COLORS.ioredis,
   'node-redis': COLORS.nodeRedis,
 };
-
-function formatKilobytes(bytes: number): string {
-  return `${Math.round(bytes / 1024)} KB`;
-}
 
 function drawRoundedTop(
   context: CanvasRenderingContext2D,
@@ -73,7 +65,8 @@ const canvasHeight = 980;
 const canvas = createCanvas(canvasWidth, canvasHeight);
 const context = canvas.getContext('2d');
 
-context.clearRect(0, 0, canvasWidth, canvasHeight);
+context.fillStyle = '#ffffff';
+context.fillRect(0, 0, canvasWidth, canvasHeight);
 
 const margin = { top: 120, right: 100, bottom: 80, left: 120 };
 const chartLeft = margin.left;
@@ -204,11 +197,7 @@ for (let index = 0; index < results.length; index++) {
   context.font = '24px "Segoe UI", -apple-system, sans-serif';
   context.textAlign = 'center';
   context.textBaseline = 'top';
-  context.fillText(
-    DISPLAY_NAMES[result.name] ?? result.name,
-    groupCenter,
-    chartBottom + 20,
-  );
+  context.fillText(result.name, groupCenter, chartBottom + 20);
 }
 
 const buffer = canvas.toBuffer('image/png');

@@ -3,7 +3,7 @@ import { executeCommand, tryReplyToStringArray } from './utils/index.ts';
 export function createCommand(pattern?: string) {
   const command = ['PUBSUB', 'CHANNELS'];
 
-  if (pattern) {
+  if (pattern !== undefined) {
     command.push(pattern);
   }
 
