@@ -171,6 +171,18 @@ describe('server', () => {
           versionFooter,
           `Redis 7 LOLWUT must be exactly '${versionFooter}'`,
         );
+      } else if (capabilities.major === 8 && !capabilities.atLeast(8, 4)) {
+        const hint = 'Use: LOLWUT IT for the original Italian output.';
+
+        assert.ok(
+          trimmed.endsWith(hint),
+          `Redis 8.0 and 8.2 LOLWUT must end with '${hint}' but got: ...${trimmed.slice(-80)}`,
+        );
+        assert.notStrictEqual(
+          trimmed,
+          hint,
+          'LOLWUT with art must include content before the hint',
+        );
       } else {
         assert.ok(
           trimmed.endsWith(versionFooter),
