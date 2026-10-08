@@ -144,14 +144,14 @@ export function logSeparator(): void {
 
 export function logCaseTitle(caseName: string, payloadBytes: number): void {
   const title = caseName.toUpperCase();
-  const subtitle = `payload ${formatPayloadSize(payloadBytes)}`;
+  const subtitle = payloadBytes
+    ? `  ${ansi.dim}│${ansi.reset}  ${ansi.white}payload ${formatPayloadSize(payloadBytes)}${ansi.reset}`
+    : '';
   const line = '═'.repeat(DISPLAY_LINE_WIDTH);
 
   console.log('');
   console.log(`${ansi.bold}${ansi.cyan}${line}${ansi.reset}`);
-  console.log(
-    `${ansi.bold}${ansi.cyan}  ${title}${ansi.reset}  ${ansi.dim}│${ansi.reset}  ${ansi.white}${subtitle}${ansi.reset}`,
-  );
+  console.log(`${ansi.bold}${ansi.cyan}  ${title}${ansi.reset}${subtitle}`);
   console.log(`${ansi.bold}${ansi.cyan}${line}${ansi.reset}`);
 }
 
@@ -195,7 +195,7 @@ export function logCaseDone(
   console.log(
     `  ${ansi.cyan}■${ansi.reset} ${formatTimestamp()} ` +
       `${ansi.bold}${caseName}${ansi.reset} ` +
-      `${ansi.dim}payload=${payloadBytes}${ansi.reset} ` +
+      (payloadBytes ? `${ansi.dim}payload=${payloadBytes}${ansi.reset} ` : '') +
       `completed in ${ansi.bold}${(wallMilliseconds / 1000).toFixed(1)}s${ansi.reset}`,
   );
 }

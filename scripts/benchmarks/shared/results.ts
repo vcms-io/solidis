@@ -137,7 +137,7 @@ export function describeFailedResults(results: BenchResult[]): string[] {
     return failure === undefined
       ? []
       : [
-          `${result.operation} [${result.library}] ${formatPayloadSize(result.payloadBytes)}: ${failure}`,
+          `${result.operation} [${result.library}]${result.payloadBytes ? ` ${formatPayloadSize(result.payloadBytes)}` : ''}: ${failure}`,
         ];
   });
 }
@@ -235,9 +235,18 @@ export function printResults(
         (right.unitsPerSecond ?? -1) - (left.unitsPerSecond ?? -1),
     );
 
+    const details = [
+      first.payloadBytes ? formatPayloadSize(first.payloadBytes) : '',
+      first.nonComparableReason
+        ? `not strictly comparable: ${en.note(first.nonComparableReason)}`
+        : '',
+    ]
+      .filter(Boolean)
+      .join(', ');
+
     console.log('');
     console.log(
-      `  ${ansi.bold}${ansi.white}${first.operation}${ansi.reset} ${ansi.dim}(${formatPayloadSize(first.payloadBytes)}${first.nonComparableReason ? `, not strictly comparable: ${en.note(first.nonComparableReason)}` : ''})${ansi.reset}`,
+      `  ${ansi.bold}${ansi.white}${first.operation}${ansi.reset}${details ? ` ${ansi.dim}(${details})${ansi.reset}` : ''}`,
     );
     console.log(
       `  ${ansi.dim}${columns.map(([title, width], index) => (index === 0 ? padRight(title, width) : padLeft(title, width))).join(' ')}${ansi.reset}`,
