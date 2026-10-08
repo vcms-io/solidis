@@ -528,7 +528,7 @@ export function tryReplyToJsonNumberText(
     ? reply
     : (tryReplyToString(reply, commandName).match(/[^[\],]+/g) ?? []);
   const texts = values.map((value) => {
-    const text = `${value}`;
+    const text = Object.is(value, -0) ? '-0' : `${value}`;
 
     return text === 'null' || /^-?\d+$/.test(text)
       ? text
