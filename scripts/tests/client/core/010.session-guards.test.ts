@@ -343,6 +343,67 @@ describe('session-guards', () => {
   });
 
   describe('listener re-entrancy', () => {
+    it('stays quit when a connect listener quits a handshake that sends nothing', async () => {
+      const server = await startServer(answerPong);
+      const client = track(
+        new SolidisFeaturedClient(mockClientOptions(server.port)),
+      );
+      const events: string[] = [];
+
+      for (const event of ['connect', 'ready', 'end'] as const) {
+        client.on(event, () => events.push(event));
+      }
+
+      client.on('connect', () => client.quit());
+
+      try {
+        await assert.rejects(client.connect(), {
+          name: 'SolidisClientError',
+          message: 'The client was quit.',
+        });
+        await delay(20);
+
+        assert.deepStrictEqual(events, ['connect', 'end']);
+      } finally {
+        client.quit();
+        await server.close();
+      }
+    });
+
+    it('holds a command sent from a close listener until the session is back', async () => {
+      const client = await createClient({ connectionRetryDelay: 10 });
+
+      try {
+        const sent = new Promise((resolve) => {
+          client.once('close', () => {
+            resolve(client.ping().catch((error: unknown) => error));
+          });
+        });
+
+        await forceReconnect(client);
+
+        assert.strictEqual(await sent, 'PONG');
+      } finally {
+        await closeClient(client);
+      }
+    });
+
+    it('rejects a command sent from an end listener after quit()', async () => {
+      const client = await createClient();
+      const sent = new Promise((resolve) => {
+        client.once('end', () => {
+          resolve(client.ping().catch((error: unknown) => error));
+        });
+      });
+
+      client.quit();
+
+      const error = await sent;
+
+      assert.ok(error instanceof SolidisClientError);
+      assert.strictEqual(error.message, 'The client was quit.');
+    });
+
     it('stops reconnecting when quit() runs inside a reconnecting listener', async () => {
       const server = await startServer(answerPong);
       const client = track(
@@ -1153,6 +1214,38 @@ describe('session-guards', () => {
           return true;
         });
         assert.strictEqual(readyChecks, 1);
+      } finally {
+        client.quit();
+        await server.close();
+      }
+    });
+
+    it('waits for the handshake without a deadline when commandTimeout is 0', async () => {
+      let readyChecks = 0;
+
+      const server = await startServer((socket, data) => {
+        if (data.includes('INFO')) {
+          readyChecks += 1;
+          socket.write(`$9\r\nloading:${readyChecks < 4 ? 1 : 0}\r\n`);
+        } else {
+          answerPong(socket, data);
+        }
+      });
+      const client = track(
+        new SolidisFeaturedClient(
+          mockClientOptions(server.port, {
+            enableReadyCheck: true,
+            readyCheckInterval: 50,
+            commandTimeout: 0,
+          }),
+        ),
+      );
+
+      client.on('error', () => {});
+
+      try {
+        assert.deepStrictEqual(await client.send([['PING']]), [['PONG']]);
+        assert.strictEqual(readyChecks, 4);
       } finally {
         client.quit();
         await server.close();
@@ -2571,6 +2664,41 @@ describe('session-guards', () => {
 
         assert.deepStrictEqual(await retry.exec(), ['OK']);
         assert.strictEqual(await killer.get(key), '91');
+      } finally {
+        await closeClient(client);
+      }
+    });
+
+    it('keeps a lost WATCH through command names that only read as UNWATCH or RESET', async () => {
+      const client = await createClient({ connectionRetryDelay: 10 });
+      const key = keyspace.key('unknown-unwatch');
+
+      try {
+        for (const name of ['UNWATCH\0x', 'RESET\0', 'reſet', 'unwatcH ']) {
+          await killer.set(key, '100');
+          await client.watch(key);
+          await forceReconnect(client);
+          await killer.set(key, '500');
+
+          const reply = await client.send([[name]]).then(
+            ([[value]]) => value,
+            (error: unknown) => error,
+          );
+
+          assert.ok(
+            name === 'unwatcH '
+              ? reply instanceof RespError
+              : reply instanceof SolidisRequesterError,
+            name,
+          );
+
+          const transaction = client.multi();
+
+          transaction.set(key, '90');
+
+          assert.strictEqual(await transaction.exec(), null, name);
+          assert.strictEqual(await killer.get(key), '500');
+        }
       } finally {
         await closeClient(client);
       }

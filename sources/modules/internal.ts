@@ -73,6 +73,10 @@ function classifyCommand(command: StringOrBuffer[]) {
   if (kind === undefined) {
     kind = SolidisCommandKinds.get(toCommandWord(text)) ?? null;
 
+    if (kind && /[^ -~]/.test(text)) {
+      kind = 'restricted';
+    }
+
     if (commandKindCache.size < SolidisCommandKindCacheLimit) {
       commandKindCache.set(text, kind);
     }
@@ -84,12 +88,15 @@ function classifyCommand(command: StringOrBuffer[]) {
 function isUnsupported(command: StringOrBuffer[]) {
   const words = command.map((word) => toCommandWord(toTextPrefix(word, 16)));
 
-  return words.some((word, index) =>
-    SolidisUnsupportedCommandNameSet.has(
-      index % 2
-        ? `${words[0]} ${word}`
-        : words.slice(0, Math.min(index + 1, 3)).join(' '),
-    ),
+  return (
+    /[^ -~]/.test(toTextPrefix(command[0], 32)) ||
+    words.some((word, index) =>
+      SolidisUnsupportedCommandNameSet.has(
+        index % 2
+          ? `${words[0]} ${word}`
+          : words.slice(0, Math.min(index + 1, 3)).join(' '),
+      ),
+    )
   );
 }
 

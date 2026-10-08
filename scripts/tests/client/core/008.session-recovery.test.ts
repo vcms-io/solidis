@@ -842,22 +842,6 @@ describe('session-recovery', () => {
   });
 
   describe('outages', () => {
-    it('waits for readiness without a deadline when commandTimeout is disabled', async () => {
-      const client = track(
-        new SolidisFeaturedClient(
-          buildClientOptions({ lazyConnect: true, commandTimeout: 0 }),
-        ),
-      );
-
-      client.on('error', () => {});
-
-      try {
-        assert.strictEqual(await client.ping(), 'PONG');
-      } finally {
-        await closeClient(client);
-      }
-    });
-
     it('holds commands sent during an outage until the session is ready again', async () => {
       const client = await createClient({ connectionRetryDelay: 10 });
       const key = keyspace.key('outage');

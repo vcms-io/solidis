@@ -770,32 +770,48 @@ describe('debug-requester', () => {
       assert.strictEqual(connection.writes.length, 0);
     });
 
-    it('reads HELLO options only up to a NUL byte, as the server does, and tracks nothing for command names it rejects', async () => {
+    it('reads HELLO options only up to a NUL byte and refuses command names that only some servers read as tracked commands', async () => {
       const { connection, pubSub, requester } = createRequester();
 
-      await assert.rejects(requester.send([['MONITOR\0x']]), {
-        message:
-          'MONITOR\0X is not supported: it breaks the pairing of requests and replies.',
-      });
-      await assert.rejects(requester.send([['CLIENT\0', 'REPLY', 'SKIP']]), {
-        message:
-          'CLIENT\0 is not supported: it breaks the pairing of requests and replies.',
-      });
-
-      const tracked = requester.send([
-        ['HELLO', '3', 'AUTH\0x', 'user', 'secret'],
+      for (const command of [
+        ['RESET\0'],
         ['SELECT\0', '2'],
         ['SUBSCRIBE\0x', 'news'],
         ['MULTI\0'],
+        ['reſet'],
+        ['multı'],
+        ['MONITOR\0x'],
+        ['CLIENT\0', 'LIST'],
+        ['SET\0', 'k', 'v'],
+      ]) {
+        await assert.rejects(requester.send([command]), {
+          name: 'SolidisRequesterError',
+          message:
+            /is not supported: it breaks the pairing of requests and replies\.$/,
+        });
+      }
+
+      const tracked = requester.send([
+        ['HELLO', '3', 'AUTH\0x', 'user', 'secret'],
+        ['SELECT ', '2'],
+        ['PING\0x'],
       ]);
 
       await flushed();
 
+      assert.deepStrictEqual(connection.writes, [
+        commandsToBuffer([
+          ['HELLO', '3', 'AUTH\0x', 'user', 'secret'],
+          ['SELECT ', '2'],
+          ['PING\0x'],
+        ]),
+      ]);
+
       connection.reply(
-        `%1\r\n+proto\r\n:3\r\n${'-ERR unknown command\r\n'.repeat(3)}`,
+        `%1\r\n+proto\r\n:3\r\n${'-ERR unknown command\r\n'.repeat(2)}`,
       );
 
-      assert.strictEqual((await tracked).length, 4);
+      assert.strictEqual((await tracked).length, 3);
       assert.strictEqual(requester.database, 0);
       assert.strictEqual(requester.protocol, SolidisProtocols.RESP3);
       assert.deepStrictEqual(requester.authentication, {
