@@ -481,16 +481,22 @@ describe('session-recovery', () => {
     it('restores only the subscription kinds enabled in autoRecovery', async () => {
       const subscriber = await createClient({
         connectionRetryDelay: 10,
-        autoRecovery: { psubscribe: false },
+        autoRecovery: { psubscribe: false, ssubscribe: false },
       });
       const channel = keyspace.key('partial', 'channel');
       const pattern = `${keyspace.namespace}:partial:pattern:*`;
+      const shard = keyspace.key('partial', 'shard');
 
       try {
         const id = await subscriber.clientId();
 
         await subscriber.subscribe(channel);
         await subscriber.psubscribe(pattern);
+
+        if (isAtLeast7) {
+          await subscriber.ssubscribe(shard);
+        }
+
         await forceReconnect(subscriber, id);
 
         assert.strictEqual(await killer.publish(channel, 'kept'), 1);
@@ -498,6 +504,10 @@ describe('session-recovery', () => {
           await killer.publish(keyspace.key('partial', 'pattern', 'x'), 'lost'),
           0,
         );
+
+        if (isAtLeast7) {
+          assert.strictEqual(await killer.spublish(shard, 'lost'), 0);
+        }
       } finally {
         await closeClient(subscriber);
       }

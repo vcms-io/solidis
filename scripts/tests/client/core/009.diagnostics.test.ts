@@ -244,10 +244,6 @@ describe('diagnostics', () => {
 
   it('logs the established connection and the completed handshake to the debug event only', async (context) => {
     const server = await startServer(() => '+OK\r\n');
-    const client = track(
-      new SolidisClient(mockClientOptions(server.port, { debug: true })),
-    );
-    const messages = collectDebugMessages(client);
     const debugVariable = process.env.DEBUG;
     const writes = [
       context.mock.method(process.stdout, 'write'),
@@ -255,6 +251,11 @@ describe('diagnostics', () => {
     ];
 
     process.env.DEBUG = 'solidis';
+
+    const client = track(
+      new SolidisClient(mockClientOptions(server.port, { debug: true })),
+    );
+    const messages = collectDebugMessages(client);
 
     try {
       await client.connect();
