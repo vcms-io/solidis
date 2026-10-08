@@ -326,7 +326,7 @@ export class SolidisRequester {
         isWatchLost ||= kind === 'exec';
       }
 
-      if (kind === null || kind === 'restricted') {
+      if (kind === null || kind === 'restricted' || kind === 'set') {
         continue;
       }
 

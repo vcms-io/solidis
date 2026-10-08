@@ -8,7 +8,8 @@ import type {
 export type SolidisCommandKind =
   | SolidisSubscriptionEventName
   | (typeof SolidisSessionCommandKinds)[number]
-  | 'restricted';
+  | 'restricted'
+  | 'set';
 
 export type SolidisTransactionState = [
   isQueueing: boolean,

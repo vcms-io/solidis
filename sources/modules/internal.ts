@@ -50,6 +50,7 @@ export const SolidisCommandKinds: ReadonlyMap<string, SolidisCommandKind> =
     ...[...SolidisSubscriptionEventNames, ...SolidisSessionCommandKinds].map(
       (kind) => [kind.toUpperCase(), kind] as const,
     ),
+    ['SET', 'set'],
     ...[...SolidisUnsupportedCommandNameSet].map(
       (name) => [name.split(' ')[0], 'restricted'] as const,
     ),
@@ -95,7 +96,12 @@ function isUnsupported(command: StringOrBuffer[]) {
 function hasWrongDigestLength(command: StringOrBuffer[]) {
   if (
     command.length < 6 ||
-    toCommandWord(toTextPrefix(command[0], 4)) !== 'SET'
+    !command.some(
+      (word, index) =>
+        index > 2 &&
+        ((typeof word === 'string' ? word.charCodeAt(0) : word[0]) | 32) ===
+          105,
+    )
   ) {
     return false;
   }
@@ -104,13 +110,15 @@ function hasWrongDigestLength(command: StringOrBuffer[]) {
   let hasGet = false;
 
   for (let index = 3; index < command.length; index += 1) {
-    const word = toCommandWord(toTextPrefix(command[index], 16));
+    const length = /^(GET|IFD?(EQ|NE)|[EP]X(AT)?)(\0|$)/i.exec(
+      toTextPrefix(command[index], 6),
+    )?.[1].length;
 
-    if (word === 'GET') {
+    if (length === 3) {
       hasGet = true;
-    } else if (/^(IFD?(EQ|NE)|[EP]X(AT)?)$/.test(word)) {
+    } else if (length) {
       index += 1;
-      digest = word.startsWith('IFD') ? command[index] : digest;
+      digest = length > 4 ? command[index] : digest;
     }
   }
 
@@ -140,11 +148,15 @@ export function inspectCommand(
 
   const kind = classifyCommand(command);
 
+  if (!kind) {
+    return kind;
+  }
+
   if (kind === 'restricted' && isUnsupported(command)) {
     return createRefusal(command, `is not supported: ${SolidisPairingReason}`);
   }
 
-  if (hasWrongDigestLength(command)) {
+  if (kind === 'set' && hasWrongDigestLength(command)) {
     return createRefusal(
       command,
       `with GET needs 16-byte digests: ${SolidisPairingReason}`,

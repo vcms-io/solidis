@@ -770,7 +770,7 @@ describe('debug-requester', () => {
       assert.strictEqual(connection.writes.length, 0);
     });
 
-    it('reads command names and HELLO options only up to a NUL byte, as the server does', async () => {
+    it('reads HELLO options only up to a NUL byte, as the server does, and tracks nothing for command names it rejects', async () => {
       const { connection, pubSub, requester } = createRequester();
 
       await assert.rejects(requester.send([['MONITOR\0x']]), {
@@ -792,23 +792,25 @@ describe('debug-requester', () => {
       await flushed();
 
       connection.reply(
-        `%1\r\n+proto\r\n:3\r\n+OK\r\n${subscribeConfirmation('subscribe', 'news', 1)}+OK\r\n`,
+        `%1\r\n+proto\r\n:3\r\n${'-ERR unknown command\r\n'.repeat(3)}`,
       );
 
       assert.strictEqual((await tracked).length, 4);
-      assert.strictEqual(requester.database, 2);
+      assert.strictEqual(requester.database, 0);
       assert.strictEqual(requester.protocol, SolidisProtocols.RESP3);
       assert.deepStrictEqual(requester.authentication, {
         username: 'user',
         password: 'secret',
       });
-      assert.deepStrictEqual(pubSub.getSubscriptions('subscribe'), [
-        Buffer.from('news'),
-      ]);
-      await assert.rejects(requester.send([['SSUBSCRIBE', 'shard']]), {
-        message:
-          'SSUBSCRIBE is not supported inside a transaction: it breaks the pairing of requests and replies.',
-      });
+      assert.deepStrictEqual(pubSub.getSubscriptions('subscribe'), []);
+
+      const subscribed = requester.send([['SSUBSCRIBE', 'shard']]);
+
+      await flushed();
+
+      connection.reply(subscribeConfirmation('ssubscribe', 'shard', 1));
+
+      assert.strictEqual((await subscribed).length, 1);
     });
 
     it('refuses a send() argument that is not an array', async () => {
@@ -3629,6 +3631,7 @@ describe('debug-requester', () => {
           ['SET', 'k', 'v', 'IFDEQ', 'é'.repeat(16), 'GET'],
           ['SET', 'k', 'v', 'NX', 'IFDNE', '0123456789abcde', 'GET\0'],
           ['SET', 'k', 'v', 'IFEQ', 'IFDEQ', 'IFDEQ', 'xyz', 'GET'],
+          ['SET', 'k', 'v', Buffer.from('ifdeq'), 'xyz', 'GET'],
         ].map((command) => settle(requester.send([['PING'], command]))),
       );
 
@@ -3654,6 +3657,7 @@ describe('debug-requester', () => {
         ['SET', 'k', 'v', 'IFDEQ', 'GET', 'EX', 'GET'],
         ['SET', 'k', 'v', 'GET', 'EX', '10', 'IFDEQ'],
         ['SET', 'k', 'GET', 'IFDNE', 'xyz', 'EX', '10'],
+        ['SET', 'k', 'v', 'ıFDEQ', 'xyz', 'GET'],
       ];
       const pending = requester.send(sent);
 
@@ -3662,10 +3666,33 @@ describe('debug-requester', () => {
       assert.deepStrictEqual(connection.writes, [commandsToBuffer(sent)]);
 
       connection.reply(
-        '$-1\r\n+OK\r\n+OK\r\n-ERR syntax error\r\n$1\r\nv\r\n$-1\r\n$1\r\nv\r\n$1\r\nv\r\n$1\r\nv\r\n$1\r\nv\r\n-ERR syntax error\r\n-ERR syntax error\r\n+OK\r\n',
+        '$-1\r\n+OK\r\n+OK\r\n-ERR syntax error\r\n$1\r\nv\r\n$-1\r\n$1\r\nv\r\n$1\r\nv\r\n$1\r\nv\r\n$1\r\nv\r\n-ERR syntax error\r\n-ERR syntax error\r\n+OK\r\n-ERR syntax error\r\n',
       );
 
-      assert.strictEqual((await pending).length, 13);
+      assert.strictEqual((await pending).length, 14);
+    });
+
+    it('sends a SUBSCRIBE whose channels read like SET options', async () => {
+      const { connection, pubSub, requester } = createRequester();
+      const channels = ['k', 'v', 'IFDEQ', 'xyz', 'GET'];
+      const subscribed = requester.send([['SUBSCRIBE', ...channels]]);
+
+      await flushed();
+
+      assert.deepStrictEqual(connection.writes, [
+        commandsToBuffer([['SUBSCRIBE', ...channels]]),
+      ]);
+
+      connection.reply(
+        channels
+          .map((channel, index) =>
+            subscribeConfirmation('subscribe', channel, index + 1),
+          )
+          .join(''),
+      );
+
+      assert.strictEqual((await subscribed).length, 1);
+      assert.strictEqual(pubSub.getSubscriptions('subscribe').length, 5);
     });
 
     it('refuses AUTH and HELLO inside a transaction', async () => {
