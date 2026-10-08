@@ -65,7 +65,8 @@ const canvasHeight = 980;
 const canvas = createCanvas(canvasWidth, canvasHeight);
 const context = canvas.getContext('2d');
 
-context.clearRect(0, 0, canvasWidth, canvasHeight);
+context.fillStyle = '#ffffff';
+context.fillRect(0, 0, canvasWidth, canvasHeight);
 
 const margin = { top: 120, right: 100, bottom: 80, left: 120 };
 const chartLeft = margin.left;
