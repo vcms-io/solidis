@@ -27,6 +27,14 @@ export function formatInteger(value: number | bigint | string) {
   return `${Number.isSafeInteger(value) || !Number.isInteger(value) ? value : BigInt(value)}`;
 }
 
+export function formatFloat(value: number) {
+  return value === 0 && 1 / value < 0 ? '-0' : `${value}`;
+}
+
+export function formatNumber(value: number) {
+  return value === 0 && 1 / value < 0 ? '-0' : formatInteger(value);
+}
+
 export function appendItems<Item>(command: Item[], items: readonly Item[]) {
   for (const item of items) {
     command.push(item);

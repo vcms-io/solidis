@@ -1,4 +1,4 @@
-import { formatInteger } from '../common/utils/internal.ts';
+import { formatFloat, formatInteger } from '../common/utils/internal.ts';
 import {
   buildTimeSeriesCommand,
   executeCommand,
@@ -12,7 +12,7 @@ export function createCommand(
   decrement: number,
   options: CommandTimeSeriesIncrDecrOptions,
 ) {
-  const command = ['TS.DECRBY', key, `${decrement}`];
+  const command = ['TS.DECRBY', key, formatFloat(decrement)];
 
   if (options.timestamp !== undefined) {
     command.push('TIMESTAMP', formatInteger(options.timestamp));

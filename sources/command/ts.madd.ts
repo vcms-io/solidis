@@ -1,4 +1,4 @@
-import { formatInteger } from '../common/utils/internal.ts';
+import { formatFloat, formatInteger } from '../common/utils/internal.ts';
 import {
   executeCommand,
   tryReplyToNumber,
@@ -17,7 +17,11 @@ export function createCommand(
   const command = ['TS.MADD'];
 
   for (const sample of samples) {
-    command.push(key, formatInteger(sample.timestamp), `${sample.value}`);
+    command.push(
+      key,
+      formatInteger(sample.timestamp),
+      formatFloat(sample.value),
+    );
   }
 
   return command;

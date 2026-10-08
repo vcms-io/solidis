@@ -1,8 +1,8 @@
-import { formatInteger } from '../common/utils/internal.ts';
+import { formatNumber } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyToJsonNumberText } from './utils/index.ts';
 
 export function createCommand(key: string, path: string, value: number) {
-  return ['JSON.NUMINCRBY', key, path, formatInteger(value)];
+  return ['JSON.NUMINCRBY', key, path, formatNumber(value)];
 }
 
 export async function jsonNumincrby<T>(

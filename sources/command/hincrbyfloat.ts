@@ -1,8 +1,8 @@
-import { formatInteger } from '../common/utils/internal.ts';
+import { formatNumber } from '../common/utils/internal.ts';
 import { executeCommand, tryReplyToString } from './utils/index.ts';
 
 export function createCommand(key: string, field: string, increment: number) {
-  return ['HINCRBYFLOAT', key, field, formatInteger(increment)];
+  return ['HINCRBYFLOAT', key, field, formatNumber(increment)];
 }
 
 export async function hincrbyfloat<T>(

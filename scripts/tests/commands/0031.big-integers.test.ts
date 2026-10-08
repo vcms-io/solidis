@@ -12,10 +12,12 @@ import { clientTrackinginfo } from '../../../sources/command/client.trackinginfo
 import { createCommand as createDecrbyCommand } from '../../../sources/command/decrby.ts';
 import { hello } from '../../../sources/command/hello.ts';
 import { createCommand as createHincrbyCommand } from '../../../sources/command/hincrby.ts';
+import { createCommand as createHincrbyfloatCommand } from '../../../sources/command/hincrbyfloat.ts';
 import { incr } from '../../../sources/command/incr.ts';
 import { createCommand as createIncrbyCommand } from '../../../sources/command/incrby.ts';
 import { createCommand as createIncrbyfloatCommand } from '../../../sources/command/incrbyfloat.ts';
 import { createCommand as createJsonNumincrbyCommand } from '../../../sources/command/json.numincrby.ts';
+import { createCommand as createJsonNummultbyCommand } from '../../../sources/command/json.nummultby.ts';
 import { latencyHistogram } from '../../../sources/command/latency.histogram.ts';
 import { lcs } from '../../../sources/command/lcs.ts';
 import { lpop } from '../../../sources/command/lpop.ts';
@@ -27,6 +29,9 @@ import { createCommand as createSetCommand } from '../../../sources/command/set.
 import { createCommand as createSetexCommand } from '../../../sources/command/setex.ts';
 import { time } from '../../../sources/command/time.ts';
 import { createCommand as createTimeSeriesAddCommand } from '../../../sources/command/ts.add.ts';
+import { createCommand as createTimeSeriesDecrbyCommand } from '../../../sources/command/ts.decrby.ts';
+import { createCommand as createTimeSeriesIncrbyCommand } from '../../../sources/command/ts.incrby.ts';
+import { createCommand as createTimeSeriesMaddCommand } from '../../../sources/command/ts.madd.ts';
 import { buildScanCommand } from '../../../sources/command/utils/command.ts';
 import { tryReplyToInteger } from '../../../sources/command/utils/reply.ts';
 import { createCommand as createXclaimCommand } from '../../../sources/command/xclaim.ts';
@@ -35,6 +40,8 @@ import { xinfoGroups } from '../../../sources/command/xinfo.groups.ts';
 import { xinfoStream } from '../../../sources/command/xinfo.stream.ts';
 import { xpending } from '../../../sources/command/xpending.ts';
 import { createCommand as createZaddCommand } from '../../../sources/command/zadd.ts';
+import { createCommand as createZincrbyCommand } from '../../../sources/command/zincrby.ts';
+import { createCommand as createZunionstoreCommand } from '../../../sources/command/zunionstore.ts';
 import {
   SolidisClient,
   SolidisCommandError,
@@ -718,6 +725,49 @@ describe('big-integers', () => {
       `${2 ** 60}`,
       'm',
     ]);
+  });
+
+  it('keeps the sign of a zero double argument, which RedisJSON and RedisTimeSeries store', () => {
+    assert.deepStrictEqual(createZaddCommand('z', -0, 'm'), [
+      'ZADD',
+      'z',
+      '-0',
+      'm',
+    ]);
+    assert.deepStrictEqual(createTimeSeriesAddCommand('t', 1, -0, {}), [
+      'TS.ADD',
+      't',
+      '1',
+      '-0',
+    ]);
+    assert.deepStrictEqual(createJsonNumincrbyCommand('k', '$', -0), [
+      'JSON.NUMINCRBY',
+      'k',
+      '$',
+      '-0',
+    ]);
+    assert.deepStrictEqual(createIncrbyfloatCommand('k', -0), [
+      'INCRBYFLOAT',
+      'k',
+      '-0',
+    ]);
+    assert.deepStrictEqual(createPexpireatCommand('k', -0), [
+      'PEXPIREAT',
+      'k',
+      '0',
+    ]);
+
+    for (const command of [
+      createZincrbyCommand('z', -0, 'm'),
+      createZunionstoreCommand('d', ['a'], { weights: [-0] }),
+      createTimeSeriesMaddCommand('t', [{ timestamp: 1, value: -0 }]),
+      createTimeSeriesIncrbyCommand('t', -0, {}),
+      createTimeSeriesDecrbyCommand('t', -0, {}),
+      createHincrbyfloatCommand('k', 'f', -0),
+      createJsonNummultbyCommand('k', '$', -0),
+    ]) {
+      assert.ok(command.includes('-0'), command.join(' '));
+    }
   });
 
   it('sends every integer argument exactly', async () => {

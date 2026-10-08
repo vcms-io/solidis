@@ -31,5 +31,5 @@ export function formatDouble(value: number): string {
     return SolidisNegativeInfinityText;
   }
 
-  return `${value}`;
+  return Object.is(value, -0) ? '-0' : `${value}`;
 }

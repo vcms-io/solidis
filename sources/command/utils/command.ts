@@ -1,4 +1,4 @@
-import { formatInteger } from '../../common/utils/internal.ts';
+import { formatFloat, formatInteger } from '../../common/utils/internal.ts';
 import { toCommandError } from '../../common/utils/request.ts';
 import {
   newCommandError,
@@ -385,7 +385,7 @@ export function buildSortedSetInterCommand(
     command.push('WEIGHTS');
 
     for (const weight of options.weights) {
-      command.push(`${weight}`);
+      command.push(formatFloat(weight));
     }
   }
 

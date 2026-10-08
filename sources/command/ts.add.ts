@@ -1,4 +1,4 @@
-import { formatInteger } from '../common/utils/internal.ts';
+import { formatFloat, formatInteger } from '../common/utils/internal.ts';
 import {
   buildTimeSeriesCommand,
   executeCommand,
@@ -17,7 +17,7 @@ export function createCommand(
   options: CommandTimeSeriesAddOptions,
 ) {
   return buildTimeSeriesCommand(
-    ['TS.ADD', key, formatInteger(timestamp), `${value}`],
+    ['TS.ADD', key, formatInteger(timestamp), formatFloat(value)],
     options,
   );
 }

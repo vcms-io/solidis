@@ -491,6 +491,7 @@ describe('regressions', () => {
       assert.strictEqual(formatDouble(Number.POSITIVE_INFINITY), 'inf');
       assert.strictEqual(formatDouble(Number.NEGATIVE_INFINITY), '-inf');
       assert.strictEqual(formatDouble(-0.25), '-0.25');
+      assert.strictEqual(formatDouble(-0), '-0');
     });
 
     it('derives a RespError code from the first word of its message', () => {
