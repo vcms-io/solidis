@@ -1585,6 +1585,7 @@ describe('session-guards', () => {
 
       const server = net.createServer((socket) => {
         accepted += 1;
+        socket.resume();
         socket.end('-ERR max number of clients reached\r\n');
       });
 
