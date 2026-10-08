@@ -162,13 +162,6 @@ export function ArchitectureDiagram({
         >
           <polygon points="0 0, 8 3, 0 6" fill="#26251e33" />
         </marker>
-        <filter id="glow">
-          <feGaussianBlur stdDeviation="2" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
       </defs>
 
       <rect

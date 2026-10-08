@@ -104,7 +104,6 @@ export default function UpdatesPage() {
                 {releases[0].tag_name}
               </Badge>
             </div>
-            <CardDescription>{t('updates.latestReleaseDesc')}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
@@ -200,8 +199,11 @@ export default function UpdatesPage() {
                     </ul>
                   )}
                   {changes.length === 0 && release.body && (
-                    <div className="prose prose-sm prose-neutral max-w-none text-xs text-muted-foreground">
-                      <ReactMarkdown>
+                    <div className="text-xs text-muted-foreground">
+                      <ReactMarkdown
+                        allowedElements={['p', 'code', 'em', 'strong']}
+                        unwrapDisallowed
+                      >
                         {release.body.length > 300
                           ? `${release.body.slice(0, 300)}…`
                           : release.body}

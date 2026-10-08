@@ -115,6 +115,10 @@ export class JobQueue {
     await this.client.connect();
   }
 
+  disconnect(): void {
+    this.client.quit();
+  }
+
   /**
    * Add a job to the queue
    */
@@ -369,7 +373,7 @@ worker.register('generate-report', async (data: { userId: string }) => {
 });
 
 // Start worker
-worker.start();
+const running = worker.start();
 
 // Add jobs from your application
 await queue.addJob('send-email', {
@@ -390,8 +394,10 @@ const stats = await queue.getStats();
 console.log('Queue stats:', stats);
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   worker.stop();
+  await running;
+  queue.disconnect();
 });`}
               language="typescript"
               showLineNumbers={true}

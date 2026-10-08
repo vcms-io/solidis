@@ -284,7 +284,7 @@ Other option changes:
   - A ready check denied with `NOPERM` or refused as an unknown command counts as ready, and the check stops waiting when its connection closes.
   - A user chosen at runtime with `auth()` or `hello()`, and a protocol chosen with `hello()`, are restored after a reconnect until `RESET`, after which a reconnect uses the configured user, protocol and database. A `SELECT` queued in a transaction counts once `EXEC` runs it, and a `MULTI` or `WATCH` the server refuses does not count as lost.
   - A `CLIENT SETNAME` error other than `NOPERM` or an unknown command fails with `CLIENT SETNAME failed`.
-  - An error the server sends before any request, as in protected mode or at `maxclients`, fails the first handshake step with that step's error, such as `CLIENT SETNAME failed`, caused by a `SolidisConnectionError` that carries the reply.
+  - An error the server sends before any request, as in protected mode or at `maxclients`, fails the first handshake step with that step's error, such as `CLIENT SETNAME failed`. Its cause is the step's `SolidisCommandError`, or a `SolidisConnectionError` that carries the reply when the reply arrives before the step is written.
   - When the handshake sends nothing, `connect()` resolves first. The refusal then rejects waiting commands with a `SolidisConnectionError` that carries the reply, or reaches a command already sent or the `error` listeners.
   - `WRONGPASS` or `NOAUTH` on any step, including restoring the database and subscriptions, and any other `AUTH` error fail with `Authentication failed`. Another `SELECT` error fails with `SELECT failed`.
 - **Listener errors.** A throwing `connect`, `ready`, `reconnected`, `close`, `reconnecting`, `drain` or `end` listener no longer breaks the session; the client emits an `error` such as `A 'ready' listener threw`. A throwing `debug` listener goes to `process.emitWarning()`, and debug entries are delivered asynchronously.
@@ -463,7 +463,7 @@ Skip this step unless you build the internal classes yourself or write custom co
 - In alternating benchmark runs against 0.4.0, throughput is on par or better across the suite.
 - Replies and timeouts for tens of thousands of pipelines in flight take linear time. Masking bounds how much argument text it searches for quoted spans, so a reply full of quotes cannot stall the event loop.
 - Error replies no longer capture a stack trace they then drop.
-- Measured with each version's `npm run bundle`, the minimal client with `get` and `set` grows from 29,494 to 30,177 bytes.
+- Measured with each version's `npm run bundle`, the minimal client with `get` and `set` grows from 29,494 to 30,279 bytes.
 
 ## [0.4.0] and earlier
 
