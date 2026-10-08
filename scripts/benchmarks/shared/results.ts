@@ -235,18 +235,9 @@ export function printResults(
         (right.unitsPerSecond ?? -1) - (left.unitsPerSecond ?? -1),
     );
 
-    const details = [
-      first.payloadBytes ? formatPayloadSize(first.payloadBytes) : '',
-      first.nonComparableReason
-        ? `not strictly comparable: ${en.note(first.nonComparableReason)}`
-        : '',
-    ]
-      .filter(Boolean)
-      .join(', ');
-
     console.log('');
     console.log(
-      `  ${ansi.bold}${ansi.white}${first.operation}${ansi.reset}${details ? ` ${ansi.dim}(${details})${ansi.reset}` : ''}`,
+      `  ${ansi.bold}${ansi.white}${first.operation}${ansi.reset}${first.payloadBytes ? ` ${ansi.dim}(${formatPayloadSize(first.payloadBytes)})${ansi.reset}` : ''}`,
     );
     console.log(
       `  ${ansi.dim}${columns.map(([title, width], index) => (index === 0 ? padRight(title, width) : padLeft(title, width))).join(' ')}${ansi.reset}`,
@@ -301,11 +292,16 @@ export function printResults(
           12,
         ),
       ];
+      const comparabilityNote = result.nonComparableReason
+        ? ` ${ansi.dim}not strictly comparable: ${en.note(result.nonComparableReason)}${ansi.reset}`
+        : '';
       const verificationNote = result.verificationError
         ? ` ${ansi.yellow}⚠ ${result.verificationError}${ansi.reset}`
         : '';
 
-      console.log(`  ${cells.join(' ')}${verificationNote}`);
+      console.log(
+        `  ${cells.join(' ')}${comparabilityNote}${verificationNote}`,
+      );
     }
   }
 
