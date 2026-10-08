@@ -102,7 +102,7 @@ const job = await client.send([['BLPOP', 'jobs', '30']], { blockingTimeout: 30_0
 - 서버가 `MULTI`를 거부하면(`@transaction` 권한 없음) 쌓인 커맨드는 따로 실행되고 `exec()`는 `[MULTI]` 에러로 실패합니다.
 - 재연결로 `WATCH`가 풀리면 다음 `EXEC`는 `DISCARD`로 바뀌어 `null`을 돌려줍니다. 직접 보낸 `MULTI`가 풀리면 `MULTI`, `EXEC`, `DISCARD`, `RESET` 말고는 모두 거부합니다.
 - Redis 7.2 이상은 다른 응답이 남아 있으면 실패한 `AUTH`의 에러를 보내지 않습니다. 그래서 `AUTH`와 `HELLO`는 블로킹 커맨드를 포함해 앞선 응답이 모두 온 뒤에 보냅니다. 뒤의 커맨드는 그 응답을 기다리고, 타임아웃은 커맨드를 보낼 때부터 잽니다.
-- `send()`는 같은 배치에서 다른 커맨드 뒤에 오거나 트랜잭션 안에 있는 `AUTH`와 `HELLO`를 거부합니다. 그 순간 서버에 RESP3 push가 남아 있으면 에러는 여전히 빠지고, `AUTH`는 타임아웃됩니다.
+- `send()`는 같은 배치에서 다른 커맨드 뒤에 오거나 트랜잭션 안에 있는 `AUTH`와 `HELLO`를 거부합니다. 그 순간 서버에 RESP3 push가 남아 있으면 이때도 에러 응답이 오지 않아 `AUTH`가 타임아웃됩니다.
 
 </details>
 
@@ -196,7 +196,7 @@ await client.set('key', 'value', { expireInSeconds: 60, setIfKeyNotExists: true 
 await client.set('key', 'value', { expireInSeconds: 60, keepOriginalTimeToLive: true });
 ```
 
-옵션 타입은 커맨드가 받는 옵션 조합만 허용합니다. NX와 XX 중 하나, BYSCORE와 BYLEX 중 하나만 받고, BYLEX와 WITHSCORES는 함께 쓸 수 없는 식입니다. 항목 목록과 레코드는 검사하지 않으므로, 비어 있으면 그대로 보내고 서버가 거부합니다.
+옵션 타입은 커맨드가 받는 옵션 조합만 허용합니다. NX와 XX 중 하나, BYSCORE와 BYLEX 중 하나만 받고, BYLEX와 WITHSCORES는 함께 쓸 수 없는 식입니다. 항목 목록과 레코드는 검사하지 않아 비어 있어도 그대로 보냅니다. 다만 전체에 적용되는 `latencyReset([])`, `commandDocs([])`, `prefixes: []`를 준 `clientTracking()`은 거부합니다.
 
 </details>
 
@@ -638,7 +638,7 @@ sequenceDiagram
 ```typescript
 client.on('connect', () => {});                    // TCP 연결됨
 client.on('ready', () => {});                      // 핸드셰이크 완료, 커맨드 전송 가능
-client.on('close', (error) => {});                 // 연결 끊김 (autoReconnect이고 준비된 적이 있으면 재연결)
+client.on('close', (error) => {});                 // 연결 끊김 (autoReconnect가 켜져 있고 준비된 적이 있으면 재연결)
 client.on('reconnecting', (attempt, delay) => {}); // 재연결을 시도할 때마다
 client.on('reconnected', () => {});                // 재연결 성공
 client.on('end', () => {});                        // 클라이언트 종료 (quit)

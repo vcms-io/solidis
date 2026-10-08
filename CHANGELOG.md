@@ -399,7 +399,7 @@ Skip this step unless you build the internal classes yourself or write custom co
 
 ### Removed
 
-- Everything that [Upgrading from 0.4.x](#upgrading-from-04x), steps 1, 2, 3 and 8, lists as removed.
+- Everything that [Upgrading from 0.4.x](#upgrading-from-04x), steps 1, 2, 3, 5, 6 and 8, lists as removed or dropped.
 
 ### Fixed
 
@@ -439,6 +439,7 @@ Skip this step unless you build the internal classes yourself or write custom co
 - Integer arguments, such as increments, TTLs, timestamps and counts, were sent as JavaScript prints numbers, so one past `Number.MAX_SAFE_INTEGER` reached the server as another integer: `2 ** 60` as `1152921504606847000`. They are sent exactly now.
 - `extend()` typed a transaction only under the name `multi`, and typed any `multi` function as one. It now types exactly the functions that return a `multi()` transaction as transactions.
 - `zrandmember(key, undefined, true)` sent `WITHSCORES` without a count, which the server refuses.
+- A `-0` score, weight, increment, multiplier or time-series value was sent as `0`, so RedisJSON, RedisTimeSeries and Redis 6.2 stored `0` where the same raw command stores `-0`, and a JSON number reply of `-0.0` read `0`.
 - `findErrorInReplies()` missed errors inside RESP3 maps and sets.
 - `extend()` with an own `__proto__` key replaced the client's prototype, so `send()` and the other methods disappeared. That key is skipped now.
 - Client options inherited from a prototype, `uri` included, were ignored, except the nested objects. Every option is read by name now.

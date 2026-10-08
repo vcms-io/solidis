@@ -196,7 +196,7 @@ await client.set('key', 'value', { expireInSeconds: 60, setIfKeyNotExists: true 
 await client.set('key', 'value', { expireInSeconds: 60, keepOriginalTimeToLive: true });
 ```
 
-Option types accept only the option combinations the command accepts: one of NX and XX, one of BYSCORE and BYLEX, no WITHSCORES with BYLEX, and so on. Lists and records of items are not checked: an empty one is sent, and the server refuses it.
+Option types accept only the option combinations the command accepts: one of NX and XX, one of BYSCORE and BYLEX, no WITHSCORES with BYLEX, and so on. Lists and records of items are not checked: an empty one is sent as it is, except that `latencyReset([])`, `commandDocs([])` and `clientTracking()` with `prefixes: []` reject, since they would act on everything.
 
 </details>
 
